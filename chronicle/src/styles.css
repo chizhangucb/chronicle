@@ -302,3 +302,17 @@ h4 { margin: 6px 0; }
 .refine-item.step-failed { border-left-color: var(--danger); }
 .btn.warn { border-color: var(--warn); color: var(--warn); }
 .refine-item.step-skipped { border-left-color: var(--warn); opacity: 0.7; }
+
+/* Context Causality */
+.ctx-btn { color: var(--accent2); border: 1px solid var(--border); border-radius: 999px; }
+.ctx-panel { margin: 6px 0; border-left: 2px solid var(--accent2); padding-left: 10px; }
+.ctx-source { position: relative; padding: 3px 6px; margin: 3px 0; border-radius: 4px; cursor: pointer; overflow: hidden; }
+.ctx-source:hover { background: var(--bg3); }
+.ctx-conf { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(52, 201, 142, 0.10); pointer-events: none; }
+.ctx-source.direct .ctx-conf { background: rgba(52, 201, 142, 0.22); }
+.ctx-source.background { opacity: 0.6; }
+.ctx-label { font-family: var(--mono); font-size: 11.5px; color: var(--accent2); position: relative; }
+
+/* Tool policy */
+.policy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; margin-top: 8px; }
+.policy-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); }

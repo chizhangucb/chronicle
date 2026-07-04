@@ -79,6 +79,18 @@ Click **Import Sessions**, pick a scanned project, and open a session.
   pauses on errors; shell commands always require explicit per-step confirmation
   and run with the sandbox as cwd. No LLM calls; the real project is never touched.
 
+- **Context Causality** — local heuristic analysis (no LLM) links what the AI *read*
+  to what it *changed*: ⛓ badges on Write/Edit messages open a panel of source
+  reference blocks with confidence scores (95% read-this-exact-file → 20% background
+  context); click a source to jump to it.
+- **Gemini CLI import** — parses `~/.gemini/tmp/<hash>/` logs + saved chats; Gemini
+  doesn't record real project paths, so imports land as "Needs association" and a
+  one-click banner merges them into the right project.
+- **Project management** — rename (display-only), unlink a source into its own
+  project, manual path association with auto-merge.
+- **Tool policies** — per-service ⛭ policy panel in the MCP Hub; unchecked tools are
+  hidden from `tools/list` and blocked on `tools/call` (logged as interceptions).
+
 ## Architecture
 
 ```

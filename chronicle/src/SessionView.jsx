@@ -23,6 +23,7 @@ export default function SessionView({ sessionId, onBack }) {
   const [noRepo, setNoRepo] = useState(false);
   const [mode, setMode] = useState('playback'); // 'playback' | 'refine' | 'replay'
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [causality, setCausality] = useState(null); // {changes, mentioned}
   const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
   const [newCount, setNewCount] = useState(0);
   const esRef = useRef(null);
@@ -36,6 +37,12 @@ export default function SessionView({ sessionId, onBack }) {
       const firstUser = d.messages.find((m) => m.kind === 'user');
       setSelectedSeq(firstUser ? firstUser.seq : d.messages[0]?.seq ?? null);
     }).catch((e) => setError(String(e.message)));
+  }, [sessionId]);
+
+  // FR-CC: background causality analysis (local heuristic, no LLM)
+  useEffect(() => {
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/causality`)
+      .then((r) => r.json()).then(setCausality).catch(() => {});
   }, [sessionId]);
 
   // FR-LS-2: auto-activate live watching when the session file was recently written
@@ -196,7 +203,9 @@ export default function SessionView({ sessionId, onBack }) {
             )}
             {visible.map((m) => (
               <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
-                keyword={debounced} onClick={() => selectMessage(m.seq)} />
+                keyword={debounced} onClick={() => selectMessage(m.seq)}
+                causality={causality?.changes.find((c) => c.seq === m.seq)}
+                onJump={(seq) => selectMessage(seq, true)} />
             ))}
             {!visible.length && <div className="muted center pad8">No messages match the current filter.</div>}
           </div>
@@ -228,8 +237,9 @@ const KIND_META = {
   tool_result: { icon: '↩', label: 'Result', cls: 'tool-result' },
 };
 
-function MessageRow({ m, selected, keyword, onClick }) {
+function MessageRow({ m, selected, keyword, onClick, causality, onJump }) {
   const [expanded, setExpanded] = useState(false);
+  const [ctxOpen, setCtxOpen] = useState(false);
   const meta = KIND_META[m.kind] || { icon: '•', label: m.kind, cls: '' };
   let body = m.text || '';
   let title = null;
@@ -245,8 +255,29 @@ function MessageRow({ m, selected, keyword, onClick }) {
     <div data-seq={m.seq} className={`msg ${meta.cls} ${selected ? 'selected' : ''} ${m.live ? 'fade-in' : ''}`} onClick={onClick}>
       <div className="msg-head">
         <span className="msg-kind">{meta.icon} {title || meta.label}</span>
-        {m.ts && <span className="msg-ts muted">{new Date(m.ts).toLocaleTimeString()}</span>}
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {causality?.sources.length > 0 && (
+            <button className="btn tiny ghost ctx-btn" title="Context Causality — what drove this change?"
+              onClick={(e) => { e.stopPropagation(); setCtxOpen(!ctxOpen); }}>
+              ⛓ {causality.sources.length}
+            </button>
+          )}
+          {m.ts && <span className="msg-ts muted">{new Date(m.ts).toLocaleTimeString()}</span>}
+        </span>
       </div>
+      {ctxOpen && causality && (
+        <div className="ctx-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="small muted">What likely drove this change:</div>
+          {causality.sources.map((s) => (
+            <div key={s.seq} className={`ctx-source ${s.confidence > 0.8 ? 'direct' : s.confidence < 0.3 ? 'background' : ''}`}
+              onClick={() => onJump(s.seq)} title="Jump to source message">
+              <span className="ctx-conf" style={{ width: `${s.confidence * 100}%` }} />
+              <span className="ctx-label">{Math.round(s.confidence * 100)}% · {s.tool} {(s.file || s.pattern || '').split('/').pop()}</span>
+              <span className="muted small"> — {s.reason}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="msg-body">{highlight(shown, keyword)}</div>
       {isLong && (
         <button className="btn ghost tiny" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>

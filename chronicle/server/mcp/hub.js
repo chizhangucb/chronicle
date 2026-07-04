@@ -26,7 +26,9 @@ async function aggregateTools() {
   await Promise.all(services.map(async (svc) => {
     try {
       const client = await connect(svc);
+      const disabled = new Set(JSON.parse(svc.disabled_tools || '[]'));
       for (const t of client.tools) {
+        if (disabled.has(t.name)) continue; // FR-MCP-9: policy-filtered
         tools.push({ ...t, name: `${svc.name}${SEP}${t.name}`, description: `[${svc.name}] ${t.description ?? ''}` });
       }
     } catch (err) {
@@ -44,6 +46,10 @@ export async function callTool(namespaced, args) {
   const svc = listServices().find((s) => s.name === serviceName);
   if (!svc) throw new Error(`Unknown service '${serviceName}'`);
   if (!svc.enabled) throw new Error(`Service '${serviceName}' is disabled by policy`);
+  if (JSON.parse(svc.disabled_tools || '[]').includes(toolName)) {
+    logEntry('blocked', { tool: namespaced });
+    throw new Error(`Tool '${toolName}' on '${serviceName}' is blocked by tool policy`);
+  }
   const client = await connect(svc);
   return client.request('tools/call', { name: toolName, arguments: args ?? {} });
 }

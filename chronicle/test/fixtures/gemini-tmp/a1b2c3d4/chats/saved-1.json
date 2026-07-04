@@ -1,0 +1,1 @@
+{"sessionId": "chat9", "lastUpdated": "2026-07-02T11:00:00Z", "messages": [{"role": "user", "content": "Explain this regex"}, {"role": "model", "parts": [{"text": "It matches ISO dates."}]}]}
