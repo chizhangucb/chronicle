@@ -6,10 +6,31 @@ const KIND_LABELS = { user: 'User', assistant: 'AI', thinking: 'Thinking', tool_
 export default function ProjectDetail({ id, onBack, onOpenSession }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [assocPath, setAssocPath] = useState('');
 
-  useEffect(() => {
-    api.project(id).then(setData).catch((e) => setError(String(e.message)));
-  }, [id]);
+  const refresh = () => api.project(id).then(setData).catch((e) => setError(String(e.message)));
+  useEffect(() => { refresh(); }, [id]);
+
+  async function rename() {
+    const name = prompt('New display name (folder is not touched):', data.project.name);
+    if (!name) return;
+    await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    refresh();
+  }
+
+  async function associate(e) {
+    e.preventDefault();
+    const r = await fetch(`/api/projects/${id}/associate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: assocPath }) });
+    const body = await r.json();
+    if (!r.ok) return setError(body.error);
+    onBack(); // project may have merged into another — go back to the list
+  }
+
+  async function unlink(source) {
+    if (!confirm(`Unlink ${source} sessions into their own project?`)) return;
+    await fetch(`/api/projects/${id}/unlink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+    refresh();
+  }
 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data) return <div className="page center muted">Loading…</div>;
@@ -23,11 +44,26 @@ export default function ProjectDetail({ id, onBack, onOpenSession }) {
       <button className="btn ghost" onClick={onBack}>← Projects</button>
       <div className="project-head">
         <h2>{project.name}</h2>
+        <button className="btn tiny ghost" title="Rename (display only)" onClick={rename}>✎</button>
         <span className="muted">{project.path}</span>
         {git.isRepo
           ? <span className="pill git-pill">⎇ {git.branch} · {git.commitCount} commits</span>
           : <span className="pill warn-pill">No Git repo — time travel unavailable</span>}
+        {[...new Set(sessions.map((s) => s.source))].length > 1 &&
+          [...new Set(sessions.map((s) => s.source))].map((src) => (
+            <button key={src} className="btn tiny ghost" title={`Unlink ${src} into its own project`}
+              onClick={() => unlink(src)}>⛓✕ {src}</button>
+          ))}
       </div>
+      {(project.path.startsWith('gemini-project:') || project.path.includes('#')) && (
+        <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
+          onSubmit={associate}>
+          <span>Needs association — this source doesn't report a real project path. Point it at the code folder:</span>
+          <input className="search" style={{ flex: 1 }} placeholder="/path/to/project" value={assocPath}
+            onChange={(e) => setAssocPath(e.target.value)} />
+          <button className="btn small primary" type="submit" disabled={!assocPath}>Associate</button>
+        </form>
+      )}
 
       <div className="analytics-row">
         <div className="card stat"><div className="stat-num">{sessions.length}</div><div className="muted small">Sessions</div></div>

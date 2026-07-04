@@ -6,6 +6,7 @@ const SOURCES = [
   { key: 'codex', label: 'Codex', hint: '~/.codex/sessions/' },
   { key: 'cursor', label: 'Cursor', hint: 'workspaceStorage (read-only)' },
   { key: 'opencode', label: 'OpenCode', hint: 'opencode.db (read-only)' },
+  { key: 'gemini-cli', label: 'Gemini CLI', hint: '~/.gemini/tmp/ (associate to a folder after import)' },
 ];
 
 export default function ImportWizard({ onClose, onImported }) {

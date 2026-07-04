@@ -6,9 +6,11 @@ import { scanClaudeProjects, parseClaudeSession } from './parsers/claudeCode.js'
 import { scanCodexProjects, parseCodexSession } from './parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
+import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
+import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
-import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService } from './mcp/registry.js';
+import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools } from './mcp/registry.js';
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
 import { attachLiveStream, isLiveCandidate, liveStatus } from './live.js';
@@ -27,6 +29,7 @@ api.get('/scan', (req, res) => {
     codex: annotate(scanCodexProjects()),
     cursor: annotate(scanCursorProjects()),
     opencode: annotate(scanOpencodeProjects()),
+    'gemini-cli': annotate(scanGeminiProjects()),
   });
 });
 
@@ -46,6 +49,9 @@ api.post('/import', async (req, res) => {
     } else if (source === 'cursor') {
       if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Workspace directory not found' });
       parsed = parseCursorWorkspace(logDir);
+    } else if (source === 'gemini-cli') {
+      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Gemini project directory not found' });
+      parsed = parseGeminiProject(logDir);
     } else {
       return res.status(400).json({ error: `Unsupported source: ${source}` });
     }
@@ -137,6 +143,55 @@ api.post('/replay/open', (req, res) => {
   catch (err) { res.status(500).json({ error: String(err.message || err) }); }
 });
 
+// ---- Context Causality (FR-CC) ----
+
+api.get('/sessions/:id/causality', (req, res) => {
+  try { res.json(analyzeCausality(req.params.id)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+
+// ---- Project management (FR-PM-3/4/5) ----
+
+api.patch('/projects/:id', (req, res) => {
+  if (req.body.name) db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(req.body.name, req.params.id);
+  res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id));
+});
+
+// Manual association: move all sessions on a virtual/wrong path to a real path.
+// Auto-merges into an existing project at that path (FR-PM-3).
+api.post('/projects/:id/associate', (req, res) => {
+  const { path: newPath } = req.body;
+  if (!newPath || !fs.existsSync(newPath)) return res.status(400).json({ error: 'Path does not exist on disk' });
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  const target = upsertProject(newPath);
+  if (target.id !== project.id) {
+    db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ?').run(target.id, project.id);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+  }
+  res.json({ ok: true, projectId: target.id });
+});
+
+// Unlink a source: its sessions move to an independent project (FR-PM-5).
+api.post('/projects/:id/unlink', (req, res) => {
+  const { source } = req.body;
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project || !source) return res.status(400).json({ error: 'project/source required' });
+  const virtualPath = `${project.path}#${source}`;
+  const target = upsertProject(virtualPath);
+  db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(`${project.name} (${source})`, target.id);
+  db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ? AND source = ?')
+    .run(target.id, project.id, source);
+  res.json({ ok: true, projectId: target.id });
+});
+
+api.delete('/projects/:id', (req, res) => {
+  db.prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run(req.params.id);
+  db.prepare('DELETE FROM sessions WHERE project_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // ---- Security: scan, rules, redacted export ----
 
 api.get('/sessions/:id/security-check', (req, res) => {
@@ -202,7 +257,11 @@ api.post('/mcp/services', (req, res) => {
     res.json(listServices().map(maskService));
   } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
 });
-api.patch('/mcp/services/:id', (req, res) => { setServiceEnabled(req.params.id, !!req.body.enabled); res.json(listServices().map(maskService)); });
+api.patch('/mcp/services/:id', (req, res) => {
+  if (req.body.enabled !== undefined) setServiceEnabled(req.params.id, !!req.body.enabled);
+  if (req.body.disabledTools !== undefined) setDisabledTools(req.params.id, req.body.disabledTools);
+  res.json(listServices().map(maskService));
+});
 api.delete('/mcp/services/:id', (req, res) => { deleteService(req.params.id); res.json(listServices().map(maskService)); });
 api.get('/mcp/status', (req, res) => res.json(hubStatus()));
 api.get('/mcp/log', (req, res) => res.json(hubLog()));
