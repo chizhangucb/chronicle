@@ -26,12 +26,14 @@ export function buildPlan(sessionId) {
     let input;
     try { input = JSON.parse(m.tool_input); } catch { continue; }
     const t = m.tool_name;
+    const outOfScope = (f) => path.isAbsolute(f) && path.relative(project.path, f).startsWith('..');
     if (t === 'Write' && input.file_path) {
-      steps.push({ seq: m.seq, ts: m.ts, type: 'write', file: input.file_path, content: input.content ?? '', reasoning: lastReasoning });
+      steps.push({ seq: m.seq, ts: m.ts, type: 'write', file: input.file_path, content: input.content ?? '',
+        outOfScope: outOfScope(input.file_path), reasoning: lastReasoning });
     } else if (t === 'Edit' && input.file_path) {
       steps.push({ seq: m.seq, ts: m.ts, type: 'edit', file: input.file_path,
         old_string: input.old_string ?? '', new_string: input.new_string ?? '',
-        replace_all: !!input.replace_all, reasoning: lastReasoning });
+        replace_all: !!input.replace_all, outOfScope: outOfScope(input.file_path), reasoning: lastReasoning });
     } else if (t === 'Bash' && input.command) {
       steps.push({ seq: m.seq, ts: m.ts, type: 'command', command: input.command, reasoning: lastReasoning });
     }
