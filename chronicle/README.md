@@ -19,9 +19,11 @@ Click **Import Sessions**, pick a scanned project, and open a session.
 
 ## What's implemented
 
-- **Import wizard** — scans `~/.claude/projects/` (Claude Code) and `~/.codex/sessions/`
-  (Codex), shows session/message estimates, imports read-only into a local SQLite DB
-  (`~/.chronicle/chronicle.db`).
+- **Import wizard** — scans `~/.claude/projects/` (Claude Code), `~/.codex/sessions/`
+  (Codex), Cursor `workspaceStorage` (legacy chat + composer bubbles), and OpenCode's
+  `opencode.db`; shows session/message estimates; imports read-only into a local SQLite
+  DB (`~/.chronicle/chronicle.db`). SQLite sources are copied to temp (incl. WAL)
+  before reading — foreign databases are never opened live.
 - **Logical projects** — sessions from all tools aggregate by physical project path;
   Git badge, source icons.
 - **Playback Mode** — three-pane layout: typed message list (user / AI / thinking /
@@ -39,6 +41,16 @@ Click **Import Sessions**, pick a scanned project, and open a session.
   counts), combined filters, non-destructive.
 - **Analytics (lite)** — per-project sessions, message counts, active days, tool-call
   distribution, activity sparkline.
+- **Refine Mode** (`⌘3`) — distill a session into documentation or a reusable prompt:
+  original messages left, live preview right; Keep/Delete/Edit/Insert (`K`/`D`/`E`/`I`),
+  live token stats with % saved, full undo/redo (`⌘Z`/`⇧⌘Z`), `⌘S` export, or
+  "Export as Prompt". Tool results and thinking start pre-deleted as noise.
+- **Security Check** — one-click scan with built-in rules (API keys, passwords,
+  Bearer/JWT tokens, emails, phones, DB connection strings, private IPs — 13/13 recall
+  on seeded secrets), custom glob rules (`KITE-*`, `*@company.com`) with allow-list
+  exceptions and priority (custom > built-in, specific > broad), side-by-side
+  detected-vs-redacted preview, and one-way redacted markdown export. Originals are
+  never modified.
 
 ## Architecture
 
@@ -55,5 +67,7 @@ All data stays on this machine. Source logs and project repos are never written 
 
 ## Next phases (per PRD)
 
-Cursor/Gemini adapters · manual path association · Refine Mode · security redaction ·
-MCP Hub · Skills Hub · live streaming · remote SSH · Tauri desktop shell.
+Gemini CLI + Copilot Chat adapters · manual path association · pre-tool-use
+interception + interception records · share links · MCP Hub · Skills Hub ·
+live streaming · remote SSH · Replay Mode (deterministic re-execution) ·
+Context Causality · Tauri desktop shell.
