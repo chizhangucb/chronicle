@@ -17,7 +17,7 @@ export default function App() {
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
-  useEffect(refresh, [refresh]);
+  useEffect(() => { if (view.name === 'home') refresh(); }, [view.name, refresh]);
 
   return (
     <div className="app">

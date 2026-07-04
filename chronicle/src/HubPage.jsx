@@ -17,6 +17,27 @@ export default function HubPage() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('services'); // services | takeover | inspector
   const [invoke, setInvoke] = useState({ name: '', args: '{}' , result: null });
+  const [policyFor, setPolicyFor] = useState(null); // service id with open tool-policy panel
+  const [svcTools, setSvcTools] = useState({});     // service name -> [tool names]
+
+  async function loadPolicyTools() {
+    const t = await j('/api/mcp/tools');
+    const grouped = {};
+    for (const tool of t.tools) {
+      const [svc, name] = tool.name.split('__');
+      (grouped[svc] ??= []).push(name);
+    }
+    setSvcTools(grouped);
+  }
+
+  async function toggleTool(service, toolName) {
+    const disabled = new Set(JSON.parse(service.disabled_tools || '[]'));
+    disabled.has(toolName) ? disabled.delete(toolName) : disabled.add(toolName);
+    setServices(await j(`/api/mcp/services/${service.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabledTools: [...disabled] }),
+    }));
+  }
 
   async function refresh() {
     try {
@@ -80,13 +101,20 @@ export default function HubPage() {
       {tab === 'services' && (
         <div className="session-list">
           {services.map((s) => (
-            <div key={s.id} className="card scan-row" style={{ borderRadius: 10 }}>
+            <React.Fragment key={s.id}>
+            <div className="card scan-row" style={{ borderRadius: 10 }}>
               <div className="scan-info">
                 <div>{s.name} <span className="pill src-pill">{s.transport}</span>{' '}
                   <span className="muted small">{s.origin}</span></div>
                 <div className="muted small">{s.command ? `${s.command} ${JSON.parse(s.args || '[]').join(' ')}` : s.url}</div>
                 {s.env !== '{}' && <div className="muted small">env: {s.env}</div>}
               </div>
+              {s.enabled && (
+                <button className="btn tiny ghost" title="Tool policy: enable/disable individual tools"
+                  onClick={() => { setPolicyFor(policyFor === s.id ? null : s.id); if (!svcTools[s.name]) loadPolicyTools(); }}>
+                  ⛭ policy{JSON.parse(s.disabled_tools || '[]').length ? ` (${JSON.parse(s.disabled_tools || '[]').length} blocked)` : ''}
+                </button>
+              )}
               <button className={`btn small ${s.enabled ? 'primary' : ''}`}
                 onClick={async () => setServices(await j(`/api/mcp/services/${s.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !s.enabled }) }))}>
                 {s.enabled ? 'Enabled' : 'Disabled'}
@@ -96,6 +124,24 @@ export default function HubPage() {
                   setServices(await j(`/api/mcp/services/${s.id}`, { method: 'DELETE' }));
               }}>✕</button>
             </div>
+            {policyFor === s.id && (
+              <div className="card" style={{ marginLeft: 20 }}>
+                <div className="small muted">Tool policy — unchecked tools are hidden from clients and blocked on call:</div>
+                {(() => {
+                  const disabled = JSON.parse(s.disabled_tools || '[]');
+                  const all = [...new Set([...(svcTools[s.name] || []), ...disabled])].sort();
+                  if (!all.length) return <div className="muted small pad8">Loading tools… (service must be reachable)</div>;
+                  return <div className="policy-grid">
+                    {all.map((t) => (
+                      <label key={t} className="small policy-item">
+                        <input type="checkbox" checked={!disabled.includes(t)} onChange={() => toggleTool(s, t)} /> {t}
+                      </label>
+                    ))}
+                  </div>;
+                })()}
+              </div>
+            )}
+            </React.Fragment>
           ))}
           {!services.length && <div className="muted center pad8">No services yet — run Config takeover to import from your tools.</div>}
         </div>

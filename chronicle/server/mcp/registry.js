@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS mcp_services (
   imported_at TEXT DEFAULT (datetime('now'))
 );`);
 
+try { db.exec("ALTER TABLE mcp_services ADD COLUMN disabled_tools TEXT DEFAULT '[]'"); } catch {}
+
+// Tool Policy (FR-MCP-9): per-service tool disable list
+export function setDisabledTools(id, tools) {
+  db.prepare('UPDATE mcp_services SET disabled_tools = ? WHERE id = ?')
+    .run(JSON.stringify(tools ?? []), id);
+}
+
 const HOME = os.homedir();
 
 // ---- Source config scanners (FR-MCP-2) ----
