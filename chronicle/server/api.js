@@ -9,7 +9,9 @@ import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
 import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
 import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
-import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
+import { scanSession, listRules, addRule, deleteRule, toggleRule, preToolUseCheck, listInterceptions } from './security.js';
+import { createShare, listShares, revokeShare } from './shares.js';
+import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools } from './mcp/registry.js';
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
@@ -30,6 +32,7 @@ api.get('/scan', (req, res) => {
     cursor: annotate(scanCursorProjects()),
     opencode: annotate(scanOpencodeProjects()),
     'gemini-cli': annotate(scanGeminiProjects()),
+    'copilot-chat': annotate(scanCopilotProjects()),
   });
 });
 
@@ -52,6 +55,9 @@ api.post('/import', async (req, res) => {
     } else if (source === 'gemini-cli') {
       if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Gemini project directory not found' });
       parsed = parseGeminiProject(logDir);
+    } else if (source === 'copilot-chat') {
+      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Workspace directory not found' });
+      parsed = parseCopilotWorkspace(logDir);
     } else {
       return res.status(400).json({ error: `Unsupported source: ${source}` });
     }
@@ -223,6 +229,53 @@ api.get('/sessions/:id/export-redacted', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${project.name}-redacted.md"`);
   res.send(lines.join('\n'));
 });
+
+// Pre-tool-use interception (FR-SEC-5/6) — called by hooks/chronicle-guard.mjs
+api.post('/security/pretooluse', (req, res) => {
+  try {
+    res.json(preToolUseCheck(req.body, (p) => {
+      try {
+        if (!fs.existsSync(p) || fs.statSync(p).size > 2 * 1024 * 1024) return null;
+        return fs.readFileSync(p, 'utf8');
+      } catch { return null; }
+    }));
+  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.get('/security/interceptions', (req, res) => res.json(listInterceptions()));
+
+// Hook installer — explicit user action; backs up settings first.
+api.post('/security/install-hook', (req, res) => {
+  try {
+    const os = process.env.HOME || process.env.USERPROFILE;
+    const settingsPath = path.join(os, '.claude', 'settings.json');
+    const guardPath = path.resolve(import.meta.dirname, '..', 'hooks', 'chronicle-guard.mjs');
+    let settings = {};
+    if (fs.existsSync(settingsPath)) {
+      fs.mkdirSync(path.join(os, '.chronicle', 'backups', 'hooks'), { recursive: true });
+      const backup = path.join(os, '.chronicle', 'backups', 'hooks', `settings-${Date.now()}.json`);
+      fs.copyFileSync(settingsPath, backup);
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+    settings.hooks ??= {};
+    settings.hooks.PreToolUse ??= [];
+    const command = `node "${guardPath}"`;
+    const already = JSON.stringify(settings.hooks.PreToolUse).includes('chronicle-guard');
+    if (!already) {
+      settings.hooks.PreToolUse.push({ matcher: 'Read|Grep|Bash|WebFetch', hooks: [{ type: 'command', command }] });
+      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    }
+    res.json({ ok: true, installed: !already, settingsPath, command });
+  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+
+// Share links (FR-SEC-8)
+api.post('/sessions/:id/share', (req, res) => {
+  try { res.json(createShare(req.params.id, req.body?.days ?? 7)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.get('/shares', (req, res) => res.json(listShares()));
+api.delete('/shares/:id', (req, res) => { revokeShare(req.params.id); res.json(listShares()); });
 
 api.get('/security/rules', (req, res) => res.json(listRules()));
 api.post('/security/rules', (req, res) => {

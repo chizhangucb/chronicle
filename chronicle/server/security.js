@@ -11,6 +11,20 @@ CREATE TABLE IF NOT EXISTS security_rules (
   builtin_override TEXT           -- if set, disables that builtin rule id
 );`);
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS interceptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT DEFAULT (datetime('now')),
+  tool_name TEXT,
+  file_path TEXT,
+  rules TEXT,          -- JSON array of matched rule names
+  sample TEXT,         -- first blocked match (truncated)
+  action TEXT          -- 'blocked' | 'flagged'
+);`);
+
+// Rules that justify hard-blocking a tool call (vs. merely flagging).
+const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
+
 // FR-SEC-1: built-in detection rules — meaningful placeholders keep structure readable.
 export const BUILTIN_RULES = [
   {
@@ -120,6 +134,41 @@ export function scanText(text) {
   }
   redacted += text.slice(cursor);
   return { findings, redacted };
+}
+
+// Pre-tool-use detection (FR-SEC-5): scan tool content BEFORE it reaches the
+// model. For Read-like tools we scan the actual file contents; otherwise the
+// tool input itself. Only high-severity findings block; the rest are flagged.
+export function preToolUseCheck({ tool_name, tool_input }, readFileFn) {
+  const input = typeof tool_input === 'string' ? safeParse(tool_input) : (tool_input ?? {});
+  let content = '';
+  let filePath = input.file_path || input.path || null;
+  if (filePath && /^(Read|read_file|View|Grep|NotebookRead)$/i.test(tool_name || '') && readFileFn) {
+    content = readFileFn(filePath) ?? '';
+  } else {
+    content = JSON.stringify(input);
+  }
+  const { findings } = scanText(content);
+  if (!findings.length) return { decision: 'allow', findings: [] };
+  const blocking = findings.filter((f) => HIGH_SEVERITY.has(f.rule) || f.rule.startsWith('custom-'));
+  const action = blocking.length ? 'blocked' : 'flagged';
+  db.prepare('INSERT INTO interceptions (tool_name, file_path, rules, sample, action) VALUES (?, ?, ?, ?, ?)')
+    .run(tool_name ?? null, filePath, JSON.stringify([...new Set(findings.map((f) => f.ruleName))]),
+         (blocking[0] ?? findings[0]).match.slice(0, 80), action);
+  return {
+    decision: blocking.length ? 'block' : 'allow',
+    action,
+    findings: findings.map((f) => ({ rule: f.ruleName, match: f.match.slice(0, 60) })),
+    reason: blocking.length
+      ? `Chronicle blocked this tool call: ${blocking.length} high-risk secret(s) detected (${[...new Set(blocking.map((f) => f.ruleName))].join(', ')})${filePath ? ` in ${filePath}` : ''}. Redact or allowlist via Chronicle → Security before retrying.`
+      : null,
+  };
+}
+
+function safeParse(s) { try { return JSON.parse(s); } catch { return {}; } }
+
+export function listInterceptions(limit = 200) {
+  return db.prepare('SELECT * FROM interceptions ORDER BY id DESC LIMIT ?').all(limit);
 }
 
 // Scan a whole session's messages (FR-SEC-4 preview payload)

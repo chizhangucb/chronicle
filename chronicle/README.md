@@ -91,6 +91,20 @@ Click **Import Sessions**, pick a scanned project, and open a session.
 - **Tool policies** — per-service ⛭ policy panel in the MCP Hub; unchecked tools are
   hidden from `tools/list` and blocked on `tools/call` (logged as interceptions).
 
+- **Real-time protection (pre-tool-use interception)** — `hooks/chronicle-guard.mjs`
+  is a Claude Code `PreToolUse` hook: before Read/Grep/Bash/WebFetch runs, Chronicle
+  scans the tool content (including actual file contents for Read). High-risk secrets
+  (API keys, passwords, tokens, DB credentials) block the call with an explanation;
+  lower-risk matches are flagged. All events land in Security → Interception records.
+  One-click installer (backs up `~/.claude/settings.json` first); fails open if
+  Chronicle isn't running.
+- **Share links** — 🛡 Security Check → "Create share link" mints a tokenized URL
+  (default 7-day validity) served by the local app. The share stores a redacted copy
+  frozen at creation — originals never leave the machine. Security → Share management
+  lists links with view counts and immediate revocation.
+- **Copilot Chat import** — parses VS Code `workspaceStorage/<hash>/chatSessions/`
+  (stable/Insiders/VSCodium), completing the 6-tool compatibility matrix.
+
 ## Architecture
 
 ```
