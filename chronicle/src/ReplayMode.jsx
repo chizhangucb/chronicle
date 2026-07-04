@@ -67,11 +67,27 @@ export default function ReplayMode({ sessionId }) {
     setCurrent((c) => Math.min(plan.steps.length - 1, c + 1));
   }
 
-  // Auto-play (FR-RP-5): advances until a command, error, or the end.
+  // Auto-play (FR-RP-5): executes write/edit steps, skips commands (they always
+  // need explicit confirmation), pauses on errors, stops at the end.
   useEffect(() => {
     if (!playing || !started || !step) return;
-    if (step.type === 'command') { setPlaying(false); return; } // commands always need a human
-    if (results[step.seq]?.ok) { advance(); return; }
+    const isLast = current >= plan.steps.length - 1;
+    const r = results[step.seq];
+    if ((step.type === 'command' || step.outOfScope) && !r?.ok) {
+      if (!r?.skipped) {
+        setResults((cur) => ({ ...cur, [step.seq]: { skipped: true, result: step.outOfScope
+          ? 'skipped by auto-play — target file is outside the project (sandbox only replays project files)'
+          : 'skipped by auto-play — commands need manual confirmation' } }));
+        return; // effect re-runs via results change, then advances below
+      }
+      if (isLast) { setPlaying(false); return; }
+      advance(); return;
+    }
+    if (r?.ok || r?.skipped) {
+      if (isLast) { setPlaying(false); return; }
+      advance(); return;
+    }
+    if (r?.error) { setPlaying(false); return; } // paused on failure — user can Retry
     playRef.current = setTimeout(() => execute(false, true), SPEEDS[speed]);
     return () => clearTimeout(playRef.current);
   }, [playing, current, started, results]);
@@ -115,10 +131,10 @@ export default function ReplayMode({ sessionId }) {
             const r = results[s.seq];
             return (
               <div key={s.seq} data-idx={i}
-                className={`refine-item ${i === current ? 'selected' : ''} ${r?.ok ? 'step-done' : ''} ${r && !r.ok && !r.needsConfirmation ? 'step-failed' : ''}`}
+                className={`refine-item ${i === current ? 'selected' : ''} ${r?.ok ? 'step-done' : ''} ${r?.error ? 'step-failed' : ''} ${r?.skipped ? 'step-skipped' : ''}`}
                 onClick={() => setCurrent(i)}>
                 <div className="refine-item-head">
-                  <span className="msg-kind small">{STEP_ICON[s.type]} {s.type} {r?.ok && '✓'}{r && !r.ok && !r.needsConfirmation && ' ✕'}</span>
+                  <span className="msg-kind small">{STEP_ICON[s.type]} {s.type} {r?.ok && '✓'}{r?.error && ' ✕'}{r?.skipped && ' ↷'}</span>
                   <span className="muted small">#{i + 1}</span>
                 </div>
                 <div className="refine-item-body">{s.file || s.command}</div>
@@ -165,10 +181,10 @@ export default function ReplayMode({ sessionId }) {
                   <div className="error-banner small">old_string not found in sandbox file — the file state differs (a prior step may have been skipped). You can Skip or Retry after executing earlier steps.</div>
                 )}
                 {results[step.seq] && (
-                  <div className={results[step.seq].ok ? 'card' : 'error-banner'} style={{ marginTop: 8 }}>
-                    <div className="small muted">{results[step.seq].ok ? 'Result' : 'Failed'}</div>
+                  <div className={results[step.seq].error ? 'error-banner' : 'card'} style={{ marginTop: 8 }}>
+                    <div className="small muted">{results[step.seq].ok ? 'Result' : results[step.seq].error ? 'Failed' : results[step.seq].skipped ? 'Skipped' : 'Waiting'}</div>
                     <pre className="sec-text">{results[step.seq].result || results[step.seq].error || (results[step.seq].needsConfirmation ? 'Command requires explicit confirmation — click "⚠ Execute command".' : '')}</pre>
-                    {!results[step.seq].ok && !results[step.seq].needsConfirmation && (
+                    {results[step.seq].error && (
                       <button className="btn small" onClick={() => execute(step.type === 'command', false)}>Retry</button>
                     )}
                   </div>
@@ -176,7 +192,7 @@ export default function ReplayMode({ sessionId }) {
               </div>
             </>
           )}
-          {started && current === plan.steps.length - 1 && results[step?.seq]?.ok && (
+          {started && current === plan.steps.length - 1 && (results[step?.seq]?.ok || results[step?.seq]?.skipped) && (
             <div className="card center" style={{ marginTop: 10 }}>
               <strong>Replay complete 🎉</strong>
               <button className="btn primary small" style={{ marginTop: 6 }} onClick={() => post('/api/replay/open', { sessionId })}>Open workspace in Finder</button>
