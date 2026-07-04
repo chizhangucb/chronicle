@@ -16,6 +16,35 @@ CREATE TABLE IF NOT EXISTS mcp_services (
 );`);
 
 try { db.exec("ALTER TABLE mcp_services ADD COLUMN disabled_tools TEXT DEFAULT '[]'"); } catch {}
+try { db.exec("ALTER TABLE mcp_services ADD COLUMN project_path TEXT"); } catch {}
+
+// Project scoping (FR-MCP-8/10): a service bound to a project path is only
+// exposed to clients whose root is inside that path (longest-prefix-match).
+export function setProjectPath(id, projectPath) {
+  db.prepare('UPDATE mcp_services SET project_path = ? WHERE id = ?').run(projectPath || null, id);
+}
+
+export function servicesForRoot(root) {
+  const all = listServices().filter((s) => s.enabled);
+  if (root === '*') return all; // inspector / unscoped admin view
+  if (!root) return all.filter((s) => !s.project_path);
+  const scoped = all.filter((s) => s.project_path && root.startsWith(s.project_path));
+  if (!scoped.length) return all.filter((s) => !s.project_path);
+  // LPM: prefer the deepest matching project scope, plus globals
+  const deepest = Math.max(...scoped.map((s) => s.project_path.length));
+  return [...all.filter((s) => !s.project_path), ...scoped.filter((s) => s.project_path.length === deepest)];
+}
+
+// Credential management (FR-MCP-6 lite): bearer token stored per service,
+// applied as Authorization header on upstream calls; masked in all API output.
+export function setCredential(id, bearer) {
+  const svc = db.prepare('SELECT * FROM mcp_services WHERE id = ?').get(id);
+  if (!svc) throw new Error('Service not found');
+  const headers = JSON.parse(svc.headers || '{}');
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  else delete headers.Authorization;
+  db.prepare('UPDATE mcp_services SET headers = ? WHERE id = ?').run(JSON.stringify(headers), id);
+}
 
 // Tool Policy (FR-MCP-9): per-service tool disable list
 export function setDisabledTools(id, tools) {

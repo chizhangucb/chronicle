@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import express from 'express';
-import { listServices } from './registry.js';
+import { listServices, servicesForRoot } from './registry.js';
 import { connect, connectedStdio } from './upstream.js';
 
 // Aggregating MCP server (FR-MCP-1/14): a Streamable-HTTP /mcp endpoint that
@@ -19,8 +19,9 @@ function logEntry(direction, payload, extra = {}) {
   if (hubState.log.length > 300) hubState.log.splice(0, hubState.log.length - 300);
 }
 
-async function aggregateTools() {
-  const services = listServices().filter((s) => s.enabled);
+async function aggregateTools(root = null) {
+  // FR-MCP-10: route by client root (longest-prefix-match); no root = globals only
+  const services = servicesForRoot(root);
   const tools = [];
   const errors = {};
   await Promise.all(services.map(async (svc) => {
@@ -104,7 +105,12 @@ mcpEndpoint.post('/', async (req, res) => {
     if (Array.isArray(msg)) return fail(-32600, 'Batch requests not supported');
     if (msg?.method === 'initialize') {
       const sid = crypto.randomUUID();
-      hubState.sessions.set(sid, { createdAt: Date.now(), clientInfo: msg.params?.clientInfo });
+      // Root discovery: explicit header, or rootUri/workspaceFolders from initialize
+      const root = req.headers['x-chronicle-root']
+        || msg.params?.rootUri?.replace('file://', '')
+        || msg.params?.workspaceFolders?.[0]?.uri?.replace('file://', '')
+        || null;
+      hubState.sessions.set(sid, { createdAt: Date.now(), clientInfo: msg.params?.clientInfo, root });
       res.setHeader('MCP-Session-Id', sid);
       return reply({
         protocolVersion: msg.params?.protocolVersion || PROTOCOL_VERSION,
@@ -115,7 +121,8 @@ mcpEndpoint.post('/', async (req, res) => {
     if (msg?.method?.startsWith('notifications/')) { logEntry('note', msg); return res.status(202).end(); }
     if (msg?.method === 'ping') return reply({});
     if (msg?.method === 'tools/list') {
-      const { tools } = await aggregateTools();
+      const root = req.headers['x-chronicle-root'] || hubState.sessions.get(sessionId)?.root || null;
+      const { tools } = await aggregateTools(root);
       return reply({ tools });
     }
     if (msg?.method === 'tools/call') {

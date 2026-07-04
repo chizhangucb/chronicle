@@ -316,3 +316,4 @@ h4 { margin: 6px 0; }
 /* Tool policy */
 .policy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; margin-top: 8px; }
 .policy-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); }
+.window-btn { align-self: center; border-radius: 999px; margin: 4px 0; }

@@ -20,6 +20,13 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   const pct = (t) => ((new Date(t).getTime() - range.min) / (range.max - range.min)) * 100;
   const cur = currentTs ? pct(currentTs) : 0;
 
+  // Decimate ticks on huge sessions: keep every user dot visible up to 600,
+  // thin AI/tool ticks to ~600 — commits always render.
+  const users = messages.filter((m) => m.ts && m.kind === 'user');
+  const others = messages.filter((m) => m.ts && m.kind !== 'user');
+  const thin = (arr, cap) => arr.length <= cap ? arr : arr.filter((_, i) => i % Math.ceil(arr.length / cap) === 0);
+  const ticks = [...thin(users, 600), ...thin(others, 600)];
+
   function tsFromEvent(e) {
     const rect = ref.current.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
@@ -52,7 +59,7 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
           else if (e.key === 'End') { e.preventDefault(); onSeek(range.max); }
         }}>
         <div className="tl-track" />
-        {messages.map((m) => m.ts && (
+        {ticks.map((m) => (
           <span key={m.seq}
             className={`tick ${m.kind === 'user' ? 'tick-user' : 'tick-ai'}`}
             style={{ left: `${pct(m.ts)}%` }}

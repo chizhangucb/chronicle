@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const KIND_LABELS = { user: 'User', assistant: 'AI', thinking: 'Thinking', tool_use: 'Tool calls', tool_result: 'Tool results' };
 
@@ -66,11 +67,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession }) {
       )}
 
       <div className="analytics-row">
-        <div className="card stat"><div className="stat-num">{sessions.length}</div><div className="muted small">Sessions</div></div>
-        <div className="card stat"><div className="stat-num">{totalMsgs}</div><div className="muted small">Messages</div></div>
-        <div className="card stat"><div className="stat-num">{analytics.activity.length}</div><div className="muted small">Active days</div></div>
+        <div className="card stat"><div className="stat-num">{sessions.length}</div><div className="muted small">{t('Sessions')}</div></div>
+        <div className="card stat"><div className="stat-num">{totalMsgs}</div><div className="muted small">{t('Messages')}</div></div>
+        <div className="card stat"><div className="stat-num">{analytics.activity.length}</div><div className="muted small">{t('Active days')}</div></div>
         <div className="card grow">
-          <div className="small muted" style={{ marginBottom: 6 }}>Tool call distribution</div>
+          <div className="small muted" style={{ marginBottom: 6 }}>{t('Tool call distribution')}</div>
           {analytics.toolDist.slice(0, 6).map((t) => (
             <div key={t.name} className="bar-row">
               <span className="bar-label">{t.name}</span>
@@ -81,7 +82,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession }) {
           {!analytics.toolDist.length && <div className="muted small">No tool calls recorded.</div>}
         </div>
         <div className="card grow">
-          <div className="small muted" style={{ marginBottom: 6 }}>Activity</div>
+          <div className="small muted" style={{ marginBottom: 6 }}>{t('Activity')}</div>
           <div className="spark">
             {analytics.activity.map((a) => (
               <div key={a.day} className="spark-bar" title={`${a.day}: ${a.count}`}
@@ -91,7 +92,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession }) {
         </div>
       </div>
 
-      <h3 className="page-title">Sessions</h3>
+      <h3 className="page-title">{t('Sessions')}</h3>
       <div className="session-list">
         {sessions.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
