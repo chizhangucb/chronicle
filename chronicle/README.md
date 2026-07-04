@@ -67,6 +67,18 @@ Click **Import Sessions**, pick a scanned project, and open a session.
   symlinks it created. Cards with search, local-only tags/ratings, link status per
   tool, and a detail view.
 
+- **Live streaming** — sessions whose log file was written in the last 5 minutes
+  auto-activate a live tail (incremental JSONL reads → SSE). New messages fade in,
+  auto-scroll when at the bottom, a floating "N new messages" button otherwise;
+  ● LIVE / Reconnecting / Stopped indicator with exponential-backoff recovery and
+  idle slow-down. Watchers stop automatically when the viewer closes.
+- **Replay Mode** (`⌘4`) — deterministic re-execution of a session's Write / Edit /
+  Bash operations in an isolated sandbox at `~/.chronicle/replay/<id>/`, seeded from
+  the Git snapshot at session start. Step-by-step with the AI's reasoning and an
+  upcoming-diff preview; Execute / Skip / Look Back; auto-play at 1x/2x/5x that
+  pauses on errors; shell commands always require explicit per-step confirmation
+  and run with the sandbox as cwd. No LLM calls; the real project is never touched.
+
 ## Architecture
 
 ```
