@@ -52,6 +52,21 @@ Click **Import Sessions**, pick a scanned project, and open a session.
   detected-vs-redacted preview, and one-way redacted markdown export. Originals are
   never modified.
 
+- **MCP Hub** — a real aggregating MCP server at `http://localhost:4173/mcp`
+  (Streamable HTTP, 2025-03-26 spec: `MCP-Session-Id`, origin validation, POST
+  JSON-RPC). Point any AI tool at it and every upstream service (stdio child
+  processes + remote HTTP) appears as namespaced `service__tool` tools. Includes
+  one-click **config takeover** from Claude Code / Cursor / Gemini / Codex configs
+  (New/Updated/Conflict classification, auto-backup to `~/.chronicle/backups/mcp/`,
+  sources never rewritten), per-service enable/disable, masked secrets, live status,
+  and a built-in **Inspector** (JSON-RPC log + manual tool invocation).
+- **Skills Hub** — scans `~/.claude/skills`, `~/.agents/skills`, `~/.cursor/skills`
+  etc., parses `SKILL.md` frontmatter, imports into central storage at
+  `~/.chronicle/skills/`, and distributes via symlinks to tool directories.
+  Strictly additive: it never overwrites a real skill directory and only removes
+  symlinks it created. Cards with search, local-only tags/ratings, link status per
+  tool, and a detail view.
+
 ## Architecture
 
 ```

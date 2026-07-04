@@ -8,6 +8,9 @@ import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './pars
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
+import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService } from './mcp/registry.js';
+import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
+import * as skills from './skills.js';
 
 export const api = express();
 api.use(express.json());
@@ -140,6 +143,62 @@ api.post('/security/rules', (req, res) => {
 });
 api.delete('/security/rules/:id', (req, res) => { deleteRule(req.params.id); res.json(listRules()); });
 api.patch('/security/rules/:id', (req, res) => { toggleRule(req.params.id, !!req.body.enabled); res.json(listRules()); });
+
+// ---- MCP Hub (FR-MCP) ----
+
+api.get('/mcp/services', (req, res) => res.json(listServices().map(maskService)));
+api.get('/mcp/scan', (req, res) => res.json(classifyScan().map((i) => maskService({ ...i, env: i.env, headers: i.headers }))));
+api.post('/mcp/takeover', (req, res) => {
+  try {
+    const backupDir = backupSources();
+    const wanted = new Set(req.body.names || []);
+    const items = classifyScan().filter((i) => wanted.has(i.name));
+    for (const item of items) upsertService(item);
+    res.json({ ok: true, imported: items.length, backupDir, services: listServices().map(maskService) });
+  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/mcp/services', (req, res) => {
+  try {
+    const { name, transport, command, args, env, url, headers } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    upsertService({ name, transport: transport || (url ? 'http' : 'stdio'), command: command ?? null,
+      args: JSON.stringify(args ?? []), env: JSON.stringify(env ?? {}), url: url ?? null,
+      headers: JSON.stringify(headers ?? {}), origin: 'manual' });
+    res.json(listServices().map(maskService));
+  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.patch('/mcp/services/:id', (req, res) => { setServiceEnabled(req.params.id, !!req.body.enabled); res.json(listServices().map(maskService)); });
+api.delete('/mcp/services/:id', (req, res) => { deleteService(req.params.id); res.json(listServices().map(maskService)); });
+api.get('/mcp/status', (req, res) => res.json(hubStatus()));
+api.get('/mcp/log', (req, res) => res.json(hubLog()));
+api.get('/mcp/tools', async (req, res) => res.json(await aggregateTools()));
+api.post('/mcp/call', async (req, res) => {
+  try { res.json({ ok: true, result: await callTool(req.body.name, req.body.arguments) }); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+
+// ---- Skills Hub (FR-SK) ----
+
+api.get('/skills', (req, res) => res.json(skills.listSkills()));
+api.get('/skills/scan', (req, res) => res.json(skills.scanSkills()));
+api.post('/skills/import', (req, res) => {
+  try { res.json({ ok: true, skill: skills.importSkill(req.body.path, req.body.origin) }); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.get('/skills/:id', (req, res) => {
+  const s = skills.skillContent(req.params.id);
+  s ? res.json(s) : res.status(404).json({ error: 'Not found' });
+});
+api.post('/skills/:id/link', (req, res) => {
+  try { skills.linkSkill(req.params.id, req.body.tool); res.json(skills.listSkills()); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/skills/:id/unlink', (req, res) => {
+  try { skills.unlinkSkill(req.params.id, req.body.tool); res.json(skills.listSkills()); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.patch('/skills/:id', (req, res) => { skills.updateSkillMeta(req.params.id, req.body); res.json(skills.listSkills()); });
+api.delete('/skills/:id', (req, res) => { skills.deleteSkill(req.params.id, req.query.removeFiles === '1'); res.json(skills.listSkills()); });
 
 // ---- Git snapshot engine ----
 

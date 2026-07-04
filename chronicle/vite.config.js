@@ -12,6 +12,13 @@ function chronicleApi() {
           api(req, res, next);
         } catch (err) { next(err); }
       });
+      // Aggregating MCP Hub endpoint (Streamable HTTP)
+      server.middlewares.use('/mcp', async (req, res, next) => {
+        try {
+          const { mcpEndpoint } = await server.ssrLoadModule('/server/mcp/hub.js');
+          mcpEndpoint(req, res, next);
+        } catch (err) { next(err); }
+      });
     },
   };
 }

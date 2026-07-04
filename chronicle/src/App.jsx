@@ -3,6 +3,8 @@ import { api } from './api.js';
 import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
+import HubPage from './HubPage.jsx';
+import SkillsPage from './SkillsPage.jsx';
 
 const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemini-cli': '✦' };
 
@@ -24,6 +26,12 @@ export default function App() {
           <span className="brand-mark">◷</span> Chronicle
           <span className="brand-sub">AI Session Time Machine</span>
         </div>
+        <nav className="topnav">
+          <button className={`chip ${view.name === 'home' || view.name === 'project' || view.name === 'session' ? 'on' : ''}`}
+            onClick={() => setView({ name: 'home' })}>◷ Projects</button>
+          <button className={`chip ${view.name === 'hub' ? 'on' : ''}`} onClick={() => setView({ name: 'hub' })}>⬢ MCP Hub</button>
+          <button className={`chip ${view.name === 'skills' ? 'on' : ''}`} onClick={() => setView({ name: 'skills' })}>✦ Skills</button>
+        </nav>
         {view.name === 'home' && (
           <button className="btn primary" onClick={() => setWizardOpen(true)}>+ Import Sessions</button>
         )}
@@ -42,6 +50,8 @@ export default function App() {
         <SessionView sessionId={view.id}
           onBack={() => setView({ name: 'project', id: view.projectId })} />
       )}
+      {view.name === 'hub' && <HubPage />}
+      {view.name === 'skills' && <SkillsPage />}
 
       {wizardOpen && (
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />

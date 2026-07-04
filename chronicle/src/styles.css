@@ -279,3 +279,8 @@ mark { background: #b58a2a; color: #fff; border-radius: 2px; padding: 0 1px; }
 }
 mark.danger { background: rgba(229, 104, 75, 0.35); color: #ffb4a0; outline: 1px solid var(--danger); border-radius: 2px; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Topnav */
+.topnav { display: flex; gap: 6px; flex: 1; margin-left: 24px; }
+.topnav .chip { font-size: 13px; padding: 4px 14px; }
+h4 { margin: 6px 0; }
