@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
+import { t } from './i18n.js';
 import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
@@ -7,9 +8,9 @@ import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 
 const FILTER_CHIPS = [
-  { key: 'conversation', label: 'Conversation', kinds: ['user', 'assistant'] },
-  { key: 'tool', label: 'Tool', kinds: ['tool_use', 'tool_result'] },
-  { key: 'thinking', label: 'Thinking', kinds: ['thinking'] },
+  { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
+  { key: 'tool', label: t('Tool'), kinds: ['tool_use', 'tool_result'] },
+  { key: 'thinking', label: t('Thinking'), kinds: ['thinking'] },
 ];
 
 export default function SessionView({ sessionId, onBack }) {
@@ -104,6 +105,14 @@ export default function SessionView({ sessionId, onBack }) {
 
   const selected = messages.find((m) => m.seq === selectedSeq) || null;
 
+  // FR-COMPAT-2: degrade gracefully on huge sessions — render a window of
+  // messages around the selection instead of the full list.
+  const WINDOW = 400;
+  const selIdx = Math.max(0, visible.findIndex((m) => m.seq === selectedSeq));
+  const winStart = visible.length > WINDOW ? Math.max(0, Math.min(selIdx - WINDOW / 2, visible.length - WINDOW)) : 0;
+  const winEnd = Math.min(visible.length, winStart + WINDOW);
+  const windowed = visible.slice(winStart, winEnd);
+
   // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
   useEffect(() => {
     if (!data || !selected?.ts) return;
@@ -158,10 +167,10 @@ export default function SessionView({ sessionId, onBack }) {
       <div className="session-toolbar">
         <button className="btn ghost" onClick={onBack}>← {data.project.name}</button>
         <div className="mode-switch">
-          <button className={`chip ${mode === 'playback' ? 'on' : ''}`} onClick={() => setMode('playback')} title="Playback Mode (⌘2)">▶ Playback</button>
-          <button className={`chip ${mode === 'refine' ? 'on' : ''}`} onClick={() => setMode('refine')} title="Refine Mode (⌘3)">✂ Refine</button>
-          <button className={`chip ${mode === 'replay' ? 'on' : ''}`} onClick={() => setMode('replay')} title="Replay Mode (⌘4)">⟳ Replay</button>
-          <button className="chip security" onClick={() => setSecurityOpen(true)}>🛡 Security Check</button>
+          <button className={`chip ${mode === 'playback' ? 'on' : ''}`} onClick={() => setMode('playback')} title="Playback Mode (⌘2)">▶ {t('Playback')}</button>
+          <button className={`chip ${mode === 'refine' ? 'on' : ''}`} onClick={() => setMode('refine')} title="Refine Mode (⌘3)">✂ {t('Refine')}</button>
+          <button className={`chip ${mode === 'replay' ? 'on' : ''}`} onClick={() => setMode('replay')} title="Replay Mode (⌘4)">⟳ {t('Replay')}</button>
+          <button className="chip security" onClick={() => setSecurityOpen(true)}>🛡 {t('Security Check')}</button>
           {liveStatus !== 'off' && (
             <span className={`pill live-pill ${liveStatus}`} title="Live streaming from the session log"
               onClick={() => liveStatus === 'stopped' && setLiveStatus('off') /* triggers re-effect via key below */}>
@@ -179,10 +188,10 @@ export default function SessionView({ sessionId, onBack }) {
               })}>{c.label}</button>
           ))}
           {(chips.size > 0 || debounced) && (
-            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); }}>Clear filter</button>
+            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); }}>{t('Clear filter')}</button>
           )}
         </div>
-        <input ref={searchRef} className="search" placeholder="Search messages…  ⌘F"
+        <input ref={searchRef} className="search" placeholder={t('Search messages…  ⌘F')}
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         <span className="muted small">Match: {visible.length}/{messages.length}</span></>}
       </div>
@@ -201,12 +210,22 @@ export default function SessionView({ sessionId, onBack }) {
                 setNewCount(0);
               }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
             )}
-            {visible.map((m) => (
+            {winStart > 0 && (
+              <button className="btn small window-btn" onClick={() => selectMessage(visible[Math.max(0, winStart - WINDOW / 2)].seq, true)}>
+                ↑ {winStart.toLocaleString()} earlier messages
+              </button>
+            )}
+            {windowed.map((m) => (
               <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
                 keyword={debounced} onClick={() => selectMessage(m.seq)}
                 causality={causality?.changes.find((c) => c.seq === m.seq)}
                 onJump={(seq) => selectMessage(seq, true)} />
             ))}
+            {winEnd < visible.length && (
+              <button className="btn small window-btn" onClick={() => selectMessage(visible[Math.min(visible.length - 1, winEnd + WINDOW / 2 - 1)].seq, true)}>
+                ↓ {(visible.length - winEnd).toLocaleString()} later messages
+              </button>
+            )}
             {!visible.length && <div className="muted center pad8">No messages match the current filter.</div>}
           </div>
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />

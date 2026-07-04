@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import { db } from './db.js';
 import { parseClaudeLine } from './parsers/claudeCode.js';
+import { parseOpencodeSessions } from './parsers/opencode.js';
+import { parseCursorWorkspace } from './parsers/cursor.js';
+import path from 'node:path';
 
 // Session Live Streaming (FR-LS): incremental JSONL tail → SSE.
 // Watch state survives Vite SSR reloads via globalThis.
@@ -93,6 +96,97 @@ class Watcher {
   }
 }
 
+// SQLite-backed sources (Cursor, OpenCode): read-only periodic re-parse with
+// diff-against-last-state (FR-LS-1). The parser layer already snapshots the DB
+// to temp before reading, so the foreign database is never touched.
+class SqlitePollWatcher {
+  constructor(sessionId, session) {
+    this.sessionId = sessionId;
+    this.session = session;
+    this.clients = new Set();
+    this.lastCount = countStored(sessionId);
+    this.lastMtime = 0;
+    this.seq = 1_000_000;
+    this.pollMs = 2000;
+    this.poll = setInterval(() => this.check(), this.pollMs);
+    this.idleSince = Date.now();
+  }
+
+  fetchEvents() {
+    if (this.session.source === 'opencode') {
+      const dir = db.prepare('SELECT path FROM projects WHERE id = ?').get(this.session.project_id)?.path;
+      const all = parseOpencodeSessions(this.session.file_path, dir);
+      return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
+    }
+    if (this.session.source === 'cursor') {
+      const all = parseCursorWorkspace(path.dirname(this.session.file_path));
+      return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
+    }
+    return [];
+  }
+
+  check() {
+    let mtime = 0;
+    try {
+      mtime = fs.statSync(this.session.file_path).mtimeMs;
+      // WAL writes may not touch the main db file
+      const wal = this.session.file_path + '-wal';
+      if (fs.existsSync(wal)) mtime = Math.max(mtime, fs.statSync(wal).mtimeMs);
+    } catch { return this.close('file gone'); }
+    if (mtime === this.lastMtime) {
+      if (Date.now() - this.idleSince > 120000 && this.pollMs !== 6000) this.setPollInterval(6000);
+      return;
+    }
+    this.lastMtime = mtime;
+    this.idleSince = Date.now();
+    this.setPollInterval(2000);
+    try {
+      const events = this.fetchEvents();
+      if (events.length > this.lastCount) {
+        const fresh = events.slice(this.lastCount).map((e) => ({ ...e, seq: this.seq++ }));
+        this.lastCount = events.length;
+        this.broadcast({ type: 'messages', events: fresh });
+      }
+    } catch { /* transient parse failure — retry next poll (FR-LS-6) */ }
+  }
+
+  setPollInterval(ms) {
+    if (this.pollMs === ms) return;
+    this.pollMs = ms;
+    clearInterval(this.poll);
+    this.poll = setInterval(() => this.check(), ms);
+  }
+
+  broadcast(payload) {
+    const data = `data: ${JSON.stringify(payload)}\n\n`;
+    for (const res of this.clients) {
+      try { res.write(data); } catch { this.clients.delete(res); }
+    }
+  }
+
+  addClient(res) {
+    this.clients.add(res);
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'live', watching: this.session.file_path, mode: 'poll' })}\n\n`);
+  }
+
+  removeClient(res) {
+    this.clients.delete(res);
+    if (!this.clients.size) this.close('no clients');
+  }
+
+  close(reason) {
+    clearInterval(this.poll);
+    this.broadcast({ type: 'status', status: 'stopped', reason });
+    for (const res of this.clients) { try { res.end(); } catch {} }
+    this.clients.clear();
+    live.watchers.delete(this.sessionId);
+  }
+}
+
+function countStored(sessionId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sessionId)?.n ?? 0;
+}
+
 // Codex live lines share the response_item shape
 function genericLine(o) {
   const p = o.payload || o;
@@ -106,14 +200,12 @@ function genericLine(o) {
 
 export function attachLiveStream(sessionId, res) {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
-  if (!session) return false;
-  if (!fs.existsSync(session.file_path) || session.source === 'cursor' || session.source === 'opencode') {
-    // SQLite-backed sources need polling re-parse — deferred; JSONL sources only for now
-    return false;
-  }
+  if (!session || !fs.existsSync(session.file_path)) return false;
   let watcher = live.watchers.get(sessionId);
   if (!watcher) {
-    watcher = new Watcher(sessionId, session.file_path, session.source);
+    watcher = session.source === 'cursor' || session.source === 'opencode'
+      ? new SqlitePollWatcher(sessionId, session)
+      : new Watcher(sessionId, session.file_path, session.source);
     live.watchers.set(sessionId, watcher);
   }
   res.writeHead(200, {

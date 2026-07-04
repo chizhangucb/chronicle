@@ -12,7 +12,9 @@ Phase 1 (Replay MVP) of [the PRD](../AI-session-manager-PRD.md). Design doc:
 ```bash
 cd chronicle
 npm install
-npm run dev        # → http://localhost:4173
+npm run dev        # dev server → http://localhost:4173
+npm run desktop    # desktop app (Electron shell + tray, port 41730)
+npm run standalone # headless production server (API + UI + /mcp)
 ```
 
 Click **Import Sessions**, pick a scanned project, and open a session.
@@ -104,6 +106,23 @@ Click **Import Sessions**, pick a scanned project, and open a session.
   lists links with view counts and immediate revocation.
 - **Copilot Chat import** — parses VS Code `workspaceStorage/<hash>/chatSessions/`
   (stable/Insiders/VSCodium), completing the 6-tool compatibility matrix.
+
+- **Live polling for SQLite sources** — Cursor/OpenCode sessions live-stream via
+  read-only periodic re-parse (temp-copy snapshots, WAL-aware mtime checks).
+- **Skills: GitHub import & version history** — shallow-clone a public repo, scan all
+  `SKILL.md` dirs, import with commit SHA recorded; "Check upstream" via `ls-remote`;
+  automatic snapshots (`imported` permanent, `fs_change` 500 ms-debounced, rolling 50)
+  with hash dedup and one-click restore.
+- **MCP Roots + credentials** — services can be scoped to a project path; the hub
+  routes `tools/list` by longest-prefix-match on the client's root (header or
+  `initialize` rootUri). Per-service bearer credentials stored locally, always masked.
+- **i18n** — English + 简体中文, toggle in the top bar.
+- **Performance guardrails** — windowed message rendering (400 around selection) and
+  timeline tick decimation; a 6,000-message session renders 400 DOM rows.
+- **Desktop shell** — Electron app (`npm run desktop`): embedded production server,
+  system tray that keeps the MCP Hub alive when the window closes, single-instance
+  lock, and a release-feed update check. (Tauri migration path intact — the server
+  layer has no Electron dependency. Silent auto-update needs a signing pipeline.)
 
 ## Architecture
 
