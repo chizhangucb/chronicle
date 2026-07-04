@@ -12,7 +12,7 @@ import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule, preToolUseCheck, listInterceptions } from './security.js';
 import { createShare, listShares, revokeShare } from './shares.js';
 import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
-import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools } from './mcp/registry.js';
+import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools, setProjectPath, setCredential } from './mcp/registry.js';
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
 import { attachLiveStream, isLiveCandidate, liveStatus } from './live.js';
@@ -313,12 +313,14 @@ api.post('/mcp/services', (req, res) => {
 api.patch('/mcp/services/:id', (req, res) => {
   if (req.body.enabled !== undefined) setServiceEnabled(req.params.id, !!req.body.enabled);
   if (req.body.disabledTools !== undefined) setDisabledTools(req.params.id, req.body.disabledTools);
+  if (req.body.projectPath !== undefined) setProjectPath(req.params.id, req.body.projectPath);
+  if (req.body.bearer !== undefined) setCredential(req.params.id, req.body.bearer);
   res.json(listServices().map(maskService));
 });
 api.delete('/mcp/services/:id', (req, res) => { deleteService(req.params.id); res.json(listServices().map(maskService)); });
 api.get('/mcp/status', (req, res) => res.json(hubStatus()));
 api.get('/mcp/log', (req, res) => res.json(hubLog()));
-api.get('/mcp/tools', async (req, res) => res.json(await aggregateTools()));
+api.get('/mcp/tools', async (req, res) => res.json(await aggregateTools('*')));
 api.post('/mcp/call', async (req, res) => {
   try { res.json({ ok: true, result: await callTool(req.body.name, req.body.arguments) }); }
   catch (err) { res.status(500).json({ error: String(err.message || err) }); }
@@ -329,9 +331,27 @@ api.post('/mcp/call', async (req, res) => {
 api.get('/skills', (req, res) => res.json(skills.listSkills()));
 api.get('/skills/scan', (req, res) => res.json(skills.scanSkills()));
 api.post('/skills/import', (req, res) => {
-  try { res.json({ ok: true, skill: skills.importSkill(req.body.path, req.body.origin) }); }
+  try {
+    const skill = skills.importSkill(req.body.path, req.body.origin);
+    skills.takeSnapshot(skill.id, 'imported');
+    res.json({ ok: true, skill });
+  }
   catch (err) { res.status(500).json({ error: String(err.message || err) }); }
 });
+api.post('/skills/github', (req, res) => {
+  try { res.json(skills.importFromGithub(req.body.url, req.body.branch || 'main', req.body.subpath || '')); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.get('/skills/:id/snapshots', (req, res) => res.json(skills.listSnapshots(req.params.id)));
+api.post('/skills/:id/restore', (req, res) => {
+  try { res.json(skills.restoreSnapshot(req.params.id, req.body.snapshotId)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/skills/:id/check-upstream', (req, res) => {
+  try { res.json(skills.checkUpstream(req.params.id)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+skills.startSkillWatcher();
 api.get('/skills/:id', (req, res) => {
   const s = skills.skillContent(req.params.id);
   s ? res.json(s) : res.status(404).json({ error: 'Not found' });

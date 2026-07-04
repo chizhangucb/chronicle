@@ -98,6 +98,7 @@ export default function SkillsPage() {
 
       {tab === 'import' && (
         <div>
+          <GithubImport onDone={() => { setTab('library'); refresh(); }} />
           {!scan && <div className="muted pad8">Scanning tool directories…</div>}
           {scan?.map((g) => (
             <div key={g.source} className="scan-group">
@@ -132,6 +133,8 @@ export default function SkillsPage() {
             </div>
             <div className="muted small">{detail.central_path} · imported {detail.imported_at} · from {detail.origin_path}</div>
             <div className="muted small">files: {detail.files.join(', ')}</div>
+            {detail.origin_repo && <UpstreamCheck skill={detail} />}
+            <VersionTimeline skillId={detail.id} onRestored={() => j(`/api/skills/${detail.id}`).then(setDetail)} />
             <pre className="sec-text" style={{ maxHeight: 420, marginTop: 10 }}>{detail.content || '(no SKILL.md)'}</pre>
             <button className="btn small" style={{ marginTop: 8 }} onClick={async () => {
               if (confirm(`Remove '${detail.name}' from Chronicle (files kept)?`)) {
@@ -142,6 +145,73 @@ export default function SkillsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GithubImport({ onDone }) {
+  const [form, setForm] = useState({ url: '', branch: 'main', subpath: '' });
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  async function run(e) {
+    e.preventDefault();
+    setBusy(true); setResult(null);
+    try {
+      const r = await j('/api/skills/github', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      setResult(`✓ Imported ${r.imported.length} skills @ ${r.sha}`);
+      setTimeout(onDone, 1200);
+    } catch (err) { setResult('✕ ' + err.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <form className="card" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }} onSubmit={run}>
+      <strong>⬇ GitHub</strong>
+      <input className="search" style={{ flex: 2, minWidth: 240 }} placeholder="https://github.com/org/repo (public)"
+        value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+      <input className="search" style={{ width: 90 }} placeholder="branch" value={form.branch}
+        onChange={(e) => setForm({ ...form, branch: e.target.value })} />
+      <input className="search" style={{ width: 130 }} placeholder="subpath (optional)" value={form.subpath}
+        onChange={(e) => setForm({ ...form, subpath: e.target.value })} />
+      <button className="btn primary small" disabled={busy || !form.url}>{busy ? 'Cloning…' : 'Import'}</button>
+      {result && <span className="small">{result}</span>}
+    </form>
+  );
+}
+
+function UpstreamCheck({ skill }) {
+  const [status, setStatus] = useState(null);
+  return (
+    <div style={{ margin: '6px 0' }}>
+      <span className="pill">⬇ {skill.origin_repo} @ {skill.origin_sha?.slice(0, 10)}</span>{' '}
+      <button className="btn tiny ghost" onClick={async () => {
+        try { const r = await j(`/api/skills/${skill.id}/check-upstream`, { method: 'POST' }); setStatus(r.upToDate ? '✓ up to date' : `↑ upstream at ${r.latest} — re-import to sync`); }
+        catch (e) { setStatus('✕ ' + e.message); }
+      }}>Check upstream</button>
+      {status && <span className="small muted"> {status}</span>}
+    </div>
+  );
+}
+
+function VersionTimeline({ skillId, onRestored }) {
+  const [snaps, setSnaps] = useState(null);
+  useEffect(() => { j(`/api/skills/${skillId}/snapshots`).then(setSnaps).catch(() => setSnaps([])); }, [skillId]);
+  if (!snaps?.length) return null;
+  return (
+    <div style={{ margin: '8px 0' }}>
+      <div className="small muted">Version history ({snaps.length} snapshots)</div>
+      {snaps.slice(0, 8).map((s) => (
+        <div key={s.id} className="scan-row" style={{ padding: '4px 0' }}>
+          <span className={`pill ${s.trigger === 'imported' ? 'ok-pill' : ''}`}>{s.trigger}</span>
+          <span className="small muted">{s.ts} · {s.hash.slice(0, 8)} · {(s.size / 1024).toFixed(1)} KB</span>
+          <span style={{ flex: 1 }} />
+          <button className="btn tiny ghost" onClick={async () => {
+            if (!confirm('Restore this version? Current state is snapshotted first.')) return;
+            await j(`/api/skills/${skillId}/restore`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId: s.id }) });
+            j(`/api/skills/${skillId}/snapshots`).then(setSnaps);
+            onRestored();
+          }}>Restore</button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import HubPage from './HubPage.jsx';
+import { t, lang, toggleLang } from './i18n.js';
 import SkillsPage from './SkillsPage.jsx';
 import SecurityPage from './SecurityPage.jsx';
 
@@ -25,17 +26,18 @@ export default function App() {
       <header className="topbar">
         <div className="brand" onClick={() => setView({ name: 'home' })}>
           <span className="brand-mark">◷</span> Chronicle
-          <span className="brand-sub">AI Session Time Machine</span>
+          <span className="brand-sub">{t('AI Session Time Machine')}</span>
         </div>
         <nav className="topnav">
           <button className={`chip ${view.name === 'home' || view.name === 'project' || view.name === 'session' ? 'on' : ''}`}
-            onClick={() => setView({ name: 'home' })}>◷ Projects</button>
-          <button className={`chip ${view.name === 'hub' ? 'on' : ''}`} onClick={() => setView({ name: 'hub' })}>⬢ MCP Hub</button>
-          <button className={`chip ${view.name === 'skills' ? 'on' : ''}`} onClick={() => setView({ name: 'skills' })}>✦ Skills</button>
-          <button className={`chip ${view.name === 'security' ? 'on' : ''}`} onClick={() => setView({ name: 'security' })}>🛡 Security</button>
+            onClick={() => setView({ name: 'home' })}>◷ {t('Projects')}</button>
+          <button className={`chip ${view.name === 'hub' ? 'on' : ''}`} onClick={() => setView({ name: 'hub' })}>⬢ {t('MCP Hub')}</button>
+          <button className={`chip ${view.name === 'skills' ? 'on' : ''}`} onClick={() => setView({ name: 'skills' })}>✦ {t('Skills')}</button>
+          <button className={`chip ${view.name === 'security' ? 'on' : ''}`} onClick={() => setView({ name: 'security' })}>🛡 {t('Security')}</button>
+          <button className="chip" title="Language / 语言" onClick={toggleLang}>{lang() === 'en' ? '中文' : 'EN'}</button>
         </nav>
         {view.name === 'home' && (
-          <button className="btn primary" onClick={() => setWizardOpen(true)}>+ Import Sessions</button>
+          <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
         )}
       </header>
 
@@ -69,16 +71,16 @@ function HomePage({ projects, onOpenProject, onImport }) {
     return (
       <div className="page center empty-state">
         <div className="empty-icon">◷</div>
-        <h2>Welcome to Chronicle</h2>
+        <h2>{t('Welcome to Chronicle')}</h2>
         <p className="muted">Import your AI coding sessions and time-travel through how your code came to be.<br />
           Everything stays on this machine — local-first, offline, read-only on your logs.</p>
-        <button className="btn primary lg" onClick={onImport}>Import your first project</button>
+        <button className="btn primary lg" onClick={onImport}>{t('Import your first project')}</button>
       </div>
     );
   }
   return (
     <div className="page">
-      <h2 className="page-title">Projects <span className="muted">({projects.length})</span></h2>
+      <h2 className="page-title">{t('Projects')} <span className="muted">({projects.length})</span></h2>
       <div className="project-grid">
         {projects.map((p) => (
           <div key={p.id} className="card project-card" onClick={() => onOpenProject(p.id)}>
