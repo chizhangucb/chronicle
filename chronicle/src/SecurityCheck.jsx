@@ -69,6 +69,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }) {
               </button>
               <a className="btn small primary" href={`/api/sessions/${encodeURIComponent(sessionId)}/export-redacted`}
                 download>Export redacted copy</a>
+              <ShareButton sessionId={sessionId} />
             </div>
 
             {showRules && (
@@ -123,6 +124,29 @@ export default function SecurityCheck({ sessionId, projectName, onClose }) {
       </div>
     </div>
   );
+}
+
+function ShareButton({ sessionId }) {
+  const [share, setShare] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function create() {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/share`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 7 }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error);
+      setShare(body);
+      navigator.clipboard?.writeText(location.origin + body.url).catch(() => {});
+    } finally { setBusy(false); }
+  }
+  if (share) {
+    return <a className="pill ok-pill" href={share.url} target="_blank" rel="noreferrer"
+      title="Copied to clipboard — redacted copy, 7-day validity">✓ Link created ({share.redactions} redactions) — open</a>;
+  }
+  return <button className="btn small" disabled={busy} onClick={create}
+    title="Creates a redacted, 7-day share link served by this app">{busy ? 'Creating…' : 'Create share link'}</button>;
 }
 
 const CLIP = 700;
