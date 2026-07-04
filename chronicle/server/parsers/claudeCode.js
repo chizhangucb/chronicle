@@ -49,6 +49,41 @@ function sniffCwd(file) {
   return null;
 }
 
+// Parse a single JSONL entry into normalized events (shared by import + live tail).
+export function parseClaudeLine(o) {
+  const events = [];
+  if (o.isSidechain) return events;
+  if (o.type === 'user' && o.message) {
+    const content = o.message.content;
+    if (typeof content === 'string') {
+      if (content.startsWith('<command-name>') || content.startsWith('<local-command')) return events;
+      events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'user', text: content });
+    } else if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block.type === 'tool_result') {
+          events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'tool_result',
+            text: blockText(block.content), tool_use_id: block.tool_use_id });
+        } else if (block.type === 'text' && block.text?.trim() && !block.text.startsWith('<system-reminder>')) {
+          events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'user', text: block.text });
+        }
+      }
+    }
+  } else if (o.type === 'assistant' && o.message) {
+    const model = o.message.model;
+    for (const block of o.message.content || []) {
+      if (block.type === 'text' && block.text?.trim()) {
+        events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'assistant', text: block.text, model });
+      } else if (block.type === 'thinking' && block.thinking?.trim()) {
+        events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'thinking', text: block.thinking, model });
+      } else if (block.type === 'tool_use') {
+        events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'tool_use', model,
+          tool_name: block.name, tool_use_id: block.id, tool_input: safeStringify(block.input) });
+      }
+    }
+  }
+  return events;
+}
+
 // Parse one session JSONL file into { session, events }.
 export async function parseClaudeSession(file) {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
@@ -64,44 +99,9 @@ export async function parseClaudeSession(file) {
     try { o = JSON.parse(line); } catch { skipped++; continue; }
     if (o.sessionId) sessionId = o.sessionId;
     if (o.cwd && !cwd) cwd = o.cwd;
-    if (o.isSidechain) continue;
-
-    if (o.type === 'user' && o.message) {
-      const content = o.message.content;
-      if (typeof content === 'string') {
-        if (content.startsWith('<command-name>') || content.startsWith('<local-command')) continue;
-        events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'user', text: content });
-        if (!firstPrompt) firstPrompt = content.slice(0, 200);
-      } else if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'tool_result') {
-            events.push({
-              uuid: o.uuid, ts: o.timestamp, kind: 'tool_result',
-              text: blockText(block.content),
-              tool_use_id: block.tool_use_id,
-            });
-          } else if (block.type === 'text' && block.text?.trim()) {
-            if (block.text.startsWith('<system-reminder>')) continue;
-            events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'user', text: block.text });
-            if (!firstPrompt) firstPrompt = block.text.slice(0, 200);
-          }
-        }
-      }
-    } else if (o.type === 'assistant' && o.message) {
-      const model = o.message.model;
-      for (const block of o.message.content || []) {
-        if (block.type === 'text' && block.text?.trim()) {
-          events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'assistant', text: block.text, model });
-        } else if (block.type === 'thinking' && block.thinking?.trim()) {
-          events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'thinking', text: block.thinking, model });
-        } else if (block.type === 'tool_use') {
-          events.push({
-            uuid: o.uuid, ts: o.timestamp, kind: 'tool_use', model,
-            tool_name: block.name, tool_use_id: block.id,
-            tool_input: safeStringify(block.input),
-          });
-        }
-      }
+    for (const e of parseClaudeLine(o)) {
+      events.push(e);
+      if (e.kind === 'user' && !firstPrompt) firstPrompt = e.text.slice(0, 200);
     }
   }
 
