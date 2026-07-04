@@ -3,6 +3,7 @@ import { api } from './api.js';
 import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
+import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 
 const FILTER_CHIPS = [
@@ -20,8 +21,12 @@ export default function SessionView({ sessionId, onBack }) {
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState(null); // {hash, date, subject} | null
   const [noRepo, setNoRepo] = useState(false);
-  const [mode, setMode] = useState('playback'); // 'playback' | 'refine'
+  const [mode, setMode] = useState('playback'); // 'playback' | 'refine' | 'replay'
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
+  const [newCount, setNewCount] = useState(0);
+  const esRef = useRef(null);
+  const atBottomRef = useRef(true);
   const listRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -32,6 +37,40 @@ export default function SessionView({ sessionId, onBack }) {
       setSelectedSeq(firstUser ? firstUser.seq : d.messages[0]?.seq ?? null);
     }).catch((e) => setError(String(e.message)));
   }, [sessionId]);
+
+  // FR-LS-2: auto-activate live watching when the session file was recently written
+  useEffect(() => {
+    if (!data?.liveCandidate) return;
+    let retries = 0;
+    let es;
+    function connect() {
+      es = new EventSource(`/api/sessions/${encodeURIComponent(sessionId)}/live`);
+      esRef.current = es;
+      es.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'status') setLiveStatus(msg.status === 'live' ? 'live' : 'stopped');
+        if (msg.type === 'messages') {
+          retries = 0;
+          setData((cur) => ({ ...cur, messages: [...cur.messages, ...msg.events.map((e, i) => ({ ...e, live: true }))] }));
+          const pane = listRef.current;
+          if (pane && atBottomRef.current) {
+            requestAnimationFrame(() => { pane.scrollTop = pane.scrollHeight; });
+          } else {
+            setNewCount((n) => n + msg.events.length);
+          }
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        if (retries++ < 3) { // FR-LS-5: exponential backoff, then manual
+          setLiveStatus('reconnecting');
+          setTimeout(connect, 1000 * 2 ** retries);
+        } else setLiveStatus('stopped');
+      };
+    }
+    connect();
+    return () => { esRef.current?.close(); setLiveStatus('off'); }; // FR-LS-7 auto-stop
+  }, [data?.liveCandidate, sessionId]);
 
   // FR-FLT-3: 300ms debounce on keyword
   useEffect(() => {
@@ -76,6 +115,7 @@ export default function SessionView({ sessionId, onBack }) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); searchRef.current?.focus(); }
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
+      if ((e.metaKey || e.ctrlKey) && e.key === '4') { e.preventDefault(); setMode('replay'); }
       if (e.key === 'Escape') { setKeyword(''); searchRef.current?.blur(); }
     }
     window.addEventListener('keydown', onKey);
@@ -113,7 +153,14 @@ export default function SessionView({ sessionId, onBack }) {
         <div className="mode-switch">
           <button className={`chip ${mode === 'playback' ? 'on' : ''}`} onClick={() => setMode('playback')} title="Playback Mode (⌘2)">▶ Playback</button>
           <button className={`chip ${mode === 'refine' ? 'on' : ''}`} onClick={() => setMode('refine')} title="Refine Mode (⌘3)">✂ Refine</button>
+          <button className={`chip ${mode === 'replay' ? 'on' : ''}`} onClick={() => setMode('replay')} title="Replay Mode (⌘4)">⟳ Replay</button>
           <button className="chip security" onClick={() => setSecurityOpen(true)}>🛡 Security Check</button>
+          {liveStatus !== 'off' && (
+            <span className={`pill live-pill ${liveStatus}`} title="Live streaming from the session log"
+              onClick={() => liveStatus === 'stopped' && setLiveStatus('off') /* triggers re-effect via key below */}>
+              {liveStatus === 'live' ? '● LIVE' : liveStatus === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
+            </span>
+          )}
         </div>
         {mode === 'playback' && <><div className="filter-chips">
           {FILTER_CHIPS.map((c) => (
@@ -135,7 +182,18 @@ export default function SessionView({ sessionId, onBack }) {
 
       {mode === 'playback' && <>
         <div className="panes">
-          <div className="conv-pane" ref={listRef}>
+          <div className="conv-pane" ref={listRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+              if (atBottomRef.current) setNewCount(0);
+            }}>
+            {newCount > 0 && (
+              <button className="btn primary new-msgs" onClick={() => {
+                listRef.current.scrollTop = listRef.current.scrollHeight;
+                setNewCount(0);
+              }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
+            )}
             {visible.map((m) => (
               <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
                 keyword={debounced} onClick={() => selectMessage(m.seq)} />
@@ -151,6 +209,8 @@ export default function SessionView({ sessionId, onBack }) {
       {mode === 'refine' && (
         <RefineMode messages={messages} session={data.session} project={data.project} />
       )}
+
+      {mode === 'replay' && <ReplayMode sessionId={sessionId} />}
 
       {securityOpen && (
         <SecurityCheck sessionId={sessionId} projectName={data.project.name}
@@ -182,7 +242,7 @@ function MessageRow({ m, selected, keyword, onClick }) {
   const shown = expanded || !isLong ? body : body.slice(0, limit) + '…';
 
   return (
-    <div data-seq={m.seq} className={`msg ${meta.cls} ${selected ? 'selected' : ''}`} onClick={onClick}>
+    <div data-seq={m.seq} className={`msg ${meta.cls} ${selected ? 'selected' : ''} ${m.live ? 'fade-in' : ''}`} onClick={onClick}>
       <div className="msg-head">
         <span className="msg-kind">{meta.icon} {title || meta.label}</span>
         {m.ts && <span className="msg-ts muted">{new Date(m.ts).toLocaleTimeString()}</span>}

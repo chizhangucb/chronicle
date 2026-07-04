@@ -11,6 +11,8 @@ import { scanSession, listRules, addRule, deleteRule, toggleRule } from './secur
 import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService } from './mcp/registry.js';
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
+import { attachLiveStream, isLiveCandidate, liveStatus } from './live.js';
+import * as replay from './replay.js';
 
 export const api = express();
 api.use(express.json());
@@ -99,7 +101,40 @@ api.get('/sessions/:id/messages', (req, res) => {
   const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id);
   const commits = session.started_at && session.ended_at
     ? gitEngine.commitsBetween(project.path, session.started_at, session.ended_at) : [];
-  res.json({ session, project, messages, commits, git: gitEngine.repoInfo(project.path) });
+  res.json({ session, project, messages, commits, git: gitEngine.repoInfo(project.path),
+    liveCandidate: isLiveCandidate(session.file_path) });
+});
+
+// ---- Live streaming (FR-LS): SSE tail of the session's log file ----
+
+api.get('/sessions/:id/live', (req, res) => {
+  if (!attachLiveStream(req.params.id, res)) {
+    res.status(400).json({ error: 'Live streaming unavailable for this session (missing file or SQLite source)' });
+  }
+});
+api.get('/live/status', (req, res) => res.json(liveStatus()));
+
+// ---- Replay Mode (FR-RP): deterministic sandbox re-execution ----
+
+api.get('/sessions/:id/replay-plan', (req, res) => {
+  try { res.json(replay.buildPlan(req.params.id)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/replay/start', (req, res) => {
+  try { res.json(replay.startReplay(req.body.sessionId, req.body.workspace)); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/replay/step', (req, res) => {
+  try { res.json(replay.executeStep(req.body.sessionId, req.body.seq, { confirmCommand: !!req.body.confirmCommand })); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.get('/replay/preview', (req, res) => {
+  try { res.json(replay.previewStep(req.query.sessionId, Number(req.query.seq))); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
+});
+api.post('/replay/open', (req, res) => {
+  try { replay.openWorkspace(req.body.sessionId); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
 });
 
 // ---- Security: scan, rules, redacted export ----

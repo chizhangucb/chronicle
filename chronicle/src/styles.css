@@ -284,3 +284,20 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .topnav { display: flex; gap: 6px; flex: 1; margin-left: 24px; }
 .topnav .chip { font-size: 13px; padding: 4px 14px; }
 h4 { margin: 6px 0; }
+
+/* Live streaming */
+.live-pill.live { color: #4ade80; border-color: #4ade80; animation: pulse 1.6s infinite; }
+.live-pill.reconnecting { color: var(--warn); }
+.live-pill.stopped { color: var(--muted); cursor: pointer; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+.msg.fade-in { animation: fadein 0.5s ease-out; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.new-msgs {
+  position: sticky; top: 4px; z-index: 10; align-self: center;
+  border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* Replay */
+.refine-item.step-done { border-left-color: var(--accent2); }
+.refine-item.step-failed { border-left-color: var(--danger); }
+.btn.warn { border-color: var(--warn); color: var(--warn); }
