@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
+import RefineMode from './RefineMode.jsx';
+import SecurityCheck from './SecurityCheck.jsx';
 
 const FILTER_CHIPS = [
   { key: 'conversation', label: 'Conversation', kinds: ['user', 'assistant'] },
@@ -18,6 +20,8 @@ export default function SessionView({ sessionId, onBack }) {
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState(null); // {hash, date, subject} | null
   const [noRepo, setNoRepo] = useState(false);
+  const [mode, setMode] = useState('playback'); // 'playback' | 'refine'
+  const [securityOpen, setSecurityOpen] = useState(false);
   const listRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -70,6 +74,8 @@ export default function SessionView({ sessionId, onBack }) {
   useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); searchRef.current?.focus(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
+      if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
       if (e.key === 'Escape') { setKeyword(''); searchRef.current?.blur(); }
     }
     window.addEventListener('keydown', onKey);
@@ -104,7 +110,12 @@ export default function SessionView({ sessionId, onBack }) {
     <div className="session-view">
       <div className="session-toolbar">
         <button className="btn ghost" onClick={onBack}>← {data.project.name}</button>
-        <div className="filter-chips">
+        <div className="mode-switch">
+          <button className={`chip ${mode === 'playback' ? 'on' : ''}`} onClick={() => setMode('playback')} title="Playback Mode (⌘2)">▶ Playback</button>
+          <button className={`chip ${mode === 'refine' ? 'on' : ''}`} onClick={() => setMode('refine')} title="Refine Mode (⌘3)">✂ Refine</button>
+          <button className="chip security" onClick={() => setSecurityOpen(true)}>🛡 Security Check</button>
+        </div>
+        {mode === 'playback' && <><div className="filter-chips">
           {FILTER_CHIPS.map((c) => (
             <button key={c.key} className={`chip ${chips.has(c.key) ? 'on' : ''}`}
               onClick={() => setChips((prev) => {
@@ -119,22 +130,32 @@ export default function SessionView({ sessionId, onBack }) {
         </div>
         <input ref={searchRef} className="search" placeholder="Search messages…  ⌘F"
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-        <span className="muted small">Match: {visible.length}/{messages.length}</span>
+        <span className="muted small">Match: {visible.length}/{messages.length}</span></>}
       </div>
 
-      <div className="panes">
-        <div className="conv-pane" ref={listRef}>
-          {visible.map((m) => (
-            <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
-              keyword={debounced} onClick={() => selectMessage(m.seq)} />
-          ))}
-          {!visible.length && <div className="muted center pad8">No messages match the current filter.</div>}
+      {mode === 'playback' && <>
+        <div className="panes">
+          <div className="conv-pane" ref={listRef}>
+            {visible.map((m) => (
+              <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
+                keyword={debounced} onClick={() => selectMessage(m.seq)} />
+            ))}
+            {!visible.length && <div className="muted center pad8">No messages match the current filter.</div>}
+          </div>
+          <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />
         </div>
-        <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />
-      </div>
+        <Timeline messages={messages} commits={data.commits}
+          currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />
+      </>}
 
-      <Timeline messages={messages} commits={data.commits}
-        currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />
+      {mode === 'refine' && (
+        <RefineMode messages={messages} session={data.session} project={data.project} />
+      )}
+
+      {securityOpen && (
+        <SecurityCheck sessionId={sessionId} projectName={data.project.name}
+          onClose={() => setSecurityOpen(false)} />
+      )}
     </div>
   );
 }

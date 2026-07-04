@@ -4,6 +4,8 @@ import { api } from './api.js';
 const SOURCES = [
   { key: 'claude-code', label: 'Claude Code', hint: '~/.claude/projects/' },
   { key: 'codex', label: 'Codex', hint: '~/.codex/sessions/' },
+  { key: 'cursor', label: 'Cursor', hint: 'workspaceStorage (read-only)' },
+  { key: 'opencode', label: 'OpenCode', hint: 'opencode.db (read-only)' },
 ];
 
 export default function ImportWizard({ onClose, onImported }) {
@@ -20,7 +22,7 @@ export default function ImportWizard({ onClose, onImported }) {
     setBusy(item.logDir + item.name);
     setError(null);
     try {
-      const result = await api.import({ source: item.source, logDir: item.logDir, files: item.files });
+      const result = await api.import({ source: item.source, logDir: item.logDir, files: item.files, directory: item.directory });
       setDone((d) => ({ ...d, [item.logDir + item.name]: result }));
       onImported();
     } catch (e) {
