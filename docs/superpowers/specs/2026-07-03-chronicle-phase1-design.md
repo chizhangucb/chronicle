@@ -1,6 +1,6 @@
 # Chronicle — Phase 1 Replay MVP Design
 
-**Date:** 2026-07-03 · **Source spec:** [AI-session-manager-PRD.md](../../../AI-session-manager-PRD.md) · **Scope:** PRD Phase 1 (+ light Phase 2 filtering/analytics)
+**Date:** 2026-07-03 · **Source spec:** [AI-session-manager-PRD.md](../../AI-session-manager-PRD.md) · **Scope:** PRD Phase 1 (+ light Phase 2 filtering/analytics)
 
 ## Decisions (made autonomously; PRD is the approved spec)
 
@@ -21,7 +21,7 @@
 ## Architecture
 
 ```
-chronicle/
+<repo root>/
   server/          # Express app (mounted in Vite via plugin)
     db.js          # node:sqlite schema + queries
     parsers/       # claudeCode.js, codex.js → normalized events
