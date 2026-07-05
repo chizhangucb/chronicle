@@ -98,8 +98,12 @@ plus real data end-to-end (see Verification below).
   sessions (test fixtures contain fake keys). It is NOT currently installed.
 - Session import is `replaceSession` (delete + reinsert): re-import is idempotent, but
   live-only messages and share `content` frozen at creation are unaffected by design.
-- The repo path contains a space (`personal /ai-session-manager`) — always quote paths
-  in shell commands.
+- The repo moved from `/Users/chizhang/personal /ai-session-manager` (trailing space!)
+  to `/Users/chizhang/personal/ai-session-manager` on 2026-07-05. Old Claude Code
+  session JSONLs still live under the old munged dir
+  `~/.claude/projects/-Users-chizhang-personal--ai-session-manager/` — Chronicle's
+  imported sessions point there and stay valid. New sessions land in
+  `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
 - Update feed in `electron/main.mjs` points at placeholder `kite-ai/chronicle`; change
   when a real release repo exists (env override: `CHRONICLE_UPDATE_FEED`).
 
