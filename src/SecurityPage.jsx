@@ -96,7 +96,7 @@ export default function SecurityPage() {
           )}
           <p className="muted small" style={{ marginTop: 10 }}>
             Other tools: point any agent that supports command hooks at
-            <code> node chronicle/hooks/chronicle-guard.mjs</code> (reads the tool payload on stdin, exit 2 = block).
+            <code> node hooks/chronicle-guard.mjs</code> (reads the tool payload on stdin, exit 2 = block).
           </p>
         </div>
       )}

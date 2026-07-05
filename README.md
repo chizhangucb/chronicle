@@ -4,13 +4,12 @@ Local-first session manager for AI coding assistants. Import your Claude Code / 
 conversation logs, then click any message to **time-travel** to the exact code state at
 that moment — reconstructed from your project's Git history.
 
-Phase 1 (Replay MVP) of [the PRD](../AI-session-manager-PRD.md). Design doc:
-[docs/superpowers/specs](../docs/superpowers/specs/2026-07-03-chronicle-phase1-design.md).
+Built from [the PRD](docs/AI-session-manager-PRD.md). Design doc:
+[docs/superpowers/specs](docs/superpowers/specs/2026-07-03-chronicle-phase1-design.md).
 
 ## Run
 
 ```bash
-cd chronicle
 npm install
 npm run dev        # dev server → http://localhost:4173
 npm run desktop    # desktop app (Electron shell + tray, port 41730)
