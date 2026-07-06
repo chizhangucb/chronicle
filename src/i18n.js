@@ -130,6 +130,7 @@ const zh = {
     '永久删除原始日志文件以及 Chronicle 中的导入副本？此操作不可撤销。',
   'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
     '从 Chronicle 删除导入副本？原始日志仍保留在磁盘上，之后可以重新导入。',
+  'Estimated context size (~4 characters per token)': '估算的上下文大小（约 4 字符/词元）',
   'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':
     '该来源的所有会话存放在共享存储中——无法按会话删除文件。',
   'Session is live — deletion is disabled while the log is being written.':

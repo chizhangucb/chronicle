@@ -108,6 +108,9 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
               <span>{s.message_count} messages</span>
+              {s.char_count > 0 && (
+                <span title={t('Estimated context size (~4 characters per token)')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
+              )}
               {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
               {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
             </div>
@@ -122,4 +125,12 @@ function duration(a, b) {
   const ms = new Date(b) - new Date(a);
   const m = Math.round(ms / 60000);
   return m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
+}
+
+// Rough context size: ~4 characters per token.
+function fmtTokens(chars) {
+  const t = Math.round(chars / 4);
+  if (t >= 1e6) return `${(t / 1e6).toFixed(1)}M`;
+  if (t >= 1000) return `${Math.round(t / 1000)}k`;
+  return String(t);
 }
