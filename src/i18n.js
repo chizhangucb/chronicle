@@ -102,6 +102,38 @@ const zh = {
   'Remove': '移除',
   'from Chronicle? Your source logs and project folder are not touched.': '从 Chronicle 移除？不会改动你的源日志和项目文件夹。',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
+  // Session overview
+  'Overview': '总览',
+  'Session Statistics': '会话统计',
+  'Total Duration': '总时长',
+  'Tool Calls': '工具调用',
+  'Errors': '错误',
+  'Call Timeline': '调用时间线',
+  'Tool Distribution': '工具分布',
+  'Call Details': '调用详情',
+  'events': '个事件',
+  'calls': '次调用',
+  'Total': '共',
+  'No tool calls recorded.': '没有记录到工具调用。',
+  'Source file': '源文件',
+  'Delete source file': '删除源文件',
+  'Confirm delete': '确认删除',
+  'Cancel': '取消',
+  'Deleting…': '删除中…',
+  'Source file deleted.': '源文件已删除。',
+  'The imported copy stays in Chronicle.': 'Chronicle 中的导入副本会保留。',
+  'Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.':
+    '永久删除磁盘上的原始日志文件？此操作不可撤销。Chronicle 中的导入副本会保留。',
+  'Delete everywhere': '彻底删除',
+  'Delete from Chronicle': '从 Chronicle 删除',
+  'Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.':
+    '永久删除原始日志文件以及 Chronicle 中的导入副本？此操作不可撤销。',
+  'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
+    '从 Chronicle 删除导入副本？原始日志仍保留在磁盘上，之后可以重新导入。',
+  'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':
+    '该来源的所有会话存放在共享存储中——无法按会话删除文件。',
+  'Session is live — deletion is disabled while the log is being written.':
+    '会话正在直播——日志写入期间禁止删除。',
 };
 
 export function lang() {

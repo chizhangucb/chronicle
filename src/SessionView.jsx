@@ -22,7 +22,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange }) {
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState(null); // {hash, date, subject} | null
   const [noRepo, setNoRepo] = useState(false);
-  const [mode, setMode] = useState('playback'); // 'playback' | 'refine' | 'replay'
+  const [mode, setMode] = useState('overview'); // 'overview' | 'playback' | 'refine' | 'replay'
   const [securityOpen, setSecurityOpen] = useState(false);
   const [causality, setCausality] = useState(null); // {changes, mentioned}
   const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
@@ -135,6 +135,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange }) {
   useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); searchRef.current?.focus(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === '1') { e.preventDefault(); setMode('overview'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '4') { e.preventDefault(); setMode('replay'); }
@@ -169,6 +170,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange }) {
   if (!data) return <div className="page center muted">Loading session…</div>;
 
   const MODES = [
+    { key: 'overview', icon: '📊', label: t('Overview'), title: 'Session Overview (⌘1)' },
     { key: 'playback', icon: '▶', label: t('Playback'), title: 'Playback Mode (⌘2)' },
     { key: 'refine', icon: '✂', label: t('Refine'), title: 'Refine Mode (⌘3)' },
     { key: 'replay', icon: '⟳', label: t('Replay'), title: 'Replay Mode (⌘4)' },
@@ -249,6 +251,10 @@ export default function SessionView({ sessionId, onBack, onLiveChange }) {
         <Timeline messages={messages} commits={data.commits}
           currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />
       </>}
+
+      {mode === 'overview' && (
+        <OverviewMode data={data} liveStatus={liveStatus} onDeleted={onBack} />
+      )}
 
       {mode === 'refine' && (
         <RefineMode messages={messages} session={data.session} project={data.project} />
@@ -334,6 +340,203 @@ function summarizeToolInput(name, inputJson) {
     const s = JSON.stringify(input);
     return s === '{}' ? '' : s;
   } catch { return inputJson || ''; }
+}
+
+// ---- Overview mode: per-session stats dashboard (the session "home page") ----
+
+const FRIENDLY_CALL = {
+  Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
+  Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
+};
+const DONUT_COLORS = ['#4f8ef7', '#34c98e', '#e5a54b', '#a78bfa', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
+const DELETABLE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+
+function isErrorResult(m) {
+  return m.kind === 'tool_result'
+    && /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i
+      .test((m.text || '').slice(0, 200));
+}
+
+function OverviewMode({ data, liveStatus, onDeleted }) {
+  const { session, messages } = data;
+
+  const stats = useMemo(() => {
+    const toolUses = messages.filter((m) => m.kind === 'tool_use');
+    const errorIds = new Set(messages.filter(isErrorResult).map((m) => m.tool_use_id).filter(Boolean));
+    const errors = messages.filter(isErrorResult).length;
+    const dist = new Map();
+    for (const m of toolUses) dist.set(m.tool_name || 'unknown', (dist.get(m.tool_name || 'unknown') || 0) + 1);
+    const distSorted = [...dist.entries()].sort((a, b) => b[1] - a[1]);
+    const top = distSorted.slice(0, 7);
+    const otherCount = distSorted.slice(7).reduce((s, [, n]) => s + n, 0);
+    if (otherCount) top.push(['other', otherCount]);
+    const timeline = messages
+      .filter((m) => m.kind === 'user' || m.kind === 'tool_use')
+      .slice(0, 12)
+      .map((m) => ({
+        seq: m.seq, ts: m.ts,
+        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name] || m.tool_name || 'Tool'),
+        preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
+      }));
+    return { toolUses, errors, errorIds, top, timeline };
+  }, [messages]);
+
+  const durationMs = session.started_at && session.ended_at
+    ? new Date(session.ended_at) - new Date(session.started_at) : null;
+  const dur = durationMs === null ? '—'
+    : durationMs < 3600000 ? `${Math.round(durationMs / 60000)}m`
+    : `${Math.floor(durationMs / 3600000)}h ${Math.round((durationMs % 3600000) / 60000)}m`;
+
+  const totalCalls = stats.toolUses.length;
+  let acc = 0;
+  const gradient = stats.top.map(([, n], i) => {
+    const from = (acc / Math.max(1, totalCalls)) * 360; acc += n;
+    const to = (acc / Math.max(1, totalCalls)) * 360;
+    return `${DONUT_COLORS[i % DONUT_COLORS.length]} ${from}deg ${to}deg`;
+  }).join(', ');
+
+  const DETAIL_CAP = 100;
+
+  return (
+    <div className="page overview-page">
+      <h3 className="ov-title">📊 {t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</h3>
+      <div className="analytics-row">
+        <div className="card stat"><div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
+        <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
+        <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
+        <div className="card stat"><div className={`stat-num ${stats.errors ? 'bad' : ''}`}>{stats.errors}</div><div className="muted small">{t('Errors')}</div></div>
+      </div>
+
+      <div className="card ov-block">
+        <div className="ov-block-head"><strong>{t('Call Timeline')}</strong>
+          <span className="muted small">{Math.min(12, stats.timeline.length)}/{messages.filter((m) => m.kind === 'user' || m.kind === 'tool_use').length} {t('events')}</span>
+        </div>
+        {stats.timeline.map((e) => (
+          <div key={e.seq} className="ov-tl-row">
+            <span className="ov-tl-dot" />
+            <span className="ov-tl-label">{e.label}</span>
+            {e.ts && <span className="muted small">{new Date(e.ts).toLocaleTimeString()}</span>}
+            {e.preview && <span className="muted small ov-tl-preview">{e.preview}</span>}
+          </div>
+        ))}
+      </div>
+
+      <div className="ov-cols">
+        <div className="card ov-block">
+          <div className="ov-block-head"><strong>{t('Tool Distribution')}</strong></div>
+          <div className="ov-donut-wrap">
+            {totalCalls > 0 && <div className="ov-donut" style={{ background: `conic-gradient(${gradient})` }} />}
+            <div>
+              {stats.top.map(([name, n], i) => (
+                <div key={name} className="ov-legend-row">
+                  <span className="ov-legend-dot" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                  <span>{name}</span>
+                  <span className="muted small">{Math.round((n / Math.max(1, totalCalls)) * 100)}%</span>
+                </div>
+              ))}
+              {!totalCalls && <div className="muted small">{t('No tool calls recorded.')}</div>}
+              <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {totalCalls} {t('calls')}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card ov-block">
+          <div className="ov-block-head"><strong>{t('Call Details')}</strong>
+            <span className="muted small">{Math.min(DETAIL_CAP, totalCalls)}/{totalCalls} {t('calls')}</span>
+          </div>
+          <div className="ov-details">
+            {stats.toolUses.slice(0, DETAIL_CAP).map((m) => (
+              <div key={m.seq} className="ov-detail-row">
+                <span className={stats.errorIds.has(m.tool_use_id) ? 'bad' : 'ok'}>{stats.errorIds.has(m.tool_use_id) ? '✗' : '✓'}</span>
+                <span className="ov-tl-label">{FRIENDLY_CALL[m.tool_name] || m.tool_name || 'Tool'}</span>
+                <span className="muted small ov-tl-preview">{summarizeToolInput(m.tool_name, m.tool_input).slice(0, 100) || '-'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <SourceFileZone session={session} liveStatus={liveStatus} onDeleted={onDeleted} />
+    </div>
+  );
+}
+
+// Danger zone: delete the original log file, the Chronicle copy, or both.
+// Every action is a two-step inline confirm; deletion is permanent (no backup).
+function SourceFileZone({ session, liveStatus, onDeleted }) {
+  const [confirming, setConfirming] = useState(null); // null | 'file' | 'everywhere' | 'chronicle'
+  const [busy, setBusy] = useState(false);
+  const [fileDeleted, setFileDeleted] = useState(false);
+  const [error, setError] = useState(null);
+  const deletable = DELETABLE_SOURCES.has(session.source);
+  const live = liveStatus === 'live' || liveStatus === 'reconnecting';
+
+  const CONFIRM_TEXT = {
+    file: t('Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.'),
+    everywhere: t('Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.'),
+    chronicle: t('Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.'),
+  };
+
+  async function run(action) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (action === 'file') {
+        await api.deleteSessionSource(session.id);
+        setFileDeleted(true);
+        setConfirming(null);
+      } else {
+        await api.deleteSession(session.id, action === 'everywhere');
+        onDeleted(); // session no longer exists — back to the project page
+      }
+    } catch (e) { setError(String(e.message)); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="card ov-block ov-danger">
+      <div className="ov-block-head"><strong>{t('Source file')}</strong></div>
+      <div className="muted small mono-path">{session.file_path}</div>
+      {fileDeleted && (
+        <div className="ok small" style={{ marginTop: 8 }}>
+          ✓ {t('Source file deleted.')} {t('The imported copy stays in Chronicle.')}
+        </div>
+      )}
+      {!deletable && (
+        <div className="muted small" style={{ marginTop: 8 }}>
+          {t('This source keeps all sessions in shared storage — its file cannot be deleted per-session.')}
+        </div>
+      )}
+      {live ? (
+        <div className="muted small" style={{ marginTop: 8 }}>● {t('Session is live — deletion is disabled while the log is being written.')}</div>
+      ) : confirming ? (
+        <div className="ov-confirm">
+          <span className="small">{CONFIRM_TEXT[confirming]}</span>
+          <button className="btn small danger-btn" disabled={busy} onClick={() => run(confirming)}>
+            {busy ? t('Deleting…') : t('Confirm delete')}
+          </button>
+          <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(null)}>{t('Cancel')}</button>
+        </div>
+      ) : (
+        <div className="ov-actions">
+          {deletable && !fileDeleted && (
+            <button className="btn small danger-btn" onClick={() => setConfirming('file')}>
+              🗑 {t('Delete source file')}
+            </button>
+          )}
+          {deletable && !fileDeleted && (
+            <button className="btn small danger-btn" onClick={() => setConfirming('everywhere')}>
+              🗑 {t('Delete everywhere')}
+            </button>
+          )}
+          <button className="btn small danger-btn" onClick={() => setConfirming('chronicle')}>
+            🗑 {t('Delete from Chronicle')}
+          </button>
+        </div>
+      )}
+      {error && <div className="error-banner small">{error}</div>}
+    </div>
+  );
 }
 
 function highlight(text, keyword) {
