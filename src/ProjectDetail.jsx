@@ -43,6 +43,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data) return <div className="page center muted">Loading…</div>;
   const { project, sessions, git, analytics } = data;
+  const liveSession = sessions.find((s) => s.liveCandidate);
   const maxTool = Math.max(1, ...analytics.toolDist.map((t) => t.count));
   const maxDay = Math.max(1, ...analytics.activity.map((a) => a.count));
   const totalMsgs = analytics.kindDist.reduce((s, k) => s + k.count, 0);
@@ -99,7 +100,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
         </div>
       </div>
 
-      <h3 className="page-title">{t('Sessions')}</h3>
+      <div className="session-head">
+        <h3 className="page-title">{t('Sessions')}</h3>
+        {liveSession && (
+          <span className="pill live-pill live clickable" title={t('Open the live session')}
+            onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
+        )}
+      </div>
       <div className="session-list">
         {sessions.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
