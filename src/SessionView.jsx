@@ -13,7 +13,7 @@ const FILTER_CHIPS = [
   { key: 'thinking', label: t('Thinking'), kinds: ['thinking'] },
 ];
 
-export default function SessionView({ sessionId, onBack }) {
+export default function SessionView({ sessionId, onBack, onLiveChange }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [selectedSeq, setSelectedSeq] = useState(null);
@@ -79,6 +79,12 @@ export default function SessionView({ sessionId, onBack }) {
     connect();
     return () => { esRef.current?.close(); setLiveStatus('off'); }; // FR-LS-7 auto-stop
   }, [data?.liveCandidate, sessionId]);
+
+  // Surface live status app-wide (topbar pill) while this session is open.
+  useEffect(() => {
+    onLiveChange?.(liveStatus === 'off' ? null : { status: liveStatus, sessionId });
+    return () => onLiveChange?.(null);
+  }, [liveStatus, sessionId]);
 
   // FR-FLT-3: 300ms debounce on keyword
   useEffect(() => {
@@ -162,22 +168,32 @@ export default function SessionView({ sessionId, onBack }) {
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data) return <div className="page center muted">Loading session…</div>;
 
+  const MODES = [
+    { key: 'playback', icon: '▶', label: t('Playback'), title: 'Playback Mode (⌘2)' },
+    { key: 'refine', icon: '✂', label: t('Refine'), title: 'Refine Mode (⌘3)' },
+    { key: 'replay', icon: '⟳', label: t('Replay'), title: 'Replay Mode (⌘4)' },
+  ];
+
   return (
     <div className="session-view">
+      <aside className="mode-rail">
+        {MODES.map((m) => (
+          <button key={m.key} className={`rail-btn ${mode === m.key ? 'on' : ''}`} title={m.title}
+            onClick={() => setMode(m.key)}>
+            <span className="rail-icon">{m.icon}</span>
+            <span className="rail-label">{m.label}</span>
+          </button>
+        ))}
+        <div className="rail-sep" />
+        <button className={`rail-btn security ${securityOpen ? 'on' : ''}`} title={t('Security Check')}
+          onClick={() => setSecurityOpen(true)}>
+          <span className="rail-icon">🛡</span>
+          <span className="rail-label">{t('Security')}</span>
+        </button>
+      </aside>
+      <div className="session-main">
       <div className="session-toolbar">
         <button className="btn ghost" onClick={onBack}>← {data.project.name}</button>
-        <div className="mode-switch">
-          <button className={`chip ${mode === 'playback' ? 'on' : ''}`} onClick={() => setMode('playback')} title="Playback Mode (⌘2)">▶ {t('Playback')}</button>
-          <button className={`chip ${mode === 'refine' ? 'on' : ''}`} onClick={() => setMode('refine')} title="Refine Mode (⌘3)">✂ {t('Refine')}</button>
-          <button className={`chip ${mode === 'replay' ? 'on' : ''}`} onClick={() => setMode('replay')} title="Replay Mode (⌘4)">⟳ {t('Replay')}</button>
-          <button className="chip security" onClick={() => setSecurityOpen(true)}>🛡 {t('Security Check')}</button>
-          {liveStatus !== 'off' && (
-            <span className={`pill live-pill ${liveStatus}`} title="Live streaming from the session log"
-              onClick={() => liveStatus === 'stopped' && setLiveStatus('off') /* triggers re-effect via key below */}>
-              {liveStatus === 'live' ? '● LIVE' : liveStatus === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
-            </span>
-          )}
-        </div>
         {mode === 'playback' && <><div className="filter-chips">
           {FILTER_CHIPS.map((c) => (
             <button key={c.key} className={`chip ${chips.has(c.key) ? 'on' : ''}`}
@@ -244,6 +260,7 @@ export default function SessionView({ sessionId, onBack }) {
         <SecurityCheck sessionId={sessionId} projectName={data.project.name}
           onClose={() => setSecurityOpen(false)} />
       )}
+      </div>
     </div>
   );
 }

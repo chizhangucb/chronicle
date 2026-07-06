@@ -16,12 +16,23 @@ export function scanClaudeProjects(baseDir = CLAUDE_PROJECTS_DIR) {
     if (!files.length) continue;
     let messageEstimate = 0;
     let physicalPath = null;
+    const sessions = [];
     for (const f of files) {
       const full = path.join(logDir, f);
       const stat = fs.statSync(full);
-      messageEstimate += Math.max(1, Math.round(stat.size / 2000));
-      if (!physicalPath) physicalPath = sniffCwd(full);
+      const est = Math.max(1, Math.round(stat.size / 2000));
+      messageEstimate += est;
+      const head = sniffHead(full);
+      if (!physicalPath && head.cwd) physicalPath = head.cwd;
+      sessions.push({
+        id: path.basename(f, '.jsonl'),
+        file: full,
+        label: head.summary,
+        modifiedAt: stat.mtime.toISOString(),
+        messageEstimate: est,
+      });
     }
+    sessions.sort((a, b) => (a.modifiedAt < b.modifiedAt ? 1 : -1));
     results.push({
       source: 'claude-code',
       logDir,
@@ -29,24 +40,34 @@ export function scanClaudeProjects(baseDir = CLAUDE_PROJECTS_DIR) {
       physicalPath,
       sessionCount: files.length,
       messageEstimate,
+      sessions,
     });
   }
   return results.sort((a, b) => b.sessionCount - a.sessionCount);
 }
 
-// Read the first few KB of a JSONL file to find the project's real cwd.
-function sniffCwd(file) {
+// Read the first few KB of a JSONL file to find the project's real cwd and a
+// human label (the "summary" line Claude Code prepends to session logs).
+function sniffHead(file) {
+  const head = { cwd: null, summary: null };
   try {
     const fd = fs.openSync(file, 'r');
     const buf = Buffer.alloc(64 * 1024);
     const n = fs.readSync(fd, buf, 0, buf.length, 0);
     fs.closeSync(fd);
     for (const line of buf.toString('utf8', 0, n).split('\n')) {
-      const m = line.match(/"cwd":"((?:[^"\\]|\\.)*)"/);
-      if (m) return JSON.parse(`"${m[1]}"`);
+      if (!head.cwd) {
+        const m = line.match(/"cwd":"((?:[^"\\]|\\.)*)"/);
+        if (m) try { head.cwd = JSON.parse(`"${m[1]}"`); } catch {}
+      }
+      if (!head.summary) {
+        const s = line.match(/^\{"type":"summary","summary":"((?:[^"\\]|\\.)*)"/);
+        if (s) try { head.summary = JSON.parse(`"${s[1]}"`).slice(0, 120); } catch {}
+      }
+      if (head.cwd && head.summary) break;
     }
   } catch {}
-  return null;
+  return head;
 }
 
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
