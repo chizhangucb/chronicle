@@ -113,6 +113,7 @@ export async function parseClaudeSession(file) {
   let cwd = null;
   let firstPrompt = null;
   let skipped = 0;
+  let contextTokens = null;
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -120,6 +121,13 @@ export async function parseClaudeSession(file) {
     try { o = JSON.parse(line); } catch { skipped++; continue; }
     if (o.sessionId) sessionId = o.sessionId;
     if (o.cwd && !cwd) cwd = o.cwd;
+    // Real context-window size: the prompt side of the LAST main-chain API call
+    // (matches Claude Code's own status line; sidechains are separate contexts).
+    if (!o.isSidechain && o.type === 'assistant' && o.message?.usage) {
+      const u = o.message.usage;
+      const ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+      if (ctx > 0) contextTokens = ctx;
+    }
     for (const e of parseClaudeLine(o)) {
       events.push(e);
       if (e.kind === 'user' && !firstPrompt) firstPrompt = e.text.slice(0, 200);
@@ -136,6 +144,7 @@ export async function parseClaudeSession(file) {
       started_at: timestamps[0] ?? null,
       ended_at: timestamps[timestamps.length - 1] ?? null,
       first_prompt: firstPrompt,
+      context_tokens: contextTokens,
       skipped,
     },
     events,

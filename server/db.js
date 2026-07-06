@@ -42,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 `);
 
+// Idempotent migrations
+try { db.exec('ALTER TABLE sessions ADD COLUMN context_tokens INTEGER'); } catch {}
+
 export function upsertProject(physicalPath) {
   const name = path.basename(physicalPath) || physicalPath;
   db.prepare('INSERT INTO projects (path, name) VALUES (?, ?) ON CONFLICT(path) DO NOTHING').run(physicalPath, name);
@@ -53,10 +56,11 @@ export function replaceSession(session, events) {
   try {
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
-    db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
-           session.started_at, session.ended_at, events.length, session.first_prompt);
+           session.started_at, session.ended_at, events.length, session.first_prompt,
+           session.context_tokens ?? null);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     events.forEach((e, i) => ins.run(session.id, i, e.uuid ?? null, e.ts ?? null, e.kind,

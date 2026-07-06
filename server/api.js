@@ -171,7 +171,7 @@ api.get('/projects', (req, res) => {
 api.get('/projects/:id', (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt,
+  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens,
       (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
     FROM sessions WHERE project_id = ? ORDER BY started_at DESC`).all(project.id)

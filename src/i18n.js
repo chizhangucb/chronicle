@@ -157,6 +157,13 @@ const zh = {
   'deleted / edited / inserted': '已删除 / 已编辑 / 已插入',
   'Export': '导出',
   'Open the live session': '打开正在进行的会话',
+  'Context window size at the last message (real usage from the session log)':
+    '最后一条消息时的上下文窗口大小（来自会话日志的真实用量）',
+  'Estimated content size (~4 characters per token) — re-import for real context usage':
+    '估算的内容大小（约 4 字符/词元）—— 重新导入可获得真实上下文用量',
+  'Context': '上下文',
+  'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
+    '导出文档的大小（工具调用截断为单行预览）—— 不是模型上下文窗口',
   'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':
     '该来源的所有会话存放在共享存储中——无法按会话删除文件。',
   'Session is live — deletion is disabled while the log is being written.':
