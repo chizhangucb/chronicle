@@ -8,15 +8,49 @@
     "build": "vite build",
     "preview": "vite preview",
     "desktop": "npm run build && electron .",
-    "standalone": "npm run build && node server/standalone.js"
+    "standalone": "npm run build && node server/standalone.js",
+    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64"
   },
   "keywords": [],
-  "author": "",
+  "author": "Chi Zhang",
   "license": "ISC",
+  "build": {
+    "appId": "com.chizhang.chronicle",
+    "productName": "Chronicle",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "server/**",
+      "electron/**",
+      "hooks/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
+  },
   "type": "module",
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.3",
     "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
     "vite": "^8.1.3"
   },
   "dependencies": {
