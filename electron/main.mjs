@@ -53,7 +53,7 @@ function buildTray() {
 // Update check (NFR-7 lite): polls a releases feed; full silent auto-update
 // needs a signed publish pipeline — deferred until distribution is set up.
 const UPDATE_FEED = process.env.CHRONICLE_UPDATE_FEED
-  || 'https://api.github.com/repos/kite-ai/chronicle/releases/latest';
+  || 'https://api.github.com/repos/chizhangucb/chronicle/releases/latest';
 
 async function checkForUpdates(interactive = true) {
   try {

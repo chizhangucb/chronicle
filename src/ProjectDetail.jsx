@@ -4,13 +4,20 @@ import { t } from './i18n.js';
 
 const KIND_LABELS = { user: 'User', assistant: 'AI', thinking: 'Thinking', tool_use: 'Tool calls', tool_result: 'Tool results' };
 
-export default function ProjectDetail({ id, onBack, onOpenSession }) {
+export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [assocPath, setAssocPath] = useState('');
 
   const refresh = () => api.project(id).then(setData).catch((e) => setError(String(e.message)));
   useEffect(() => { refresh(); }, [id]);
+
+  // Project-level LIVE pill: light up when any session log is being written right now.
+  useEffect(() => {
+    const live = data?.sessions?.find((s) => s.liveCandidate);
+    onLiveChange?.(live ? { status: 'live', sessionId: live.id } : null);
+    return () => onLiveChange?.(null);
+  }, [data]);
 
   async function rename() {
     const name = prompt('New display name (folder is not touched):', data.project.name);
@@ -98,6 +105,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession }) {
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
             <div className="session-prompt">{s.first_prompt || <span className="muted">(no prompt)</span>}</div>
             <div className="session-meta muted small">
+              {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
               <span>{s.message_count} messages</span>
               {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}

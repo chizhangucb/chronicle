@@ -32,6 +32,11 @@ export function scanCodexProjects(baseDir = CODEX_SESSIONS_DIR) {
     physicalPath: cwd === 'unknown' ? null : cwd,
     sessionCount: fs_.length,
     messageEstimate: fs_.length * 40,
+    sessions: fs_.map((f) => {
+      let mtime = null;
+      try { mtime = fs.statSync(f).mtime.toISOString(); } catch {}
+      return { id: path.basename(f, '.jsonl'), file: f, label: null, modifiedAt: mtime, messageEstimate: 40 };
+    }).sort((a, b) => ((a.modifiedAt || '') < (b.modifiedAt || '') ? 1 : -1)),
   }));
 }
 

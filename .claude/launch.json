@@ -2,13 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "chronicle",
+      "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "port": 4173
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview"],
+      "port": 4173
+    },
+    {
+      "name": "standalone",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "standalone"],
+      "port": 41730
     }
   ]
 }

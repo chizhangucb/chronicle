@@ -21,19 +21,36 @@ export function scanOpencodeProjects(dbPath = OPENCODE_DB) {
   let snap;
   try {
     snap = openSnapshot(dbPath);
-    const rows = snap.db.prepare(`
-      SELECT s.directory AS dir, COUNT(DISTINCT s.id) AS sessions, COUNT(m.id) AS messages
-      FROM session s LEFT JOIN message m ON m.session_id = s.id
-      WHERE s.parent_id IS NULL
-      GROUP BY s.directory`).all();
-    return rows.map((r) => ({
+    let perSession;
+    try {
+      perSession = snap.db.prepare(`
+        SELECT s.id AS id, s.directory AS dir, s.title AS title, s.time_updated AS updated, COUNT(m.id) AS messages
+        FROM session s LEFT JOIN message m ON m.session_id = s.id
+        WHERE s.parent_id IS NULL GROUP BY s.id`).all();
+    } catch {
+      perSession = snap.db.prepare(`
+        SELECT s.id AS id, s.directory AS dir, NULL AS title, NULL AS updated, COUNT(m.id) AS messages
+        FROM session s LEFT JOIN message m ON m.session_id = s.id
+        WHERE s.parent_id IS NULL GROUP BY s.id`).all();
+    }
+    const byDir = new Map();
+    for (const r of perSession) {
+      if (!byDir.has(r.dir)) byDir.set(r.dir, []);
+      byDir.get(r.dir).push({
+        id: r.id, file: null, label: r.title || null,
+        modifiedAt: r.updated ? new Date(r.updated).toISOString() : null,
+        messageEstimate: r.messages,
+      });
+    }
+    return [...byDir.entries()].map(([dir, sessions]) => ({
       source: 'opencode',
       logDir: dbPath,
-      directory: r.dir,
-      name: path.basename(r.dir),
-      physicalPath: r.dir,
-      sessionCount: r.sessions,
-      messageEstimate: r.messages,
+      directory: dir,
+      name: path.basename(dir),
+      physicalPath: dir,
+      sessionCount: sessions.length,
+      messageEstimate: sessions.reduce((s, x) => s + x.messageEstimate, 0),
+      sessions: sessions.sort((a, b) => ((a.modifiedAt || '') < (b.modifiedAt || '') ? 1 : -1)),
     }));
   } catch {
     return [];
@@ -43,11 +60,13 @@ export function scanOpencodeProjects(dbPath = OPENCODE_DB) {
 }
 
 // Parse all top-level sessions for one project directory.
-export function parseOpencodeSessions(dbPath, directory) {
+// sessionIds (optional) restricts to a subset of session ids.
+export function parseOpencodeSessions(dbPath, directory, sessionIds) {
   const snap = openSnapshot(dbPath);
   try {
-    const sessions = snap.db.prepare(
+    let sessions = snap.db.prepare(
       'SELECT * FROM session WHERE directory = ? AND parent_id IS NULL').all(directory);
+    if (sessionIds?.length) sessions = sessions.filter((s) => sessionIds.includes(s.id));
     return sessions.map((s) => {
       const parts = snap.db.prepare(`
         SELECT p.data AS part_data, p.time_created AS ts, m.data AS msg_data, m.id AS msg_id
