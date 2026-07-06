@@ -22,6 +22,8 @@ export const api = {
   syncProject: (id) => j(`/api/projects/${id}/sync`, { method: 'POST' }),
   project: (id) => j(`/api/projects/${id}`),
   sessionMessages: (id) => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
+  deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
+  deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
   gitAt: (project, ts) => j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
   gitTree: (project, commit) => j(`/api/git/tree?project=${project}&commit=${commit}`),
   gitFile: (project, commit, path) =>

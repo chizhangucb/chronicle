@@ -197,6 +197,54 @@ api.get('/sessions/:id/messages', (req, res) => {
     liveCandidate: isLiveCandidate(session.file_path) });
 });
 
+// Delete the ORIGINAL log file on disk (explicit user request only, permanent —
+// the UI double-confirms). Restricted to sources where one file == one session;
+// shared stores (OpenCode/Cursor DBs, Gemini logDirs) would lose other sessions.
+const PER_FILE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+
+api.delete('/sessions/:id/source-file', (req, res) => {
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Not found' });
+  if (!PER_FILE_SOURCES.has(session.source)) {
+    return res.status(400).json({ error: `${session.source} keeps sessions in shared storage — deleting the file would remove other sessions too` });
+  }
+  if (!fs.existsSync(session.file_path) || !fs.statSync(session.file_path).isFile()) {
+    return res.status(400).json({ error: 'Source file no longer exists on disk' });
+  }
+  if (isLiveCandidate(session.file_path)) {
+    return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting its log' });
+  }
+  try {
+    fs.unlinkSync(session.file_path);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err) });
+  }
+});
+
+// Delete a session's imported copy from Chronicle; ?source=1 also permanently
+// deletes the original log file (same per-file-source restriction as above).
+api.delete('/sessions/:id', (req, res) => {
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Not found' });
+  if (isLiveCandidate(session.file_path)) {
+    return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting' });
+  }
+  let sourceDeleted = false;
+  if (req.query.source === '1') {
+    if (!PER_FILE_SOURCES.has(session.source)) {
+      return res.status(400).json({ error: `${session.source} keeps sessions in shared storage — deleting the file would remove other sessions too` });
+    }
+    if (fs.existsSync(session.file_path) && fs.statSync(session.file_path).isFile()) {
+      try { fs.unlinkSync(session.file_path); sourceDeleted = true; }
+      catch (err) { return res.status(500).json({ error: String(err.message || err) }); }
+    }
+  }
+  db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
+  db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
+  res.json({ ok: true, sourceDeleted });
+});
+
 // ---- Live streaming (FR-LS): SSE tail of the session's log file ----
 
 api.get('/sessions/:id/live', (req, res) => {
