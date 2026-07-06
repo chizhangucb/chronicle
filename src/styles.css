@@ -260,6 +260,38 @@ body {
 .rail-btn.security { color: var(--warn); }
 .rail-btn.security:hover { color: var(--warn); }
 .rail-sep { width: 36px; height: 1px; background: var(--border); margin: 6px 0; }
+
+/* Session overview (stats home page) */
+.overview-page { display: flex; flex-direction: column; gap: 14px; }
+.ov-title { margin: 0 0 2px; }
+.ov-block { display: flex; flex-direction: column; gap: 6px; }
+.ov-block-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.ov-cols { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.4fr); gap: 14px; }
+.ov-tl-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.ov-tl-row:last-child { border-bottom: none; }
+.ov-tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; align-self: center; }
+.ov-tl-label { font-weight: 600; white-space: nowrap; }
+.ov-tl-preview { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.ov-donut-wrap { display: flex; gap: 18px; align-items: center; }
+.ov-donut {
+  width: 130px; height: 130px; border-radius: 50%; flex-shrink: 0;
+  -webkit-mask: radial-gradient(circle, transparent 38px, #000 39px);
+  mask: radial-gradient(circle, transparent 38px, #000 39px);
+}
+.ov-legend-row { display: flex; align-items: center; gap: 8px; padding: 1px 0; font-size: 13px; }
+.ov-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.ov-details { max-height: 340px; overflow-y: auto; }
+.ov-detail-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.ov-detail-row:last-child { border-bottom: none; }
+.ov-danger { border-color: rgba(229, 104, 75, 0.35); }
+.ov-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.danger-btn { color: var(--danger); border-color: var(--danger); align-self: flex-start; }
+.danger-btn:hover { background: rgba(229, 104, 75, 0.12); border-color: var(--danger); }
+.ov-confirm {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px;
+  background: rgba(229, 104, 75, 0.1); border: 1px solid var(--danger);
+  border-radius: 6px; padding: 8px 10px; color: #f0a795;
+}
 .session-toolbar {
   display: flex; align-items: center; gap: 12px; padding: 8px 14px;
   border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0;
