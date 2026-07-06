@@ -39,15 +39,8 @@ export default function App() {
           <button className={`chip ${view.name === 'security' ? 'on' : ''}`} onClick={() => setView({ name: 'security' })}>🛡 {t('Security')}</button>
         </nav>
         <div className="topbar-right">
-          {liveInfo && (view.name === 'session' || view.name === 'project') && (
-            <span className={`pill live-pill ${liveInfo.status}`}
-              title={liveInfo.sessionId && view.name !== 'session' ? 'Open the live session' : 'Live streaming from the session log'}
-              style={liveInfo.sessionId && view.name !== 'session' ? { cursor: 'pointer' } : undefined}
-              onClick={() => {
-                if (liveInfo.sessionId && view.name === 'project') {
-                  setView({ name: 'session', id: liveInfo.sessionId, projectId: view.id });
-                }
-              }}>
+          {liveInfo && view.name === 'session' && (
+            <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
               {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
             </span>
           )}
