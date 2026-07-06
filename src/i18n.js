@@ -162,6 +162,7 @@ const zh = {
   'Estimated content size (~4 characters per token) — re-import for real context usage':
     '估算的内容大小（约 4 字符/词元）—— 重新导入可获得真实上下文用量',
   'Context': '上下文',
+  'Context Window': '上下文窗口',
   'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
     '导出文档的大小（工具调用截断为单行预览）—— 不是模型上下文窗口',
   'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':

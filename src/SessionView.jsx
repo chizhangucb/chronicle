@@ -6,6 +6,7 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
+import { contextWindowFor } from './models.js';
 
 const FILTER_CHIPS = [
   { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
@@ -357,6 +358,12 @@ function isErrorResult(m) {
       .test((m.text || '').slice(0, 200));
 }
 
+function fmtCtx(tokens) {
+  if (tokens >= 1e6) return `${tokens % 1e6 === 0 ? tokens / 1e6 : (tokens / 1e6).toFixed(1)}M`;
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
+  return String(tokens);
+}
+
 function OverviewMode({ data, liveStatus, onDeleted }) {
   const { session, messages } = data;
 
@@ -397,6 +404,17 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
 
   const DETAIL_CAP = 100;
 
+  // Context-window usage bar: real usage vs the model's window (static table).
+  const model = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].model) return messages[i].model;
+    return null;
+  }, [messages]);
+  const ctxWindow = contextWindowFor(model);
+  const ctxPct = ctxWindow && session.context_tokens > 0
+    ? (session.context_tokens / ctxWindow) * 100 : null;
+  const ctxLevel = ctxPct === null ? null
+    : ctxPct >= 90 ? 'crit' : ctxPct >= 75 ? 'high' : ctxPct >= 50 ? 'mid' : 'low';
+
   return (
     <div className="page overview-page">
       <h3 className="ov-title">📊 {t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</h3>
@@ -412,6 +430,21 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
           </div>
         )}
       </div>
+
+      {ctxPct !== null && (
+        <div className="card ov-block ctx-block">
+          <div className="ctx-head">
+            <strong>{t('Context Window')}</strong>
+            <span className="muted small">{model}</span>
+            <span className={`ctx-pct ${ctxLevel}`}>
+              {fmtCtx(session.context_tokens)} / {fmtCtx(ctxWindow)} · {Math.round(ctxPct)}%
+            </span>
+          </div>
+          <div className="ctx-bar" title={t('Context window size at the last message (real usage from the session log)')}>
+            <span className={`ctx-fill ${ctxLevel}`} style={{ width: `${Math.min(100, ctxPct)}%` }} />
+          </div>
+        </div>
+      )}
 
       <div className="card ov-block">
         <div className="ov-block-head"><strong>{t('Call Timeline')}</strong>
