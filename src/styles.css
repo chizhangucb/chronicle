@@ -234,6 +234,13 @@ body {
 .bar-fill { height: 100%; background: var(--accent); }
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
 .spark-bar { flex: 1; min-width: 3px; background: var(--accent2); border-radius: 2px 2px 0 0; opacity: 0.8; }
+.session-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  position: sticky; top: -20px; z-index: 5; background: var(--bg);
+  padding: 6px 0;
+}
+.session-head .page-title { margin: 0; }
+.live-pill.clickable { cursor: pointer; }
 .session-list { display: flex; flex-direction: column; gap: 10px; }
 .session-row { cursor: pointer; }
 .session-row:hover { border-color: var(--accent); }
