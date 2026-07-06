@@ -104,8 +104,9 @@ plus real data end-to-end (see Verification below).
   `~/.claude/projects/-Users-chizhang-personal--ai-session-manager/` — Chronicle's
   imported sessions point there and stay valid. New sessions land in
   `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
-- Update feed in `electron/main.mjs` points at placeholder `kite-ai/chronicle`; change
-  when a real release repo exists (env override: `CHRONICLE_UPDATE_FEED`).
+- Update feed in `electron/main.mjs` points at `chizhangucb/chronicle` (this repo);
+  it only serves updates once GitHub Releases are published (env override:
+  `CHRONICLE_UPDATE_FEED`).
 
 ## Verification habits used here
 

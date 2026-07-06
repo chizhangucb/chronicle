@@ -23,57 +23,136 @@ api.use(express.json());
 
 // ---- Import wizard ----
 
-api.get('/scan', (req, res) => {
+function annotateScan(items) {
   const importedPaths = new Set(db.prepare('SELECT path FROM projects').all().map((p) => p.path));
-  const annotate = (items) => items.map((i) => ({ ...i, imported: i.physicalPath ? importedPaths.has(i.physicalPath) : false }));
+  const importedIds = new Set(db.prepare('SELECT id FROM sessions').all().map((s) => s.id));
+  const importedFiles = new Set(db.prepare('SELECT file_path FROM sessions').all().map((s) => s.file_path));
+  return items.map((i) => ({
+    ...i,
+    imported: i.physicalPath ? importedPaths.has(i.physicalPath) : false,
+    sessions: i.sessions?.map((s) => ({
+      ...s,
+      imported: importedIds.has(s.id) || (s.file ? importedFiles.has(s.file) : false),
+    })),
+  }));
+}
+
+api.get('/scan', (req, res) => {
+  const { source, dir } = req.query;
+  if (source && dir) {
+    // Manual directory scan for one source (FR: "Select Directory Manually")
+    const scanners = {
+      'claude-code': (d) => scanClaudeProjects(d),
+      codex: (d) => scanCodexProjects(d),
+      opencode: (d) => scanOpencodeProjects(d),
+      cursor: (d) => scanCursorProjects(d),
+      'gemini-cli': (d) => scanGeminiProjects(d),
+      'copilot-chat': (d) => scanCopilotProjects([d]),
+    };
+    if (!scanners[source]) return res.status(400).json({ error: `Unsupported source: ${source}` });
+    if (!fs.existsSync(dir)) return res.status(400).json({ error: 'Directory not found' });
+    try { return res.json({ [source]: annotateScan(scanners[source](dir)) }); }
+    catch (err) { return res.status(500).json({ error: String(err.message || err) }); }
+  }
   res.json({
-    'claude-code': annotate(scanClaudeProjects()),
-    codex: annotate(scanCodexProjects()),
-    cursor: annotate(scanCursorProjects()),
-    opencode: annotate(scanOpencodeProjects()),
-    'gemini-cli': annotate(scanGeminiProjects()),
-    'copilot-chat': annotate(scanCopilotProjects()),
+    'claude-code': annotateScan(scanClaudeProjects()),
+    codex: annotateScan(scanCodexProjects()),
+    cursor: annotateScan(scanCursorProjects()),
+    opencode: annotateScan(scanOpencodeProjects()),
+    'gemini-cli': annotateScan(scanGeminiProjects()),
+    'copilot-chat': annotateScan(scanCopilotProjects()),
   });
 });
 
-api.post('/import', async (req, res) => {
-  const { source, logDir, files, directory } = req.body;
-  try {
-    // Gather parsed {session, events} pairs per source
-    let parsed = [];
-    if (source === 'claude-code') {
-      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Log directory not found' });
-      const sessionFiles = fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
-      for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
-    } else if (source === 'codex') {
-      for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
-    } else if (source === 'opencode') {
-      parsed = parseOpencodeSessions(logDir || OPENCODE_DB, directory);
-    } else if (source === 'cursor') {
-      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Workspace directory not found' });
-      parsed = parseCursorWorkspace(logDir);
-    } else if (source === 'gemini-cli') {
-      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Gemini project directory not found' });
-      parsed = parseGeminiProject(logDir);
-    } else if (source === 'copilot-chat') {
-      if (!logDir || !fs.existsSync(logDir)) return res.status(400).json({ error: 'Workspace directory not found' });
-      parsed = parseCopilotWorkspace(logDir);
-    } else {
-      return res.status(400).json({ error: `Unsupported source: ${source}` });
-    }
+// Gather parsed {session, events} pairs per source. files/sessionIds restrict
+// the import to a user-selected subset of sessions.
+async function gatherParsed({ source, logDir, files, directory, sessionIds }) {
+  const bad = (msg) => { const e = new Error(msg); e.status = 400; return e; };
+  if (source === 'claude-code') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
+    const sessionFiles = files?.length
+      ? files.filter((f) => fs.existsSync(f))
+      : fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
+    const parsed = [];
+    for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
+    return parsed;
+  }
+  if (source === 'codex') {
+    const parsed = [];
+    for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
+    return parsed;
+  }
+  if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
+  if (source === 'cursor') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
+    return parseCursorWorkspace(logDir);
+  }
+  if (source === 'gemini-cli') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Gemini project directory not found');
+    return parseGeminiProject(logDir);
+  }
+  if (source === 'copilot-chat') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
+    return parseCopilotWorkspace(logDir);
+  }
+  throw bad(`Unsupported source: ${source}`);
+}
 
-    let imported = 0, skippedSessions = 0, totalMessages = 0;
-    let project = null;
-    for (const { session, events } of parsed) {
-      if (!events.length || !session.cwd) { skippedSessions++; continue; }
-      project = upsertProject(session.cwd);
-      replaceSession({ ...session, project_id: project.id }, events);
-      imported++;
-      totalMessages += events.length;
-    }
-    res.json({ ok: true, imported, skippedSessions, totalMessages, projectId: project?.id ?? null });
+// Import parsed sessions; reports per-project aggregates so the UI can show
+// which projects were created vs updated.
+function importParsed(parsed) {
+  let imported = 0, skippedSessions = 0, totalMessages = 0;
+  const byProject = new Map();
+  for (const { session, events } of parsed) {
+    if (!events.length || !session.cwd) { skippedSessions++; continue; }
+    const existed = !!db.prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
+    const project = upsertProject(session.cwd);
+    replaceSession({ ...session, project_id: project.id }, events);
+    imported++;
+    totalMessages += events.length;
+    const agg = byProject.get(project.id)
+      || { id: project.id, name: project.name, path: project.path, created: !existed, sessions: 0, messages: 0 };
+    agg.sessions++;
+    agg.messages += events.length;
+    byProject.set(project.id, agg);
+  }
+  const projects = [...byProject.values()];
+  return { ok: true, imported, skippedSessions, totalMessages, projects, projectId: projects[0]?.id ?? null };
+}
+
+api.post('/import', async (req, res) => {
+  try {
+    res.json(importParsed(await gatherParsed(req.body)));
   } catch (err) {
-    res.status(500).json({ error: String(err.message || err) });
+    res.status(err.status || 500).json({ error: String(err.message || err) });
+  }
+});
+
+// Re-import every source log location that maps to this project's path (FR: "Sync Update").
+api.post('/projects/:id/sync', async (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  try {
+    const bySource = {
+      'claude-code': scanClaudeProjects(),
+      codex: scanCodexProjects(),
+      cursor: scanCursorProjects(),
+      opencode: scanOpencodeProjects(),
+      'gemini-cli': scanGeminiProjects(),
+      'copilot-chat': scanCopilotProjects(),
+    };
+    const matches = Object.values(bySource).flat().filter((i) => i.physicalPath === project.path);
+    if (!matches.length) return res.status(404).json({ error: 'No source logs found for this project path' });
+    let imported = 0, skippedSessions = 0, totalMessages = 0;
+    for (const item of matches) {
+      const result = importParsed(await gatherParsed(item));
+      imported += result.imported;
+      skippedSessions += result.skippedSessions;
+      totalMessages += result.totalMessages;
+    }
+    res.json({ ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: String(err.message || err) });
   }
 });
 
@@ -92,8 +171,9 @@ api.get('/projects', (req, res) => {
 api.get('/projects/:id', (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
-  const sessions = db.prepare(`SELECT id, source, started_at, ended_at, message_count, first_prompt
-    FROM sessions WHERE project_id = ? ORDER BY started_at DESC`).all(project.id);
+  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt
+    FROM sessions WHERE project_id = ? ORDER BY started_at DESC`).all(project.id)
+    .map(({ file_path, ...s }) => ({ ...s, liveCandidate: isLiveCandidate(file_path) }));
   const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL

@@ -8,13 +8,18 @@ async function j(url, opts) {
 }
 
 export const api = {
-  scan: () => j('/api/scan'),
+  scan: (params) => j('/api/scan' + (params ? `?${new URLSearchParams(params)}` : '')),
   import: (payload) => j('/api/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
   projects: () => j('/api/projects'),
+  renameProject: (id, name) => j(`/api/projects/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+  }),
+  deleteProject: (id) => j(`/api/projects/${id}`, { method: 'DELETE' }),
+  syncProject: (id) => j(`/api/projects/${id}/sync`, { method: 'POST' }),
   project: (id) => j(`/api/projects/${id}`),
   sessionMessages: (id) => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
   gitAt: (project, ts) => j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
