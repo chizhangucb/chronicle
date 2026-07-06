@@ -291,6 +291,23 @@ body {
 .ov-detail-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .ov-detail-row:last-child { border-bottom: none; }
 .ov-danger { border-color: rgba(229, 104, 75, 0.35); }
+.ctx-block { margin: 14px 0 4px; }
+.ctx-head { display: flex; align-items: baseline; gap: 10px; }
+.ctx-head .muted { flex: 1; font-family: var(--mono); }
+.ctx-pct { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ctx-bar {
+  height: 10px; border-radius: 5px; background: var(--bg3);
+  overflow: hidden; margin-top: 8px;
+}
+.ctx-fill { display: block; height: 100%; border-radius: 5px; transition: width 0.3s; }
+.ctx-fill.low, .ctx-pct.low { color: #22d3ee; }
+.ctx-fill.low { background: #22d3ee; }
+.ctx-fill.mid, .ctx-pct.mid { color: var(--warn); }
+.ctx-fill.mid { background: var(--warn); }
+.ctx-fill.high, .ctx-pct.high { color: var(--danger); }
+.ctx-fill.high { background: var(--danger); }
+.ctx-pct.crit { color: #ff3b30; font-weight: 800; }
+.ctx-fill.crit { background: #ff3b30; box-shadow: 0 0 10px rgba(255, 59, 48, 0.75); }
 .ov-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .danger-btn { color: var(--danger); border-color: var(--danger); align-self: flex-start; }
 .danger-btn:hover { background: rgba(229, 104, 75, 0.12); border-color: var(--danger); }
