@@ -226,7 +226,8 @@ export default function RefineMode({ messages, session, project }) {
           <button className="btn tiny ghost" title={`${t('Redo')} (⇧⌘Z)`} disabled={!redoStack.current.length} onClick={redo}>↷</button>
           <button className="btn tiny ghost" title={t('Reset all changes')} disabled={!undoStack.current.length && !redoStack.current.length} onClick={reset}>⟲</button>
         </span>
-        <span className="refine-totals">
+        <span className="refine-totals"
+          title={t('Size of the export document (tool calls truncated to one-line previews) — not the model context window')}>
           <span className="muted small">{t('Original')}</span> <b>{fmtTok(originalTokens)}</b>
           <span className="muted">→</span>
           <span className="muted small">{t('Compressed')}</span> <b className="token-stats">{fmtTok(compressedTokens)}</b>

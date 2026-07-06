@@ -405,6 +405,12 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
         <div className="card stat"><div className={`stat-num ${stats.errors ? 'bad' : ''}`}>{stats.errors}</div><div className="muted small">{t('Errors')}</div></div>
+        {session.context_tokens > 0 && (
+          <div className="card stat" title={t('Context window size at the last message (real usage from the session log)')}>
+            <div className="stat-num">{session.context_tokens >= 1e6 ? `${(session.context_tokens / 1e6).toFixed(1)}M` : `${Math.round(session.context_tokens / 1000)}k`}</div>
+            <div className="muted small">{t('Context')}</div>
+          </div>
+        )}
       </div>
 
       <div className="card ov-block">
