@@ -20,7 +20,7 @@ export const api = {
   }),
   deleteProject: (id) => j(`/api/projects/${id}`, { method: 'DELETE' }),
   syncProject: (id) => j(`/api/projects/${id}/sync`, { method: 'POST' }),
-  project: (id) => j(`/api/projects/${id}`),
+  project: (id, days) => j(`/api/projects/${id}${days ? `?days=${days}` : ''}`),
   sessionMessages: (id) => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
   deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),

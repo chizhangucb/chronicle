@@ -123,9 +123,10 @@ export default function App() {
             onOpenSession={(sid) => setView({ name: 'session', id: sid, projectId: view.id })} />
         )}
         {view.name === 'session' && (
-          <SessionView sessionId={view.id}
+          <SessionView key={view.id} sessionId={view.id}
             onLiveChange={setLiveInfo}
             onRailChange={setRail}
+            onSwitchSession={(sid) => setView({ name: 'session', id: sid, projectId: view.projectId })}
             onBack={() => setView({ name: 'project', id: view.projectId })} />
         )}
         {view.name === 'hub' && <HubPage />}

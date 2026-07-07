@@ -7,6 +7,7 @@ import RefineMode from './RefineMode.jsx';
 import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { contextWindowFor } from './models.js';
+import { SessionPicker } from './ProjectDetail.jsx';
 
 const FILTER_CHIPS = [
   { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
@@ -14,7 +15,7 @@ const FILTER_CHIPS = [
   { key: 'thinking', label: t('Thinking'), kinds: ['thinking'] },
 ];
 
-export default function SessionView({ sessionId, onBack, onLiveChange, onRailChange }) {
+export default function SessionView({ sessionId, onBack, onLiveChange, onRailChange, onSwitchSession }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [selectedSeq, setSelectedSeq] = useState(null);
@@ -191,7 +192,12 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     <div className="session-view">
       <div className="session-main">
       <div className="session-toolbar">
-        <button className="btn ghost" onClick={onBack}>← {data.project.name}</button>
+        <div className="crumbs">
+          <button className="crumb" title={t('Project home page')} onClick={onBack}>📁 {data.project.name}</button>
+          <span className="crumb-sep">›</span>
+          <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
+            onSwitch={onSwitchSession} />
+        </div>
         {mode === 'playback' && <><div className="filter-chips">
           {FILTER_CHIPS.map((c) => (
             <button key={c.key} className={`chip ${chips.has(c.key) ? 'on' : ''}`}
@@ -353,6 +359,40 @@ function isErrorResult(m) {
       .test((m.text || '').slice(0, 200));
 }
 
+// Session ID with one-click copy (shown on the session home page).
+function SessionIdChip({ id }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(id); } catch {
+      const ta = document.createElement('textarea');
+      ta.value = id; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <span className="session-id-chip" title={t('Session ID')}>
+      <span className="mono-path small">{id}</span>
+      <button className={`btn tiny ${copied ? 'ok-btn' : ''}`} onClick={copy}>
+        {copied ? `✓ ${t('Copied!')}` : `⧉ ${t('Copy')}`}
+      </button>
+    </span>
+  );
+}
+
+// Breadcrumb session dropdown: lazily loads the project's session list.
+function SessionSwitcher({ projectId, current, onSwitch }) {
+  const [sessions, setSessions] = useState(null);
+  useEffect(() => {
+    api.project(projectId).then((d) => setSessions(d.sessions)).catch(() => setSessions([]));
+  }, [projectId]);
+  return (
+    <SessionPicker sessions={sessions || []} loading={sessions === null} current={current}
+      onPick={(sid) => { if (sid !== current.id) onSwitch?.(sid); }} />
+  );
+}
+
 function fmtCtx(tokens) {
   if (tokens >= 1e6) return `${tokens % 1e6 === 0 ? tokens / 1e6 : (tokens / 1e6).toFixed(1)}M`;
   if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
@@ -412,7 +452,10 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
 
   return (
     <div className="page overview-page">
-      <h3 className="ov-title">📊 {t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</h3>
+      <div className="ov-title-row">
+        <h3 className="ov-title">📊 {t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</h3>
+        <SessionIdChip id={session.id} />
+      </div>
       <div className="analytics-row">
         <div className="card stat"><div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>

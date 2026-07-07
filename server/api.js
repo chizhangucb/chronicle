@@ -198,24 +198,37 @@ api.get('/projects', (req, res) => {
   res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path) })));
 });
 
+// Heuristic error detection (mirrors the client-side Overview heuristic).
+const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;
+
 api.get('/projects/:id', (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Not found' });
+  // Optional time range (?days=7/30/365) — filters sessions and all analytics.
+  const days = Number(req.query.days) || null;
+  const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
   const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens,
       (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
-    FROM sessions WHERE project_id = ? ORDER BY started_at DESC`).all(project.id)
+    FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff)
     .map(({ file_path, ...s }) => ({ ...s, liveCandidate: isLiveCandidate(file_path) }));
   const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
-    WHERE s.project_id = ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
-    GROUP BY m.tool_name ORDER BY count DESC LIMIT 12`).all(project.id);
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
+    GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
   const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id WHERE s.project_id = ? GROUP BY m.kind`).all(project.id);
+    JOIN sessions s ON s.id = m.session_id
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? GROUP BY m.kind`).all(project.id, cutoff);
   const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
-    WHERE s.project_id = ? AND m.ts IS NOT NULL GROUP BY day ORDER BY day`).all(project.id);
-  res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity } });
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.ts IS NOT NULL
+    GROUP BY day ORDER BY day`).all(project.id, cutoff);
+  const errors = db.prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
+    JOIN sessions s ON s.id = m.session_id
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
+    .all(project.id, cutoff)
+    .reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
+  res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors } });
 });
 
 api.get('/sessions/:id/messages', (req, res) => {
