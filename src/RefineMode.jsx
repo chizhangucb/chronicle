@@ -58,6 +58,9 @@ export default function RefineMode({ messages, session, project }) {
   function setDeleted(id, deleted) {
     apply(items.map((it) => (it.id === id ? { ...it, deleted } : it)));
   }
+  function setAllDeleted(deleted) {
+    apply(items.map((it) => (it.deleted === deleted ? it : { ...it, deleted })));
+  }
   function insertAt(idx) {
     const newItem = { id: `ins${Date.now()}`, kind: 'note', text: '', deleted: false, edited: true, inserted: true };
     apply([...items.slice(0, idx), newItem, ...items.slice(idx)]);
@@ -140,7 +143,13 @@ export default function RefineMode({ messages, session, project }) {
     <div className="refine">
       <div className="refine-panes">
         <div className="refine-left" ref={leftRef}>
-          <button className="btn ghost small refine-insert-start" onClick={() => insertAt(0)}>＋ {t('Insert at start')}</button>
+          <div className="refine-bulk">
+            <button className="btn ghost small" onClick={() => insertAt(0)}>＋ {t('Insert at start')}</button>
+            <button className="btn ghost small" title={t('Keep every message')}
+              onClick={() => setAllDeleted(false)}>✓ {t('Keep All')}</button>
+            <button className="btn ghost small" title={t('Delete every message')}
+              onClick={() => setAllDeleted(true)}>🗑 {t('Delete All')}</button>
+          </div>
           {items.map((it) => {
             const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--muted)' };
             const long = it.text.length > COLLAPSE_AT;
