@@ -76,7 +76,8 @@ Click **Import Sessions**, pick a source tool, and open a session.
   original messages left, **Compressed Preview** right (Full / Changes Only /
   Hide Deleted views); Keep/Delete/Edit/Insert (`K`/`D`/`E`/`I`) with per-message
   token badges; status bar with undo/redo/reset (`⌘Z`/`⇧⌘Z`), Original → Compressed →
-  Saved token stats, and an Export menu (Markdown / as Prompt, `⌘S`).
+  Saved token stats, and an Export menu (Markdown / as Prompt, `⌘S`). Tool results
+  and thinking start pre-deleted as noise — press `K` to keep the ones that matter.
 - **Security Check** — one-click scan with built-in rules (API keys, passwords,
   Bearer/JWT tokens, emails, phones, DB connection strings, private IPs — 13/13 recall
   on seeded secrets), custom glob rules (`KITE-*`, `*@company.com`) with allow-list
