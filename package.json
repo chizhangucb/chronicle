@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "desktop": "npm run build && electron .",
     "standalone": "npm run build && node server/standalone.js",
-    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64"
+    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:linux": "npm run build && electron-builder --linux --x64"
   },
   "keywords": [],
   "author": "Chi Zhang",
@@ -49,6 +51,26 @@
     "dmg": {
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "format": "ULFO"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "Chi Zhang <chi.zhang@gokite.ai>",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   },
   "type": "module",
