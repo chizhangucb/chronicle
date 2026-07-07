@@ -49,6 +49,15 @@ body {
 .sb-item.mode.on { color: var(--accent); background: rgba(79, 142, 247, 0.12); border-left-color: var(--accent); }
 .sb-item.security.on, .sb-item.security:hover { color: var(--warn); }
 .sb-item .sb-icon { font-size: 16px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
+.sb-action {
+  margin-left: auto; padding: 0 4px; border-radius: 4px;
+  color: var(--muted); font-size: 14px; line-height: 1; visibility: hidden;
+}
+.sb-item:hover .sb-action { visibility: visible; }
+.sb-action:hover { color: var(--accent2); }
+.sb-action.spin { visibility: visible; animation: spin 1s linear infinite; }
+.sidebar.collapsed .sb-action { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .sb-item.util { font-size: 12px; }
 .sb-item.collapse { color: var(--muted); opacity: 0.7; }
 .sb-sep { height: 1px; background: var(--border); margin: 6px 4px; }
