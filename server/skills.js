@@ -160,7 +160,8 @@ export function linkSkill(skillId, tool) {
     if (isLink(linkPath) && fs.realpathSync(linkPath) === fs.realpathSync(skill.central_path)) return; // already linked
     throw new Error(`${linkPath} already exists — not overwriting`);
   }
-  fs.symlinkSync(skill.central_path, linkPath, 'dir');
+  // Windows: junctions work without admin rights; 'dir' symlinks don't (FR-SK-1)
+  fs.symlinkSync(skill.central_path, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
 export function unlinkSkill(skillId, tool) {
