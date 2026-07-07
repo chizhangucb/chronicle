@@ -51,11 +51,10 @@ body {
 .sb-item .sb-icon { font-size: 16px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
 .sb-action {
   margin-left: auto; padding: 0 4px; border-radius: 4px;
-  color: var(--muted); font-size: 14px; line-height: 1; visibility: hidden;
+  color: var(--muted); font-size: 18px; font-weight: 700; line-height: 1;
 }
-.sb-item:hover .sb-action { visibility: visible; }
-.sb-action:hover { color: var(--accent2); }
-.sb-action.spin { visibility: visible; animation: spin 1s linear infinite; }
+.sb-action:hover { color: var(--accent2); transform: scale(1.15); }
+.sb-action.spin { animation: spin 1s linear infinite; }
 .sidebar.collapsed .sb-action { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .sb-item.util { font-size: 12px; }
