@@ -166,34 +166,6 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
         <div className="muted small trend-legend">— {t('Sessions')}</div>
       </div>
 
-      <div className="session-head">
-        <h3 className="page-title">{t('Sessions')}</h3>
-        {liveSession && (
-          <span className="pill live-pill live clickable" title={t('Open the live session')}
-            onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
-        )}
-      </div>
-      <div className="session-list">
-        {sessions.map((s) => (
-          <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt">{s.first_prompt || <span className="muted">(no prompt)</span>}</div>
-            <div className="session-meta muted small">
-              {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
-              <span className="pill src-pill">{s.source}</span>
-              <span>{s.message_count} messages</span>
-              {s.context_tokens > 0 ? (
-                <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
-              ) : s.char_count > 0 && (
-                <span title={t('Estimated content size (~4 characters per token) — re-import for real context usage')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
-              )}
-              {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
-              {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
-            </div>
-          </div>
-        ))}
-        {!sessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
-      </div>
-
       <div className="pd-charts">
         <div className="card">
           <strong>{t('Tool Distribution')}</strong>
@@ -225,6 +197,34 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
           </div>
         </div>
       </div>
+      <div className="session-head">
+        <h3 className="page-title">{t('Sessions')}</h3>
+        {liveSession && (
+          <span className="pill live-pill live clickable" title={t('Open the live session')}
+            onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
+        )}
+      </div>
+      <div className="session-list">
+        {sessions.map((s) => (
+          <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
+            <div className="session-prompt">{s.first_prompt || <span className="muted">(no prompt)</span>}</div>
+            <div className="session-meta muted small">
+              {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
+              <span className="pill src-pill">{s.source}</span>
+              <span>{s.message_count} messages</span>
+              {s.context_tokens > 0 ? (
+                <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
+              ) : s.char_count > 0 && (
+                <span title={t('Estimated content size (~4 characters per token) — re-import for real context usage')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
+              )}
+              {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
+              {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
+            </div>
+          </div>
+        ))}
+        {!sessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
+      </div>
+
     </div>
   );
 }
