@@ -286,6 +286,52 @@ body {
 /* Session view — left mode rail + three panes + timeline */
 .session-view { display: flex; flex-direction: row; flex: 1; min-height: 0; }
 
+/* Breadcrumbs + session picker */
+.crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: nowrap; }
+.crumb {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 340px;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  padding: 4px 10px; cursor: pointer; color: var(--muted); font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.crumb:hover { color: var(--text); background: var(--bg3); }
+.crumb.on { color: var(--text); background: var(--bg3); border-color: var(--border); font-weight: 600; }
+.crumb-sep { color: var(--muted); }
+.session-picker { position: relative; }
+.picker-pop { width: 340px; max-height: 420px; overflow-y: auto; }
+.picker-search { width: calc(100% - 12px); margin: 6px; }
+.picker-item { display: flex; gap: 8px; align-items: flex-start; }
+.picker-check { width: 14px; color: var(--accent2); flex-shrink: 0; }
+.picker-body { display: flex; flex-direction: column; min-width: 0; }
+.picker-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px; }
+
+/* Project home (Chronicle-style) */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0; }
+.stat-grid .stat { text-align: left; }
+.range-select {
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+}
+.trend-card { margin-bottom: 14px; }
+.trend-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.trend-wrap { width: 100%; }
+.trend-svg { width: 100%; height: 150px; display: block; }
+.trend-axis { display: flex; justify-content: space-between; margin-top: 2px; }
+.trend-spark { height: 150px; }
+.trend-legend { margin-top: 6px; color: var(--accent); }
+.pd-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.donut-legend-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; }
+.donut-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.rank-label { width: 110px; text-align: right; font-size: 12px; }
+
+/* Session ID chip */
+.ov-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.session-id-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 6px 3px 10px;
+}
+.ok-btn { color: var(--accent2); border-color: var(--accent2); }
+
 /* Feedback modal */
 .feedback-modal { width: 520px; }
 .feedback-label { font-weight: 600; }
