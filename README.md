@@ -33,7 +33,7 @@ npm run dev        # dev server → http://localhost:4173
 npm run desktop    # desktop app (Electron shell + tray, port 41730)
 npm run standalone # headless production server (API + UI + /mcp)
 npm run dist:mac   # build macOS DMGs (arm64 + x64) into release/
-npm run reinstall:mac # rebuild (arm64) and replace /Applications/Chronicle.app
+npm run reinstall:mac # rebuild (arm64), replace /Applications/Chronicle.app, clean release/
 ```
 
 Click **Import Sessions**, pick a source tool, and open a session.
