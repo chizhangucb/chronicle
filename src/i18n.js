@@ -158,6 +158,9 @@ const zh = {
   'Original': '原始',
   'Compressed': '压缩后',
   'Saved': '节省',
+  'saved': '已节省',
+  'Share of the original tokens you have trimmed away — fills up as you delete':
+    '已删减的原始词元占比 —— 删除越多，进度条越满',
   'deleted / edited / inserted': '已删除 / 已编辑 / 已插入',
   'Export': '导出',
   'Open the live session': '打开正在进行的会话',
