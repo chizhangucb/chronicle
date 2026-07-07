@@ -2,7 +2,7 @@
 
 **Working title:** *Chronicle* (placeholder — an in-house "time machine" for AI coding sessions)
 **Inspired by:** [Chronicle](https://chronicle.example) — AI Coding Sessions Time Machine
-**Document status:** Draft v1.0
+**Document status:** v1.0 — implemented through Phase 5 (see §9 Decision log); v0.1.0 released 2026-07-06
 **Author:** Chi Zhang
 **Date:** 2026-07-03
 **Framing:** In-house build specification (full feature parity target, phased delivery)
@@ -377,6 +377,21 @@ Ordered to reach the "aha" moment fastest, then layer control-plane and advanced
 4. **Snapshot fidelity vs. commit frequency.** Should we offer an optional auto-commit/shadow-Git mechanism so replay fidelity doesn't depend on user commit discipline?
 5. **Licensing / build-vs-adopt.** Chronicle's core is free; confirm whether an in-house build is warranted vs. adopting/extending, given the substantial control-plane surface area.
 6. **Enterprise deployment.** Network proxy support and managed deployment are referenced by Chronicle — are these in scope for our internal rollout?
+
+---
+
+## 9. Decision log (post-implementation)
+
+Resolutions to §8's open questions, plus status as of v0.1.0 (2026-07-06):
+
+1. **Desktop framework → Electron.** No Rust toolchain on the dev machine; Electron ships today. The server layer has zero Electron imports, so the Tauri migration path stays open. Footprint is ~116 MB DMG (within tolerance of the ~200 MB target).
+2. **Causality engine → local heuristics, no LLM.** Confidence tiers (0.95 read-this-exact-file → 0.2 background context) computed from tool-call structure. Preserves the offline guarantee with zero cost; an opt-in model upgrade remains possible.
+3. **Share links → in-house, zero-backend.** Served by the local app at `/share/<token>` with the redacted copy frozen at creation. No hosting dependency.
+4. **Shadow-Git / auto-commit → not built.** Replay fidelity depends on user commit discipline; revisit if it becomes a real pain point.
+5. **Build-vs-adopt → built in-house.** Full parity surface achieved in-house (see status below); control-plane behavior (additive-only skills distribution, local share links) deliberately diverges from Chronicle where safety demanded it.
+6. **Enterprise deployment → out of scope** for the personal rollout; unaddressed.
+
+**Implementation status:** Phases 1–5 complete except **remote SSH (§5.9)** — all 6 tool importers, time travel, Replay, Refine, Overview + mode rail, filtering, analytics, live streaming (JSONL + SQLite polling), security (redaction, pre-tool-use hook, share links), MCP Hub, Skills Hub, i18n (EN/zh-CN), Electron desktop shell. **FR-IMP-1** is partial: macOS `.dmg` (arm64 + x64) + Homebrew cask shipped; Windows/Linux installers, code signing/notarization, and silent auto-update (NFR-7) pending. Context-window accounting was added beyond the PRD: real per-session token usage parsed from Claude Code usage records, with a usage bar against each model's context window.
 
 ---
 

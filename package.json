@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "Chi Zhang",
-  "license": "ISC",
+  "license": "MIT",
   "build": {
     "appId": "com.chizhang.chronicle",
     "productName": "Chronicle",
