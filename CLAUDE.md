@@ -12,6 +12,7 @@ npm run dev        # Vite dev server + API in one process → http://localhost:4
 npm run desktop    # production build + Electron shell (port 41730, tray)
 npm run standalone # headless production server (UI + /api + /share + /mcp)
 npm run build      # vite build → dist/
+npm run dist:mac   # electron-builder → unsigned arm64 + x64 DMGs in release/
 ```
 
 No test runner is wired up; parsers are validated against fixtures in `test/fixtures/`
@@ -62,9 +63,13 @@ plus real data end-to-end (see Verification below).
 - `server/mcp/{registry,hub}.js` — service registry (+policies/scoping/credentials),
   Streamable-HTTP aggregator at `/mcp`
 - `hooks/chronicle-guard.mjs` — Claude Code PreToolUse hook (exit 2 = block, fails open)
-- `src/SessionView.jsx` — the core three-pane view; owns filtering, windowing, live SSE,
-  mode switching (playback/refine/replay), causality panels
-- `src/i18n.js` — `t()` dictionary EN/zh-CN; toggle reloads the page
+- `src/SessionView.jsx` — the core session view; owns the left mode rail
+  (overview/playback/refine/replay + security, ⌘1–⌘4), filtering, windowing,
+  live SSE, causality panels, and the Overview stats page (context-window bar,
+  deletion danger zone)
+- `src/models.js` — static per-model context-window table (never fetched);
+  update when new models ship
+- `src/i18n.js` — `t()` dictionary EN/zh-CN; language dropdown reloads the page
 
 ## Patterns
 
@@ -105,8 +110,19 @@ plus real data end-to-end (see Verification below).
   imported sessions point there and stay valid. New sessions land in
   `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
 - Update feed in `electron/main.mjs` points at `chizhangucb/chronicle` (this repo);
-  it only serves updates once GitHub Releases are published (env override:
-  `CHRONICLE_UPDATE_FEED`).
+  the updater does a plain `latest !== current` string compare, so `package.json`
+  version MUST equal the release tag (minus the `v`) or users get bogus update
+  prompts (env override: `CHRONICLE_UPDATE_FEED`).
+- `sessions.context_tokens` (real context size from Claude Code usage records) only
+  populates on import — after upgrading, re-import or Sync Update, else session cards
+  fall back to the ~chars/4 estimate.
+- Per-session source-file deletion is restricted to sources where one file = one
+  session (claude-code, codex, copilot); OpenCode/Cursor share one DB across
+  sessions, so their files are never deleted.
+- Packaging (`npm run dist:mac`) uses `asar: false` — the server resolves `dist/`
+  and parsers as plain files via `import.meta.url`; enabling asar breaks those paths.
+  Homebrew cask lives in `packaging/homebrew/` and is published to the
+  `chizhangucb/homebrew-chronicle` tap with DMGs attached to that repo's releases.
 
 ## Verification habits used here
 
