@@ -22,7 +22,7 @@ export default function RefineMode({ messages, session, project }) {
   const initial = useMemo(() => messages.map((m) => ({
     id: `m${m.seq}`, kind: m.kind, ts: m.ts,
     text: m.kind === 'tool_use' ? `[${m.tool_name}] ${previewInput(m.tool_input)}` : (m.text || ''),
-    deleted: false,
+    deleted: m.kind === 'tool_result' || m.kind === 'thinking', // noisy kinds start deleted
     edited: false,
   })), [messages]);
 
