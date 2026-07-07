@@ -1,6 +1,6 @@
 {
   "name": "chronicle",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local-first AI coding session time machine",
   "main": "electron/main.mjs",
   "scripts": {
