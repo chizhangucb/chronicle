@@ -24,6 +24,11 @@ export const api = {
   sessionMessages: (id) => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
   deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
+  sendFeedback: (message) => j('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  }),
   gitAt: (project, ts) => j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
   gitTree: (project, commit) => j(`/api/git/tree?project=${project}&commit=${commit}`),
   gitFile: (project, commit, path) =>

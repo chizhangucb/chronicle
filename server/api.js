@@ -1,5 +1,6 @@
 import express from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { db, upsertProject, replaceSession } from './db.js';
 import { scanClaudeProjects, parseClaudeSession } from './parsers/claudeCode.js';
@@ -153,6 +154,35 @@ api.post('/projects/:id/sync', async (req, res) => {
     res.json({ ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) });
   } catch (err) {
     res.status(err.status || 500).json({ error: String(err.message || err) });
+  }
+});
+
+// ---- Feedback ----
+// Relays to email via formsubmit.co and always keeps a local copy in
+// ~/.chronicle/feedback.log (the app's one deliberate network call besides
+// user-initiated GitHub imports and the update check).
+const FEEDBACK_EMAIL = 'chizhangucb@gmail.com';
+
+api.post('/feedback', async (req, res) => {
+  const message = (req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'Feedback is empty' });
+  const entry = { ts: new Date().toISOString(), platform: process.platform, message };
+  try {
+    const dir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'feedback.log'), JSON.stringify(entry) + '\n');
+  } catch {}
+  try {
+    const r = await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ _subject: 'Chronicle feedback', message, platform: process.platform }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) throw new Error(`relay ${r.status}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
   }
 });
 

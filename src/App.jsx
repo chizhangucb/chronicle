@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from './api.js';
 import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail from './ProjectDetail.jsx';
@@ -15,68 +15,177 @@ export default function App() {
   const [view, setView] = useState({ name: 'home' });
   const [projects, setProjects] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
   const [liveInfo, setLiveInfo] = useState(null);
+  // Session mode rail config, registered by SessionView while it is mounted:
+  // { modes: [{key, icon, label, title}], active, select(key), securityOpen }
+  const [rail, setRail] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('chronicle-sidebar') === 'collapsed');
 
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
   useEffect(() => { if (view.name === 'home') refresh(); }, [view.name, refresh]);
 
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      localStorage.setItem('chronicle-sidebar', c ? 'expanded' : 'collapsed');
+      return !c;
+    });
+  }
+
+  const inProjects = view.name === 'home' || view.name === 'project' || view.name === 'session';
+
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand" onClick={() => setView({ name: 'home' })}>
-          <span className="brand-mark">◷</span> Chronicle
-          <span className="brand-sub">{t('AI Session Time Machine')}</span>
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+        <div className="sb-brand" title="Chronicle" onClick={() => setView({ name: 'home' })}>
+          <span className="brand-mark">◷</span>
+          <span className="sb-label sb-brand-name">Chronicle</span>
         </div>
-        <nav className="topnav">
-          <button className={`chip ${view.name === 'home' || view.name === 'project' || view.name === 'session' ? 'on' : ''}`}
-            onClick={() => setView({ name: 'home' })}>◷ {t('Projects')}</button>
-          <button className={`chip ${view.name === 'hub' ? 'on' : ''}`} onClick={() => setView({ name: 'hub' })}>⬢ {t('MCP Hub')}</button>
-          <button className={`chip ${view.name === 'skills' ? 'on' : ''}`} onClick={() => setView({ name: 'skills' })}>✦ {t('Skills')}</button>
-          <button className={`chip ${view.name === 'security' ? 'on' : ''}`} onClick={() => setView({ name: 'security' })}>🛡 {t('Security')}</button>
-        </nav>
-        <div className="topbar-right">
-          {liveInfo && view.name === 'session' && (
-            <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
-              {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
-            </span>
-          )}
-          {view.name === 'home' && (
-            <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
-          )}
-          <select className="chip lang-select" title="Language / 语言" value={lang()}
-            onChange={(e) => setLang(e.target.value)}>
-            <option value="en">EN</option>
-            <option value="zh">中文</option>
-          </select>
-        </div>
-      </header>
 
-      {view.name === 'home' && (
-        <HomePage projects={projects} onOpenProject={(id) => setView({ name: 'project', id })}
-          onImport={() => setWizardOpen(true)} onRefresh={refresh} />
-      )}
-      {view.name === 'project' && (
-        <ProjectDetail id={view.id}
-          onBack={() => setView({ name: 'home' })}
-          onLiveChange={setLiveInfo}
-          onOpenSession={(sid) => setView({ name: 'session', id: sid, projectId: view.id })} />
-      )}
-      {view.name === 'session' && (
-        <SessionView sessionId={view.id}
-          onLiveChange={setLiveInfo}
-          onBack={() => setView({ name: 'project', id: view.projectId })} />
-      )}
-      {view.name === 'hub' && <HubPage />}
-      {view.name === 'skills' && <SkillsPage />}
-      {view.name === 'security' && <SecurityPage />}
+        <nav className="sb-top">
+          <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
+            onClick={() => setView({ name: 'home' })}>
+            <span className="sb-icon">◷</span><span className="sb-label">{t('Projects')}</span>
+          </button>
+          {rail && (
+            <>
+              <div className="sb-sep" />
+              {rail.modes.map((m) => (
+                <button key={m.key} className={`sb-item mode ${rail.active === m.key && !rail.securityOpen ? 'on' : ''}`}
+                  title={m.title} onClick={() => rail.select(m.key)}>
+                  <span className="sb-icon">{m.icon}</span><span className="sb-label">{m.label}</span>
+                </button>
+              ))}
+              <button className={`sb-item mode security ${rail.securityOpen ? 'on' : ''}`} title={t('Security Check')}
+                onClick={() => rail.select('security-check')}>
+                <span className="sb-icon">🛡</span><span className="sb-label">{t('Security Check')}</span>
+              </button>
+            </>
+          )}
+        </nav>
+
+        <nav className="sb-bottom">
+          <button className={`sb-item util ${view.name === 'hub' ? 'on' : ''}`} title={t('MCP Hub')}
+            onClick={() => setView({ name: 'hub' })}>
+            <span className="sb-icon">⬢</span><span className="sb-label">{t('MCP Hub')}</span>
+          </button>
+          <button className={`sb-item util ${view.name === 'skills' ? 'on' : ''}`} title={t('Skills')}
+            onClick={() => setView({ name: 'skills' })}>
+            <span className="sb-icon">✦</span><span className="sb-label">{t('Skills')}</span>
+          </button>
+          <button className={`sb-item util ${view.name === 'security' ? 'on' : ''}`} title={t('Security')}
+            onClick={() => setView({ name: 'security' })}>
+            <span className="sb-icon">🛡</span><span className="sb-label">{t('Security')}</span>
+          </button>
+          <button className="sb-item util" title={t('Feedback')} onClick={() => setFeedbackOpen(true)}>
+            <span className="sb-icon">⊞</span><span className="sb-label">{t('Feedback')}</span>
+          </button>
+          <div className="sb-sep" />
+          <button className="sb-item util collapse" title={collapsed ? t('Expand') : t('Collapse')}
+            onClick={toggleCollapsed}>
+            <span className="sb-icon">{collapsed ? '⟩' : '⟨'}</span><span className="sb-label">{t('Collapse')}</span>
+          </button>
+        </nav>
+      </aside>
+
+      <div className="app-main">
+        <header className="topbar">
+          <span className="brand-sub">{t('AI Session Time Machine')}</span>
+          <div className="topbar-right">
+            {liveInfo && view.name === 'session' && (
+              <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
+                {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
+              </span>
+            )}
+            {view.name === 'home' && (
+              <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
+            )}
+            <select className="chip lang-select" title="Language / 语言" value={lang()}
+              onChange={(e) => setLang(e.target.value)}>
+              <option value="en">EN</option>
+              <option value="zh">中文</option>
+            </select>
+          </div>
+        </header>
+
+        {view.name === 'home' && (
+          <HomePage projects={projects} onOpenProject={(id) => setView({ name: 'project', id })}
+            onImport={() => setWizardOpen(true)} onRefresh={refresh} />
+        )}
+        {view.name === 'project' && (
+          <ProjectDetail id={view.id}
+            onBack={() => setView({ name: 'home' })}
+            onLiveChange={setLiveInfo}
+            onOpenSession={(sid) => setView({ name: 'session', id: sid, projectId: view.id })} />
+        )}
+        {view.name === 'session' && (
+          <SessionView sessionId={view.id}
+            onLiveChange={setLiveInfo}
+            onRailChange={setRail}
+            onBack={() => setView({ name: 'project', id: view.projectId })} />
+        )}
+        {view.name === 'hub' && <HubPage />}
+        {view.name === 'skills' && <SkillsPage />}
+        {view.name === 'security' && <SecurityPage />}
+      </div>
 
       {wizardOpen && (
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
+    </div>
+  );
+}
+
+// Feedback modal (Chronicle-style): sends through the local server, which relays
+// to email and always keeps a local copy in ~/.chronicle/feedback.log.
+function FeedbackModal({ onClose }) {
+  const [text, setText] = useState('');
+  const [state, setState] = useState('idle'); // idle | sending | sent | failed
+  const boxRef = useRef(null);
+  useEffect(() => { boxRef.current?.focus(); }, []);
+
+  async function send() {
+    if (!text.trim() || state === 'sending') return;
+    setState('sending');
+    try {
+      await api.sendFeedback(text.trim());
+      setState('sent');
+      setTimeout(onClose, 1200);
+    } catch {
+      setState('failed');
+      // Relay unreachable — fall back to the user's mail client, pre-filled.
+      window.open(`mailto:chizhangucb@gmail.com?subject=${encodeURIComponent('Chronicle feedback')}&body=${encodeURIComponent(text.trim())}`);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal feedback-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>{t('Feedback')}</h3>
+          <button className="btn ghost" onClick={onClose}>✕</button>
+        </div>
+        <p className="muted small">{t("Tell us about any issues you encountered or improvements you'd like to see.")}</p>
+        <label className="small feedback-label">{t('Description')}</label>
+        <textarea ref={boxRef} className="feedback-box" rows={5}
+          placeholder={t('Describe the issue or suggestion…')}
+          value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }} />
+        <div className="muted small">{t('Press ⌘+Enter to send')}</div>
+        {state === 'sent' && <div className="ok small">✓ {t('Thanks — feedback sent!')}</div>}
+        {state === 'failed' && <div className="error-banner small">{t('Email relay unreachable — opened your mail app instead (a local copy was saved).')}</div>}
+        <div className="feedback-actions">
+          <button className="btn" onClick={onClose}>{t('Cancel')}</button>
+          <button className="btn primary" disabled={!text.trim() || state === 'sending'} onClick={send}>
+            {state === 'sending' ? t('Sending…') : `⌁ ${t('Send')}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
