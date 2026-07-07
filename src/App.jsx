@@ -29,6 +29,23 @@ export default function App() {
   }, []);
   useEffect(() => { if (view.name === 'home') refresh(); }, [view.name, refresh]);
 
+  const [syncingAll, setSyncingAll] = useState(false);
+  async function syncAll(e) {
+    e.stopPropagation();
+    if (syncingAll) return;
+    setSyncingAll(true);
+    try {
+      const list = await api.projects();
+      for (const p of list) {
+        // Tolerate projects with no matching source logs (moved/deleted).
+        try { await api.syncProject(p.id); } catch {}
+      }
+      refresh();
+    } finally {
+      setSyncingAll(false);
+    }
+  }
+
   function toggleCollapsed() {
     setCollapsed((c) => {
       localStorage.setItem('chronicle-sidebar', c ? 'expanded' : 'collapsed');
@@ -50,6 +67,9 @@ export default function App() {
           <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
             onClick={() => setView({ name: 'home' })}>
             <span className="sb-icon">◷</span><span className="sb-label">{t('Projects')}</span>
+            <span className={`sb-action ${syncingAll ? 'spin' : ''}`} role="button"
+              title={t('Sync all projects — re-import the latest sessions from every source')}
+              onClick={syncAll}>{syncingAll ? '◌' : '⟳'}</span>
           </button>
           {rail && (
             <>

@@ -96,6 +96,8 @@ const zh = {
   // Project card menu
   'Project options': '项目选项',
   'Sync Update': '同步更新',
+  'Sync all projects — re-import the latest sessions from every source':
+    '同步所有项目 —— 从每个来源重新导入最新会话',
   'View Details': '查看详情',
   'Remove from Chronicle': '从 Chronicle 移除',
   "(won't delete source project)": '（不会删除源项目）',
