@@ -242,10 +242,9 @@ export default function RefineMode({ messages, session, project }) {
           <span className="muted small">{t('Compressed')}</span> <b className="token-stats">{fmtTok(compressedTokens)}</b>
           <span className="muted small">{t('Saved')}</span> <b>{fmtTok(saved)}</b>
         </span>
-        <span className="refine-bars">
-          <span className="refine-bar"><span style={{ width: '100%' }} /></span>
-          <span className="refine-bar"><span className="ok-bar" style={{ width: `${originalTokens ? Math.min(100, (compressedTokens / originalTokens) * 100) : 0}%` }} /></span>
-          <span className="small token-stats">{savedPct}%</span>
+        <span className="refine-bars" title={t('Share of the original tokens you have trimmed away — fills up as you delete')}>
+          <span className="refine-bar"><span className="ok-bar" style={{ width: `${savedPct}%` }} /></span>
+          <span className="small token-stats">{savedPct}% {t('saved')}</span>
         </span>
         <span className="refine-counts muted small" title={t('deleted / edited / inserted')}>
           <span className="bad">− {nDeleted}</span> <span>✎ {nEdited}</span> <span className="ok">＋ {nInserted}</span>
