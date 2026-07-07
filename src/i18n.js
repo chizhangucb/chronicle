@@ -164,6 +164,18 @@ const zh = {
   'deleted / edited / inserted': '已删除 / 已编辑 / 已插入',
   'Export': '导出',
   'Open the live session': '打开正在进行的会话',
+  // Sidebar + feedback
+  'Feedback': '反馈',
+  'Description': '描述',
+  "Tell us about any issues you encountered or improvements you'd like to see.":
+    '告诉我们你遇到的问题或希望改进的地方。',
+  'Describe the issue or suggestion…': '描述问题或建议……',
+  'Press ⌘+Enter to send': '按 ⌘+Enter 发送',
+  'Send': '发送',
+  'Sending…': '发送中……',
+  'Thanks — feedback sent!': '谢谢 —— 反馈已发送！',
+  'Email relay unreachable — opened your mail app instead (a local copy was saved).':
+    '无法连接邮件转发服务 —— 已改为打开你的邮件应用（本地已保存副本）。',
   'Context window size at the last message (real usage from the session log)':
     '最后一条消息时的上下文窗口大小（来自会话日志的真实用量）',
   'Estimated content size (~4 characters per token) — re-import for real context usage':
