@@ -69,12 +69,15 @@ plus real data end-to-end (see Verification below).
   ~100 MB DMG floor is the Electron framework itself; a ~26 MB footprint
   would require the Tauri swap.
 - **Feedback is the one deliberate outbound network feature** (besides the update
-  check and GitHub skill imports): `POST /api/feedback` sends via the Resend API,
+  check and GitHub skill imports): `POST /api/feedback` forwards to a **hosted
+  relay** (`feedback-relay/`, a Vercel function holding the Resend key server-side),
   always appends to `~/.chronicle/feedback.log` first, and the UI falls back to a
-  `mailto:` link when the relay fails. The Resend API key is a SECRET read from
-  `~/.chronicle/config.json` (`resendApiKey`, also `feedbackTo`/`feedbackFrom`) or
-  env — never committed or shipped in the DMG (the repo is public). No key ⇒ the
-  endpoint 502s (still logged) so the mailto fallback fires.
+  `mailto:` link when the relay fails. **No secret ships in the app** — it posts to
+  the public relay URL (`DEFAULT_FEEDBACK_RELAY` in `api.js`; override via
+  `CHRONICLE_FEEDBACK_RELAY` or `feedbackRelay` in `~/.chronicle/config.json`), so
+  feedback works from every user's machine, not just the maintainer's. This is a
+  SECOND deployable, so the repo now has a `feedback-relay/` subdir (Vercel project
+  `feedback-relay`, key + `FEEDBACK_TO`/`FEEDBACK_FROM` set as env vars there).
 - **Session display name = `name` (Chronicle override) → `summary` (parsed) →
   `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
   source of that precedence; reuse it everywhere (rows, pickers, overview title).
@@ -226,15 +229,20 @@ plus real data end-to-end (see Verification below).
 - The tool-result error heuristic exists twice: `ERROR_RE` in `server/api.js`
   (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview).
   Change both or the Errors counts diverge.
-- Feedback email uses **Resend** (`/api/feedback`), switched from formsubmit.co on
-  2026-07-07 — formsubmit's free tier returned `success:true` but Gmail silently
-  dropped the mail, and it also needed a per-address activation click and an
-  `Origin` header. Resend needs a **`resendApiKey` in `~/.chronicle/config.json`**
-  (never in the repo — it's public). The default `feedbackFrom` is Resend's shared
-  `onboarding@resend.dev`, which ONLY delivers to the Resend account owner's own
-  address; to email an arbitrary inbox, verify a domain in Resend and set
-  `feedbackFrom` to an address on it. Response is `{id}` on success, non-2xx +
-  `{message}`/`{error}` on failure.
+- Feedback email flows app → **hosted relay** (`feedback-relay/` on Vercel) →
+  **Resend** → inbox, switched from formsubmit.co on 2026-07-07 (formsubmit's free
+  tier returned `success:true` but Gmail silently dropped the mail; it also needed a
+  per-address activation click + an `Origin` header). The relay exists because
+  Chronicle is local-first: each user's app sends from THEIR machine, so a Resend
+  key in a local file only works for the maintainer — the relay holds the key
+  server-side so feedback works from every install. **New Vercel projects default to
+  Deployment Protection (SSO) ON** → the relay 401s until you disable it
+  (`PATCH /v9/projects/<name>` `ssoProtection:null`, or dashboard → Settings →
+  Deployment Protection). The relay's stable URL is
+  `feedback-relay-chizhangucb-projects.vercel.app` (the deploy-hash URL changes each
+  deploy; use the project alias). Set `RESEND_API_KEY`/`FEEDBACK_TO`/`FEEDBACK_FROM`
+  as Vercel env vars; `onboarding@resend.dev` only delivers to the Resend account
+  owner, so verify a domain to reach arbitrary inboxes.
 - `npm run reinstall:mac` rebuilds the bundle but its `pkill; …; open` **does not
   reliably relaunch the new code**: closing the window only hides the app to the
   tray, so `pkill` often fails to kill it, the old process keeps port 41730 (single-

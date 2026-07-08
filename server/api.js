@@ -158,31 +158,23 @@ api.post('/projects/:id/sync', async (req, res) => {
 });
 
 // ---- Feedback ----
-// Sends via the Resend email API, and always writes a local copy to
-// ~/.chronicle/feedback.log FIRST (the app's one deliberate outbound feature
-// besides the update check and user-initiated GitHub imports).
-//
-// The Resend API key is a SECRET — it is read from ~/.chronicle/config.json (or
-// env), never committed or shipped in the app bundle (this repo is public). With
-// no key configured the endpoint fails soft: the feedback is still logged locally
-// and the UI falls back to a mailto: draft.
+// Sends feedback to email through the hosted relay (`feedback-relay/`, a Vercel
+// function that holds the Resend API key SERVER-SIDE), and always writes a local
+// copy to ~/.chronicle/feedback.log FIRST. No secret ships in the app — it just
+// POSTs to the public relay URL, so feedback works from every user's machine and
+// doesn't depend on the maintainer's laptop. The UI falls back to a mailto: draft
+// if the relay is unreachable. Override the URL with CHRONICLE_FEEDBACK_RELAY or
+// `feedbackRelay` in ~/.chronicle/config.json.
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+const DEFAULT_FEEDBACK_RELAY = 'https://feedback-relay-chizhangucb-projects.vercel.app/api/feedback';
 
-// { resendApiKey, feedbackTo, feedbackFrom } from ~/.chronicle/config.json, env wins.
-function feedbackConfig() {
+function feedbackRelayUrl() {
   let cfg = {};
   try {
     const p = path.join(CHRONICLE_DIR, 'config.json');
     if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {}
-  return {
-    apiKey: process.env.RESEND_API_KEY || cfg.resendApiKey || null,
-    to: process.env.FEEDBACK_TO || cfg.feedbackTo || 'chizhangucb@gmail.com',
-    // Resend's shared onboarding@resend.dev works with no domain setup, but only
-    // delivers to the Resend account owner's address. Verify a domain and set
-    // feedbackFrom (e.g. "Chronicle <feedback@yourdomain>") to reach any inbox.
-    from: process.env.FEEDBACK_FROM || cfg.feedbackFrom || 'Chronicle Feedback <onboarding@resend.dev>',
-  };
+  return process.env.CHRONICLE_FEEDBACK_RELAY || cfg.feedbackRelay || DEFAULT_FEEDBACK_RELAY;
 }
 
 api.post('/feedback', async (req, res) => {
@@ -193,26 +185,16 @@ api.post('/feedback', async (req, res) => {
     fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
     fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
   } catch {}
-  const { apiKey, to, from } = feedbackConfig();
-  if (!apiKey) {
-    return res.status(502).json({ error: 'Feedback email is not configured (add "resendApiKey" to ~/.chronicle/config.json) — feedback saved locally' });
-  }
   try {
-    const r = await fetch('https://api.resend.com/emails', {
+    const r = await fetch(feedbackRelayUrl(), {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from, to, subject: 'Chronicle feedback',
-        text: `${message}\n\n— platform: ${process.platform}`,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, platform: process.platform }),
       signal: AbortSignal.timeout(10000),
     });
-    // Resend returns { id } on success, or a non-2xx with { name, message } / { error }.
     const body = await r.json().catch(() => ({}));
-    if (!r.ok || body.error) {
-      throw new Error(body.error?.message || body.message || `resend ${r.status}`);
-    }
-    res.json({ ok: true, id: body.id });
+    if (!r.ok || !body.ok) throw new Error(body.error || `relay ${r.status}`);
+    res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
   }
