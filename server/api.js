@@ -158,39 +158,42 @@ api.post('/projects/:id/sync', async (req, res) => {
 });
 
 // ---- Feedback ----
-// Relays to email via formsubmit.co and always keeps a local copy in
-// ~/.chronicle/feedback.log (the app's one deliberate network call besides
-// user-initiated GitHub imports and the update check).
-const FEEDBACK_EMAIL = 'chizhangucb@gmail.com';
+// Sends feedback to email through the hosted relay (`feedback-relay/`, a Vercel
+// function that holds the Resend API key SERVER-SIDE), and always writes a local
+// copy to ~/.chronicle/feedback.log FIRST. No secret ships in the app — it just
+// POSTs to the public relay URL, so feedback works from every user's machine and
+// doesn't depend on the maintainer's laptop. The UI falls back to a mailto: draft
+// if the relay is unreachable. Override the URL with CHRONICLE_FEEDBACK_RELAY or
+// `feedbackRelay` in ~/.chronicle/config.json.
+const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+const DEFAULT_FEEDBACK_RELAY = 'https://feedback-relay-chizhangucb-projects.vercel.app/api/feedback';
+
+function feedbackRelayUrl() {
+  let cfg = {};
+  try {
+    const p = path.join(CHRONICLE_DIR, 'config.json');
+    if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {}
+  return process.env.CHRONICLE_FEEDBACK_RELAY || cfg.feedbackRelay || DEFAULT_FEEDBACK_RELAY;
+}
 
 api.post('/feedback', async (req, res) => {
   const message = (req.body?.message || '').trim();
   if (!message) return res.status(400).json({ error: 'Feedback is empty' });
   const entry = { ts: new Date().toISOString(), platform: process.platform, message };
   try {
-    const dir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, 'feedback.log'), JSON.stringify(entry) + '\n');
+    fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
+    fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
   } catch {}
   try {
-    // formsubmit.co rejects requests that lack a web-page Origin/Referer ("open
-    // this page through a web server"), so forward the app's origin.
-    const origin = req.headers.origin || `http://${req.headers.host || 'localhost:4173'}`;
-    const r = await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+    const r = await fetch(feedbackRelayUrl(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json', Accept: 'application/json',
-        Origin: origin, Referer: `${origin}/`,
-      },
-      body: JSON.stringify({ _subject: 'Chronicle feedback', message, platform: process.platform }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, platform: process.platform }),
       signal: AbortSignal.timeout(10000),
     });
-    // formsubmit.co returns HTTP 200 even on failure (unactivated form, anti-spam,
-    // etc.) — the real outcome is `success` in the JSON body, not the status code.
     const body = await r.json().catch(() => ({}));
-    if (!r.ok || String(body.success) !== 'true') {
-      throw new Error(body.message || `relay ${r.status}`);
-    }
+    if (!r.ok || !body.ok) throw new Error(body.error || `relay ${r.status}`);
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
