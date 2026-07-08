@@ -13,6 +13,9 @@ npm run desktop    # production build + Electron shell (port 41730, tray)
 npm run standalone # headless production server (UI + /api + /share + /mcp)
 npm run build      # vite build → dist/
 npm run dist:mac   # electron-builder → unsigned arm64 + x64 DMGs in release/
+npm run reinstall:mac # quit app, rebuild (arm64 only), replace /Applications/Chronicle.app, clean release/, relaunch
+npm run dist:win   # NSIS .exe (cross-built from macOS; untested on real Windows)
+npm run dist:linux # AppImage + .deb (untested on real Linux)
 ```
 
 No test runner is wired up; parsers are validated against fixtures in `test/fixtures/`
@@ -46,6 +49,29 @@ plus real data end-to-end (see Verification below).
   machine. The server layer has zero Electron imports, so a Tauri swap stays possible.
   Window close hides to tray (MCP Hub keepalive); quit only via tray menu.
 - **Repo is flat** (Chi's global preference): app code at root, PRD in `docs/`.
+- **Global sidebar owns navigation; SessionView registers its modes into it.**
+  There is one collapsible left sidebar (in `App.jsx`, Chronicle-style: Projects +
+  sync-all on top, MCP Hub/Skills/Security/Feedback/Collapse pinned at bottom).
+  SessionView doesn't render its own rail — it publishes `{modes, active, select,
+  securityOpen}` up via the `onRailChange` prop while mounted; App renders those as
+  sidebar items. SessionView is keyed by session id so the breadcrumb session
+  switcher remounts it cleanly.
+- **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
+  repo move keep the old path in early JSONL records; scanner and parser use the last
+  seen cwd (where the repo and its Git history live now) and collapse subdirectory
+  cwds up to a seen ancestor (`reduceCwd`). The scanner sniffs both the head and tail
+  64 KB of each file for this.
+- **Packaging keeps the runtime dependency set minimal.** Vite bundles all client
+  libs into `dist/`, so `react`/`react-dom`/`diff` live in devDependencies — only
+  `express` is a runtime dep that electron-builder ships. Electron locales are
+  stripped to en + zh_CN; arch selection lives in CLI flags (not build config) so
+  `dist:mac` builds both arches while `reinstall:mac` builds only arm64. The
+  ~100 MB DMG floor is the Electron framework itself; matching Chronicle's ~26 MB
+  would require the Tauri swap.
+- **Feedback is the one deliberate outbound network feature** (besides the update
+  check and GitHub skill imports): `POST /api/feedback` relays to email via
+  formsubmit.co, always appends to `~/.chronicle/feedback.log` first, and the UI
+  falls back to a `mailto:` link when the relay is unreachable.
 
 ## Key files
 
@@ -63,13 +89,20 @@ plus real data end-to-end (see Verification below).
 - `server/mcp/{registry,hub}.js` — service registry (+policies/scoping/credentials),
   Streamable-HTTP aggregator at `/mcp`
 - `hooks/chronicle-guard.mjs` — Claude Code PreToolUse hook (exit 2 = block, fails open)
-- `src/SessionView.jsx` — the core session view; owns the left mode rail
-  (overview/playback/refine/replay + security, ⌘1–⌘4), filtering, windowing,
-  live SSE, causality panels, and the Overview stats page (context-window bar,
-  deletion danger zone)
+- `src/App.jsx` — global sidebar (collapse state in localStorage, sync-all loop,
+  feedback modal), view routing, LIVE pill, project-card gear menus
+- `src/SessionView.jsx` — the core session view; registers modes
+  (overview/playback/refine/replay + security check, ⌘1–⌘4) into the sidebar via
+  `onRailChange`; owns filtering, windowing, live SSE, causality panels, the
+  breadcrumb session switcher, and the Overview stats page (context-window bar,
+  copyable session ID, deletion danger zone)
+- `src/ProjectDetail.jsx` — project analytics home (8 stat cards, line/bar trend,
+  source donut, call ranking; time range via `/api/projects/:id?days=N`)
 - `src/models.js` — static per-model context-window table (never fetched);
   update when new models ship
 - `src/i18n.js` — `t()` dictionary EN/zh-CN; language dropdown reloads the page
+- `packaging/homebrew/` — the cask + tap README published to
+  `chizhangucb/homebrew-chronicle`
 
 ## Patterns
 
@@ -83,6 +116,16 @@ plus real data end-to-end (see Verification below).
   match that style.
 - Long lists: window around the selection (~400 rows) + decimate timeline ticks;
   don't render unbounded arrays (sessions reach 5k+ messages).
+- **Release checklist** (order matters): bump `package.json` version FIRST →
+  `npm run dist:mac` → `shasum -a 256 release/*.dmg` → update
+  `packaging/homebrew/Casks/chronicle.rb` (version + both shas) → commit + push →
+  `gh release create vX.Y.Z --notes-file …` → `gh release upload vX.Y.Z *.dmg`
+  (separately from create: 234 MB uploads exceed 5-min foreground timeouts) →
+  reinstall locally (`ditto release/mac-arm64/Chronicle.app /Applications/…`) →
+  `rm -rf release`. Tag must land on the bump commit so tag = package version = DMGs
+  = cask shas.
+- Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
+  library; keep it that way.
 
 ## Gotchas
 
@@ -123,6 +166,30 @@ plus real data end-to-end (see Verification below).
   and parsers as plain files via `import.meta.url`; enabling asar breaks those paths.
   Homebrew cask lives in `packaging/homebrew/` and is published to the
   `chizhangucb/homebrew-chronicle` tap with DMGs attached to that repo's releases.
+- **New client-side npm deps go in devDependencies**, not dependencies — Vite bundles
+  them into `dist/`, and electron-builder ships everything in `dependencies` inside
+  the app (a misplaced client lib silently fattens every DMG). Only genuine
+  server-runtime deps (express) belong in `dependencies`.
+- electron-builder 26 rejects `dmg.format: "ULMO"` — ULFO (lzfse) is the strongest
+  supported DMG compression.
+- `gh release upload` sometimes fails with `dial tcp: lookup uploads.github.com: no
+  such host` — a transient resolver hiccup, not sandbox/network policy; just retry
+  (with `--clobber`). Create the release first, upload assets as a separate step.
+- Only one Chronicle can run per machine (single-instance lock + port 41730): a
+  freshly launched app exits silently (code 0, no output) if any instance — dev
+  `electron .`, packaged, or a stale `standalone.js` — already holds the lock or
+  port. `pkill -f "Chronicle.app/Contents/MacOS/Chronicle"` before launching a new
+  build; check `lsof -iTCP:41730` when the UI 404s unexpectedly (a stale server from
+  a deleted directory once served broken pages here).
+- The tool-result error heuristic exists twice: `ERROR_RE` in `server/api.js`
+  (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview).
+  Change both or the Errors counts diverge.
+- The feedback relay (formsubmit.co) requires a one-time activation click on a
+  confirmation email sent to the target address on first submission; until then
+  submissions only land in `~/.chronicle/feedback.log`.
+- `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
+  electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
+  files are for electron-builder's own updater, which Chronicle doesn't use.
 
 ## Verification habits used here
 
