@@ -69,9 +69,12 @@ plus real data end-to-end (see Verification below).
   ~100 MB DMG floor is the Electron framework itself; a ~26 MB footprint
   would require the Tauri swap.
 - **Feedback is the one deliberate outbound network feature** (besides the update
-  check and GitHub skill imports): `POST /api/feedback` relays to email via
-  formsubmit.co, always appends to `~/.chronicle/feedback.log` first, and the UI
-  falls back to a `mailto:` link when the relay is unreachable.
+  check and GitHub skill imports): `POST /api/feedback` sends via the Resend API,
+  always appends to `~/.chronicle/feedback.log` first, and the UI falls back to a
+  `mailto:` link when the relay fails. The Resend API key is a SECRET read from
+  `~/.chronicle/config.json` (`resendApiKey`, also `feedbackTo`/`feedbackFrom`) or
+  env — never committed or shipped in the DMG (the repo is public). No key ⇒ the
+  endpoint 502s (still logged) so the mailto fallback fires.
 - **Session display name = `name` (Chronicle override) → `summary` (parsed) →
   `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
   source of that precedence; reuse it everywhere (rows, pickers, overview title).
@@ -223,17 +226,23 @@ plus real data end-to-end (see Verification below).
 - The tool-result error heuristic exists twice: `ERROR_RE` in `server/api.js`
   (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview).
   Change both or the Errors counts diverge.
-- The feedback relay (formsubmit.co) has three requirements, all learned the hard
-  way: (1) it **returns HTTP 200 even on failure** — the real outcome is
-  `body.success` (`"true"`/`"false"`), so `/api/feedback` must parse the body, not
-  just check `r.ok`, or it falsely reports "sent" and suppresses the mailto
-  fallback; (2) the server-side fetch must send an `Origin`/`Referer` header or
-  formsubmit rejects it with "open this page through a web server"; (3) it requires
-  a **one-time activation click** on a confirmation email sent to `FEEDBACK_EMAIL`
-  (`chizhangucb@gmail.com`) on first submission — until clicked, NO email is
-  delivered and submissions only land in `~/.chronicle/feedback.log`. The
-  connected Gmail MCP is `chi.zhang@gokite.ai`, a different inbox, so the gmail
-  activation can't be automated from here.
+- Feedback email uses **Resend** (`/api/feedback`), switched from formsubmit.co on
+  2026-07-07 — formsubmit's free tier returned `success:true` but Gmail silently
+  dropped the mail, and it also needed a per-address activation click and an
+  `Origin` header. Resend needs a **`resendApiKey` in `~/.chronicle/config.json`**
+  (never in the repo — it's public). The default `feedbackFrom` is Resend's shared
+  `onboarding@resend.dev`, which ONLY delivers to the Resend account owner's own
+  address; to email an arbitrary inbox, verify a domain in Resend and set
+  `feedbackFrom` to an address on it. Response is `{id}` on success, non-2xx +
+  `{message}`/`{error}` on failure.
+- `npm run reinstall:mac` rebuilds the bundle but its `pkill; …; open` **does not
+  reliably relaunch the new code**: closing the window only hides the app to the
+  tray, so `pkill` often fails to kill it, the old process keeps port 41730 (single-
+  instance lock), and the new binary exits on launch. The still-running process
+  serves the OLD server code from memory (it loaded `server/*.js` at startup;
+  replacing files on disk doesn't touch it). After `reinstall:mac`, VERIFY the
+  restart — `ps -o lstart= -p $(lsof -tiTCP:41730)` must be AFTER the rebuild;
+  if not, quit via the tray menu (or `pkill`) and `open -a Chronicle`.
 - `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
   electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
   files are for electron-builder's own updater, which Chronicle doesn't use.

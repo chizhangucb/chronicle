@@ -158,40 +158,61 @@ api.post('/projects/:id/sync', async (req, res) => {
 });
 
 // ---- Feedback ----
-// Relays to email via formsubmit.co and always keeps a local copy in
-// ~/.chronicle/feedback.log (the app's one deliberate network call besides
-// user-initiated GitHub imports and the update check).
-const FEEDBACK_EMAIL = 'chizhangucb@gmail.com';
+// Sends via the Resend email API, and always writes a local copy to
+// ~/.chronicle/feedback.log FIRST (the app's one deliberate outbound feature
+// besides the update check and user-initiated GitHub imports).
+//
+// The Resend API key is a SECRET — it is read from ~/.chronicle/config.json (or
+// env), never committed or shipped in the app bundle (this repo is public). With
+// no key configured the endpoint fails soft: the feedback is still logged locally
+// and the UI falls back to a mailto: draft.
+const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+
+// { resendApiKey, feedbackTo, feedbackFrom } from ~/.chronicle/config.json, env wins.
+function feedbackConfig() {
+  let cfg = {};
+  try {
+    const p = path.join(CHRONICLE_DIR, 'config.json');
+    if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {}
+  return {
+    apiKey: process.env.RESEND_API_KEY || cfg.resendApiKey || null,
+    to: process.env.FEEDBACK_TO || cfg.feedbackTo || 'chizhangucb@gmail.com',
+    // Resend's shared onboarding@resend.dev works with no domain setup, but only
+    // delivers to the Resend account owner's address. Verify a domain and set
+    // feedbackFrom (e.g. "Chronicle <feedback@yourdomain>") to reach any inbox.
+    from: process.env.FEEDBACK_FROM || cfg.feedbackFrom || 'Chronicle Feedback <onboarding@resend.dev>',
+  };
+}
 
 api.post('/feedback', async (req, res) => {
   const message = (req.body?.message || '').trim();
   if (!message) return res.status(400).json({ error: 'Feedback is empty' });
   const entry = { ts: new Date().toISOString(), platform: process.platform, message };
   try {
-    const dir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, 'feedback.log'), JSON.stringify(entry) + '\n');
+    fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
+    fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
   } catch {}
+  const { apiKey, to, from } = feedbackConfig();
+  if (!apiKey) {
+    return res.status(502).json({ error: 'Feedback email is not configured (add "resendApiKey" to ~/.chronicle/config.json) — feedback saved locally' });
+  }
   try {
-    // formsubmit.co rejects requests that lack a web-page Origin/Referer ("open
-    // this page through a web server"), so forward the app's origin.
-    const origin = req.headers.origin || `http://${req.headers.host || 'localhost:4173'}`;
-    const r = await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+    const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json', Accept: 'application/json',
-        Origin: origin, Referer: `${origin}/`,
-      },
-      body: JSON.stringify({ _subject: 'Chronicle feedback', message, platform: process.platform }),
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from, to, subject: 'Chronicle feedback',
+        text: `${message}\n\n— platform: ${process.platform}`,
+      }),
       signal: AbortSignal.timeout(10000),
     });
-    // formsubmit.co returns HTTP 200 even on failure (unactivated form, anti-spam,
-    // etc.) — the real outcome is `success` in the JSON body, not the status code.
+    // Resend returns { id } on success, or a non-2xx with { name, message } / { error }.
     const body = await r.json().catch(() => ({}));
-    if (!r.ok || String(body.success) !== 'true') {
-      throw new Error(body.message || `relay ${r.status}`);
+    if (!r.ok || body.error) {
+      throw new Error(body.error?.message || body.message || `resend ${r.status}`);
     }
-    res.json({ ok: true });
+    res.json({ ok: true, id: body.id });
   } catch (err) {
     res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
   }
