@@ -180,6 +180,7 @@ export default function App() {
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
       )}
+      <UpdateBanner />
     </div>
   );
 }
@@ -229,6 +230,30 @@ function FeedbackModal({ onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Auto-update toast: shown only inside the Electron shell (window.chronicleUpdater
+// exists) once an update has downloaded. Clicking Relaunch installs + relaunches
+// via electron-updater's quitAndInstall (clean port handover — no stale process).
+function UpdateBanner() {
+  const [version, setVersion] = useState(null);
+  useEffect(() => {
+    const u = typeof window !== 'undefined' ? window.chronicleUpdater : null;
+    if (!u) return;
+    u.onDownloaded((info) => setVersion(info?.version || ''));
+  }, []);
+  if (version === null) return null;
+  return (
+    <div className="update-toast" role="status">
+      <div className="update-toast-body">
+        <div className="update-toast-title">{t('Updated to')} {version}</div>
+        <div className="update-toast-sub">{t('Relaunch to apply')}</div>
+      </div>
+      <button className="btn primary" onClick={() => window.chronicleUpdater?.relaunch()}>
+        {t('Relaunch')}
+      </button>
     </div>
   );
 }

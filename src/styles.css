@@ -610,6 +610,18 @@ h4 { margin: 6px 0; }
   border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
+/* Auto-update relaunch toast (Electron shell only) */
+.update-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 1000;
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px; max-width: 360px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+.update-toast-title { font-weight: 600; font-size: 14px; }
+.update-toast-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.update-toast .btn.primary { white-space: nowrap; }
+
 /* Replay */
 .refine-item.step-done { border-left-color: var(--accent2); }
 .refine-item.step-failed { border-left-color: var(--danger); }
