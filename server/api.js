@@ -166,7 +166,7 @@ api.post('/projects/:id/sync', async (req, res) => {
 // if the relay is unreachable. Override the URL with CHRONICLE_FEEDBACK_RELAY or
 // `feedbackRelay` in ~/.chronicle/config.json.
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-const DEFAULT_FEEDBACK_RELAY = 'https://feedback-relay-chizhangucb-projects.vercel.app/api/feedback';
+const DEFAULT_FEEDBACK_RELAY = 'https://relay.getchronicle.dev/api/feedback';
 
 function feedbackRelayUrl() {
   let cfg = {};
