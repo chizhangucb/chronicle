@@ -11,8 +11,8 @@
     "standalone": "npm run build && node server/standalone.js",
     "dist:mac": "npm run build && electron-builder --mac --arm64 --x64 --publish never",
     "reinstall:mac": "pkill -f 'Chronicle.app/Contents/MacOS/Chronicle' || true; npm run build && electron-builder --mac --arm64 --publish never && ditto release/mac-arm64/Chronicle.app /Applications/Chronicle.app && rm -rf release && open -a /Applications/Chronicle.app",
-    "dist:win": "npm run build && electron-builder --win --x64",
-    "dist:linux": "npm run build && electron-builder --linux --x64"
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --x64 --publish never"
   },
   "keywords": [],
   "author": "Chi Zhang",
