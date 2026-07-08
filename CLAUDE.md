@@ -127,8 +127,8 @@ plus real data end-to-end (see Verification below).
 - `server/api.js` search/rename/sync routes: `GET /api/search`, `PATCH
   /api/sessions/:id` (rename), `POST /api/sessions/:id/sync` (single-session).
 - `packaging/homebrew/` — the cask + tap README published to the PUBLIC
-  `chizhangucb/homebrew-chronicle` tap (the private `chronicle` repo can't host
-  public DMGs); the update feed and README DMG link point at the tap.
+  `chizhangucb/homebrew-chronicle` tap, which hosts the cask DMGs; the update feed
+  and README DMG link point at the tap. (The `chronicle` repo is also public now.)
 
 ## Patterns
 
@@ -179,7 +179,7 @@ plus real data end-to-end (see Verification below).
   imported sessions point there and stay valid. New sessions land in
   `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
 - Update feed in `electron/main.mjs` points at the PUBLIC `chizhangucb/homebrew-chronicle`
-  tap (NOT the private source repo — its releases API 404s unauthenticated). The
+  tap (which hosts the public release DMGs for the cask). The
   updater does a plain `latest !== current` string compare, so `package.json`
   version MUST equal the release tag (minus the `v`) or users get bogus update
   prompts (env override: `CHRONICLE_UPDATE_FEED`). Each release therefore needs a
