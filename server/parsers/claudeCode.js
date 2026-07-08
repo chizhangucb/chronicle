@@ -138,23 +138,52 @@ export async function parseClaudeSession(file) {
   let cwd = null;
   const cwdsSeen = new Set();
   let firstPrompt = null;
+  let summary = null;
+  let customTitle = null;
   let skipped = 0;
   let contextTokens = null;
+  const usageByModel = new Map(); // model → { input, output, cacheWrite, cacheRead }
 
   for await (const line of rl) {
     if (!line.trim()) continue;
     let o;
     try { o = JSON.parse(line); } catch { skipped++; continue; }
     if (o.sessionId) sessionId = o.sessionId;
+    // Claude Code stores a user rename as `{"type":"custom-title","customTitle":"…"}`
+    // (the /rename-session title). The LAST one wins — a session can be renamed
+    // repeatedly. This is the authoritative default name shown in Chronicle.
+    if (o.type === 'custom-title' && typeof o.customTitle === 'string' && o.customTitle.trim()) {
+      customTitle = o.customTitle.slice(0, 200);
+    }
+    // Older logs may carry a `{"type":"summary","summary":"…"}` title; keep the first
+    // as a fallback when no explicit custom title exists.
+    if (!summary && o.type === 'summary' && typeof o.summary === 'string' && o.summary.trim()) {
+      summary = o.summary.slice(0, 200);
+    }
     // Latest cwd wins: sessions resumed after a repo move carry the old path in
     // their early records; the newest cwd is where the project lives now.
     if (o.cwd) { cwd = o.cwd; cwdsSeen.add(o.cwd); }
     // Real context-window size: the prompt side of the LAST main-chain API call
     // (matches Claude Code's own status line; sidechains are separate contexts).
+    // Same pass aggregates per-model token usage for the Cost & Usage panel.
     if (!o.isSidechain && o.type === 'assistant' && o.message?.usage) {
       const u = o.message.usage;
       const ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
       if (ctx > 0) contextTokens = ctx;
+      const model = o.message.model || 'unknown';
+      const agg = usageByModel.get(model) || { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
+      agg.input += u.input_tokens || 0;
+      agg.output += u.output_tokens || 0;
+      agg.cacheRead += u.cache_read_input_tokens || 0;
+      // 5-minute and 1-hour cache writes are billed at different rates.
+      const cc = u.cache_creation;
+      if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+        agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
+        agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
+      } else {
+        agg.cacheWrite5m += u.cache_creation_input_tokens || 0; // default tier when unsplit
+      }
+      usageByModel.set(model, agg);
     }
     for (const e of parseClaudeLine(o)) {
       events.push(e);
@@ -173,7 +202,9 @@ export async function parseClaudeSession(file) {
       started_at: timestamps[0] ?? null,
       ended_at: timestamps[timestamps.length - 1] ?? null,
       first_prompt: firstPrompt,
+      summary: customTitle || summary, // Claude Code custom title wins over legacy summary
       context_tokens: contextTokens,
+      usage: usageByModel.size ? JSON.stringify(Object.fromEntries(usageByModel)) : null,
       skipped,
     },
     events,

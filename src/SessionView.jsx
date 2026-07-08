@@ -6,8 +6,8 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
-import { contextWindowFor } from './models.js';
-import { SessionPicker } from './ProjectDetail.jsx';
+import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens } from './models.js';
+import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
 
 const FILTER_CHIPS = [
   { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
@@ -29,6 +29,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [causality, setCausality] = useState(null); // {changes, mentioned}
   const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
   const [newCount, setNewCount] = useState(0);
+  const [syncingSession, setSyncingSession] = useState(false);
   const esRef = useRef(null);
   const atBottomRef = useRef(true);
   const listRef = useRef(null);
@@ -185,6 +186,27 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     if (best) selectMessage(best.seq, true);
   }
 
+  // Rename this session (optimistically patches the shared session object so the
+  // breadcrumb, picker and overview title all update at once).
+  async function renameSession(name) {
+    const r = await api.renameSession(sessionId, name);
+    setData((cur) => (cur ? { ...cur, session: { ...cur.session, name: r.name } } : cur));
+  }
+
+  // Per-session Sync Update: re-import just this session, then reload its messages.
+  async function syncThisSession() {
+    if (syncingSession) return;
+    setSyncingSession(true);
+    try {
+      await api.syncSession(sessionId);
+      setData(await api.sessionMessages(sessionId));
+    } catch (e) {
+      alert(String(e.message));
+    } finally {
+      setSyncingSession(false);
+    }
+  }
+
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data) return <div className="page center muted">Loading session…</div>;
 
@@ -214,6 +236,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         <input ref={searchRef} className="search" placeholder={t('Search messages…  ⌘F')}
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         <span className="muted small">Match: {visible.length}/{messages.length}</span></>}
+        <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
+          title={t('Sync this session')} onClick={syncThisSession} disabled={syncingSession}
+          aria-label={t('Sync this session')}>{syncingSession ? '◌' : '⟳'}</button>
       </div>
 
       {mode === 'playback' && <>
@@ -255,7 +280,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       </>}
 
       {mode === 'overview' && (
-        <OverviewMode data={data} liveStatus={liveStatus} onDeleted={onBack} />
+        <OverviewMode data={data} liveStatus={liveStatus} onDeleted={onBack} onRename={renameSession} />
       )}
 
       {mode === 'refine' && (
@@ -359,6 +384,47 @@ function isErrorResult(m) {
       .test((m.text || '').slice(0, 200));
 }
 
+// Count occurrences → top-7 [name, count] entries plus an aggregated "other".
+function topDist(names) {
+  const d = new Map();
+  for (const n of names) d.set(n, (d.get(n) || 0) + 1);
+  const sorted = [...d.entries()].sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 7);
+  const other = sorted.slice(7).reduce((s, [, n]) => s + n, 0);
+  if (other) top.push(['other', other]);
+  return top;
+}
+
+// Donut + legend card shared by the Tool / Skill / MCP distributions.
+function DistributionCard({ title, entries, emptyLabel }) {
+  const total = entries.reduce((s, [, n]) => s + n, 0);
+  let acc = 0;
+  const gradient = entries.map(([, n], i) => {
+    const from = (acc / Math.max(1, total)) * 360; acc += n;
+    const to = (acc / Math.max(1, total)) * 360;
+    return `${DONUT_COLORS[i % DONUT_COLORS.length]} ${from}deg ${to}deg`;
+  }).join(', ');
+  return (
+    <div className="card ov-block">
+      <div className="ov-block-head"><strong>{title}</strong></div>
+      <div className="ov-donut-wrap">
+        {total > 0 && <div className="ov-donut" style={{ background: `conic-gradient(${gradient})` }} />}
+        <div>
+          {entries.map(([name, n], i) => (
+            <div key={name} className="ov-legend-row">
+              <span className="ov-legend-dot" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+              <span className="ov-legend-name" title={name}>{name}</span>
+              <span className="muted small">{Math.round((n / Math.max(1, total)) * 100)}%</span>
+            </div>
+          ))}
+          {!total && <div className="muted small">{emptyLabel}</div>}
+          <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {total} {t('calls')}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Session ID with one-click copy (shown on the session home page).
 function SessionIdChip({ id }) {
   const [copied, setCopied] = useState(false);
@@ -399,8 +465,30 @@ function fmtCtx(tokens) {
   return String(tokens);
 }
 
-function OverviewMode({ data, liveStatus, onDeleted }) {
+// Token count with one decimal (matches Claude Code's /usage: 13.6k, 1.1m, 512.1k).
+function fmtTokNum(n) {
+  n = n || 0;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}m`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
   const { session, messages } = data;
+
+  // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
+  // embedded/preview browser contexts and would fail silently.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  function startRename() { setDraft(session.name || ''); setEditing(true); }
+  async function saveRename() {
+    if (savingName) return;
+    setSavingName(true);
+    try { await onRename?.(draft); setEditing(false); }
+    catch (e) { alert(String(e.message)); }
+    finally { setSavingName(false); }
+  }
 
   const stats = useMemo(() => {
     const toolUses = messages.filter((m) => m.kind === 'tool_use');
@@ -420,7 +508,15 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
         label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name] || m.tool_name || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
-    return { toolUses, errors, errorIds, top, timeline };
+    // Skill usage (Skill tool → tool_input.skill) and MCP usage (mcp__<server>__<tool>
+    // grouped by server) — same top-7 + "other" shape as the tool distribution.
+    const skillTop = topDist(toolUses
+      .filter((m) => m.tool_name === 'Skill')
+      .map((m) => { try { return JSON.parse(m.tool_input || '{}').skill || 'skill'; } catch { return 'skill'; } }));
+    const mcpTop = topDist(toolUses
+      .filter((m) => (m.tool_name || '').startsWith('mcp__'))
+      .map((m) => m.tool_name.split('__')[1] || 'mcp'));
+    return { toolUses, errors, errorIds, top, timeline, skillTop, mcpTop };
   }, [messages]);
 
   const durationMs = session.started_at && session.ended_at
@@ -450,10 +546,45 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
   const ctxLevel = ctxPct === null ? null
     : ctxPct >= 90 ? 'crit' : ctxPct >= 75 ? 'high' : ctxPct >= 50 ? 'mid' : 'low';
 
+  // Cost & Usage: per-model token totals from the parser + list-price cost estimate.
+  const usageRows = useMemo(() => {
+    let usage;
+    try { usage = session.usage ? JSON.parse(session.usage) : null; } catch { usage = null; }
+    if (!usage) return [];
+    return Object.entries(usage)
+      // Drop token-less models (e.g. Claude Code's "<synthetic>" placeholder).
+      .filter(([, u]) => (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + cacheWriteTokens(u) > 0)
+      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u), breakdown: costBreakdownOf(m, u) }))
+      .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
+  }, [session.usage]);
+  const totalCost = useMemo(() => {
+    const priced = usageRows.filter((r) => r.cost != null);
+    return priced.length ? priced.reduce((s, r) => s + r.cost, 0) : null;
+  }, [usageRows]);
+
   return (
     <div className="page overview-page">
+      <div className="ov-name-row">
+        {editing ? (
+          <>
+            <span className="ov-title-icon">📊</span>
+            <input className="ov-name-input" autoFocus value={draft} disabled={savingName}
+              placeholder={sessionDisplayName(session)}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditing(false); }} />
+            <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
+            <button className="btn tiny ghost" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={() => setEditing(false)}>✕</button>
+            {session.name && <span className="muted small">{t('Leave blank to reset to default')}</span>}
+          </>
+        ) : (
+          <>
+            <h3 className="ov-title">📊 {sessionDisplayName(session)}</h3>
+            <button className="btn tiny ghost" title={t('Rename session')} onClick={startRename}>✎</button>
+          </>
+        )}
+      </div>
       <div className="ov-title-row">
-        <h3 className="ov-title">📊 {t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</h3>
+        <span className="muted small">{t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</span>
         <SessionIdChip id={session.id} />
       </div>
       <div className="analytics-row">
@@ -468,6 +599,40 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
           </div>
         )}
       </div>
+
+      {usageRows.length > 0 && (
+        <div className="card ov-block cost-block">
+          <div className="ov-block-head">
+            <strong>{t('Cost & Usage')}</strong>
+            <span className="cost-total">{totalCost != null ? `$${totalCost.toFixed(2)}` : '—'}</span>
+          </div>
+          <div className="cost-models">
+            {usageRows.map((r) => (
+              <div key={r.model} className="cost-model-row">
+                <div className="cost-model-head">
+                  <span className="mono-path small">{r.model}</span>
+                  <span className="cost-model-cost">{r.cost != null ? `$${r.cost.toFixed(2)}` : '—'}</span>
+                </div>
+                <div className="cost-tokens muted small">
+                  <span><em>{t('Input')}</em> {fmtTokNum(r.u.input)}</span>
+                  <span><em>{t('Output')}</em> {fmtTokNum(r.u.output)}</span>
+                  <span><em>{t('Cache Read')}</em> {fmtTokNum(r.u.cacheRead)}</span>
+                  <span><em>{t('Cache Write')}</em> {fmtTokNum(cacheWriteTokens(r.u))}</span>
+                </div>
+                {r.breakdown && (
+                  <div className="cost-tokens cost-dollars muted small">
+                    <span><em>{t('Input')}</em> ${r.breakdown.input.toFixed(2)}</span>
+                    <span><em>{t('Output')}</em> ${r.breakdown.output.toFixed(2)}</span>
+                    <span><em>{t('Cache Read')}</em> ${r.breakdown.cacheRead.toFixed(2)}</span>
+                    <span><em>{t('Cache Write')}</em> ${r.breakdown.cacheWrite.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="muted small">{t('Estimated from token counts × current list prices')}</div>
+        </div>
+      )}
 
       {ctxPct !== null && (
         <div className="card ov-block ctx-block">
@@ -531,6 +696,11 @@ function OverviewMode({ data, liveStatus, onDeleted }) {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="ov-cols">
+        <DistributionCard title={t('Skill Distribution')} entries={stats.skillTop} emptyLabel={t('No skills used.')} />
+        <DistributionCard title={t('MCP Distribution')} entries={stats.mcpTop} emptyLabel={t('No MCP tools used.')} />
       </div>
 
       <SourceFileZone session={session} liveStatus={liveStatus} onDeleted={onDeleted} />

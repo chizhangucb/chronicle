@@ -44,6 +44,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 
 // Idempotent migrations
 try { db.exec('ALTER TABLE sessions ADD COLUMN context_tokens INTEGER'); } catch {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN name TEXT'); } catch {}       // user-set display name (survives re-import)
+try { db.exec('ALTER TABLE sessions ADD COLUMN summary TEXT'); } catch {}    // tool-provided summary (parsed each import)
+try { db.exec('ALTER TABLE sessions ADD COLUMN usage TEXT'); } catch {}      // per-model token totals as JSON
 
 export function upsertProject(physicalPath) {
   const name = path.basename(physicalPath) || physicalPath;
@@ -54,13 +57,16 @@ export function upsertProject(physicalPath) {
 export function replaceSession(session, events) {
   db.exec('BEGIN');
   try {
+    // Preserve a user-set display name across re-imports (delete + reinsert).
+    const prev = db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id);
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
-    db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens, name, summary, usage)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
            session.started_at, session.ended_at, events.length, session.first_prompt,
-           session.context_tokens ?? null);
+           session.context_tokens ?? null, session.name ?? prev?.name ?? null,
+           session.summary ?? null, session.usage ?? null);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     events.forEach((e, i) => ins.run(session.id, i, e.uuid ?? null, e.ts ?? null, e.kind,
