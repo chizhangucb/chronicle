@@ -184,7 +184,7 @@ export default function App() {
   );
 }
 
-// Feedback modal (Chronicle-style): sends through the local server, which relays
+// Feedback modal: sends through the local server, which relays
 // to email and always keeps a local copy in ~/.chronicle/feedback.log.
 function FeedbackModal({ onClose }) {
   const [text, setText] = useState('');
@@ -233,7 +233,7 @@ function FeedbackModal({ onClose }) {
   );
 }
 
-// Global search palette (Chronicle-style ⌘K): All/Code/Chat scope, time + project
+// Global search palette (⌘K): All/Code/Chat scope, time + project
 // filters, "Recent Access" when empty. Server does a LIKE scan grouped per session.
 const SEARCH_SCOPES = [
   { key: 'all', label: 'All', icon: '≡' },

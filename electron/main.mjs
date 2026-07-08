@@ -52,8 +52,10 @@ function buildTray() {
 
 // Update check (NFR-7 lite): polls a releases feed; full silent auto-update
 // needs a signed publish pipeline — deferred until distribution is set up.
+// Points at the PUBLIC homebrew-chronicle tap (which hosts the release DMGs), not
+// the private source repo, so the check works for end users without auth.
 const UPDATE_FEED = process.env.CHRONICLE_UPDATE_FEED
-  || 'https://api.github.com/repos/chizhangucb/chronicle/releases/latest';
+  || 'https://api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest';
 
 async function checkForUpdates(interactive = true) {
   try {

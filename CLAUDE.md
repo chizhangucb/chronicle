@@ -50,8 +50,8 @@ plus real data end-to-end (see Verification below).
   Window close hides to tray (MCP Hub keepalive); quit only via tray menu.
 - **Repo is flat** (Chi's global preference): app code at root, PRD in `docs/`.
 - **Global sidebar owns navigation; SessionView registers its modes into it.**
-  There is one collapsible left sidebar (in `App.jsx`, Chronicle-style: Projects +
-  sync-all on top, MCP Hub/Skills/Security/Feedback/Collapse pinned at bottom).
+  There is one collapsible left sidebar (in `App.jsx`): Projects +
+  sync-all on top, MCP Hub/Skills/Security/Feedback/Collapse pinned at bottom.
   SessionView doesn't render its own rail — it publishes `{modes, active, select,
   securityOpen}` up via the `onRailChange` prop while mounted; App renders those as
   sidebar items. SessionView is keyed by session id so the breadcrumb session
@@ -66,12 +66,30 @@ plus real data end-to-end (see Verification below).
   `express` is a runtime dep that electron-builder ships. Electron locales are
   stripped to en + zh_CN; arch selection lives in CLI flags (not build config) so
   `dist:mac` builds both arches while `reinstall:mac` builds only arm64. The
-  ~100 MB DMG floor is the Electron framework itself; matching Chronicle's ~26 MB
+  ~100 MB DMG floor is the Electron framework itself; a ~26 MB footprint
   would require the Tauri swap.
 - **Feedback is the one deliberate outbound network feature** (besides the update
   check and GitHub skill imports): `POST /api/feedback` relays to email via
   formsubmit.co, always appends to `~/.chronicle/feedback.log` first, and the UI
   falls back to a `mailto:` link when the relay is unreachable.
+- **Session display name = `name` (Chronicle override) → `summary` (parsed) →
+  `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
+  source of that precedence; reuse it everywhere (rows, pickers, overview title).
+  The parser reads Claude Code's `{"type":"custom-title","customTitle":…}` lines
+  (the `/rename` title, LAST one wins) into `sessions.summary`; there are NO
+  `type:"summary"` lines in real logs, so custom-title is the only auto-title
+  source. `name` is a user-set override, preserved across re-import (see below).
+- **Cost is computed locally, never billed data.** Logs carry tokens, not dollars,
+  so the parser aggregates per-model token totals (`sessions.usage` JSON:
+  `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}`) and
+  `src/models.js` multiplies by a static per-model price table. 5-minute and
+  1-hour cache writes are billed at different rates — keep them split. The table
+  must track the current Anthropic pricing page (Opus 4.8 tier is $5/$25, NOT the
+  old Opus 4.1 $15/$75 — getting this wrong 3× inflates every number).
+- **Global search is LIKE-based, not FTS.** `/api/search` scans `messages.text` +
+  `tool_input` with `LIKE`, grouped per session (top ~40) with a snippet; empty
+  query returns recent sessions ("Recent Access"). Fine at this scale (~15k rows);
+  revisit with FTS5 only if it gets slow.
 
 ## Key files
 
@@ -98,11 +116,19 @@ plus real data end-to-end (see Verification below).
   copyable session ID, deletion danger zone)
 - `src/ProjectDetail.jsx` — project analytics home (8 stat cards, line/bar trend,
   source donut, call ranking; time range via `/api/projects/:id?days=N`)
-- `src/models.js` — static per-model context-window table (never fetched);
-  update when new models ship
-- `src/i18n.js` — `t()` dictionary EN/zh-CN; language dropdown reloads the page
-- `packaging/homebrew/` — the cask + tap README published to
-  `chizhangucb/homebrew-chronicle`
+- `src/models.js` — static per-model tables (never fetched): context windows +
+  list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`).
+  Update when new models ship or prices change.
+- `src/i18n.js` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the
+  key itself); language dropdown reloads the page. Add a locale = add a dict here.
+- `src/ProjectDetail.jsx` — also exports `sessionDisplayName()`, `ProjectPicker`,
+  `SessionPicker`; the `days` for "Today" is fractional-days-since-local-midnight,
+  memoized on `range` (recomputing per render would loop `Date.now()` refetches).
+- `server/api.js` search/rename/sync routes: `GET /api/search`, `PATCH
+  /api/sessions/:id` (rename), `POST /api/sessions/:id/sync` (single-session).
+- `packaging/homebrew/` — the cask + tap README published to the PUBLIC
+  `chizhangucb/homebrew-chronicle` tap (the private `chronicle` repo can't host
+  public DMGs); the update feed and README DMG link point at the tap.
 
 ## Patterns
 
@@ -152,10 +178,23 @@ plus real data end-to-end (see Verification below).
   `~/.claude/projects/-Users-chizhang-personal--ai-session-manager/` — Chronicle's
   imported sessions point there and stay valid. New sessions land in
   `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
-- Update feed in `electron/main.mjs` points at `chizhangucb/chronicle` (this repo);
-  the updater does a plain `latest !== current` string compare, so `package.json`
+- Update feed in `electron/main.mjs` points at the PUBLIC `chizhangucb/homebrew-chronicle`
+  tap (NOT the private source repo — its releases API 404s unauthenticated). The
+  updater does a plain `latest !== current` string compare, so `package.json`
   version MUST equal the release tag (minus the `v`) or users get bogus update
-  prompts (env override: `CHRONICLE_UPDATE_FEED`).
+  prompts (env override: `CHRONICLE_UPDATE_FEED`). Each release therefore needs a
+  matching release+DMGs on BOTH repos (chronicle for the record, the tap for
+  public download); the release checklist already uploads to the tap.
+- **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they
+  are blocked (silently return null) in embedded/preview browser contexts, so the
+  action no-ops with no error. The session rename learned this the hard way; use an
+  inline edit-in-place field instead (see `OverviewMode` in `SessionView.jsx`).
+- **`replaceSession` preserves the user-set `name`** across its delete+reinsert
+  (reads `prev.name` first) — `summary`/`usage` are re-derived each import, but a
+  Chronicle rename must survive re-sync. An OLD build sharing `~/.chronicle/chronicle.db`
+  (e.g. a stale packaged app on 41730) does NOT know the `name` column and will
+  wipe titles on any sync — quit it (`pkill -f Chronicle.app`) before debugging
+  "my rename vanished".
 - `sessions.context_tokens` (real context size from Claude Code usage records) only
   populates on import — after upgrading, re-import or Sync Update, else session cards
   fall back to the ~chars/4 estimate.

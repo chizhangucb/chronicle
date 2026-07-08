@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from './i18n.js';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
-// Chronicle-style: original messages left, compressed preview right, token stats +
+// Original messages left, compressed preview right, token stats +
 // undo/redo/reset in a bottom status bar.
 // Keep `K` / Delete `D` / Edit `E` / Insert `I`, ⌘Z undo, ⇧⌘Z redo, ⌘S export.
 

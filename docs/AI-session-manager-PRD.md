@@ -1,7 +1,7 @@
 # Product Requirements Document — In-House AI Coding Session Manager
 
 **Working title:** *Chronicle* (placeholder — an in-house "time machine" for AI coding sessions)
-**Inspired by:** [Chronicle](https://chronicle.example) — AI Coding Sessions Time Machine
+**Category:** AI coding-session time machine — import tool logs, then time-travel to the exact code state behind any message
 **Document status:** v1.0 — implemented through Phase 5 (see §9 Decision log); v0.1.0 released 2026-07-06
 **Author:** Chi Zhang
 **Date:** 2026-07-03
@@ -346,14 +346,14 @@ Legend: ✅ full · ⚠️ partial · 🔜 planned · – not applicable.
 - **NFR-6 Reliability.** Atomic backup/restore for MCP + Skills takeovers with rollback; integrity verification; single-instance lock.
 - **NFR-7 Updatability.** Built-in auto-updater with incremental/background downloads.
 - **NFR-8 Security posture.** Read-only on remote systems; SSH secrets never stored; system paths never cleaned; one-way redaction.
-- **NFR-9 Internationalization.** At least English + one additional locale (Chronicle ships English + Simplified Chinese); build i18n in from the start.
+- **NFR-9 Internationalization.** At least English + one additional locale; build i18n in from the start.
 - **NFR-10 Accessibility & keyboard-first.** Comprehensive keyboard shortcuts across modes.
 
 ---
 
 ## 7. Phased roadmap
 
-Ordered to reach the "aha" moment fastest, then layer control-plane and advanced capabilities. (Mirrors Chronicle's own release history as a proven sequence.)
+Ordered to reach the "aha" moment fastest, then layer control-plane and advanced capabilities.
 
 **Phase 1 — Replay MVP.** Import wizard (Claude Code + one more tool), SQLite datastore, Git snapshot engine, Playback Mode, Time Travel + TimberLine, code/diff panel, basic message list. *Goal: <5-min time-travel on a real session.*
 
@@ -373,10 +373,10 @@ Ordered to reach the "aha" moment fastest, then layer control-plane and advanced
 
 1. **Desktop framework.** Tauri (smaller footprint, Rust core) vs Electron (faster ecosystem velocity). *Recommendation: Tauri to hit the ~200 MB target.*
 2. **Causality engine model.** Which model powers background causality analysis, and does it run fully locally (to preserve offline guarantee) or optionally via API? Local-first suggests an on-device/small model with an opt-in cloud upgrade.
-3. **Share links.** Chronicle's share links imply *some* hosting. Do we build an in-house share service, or ship export-file-only for v1 to preserve zero-backend?
+3. **Share links.** Tokenized share links imply *some* hosting. Do we build an in-house share service, or ship export-file-only for v1 to preserve zero-backend?
 4. **Snapshot fidelity vs. commit frequency.** Should we offer an optional auto-commit/shadow-Git mechanism so replay fidelity doesn't depend on user commit discipline?
-5. **Licensing / build-vs-adopt.** Chronicle's core is free; confirm whether an in-house build is warranted vs. adopting/extending, given the substantial control-plane surface area.
-6. **Enterprise deployment.** Network proxy support and managed deployment are referenced by Chronicle — are these in scope for our internal rollout?
+5. **Licensing / build-vs-adopt.** Confirm whether an in-house build is warranted vs. adopting/extending an existing tool, given the substantial control-plane surface area.
+6. **Enterprise deployment.** Network proxy support and managed deployment — are these in scope for our internal rollout?
 
 ---
 
@@ -388,29 +388,8 @@ Resolutions to §8's open questions, plus status as of v0.1.0 (2026-07-06):
 2. **Causality engine → local heuristics, no LLM.** Confidence tiers (0.95 read-this-exact-file → 0.2 background context) computed from tool-call structure. Preserves the offline guarantee with zero cost; an opt-in model upgrade remains possible.
 3. **Share links → in-house, zero-backend.** Served by the local app at `/share/<token>` with the redacted copy frozen at creation. No hosting dependency.
 4. **Shadow-Git / auto-commit → not built.** Replay fidelity depends on user commit discipline; revisit if it becomes a real pain point.
-5. **Build-vs-adopt → built in-house.** Full parity surface achieved in-house (see status below); control-plane behavior (additive-only skills distribution, local share links) deliberately diverges from Chronicle where safety demanded it.
+5. **Build-vs-adopt → built in-house.** Full feature surface achieved in-house (see status below); control-plane behavior (additive-only skills distribution, local share links) deliberately favors safety over a naive port.
 6. **Enterprise deployment → out of scope** for the personal rollout; unaddressed.
 
-**Implementation status:** Phases 1–5 complete except **remote SSH (§5.9)** — all 6 tool importers, time travel, Replay, Refine, Overview + mode rail, filtering, analytics, live streaming (JSONL + SQLite polling), security (redaction, pre-tool-use hook, share links), MCP Hub, Skills Hub, i18n (EN/zh-CN), Electron desktop shell. **FR-IMP-1** is partial: macOS `.dmg` (arm64 + x64) + Homebrew cask shipped; Windows/Linux installers, code signing/notarization, and silent auto-update (NFR-7) pending. Context-window accounting was added beyond the PRD: real per-session token usage parsed from Claude Code usage records, with a usage bar against each model's context window.
+**Implementation status:** Phases 1–5 complete except **remote SSH (§5.9)** — all 6 tool importers, time travel, Replay, Refine, Overview + mode rail, filtering, analytics, live streaming (JSONL + SQLite polling), security (redaction, pre-tool-use hook, share links), MCP Hub, Skills Hub, i18n (EN/zh-CN/ja), Electron desktop shell. **FR-IMP-1** is partial: macOS `.dmg` (arm64 + x64) + Homebrew cask shipped; Windows/Linux installers, code signing/notarization, and silent auto-update (NFR-7) pending. Context-window accounting was added beyond the PRD: real per-session token usage parsed from Claude Code usage records, with a usage bar against each model's context window.
 
----
-
-## Appendix A — Source references
-
-All requirements are derived from Chronicle's public site and documentation (read 2026-07-03):
-
-- Home — https://chronicle.example/#features
-- Docs home — https://docs.chronicle.example/en/
-- Getting Started — https://docs.chronicle.example/en/guide/getting-started.html
-- Time Travel — https://docs.chronicle.example/en/features/time-travel.html
-- Replay Mode — https://docs.chronicle.example/en/features/replay.html
-- Project Management — https://docs.chronicle.example/en/features/project-management.html
-- Context Causality — https://docs.chronicle.example/en/features/context-causality.html
-- MCP Hub — https://docs.chronicle.example/en/features/mcp-hub.html
-- Skills Hub — https://docs.chronicle.example/en/features/skills-hub.html
-- Session Live Streaming — https://docs.chronicle.example/en/features/live-streaming.html
-- Remote SSH Access — https://docs.chronicle.example/en/features/remote-ssh.html
-- Modes — https://docs.chronicle.example/en/features/modes.html
-- Message Filtering — https://docs.chronicle.example/en/features/filtering.html
-- Content Redaction — https://docs.chronicle.example/en/features/redaction.html
-- Compatibility — https://docs.chronicle.example/en/reference/compatibility.html

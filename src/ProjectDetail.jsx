@@ -245,8 +245,8 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   );
 }
 
-// Project dropdown (Chronicle-style): switch projects from the breadcrumb, mirroring
-// the session picker. Lazily loads the project list on first open.
+// Project dropdown: switch projects from the breadcrumb, mirroring the session
+// picker. Lazily loads the project list on first open.
 export function ProjectPicker({ current, onPick }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -263,7 +263,7 @@ export function ProjectPicker({ current, onPick }) {
       {open && (
         <>
           <div className="menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="menu-pop picker-pop picker-pop-left">
+          <div className="menu-pop picker-pop">
             <input autoFocus className="search picker-search" placeholder={t('Search projects or sessions')}
               value={q} onChange={(e) => setQ(e.target.value)} />
             {projects === null && <div className="muted small pad8">{t('Loading…')}</div>}
@@ -288,7 +288,7 @@ export function ProjectPicker({ current, onPick }) {
   );
 }
 
-// Session dropdown (Chronicle-style): shows on both project and session pages.
+// Session dropdown: shows on both project and session pages.
 export function SessionPicker({ sessions, current, onPick, loading }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');

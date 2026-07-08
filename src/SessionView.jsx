@@ -89,7 +89,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return () => onLiveChange?.(null);
   }, [liveStatus, sessionId]);
 
-  // Register the session mode rail with the global sidebar (Chronicle-style).
+  // Register the session mode rail with the global sidebar.
   useEffect(() => {
     if (!data) return;
     onRailChange?.({
