@@ -223,9 +223,17 @@ plus real data end-to-end (see Verification below).
 - The tool-result error heuristic exists twice: `ERROR_RE` in `server/api.js`
   (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview).
   Change both or the Errors counts diverge.
-- The feedback relay (formsubmit.co) requires a one-time activation click on a
-  confirmation email sent to the target address on first submission; until then
-  submissions only land in `~/.chronicle/feedback.log`.
+- The feedback relay (formsubmit.co) has three requirements, all learned the hard
+  way: (1) it **returns HTTP 200 even on failure** — the real outcome is
+  `body.success` (`"true"`/`"false"`), so `/api/feedback` must parse the body, not
+  just check `r.ok`, or it falsely reports "sent" and suppresses the mailto
+  fallback; (2) the server-side fetch must send an `Origin`/`Referer` header or
+  formsubmit rejects it with "open this page through a web server"; (3) it requires
+  a **one-time activation click** on a confirmation email sent to `FEEDBACK_EMAIL`
+  (`chizhangucb@gmail.com`) on first submission — until clicked, NO email is
+  delivered and submissions only land in `~/.chronicle/feedback.log`. The
+  connected Gmail MCP is `chi.zhang@gokite.ai`, a different inbox, so the gmail
+  activation can't be automated from here.
 - `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
   electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
   files are for electron-builder's own updater, which Chronicle doesn't use.

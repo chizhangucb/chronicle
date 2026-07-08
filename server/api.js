@@ -173,13 +173,24 @@ api.post('/feedback', async (req, res) => {
     fs.appendFileSync(path.join(dir, 'feedback.log'), JSON.stringify(entry) + '\n');
   } catch {}
   try {
+    // formsubmit.co rejects requests that lack a web-page Origin/Referer ("open
+    // this page through a web server"), so forward the app's origin.
+    const origin = req.headers.origin || `http://${req.headers.host || 'localhost:4173'}`;
     const r = await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json', Accept: 'application/json',
+        Origin: origin, Referer: `${origin}/`,
+      },
       body: JSON.stringify({ _subject: 'Chronicle feedback', message, platform: process.platform }),
       signal: AbortSignal.timeout(10000),
     });
-    if (!r.ok) throw new Error(`relay ${r.status}`);
+    // formsubmit.co returns HTTP 200 even on failure (unactivated form, anti-spam,
+    // etc.) — the real outcome is `success` in the JSON body, not the status code.
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok || String(body.success) !== 'true') {
+      throw new Error(body.message || `relay ${r.status}`);
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
