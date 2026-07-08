@@ -158,6 +158,11 @@ plus real data end-to-end (see Verification below).
   = cask shas.
 - Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
   library; keep it that way.
+- **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight
+  to `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
+  direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
+  checkout to `main`** (`git checkout main && git pull && git fetch --prune && git
+  branch -D <branch>`) — see the git-pill gotcha below.
 
 ## Gotchas
 
@@ -251,6 +256,11 @@ plus real data end-to-end (see Verification below).
   replacing files on disk doesn't touch it). After `reinstall:mac`, VERIFY the
   restart — `ps -o lstart= -p $(lsof -tiTCP:41730)` must be AFTER the rebuild;
   if not, quit via the tray menu (or `pkill`) and `open -a Chronicle`.
+- The project-card **git pill shows the local checkout's live branch** — `repoInfo`
+  in `server/git.js` shells out to `git` on every `/api/projects` call (NO caching),
+  so it's always accurate, not stale. If it shows a feature branch after a PR merged,
+  that's because the working tree is still ON that branch — switch back to `main`
+  (the pill is right, the checkout is wrong). Bit us twice; see the branch/PR pattern.
 - `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
   electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
   files are for electron-builder's own updater, which Chronicle doesn't use.
