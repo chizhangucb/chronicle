@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "desktop": "npm run build && electron .",
     "standalone": "npm run build && node server/standalone.js",
-    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64",
-    "reinstall:mac": "pkill -f 'Chronicle.app/Contents/MacOS/Chronicle' || true; npm run build && electron-builder --mac --arm64 && ditto release/mac-arm64/Chronicle.app /Applications/Chronicle.app && rm -rf release && open -a /Applications/Chronicle.app",
+    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64 --publish never",
+    "reinstall:mac": "pkill -f 'Chronicle.app/Contents/MacOS/Chronicle' || true; npm run build && electron-builder --mac --arm64 --publish never && ditto release/mac-arm64/Chronicle.app /Applications/Chronicle.app && rm -rf release && open -a /Applications/Chronicle.app",
     "dist:win": "npm run build && electron-builder --win --x64",
     "dist:linux": "npm run build && electron-builder --linux --x64"
   },
@@ -20,6 +20,12 @@
   "build": {
     "appId": "com.chizhang.chronicle",
     "productName": "Chronicle",
+    "afterSign": "build/notarize.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "chizhangucb",
+      "repo": "homebrew-chronicle"
+    },
     "asar": false,
     "directories": {
       "output": "release"
@@ -37,8 +43,14 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": "dmg",
-      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "dmg": {
@@ -70,6 +82,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.3",
     "diff": "^9.0.0",
+    "@electron/notarize": "^2.5.0",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "react": "^19.2.7",
@@ -77,6 +90,7 @@
     "vite": "^8.1.3"
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "express": "^5.2.1"
   }
 }
