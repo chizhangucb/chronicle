@@ -42,7 +42,7 @@ const SCAN_SOURCES = [
 ];
 
 // Symlink distribution targets (FR-SK-1) — only ever *add* links; never
-// overwrite a real directory (non-destructive subset of Chronicle's takeover).
+// overwrite a real directory (non-destructive by design).
 const DISTRIBUTE_TARGETS = [
   { tool: 'claude-code', dir: path.join(HOME, '.claude', 'skills') },
   { tool: 'cursor', dir: path.join(HOME, '.cursor', 'skills') },

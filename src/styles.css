@@ -20,7 +20,7 @@ body {
 .app { display: flex; flex-direction: row; height: 100%; }
 .app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
-/* Global sidebar (Chronicle-style) */
+/* Global sidebar */
 .sidebar {
   width: 176px; flex-shrink: 0; display: flex; flex-direction: column;
   background: var(--bg2); border-right: 1px solid var(--border);
@@ -306,16 +306,16 @@ body {
 .crumb.on { color: var(--text); background: var(--bg3); border-color: var(--border); font-weight: 600; }
 .crumb-sep { color: var(--muted); }
 .session-picker { position: relative; }
-.picker-pop { width: 340px; max-height: 420px; overflow-y: auto; }
-/* Leftmost breadcrumb (project picker): open rightward so it isn't clipped by the sidebar. */
-.picker-pop-left { left: 0; right: auto; }
+/* Breadcrumb pickers open rightward (left-anchored) so they're never clipped by
+   the sidebar, regardless of how short the project/session name is. */
+.picker-pop { width: 340px; max-height: 420px; overflow-y: auto; left: 0; right: auto; }
 .picker-search { width: calc(100% - 12px); margin: 6px; }
 .picker-item { display: flex; gap: 8px; align-items: flex-start; }
 .picker-check { width: 14px; color: var(--accent2); flex-shrink: 0; }
 .picker-body { display: flex; flex-direction: column; min-width: 0; }
 .picker-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px; }
 
-/* Project home (Chronicle-style) */
+/* Project home */
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0; }
 .stat-grid .stat { text-align: left; }
 .range-select {

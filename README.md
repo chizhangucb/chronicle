@@ -18,7 +18,7 @@ brew tap chizhangucb/chronicle
 brew install --cask chronicle --no-quarantine
 ```
 
-**Or download the DMG** from [Releases](https://github.com/chizhangucb/chronicle/releases)
+**Or download the DMG** from [Releases](https://github.com/chizhangucb/homebrew-chronicle/releases)
 (arm64 for Apple Silicon, x64 for Intel). The app is not yet code-signed, so
 `--no-quarantine` (or `xattr -dr com.apple.quarantine "/Applications/Chronicle.app"`
 after installing) is needed to skip the Gatekeeper warning.
@@ -49,13 +49,21 @@ Click **Import Sessions**, pick a source tool, and open a session.
   a local SQLite DB (`~/.chronicle/chronicle.db`); SQLite sources are copied to temp
   (incl. WAL) before reading — foreign databases are never opened live.
 - **Session Overview** (`⌘1`, the session home page) — duration / messages / tool
-  calls / errors / context stat cards, a **context-window usage bar** (real token
-  usage from the log's API usage records vs. the model's context window, colored
-  cyan → yellow → red as it fills), call timeline, tool-distribution donut, per-call
-  ✓/✗ details, and a danger zone to delete the source log file, the Chronicle copy,
-  or both (two-step confirm).
+  calls / errors / context stat cards, a **Cost & Usage panel** (per-model token
+  totals for input / output / cache-read / cache-write with a per-category dollar
+  breakdown and session total, computed locally from the current Anthropic list
+  prices with separate 5-minute vs 1-hour cache-write pricing — matches Claude
+  Code's `/usage`), a **context-window usage bar** (real token usage vs. the model's
+  window, colored cyan → yellow → red as it fills), call timeline, and **Tool /
+  Skill / MCP distribution** donuts (Skills grouped by name, MCP calls by server).
+  Includes an inline **rename** and a danger zone to delete the source log file, the
+  Chronicle copy, or both (two-step confirm).
+- **Session titles** — Chronicle reads Claude Code's own custom session titles
+  (`/rename`), so every session you renamed shows its real name across all projects
+  and stays in sync on re-import; the first prompt is kept as a subline. Falls back
+  to the first prompt when untitled, and an inline overview rename overrides locally.
 - **Mode rail** — Overview / Playback / Refine / Replay / Security on the left edge
-  (`⌘1`–`⌘4`), Chronicle-style.
+  (`⌘1`–`⌘4`).
 - **Logical projects** — sessions from all tools aggregate by physical project path;
   Git badge, source icons.
 - **Playback Mode** — three-pane layout: typed message list (user / AI / thinking /
@@ -123,6 +131,9 @@ Click **Import Sessions**, pick a source tool, and open a session.
 - **Project management** — per-card gear menu (Sync Update / View Details / Rename /
   Remove from Chronicle), unlink a source into its own project, manual path
   association with auto-merge. Session cards show real context usage (`⧉ 530k ctx`).
+  Breadcrumb **project + session dropdowns** switch context without leaving the page,
+  a per-session **Sync Update** button re-imports a single session, and the project
+  analytics page has a **Today / 7 / 30 / 365-day** time filter.
 - **Tool policies** — per-service ⛭ policy panel in the MCP Hub; unchecked tools are
   hidden from `tools/list` and blocked on `tools/call` (logged as interceptions).
 
@@ -149,7 +160,11 @@ Click **Import Sessions**, pick a source tool, and open a session.
 - **MCP Roots + credentials** — services can be scoped to a project path; the hub
   routes `tools/list` by longest-prefix-match on the client's root (header or
   `initialize` rootUri). Per-service bearer credentials stored locally, always masked.
-- **i18n** — English + 简体中文, dropdown in the top bar.
+- **Global search** — a command palette (🔍 on the home page or `⌘K` anywhere):
+  full-text search across all session content with All / Code / Chat scopes, time
+  and project filters, "Recent Access" recents, highlighted snippets, and keyboard
+  navigation; click a result to jump straight into that session.
+- **i18n** — English + 简体中文 + 日本語, dropdown in the top bar.
 - **Performance guardrails** — windowed message rendering (400 around selection) and
   timeline tick decimation; a 6,000-message session renders 400 DOM rows.
 - **Desktop shell** — Electron app (`npm run desktop`): embedded production server,

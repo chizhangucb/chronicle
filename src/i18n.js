@@ -169,7 +169,7 @@ const zh = {
   // Sidebar + feedback
   'Feedback': '反馈',
   'Description': '描述',
-  // Project home (Chronicle-style)
+  // Project home
   'All time': '全部时间',
   '7 Days': '7 天',
   '30 Days': '30 天',
