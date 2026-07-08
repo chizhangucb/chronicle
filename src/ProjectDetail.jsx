@@ -8,20 +8,33 @@ const FRIENDLY_CALL = {
 };
 const DONUT_COLORS = ['#a78bfa', '#4f8ef7', '#34c98e', '#e5a54b', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
 const RANGES = [
+  { key: 'today', days: null, label: 'Today', today: true },
   { key: 'all', days: null, label: 'All time' },
   { key: '7', days: 7, label: '7 Days' },
   { key: '30', days: 30, label: '30 Days' },
   { key: '365', days: 365, label: '1 Year' },
 ];
 
-export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange }) {
+// Display name for a session: user-set name → tool summary → first prompt → id.
+export function sessionDisplayName(s) {
+  return (s.name && s.name.trim()) || (s.summary && s.summary.trim())
+    || s.first_prompt || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
+}
+
+export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [assocPath, setAssocPath] = useState('');
   const [range, setRange] = useState('all');
   const [trendStyle, setTrendStyle] = useState('line'); // line | bar
 
-  const days = RANGES.find((r) => r.key === range)?.days ?? null;
+  // "Today" = fractional days since local midnight, computed once per range change
+  // (a stable value avoids a Date.now()-driven refetch loop).
+  const days = useMemo(() => {
+    const def = RANGES.find((r) => r.key === range);
+    if (def?.today) { const d = new Date(); d.setHours(0, 0, 0, 0); return (Date.now() - d.getTime()) / 86400000; }
+    return def?.days ?? null;
+  }, [range]);
   const refresh = () => api.project(id, days).then(setData).catch((e) => setError(String(e.message)));
   useEffect(() => { refresh(); }, [id, range]);
 
@@ -109,7 +122,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
   return (
     <div className="page">
       <div className="crumbs">
-        <button className="crumb on" onClick={() => {}}>📁 {project.name}</button>
+        <ProjectPicker current={project} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
         <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} />
         <button className="btn ghost small" style={{ marginLeft: 'auto' }} onClick={onBack}>← {t('Projects')}</button>
@@ -207,7 +220,10 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
       <div className="session-list">
         {sessions.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt">{s.first_prompt || <span className="muted">(no prompt)</span>}</div>
+            <div className="session-prompt">{sessionDisplayName(s)}</div>
+            {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
+              <div className="session-subprompt muted small">{s.first_prompt}</div>
+            )}
             <div className="session-meta muted small">
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
@@ -229,11 +245,54 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onLiveChange 
   );
 }
 
+// Project dropdown (Chronicle-style): switch projects from the breadcrumb, mirroring
+// the session picker. Lazily loads the project list on first open.
+export function ProjectPicker({ current, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [projects, setProjects] = useState(null);
+  useEffect(() => { if (open && !projects) api.projects().then(setProjects).catch(() => setProjects([])); }, [open]);
+  const list = (projects || []).filter((p) => !q
+    || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <span className="session-picker">
+      <button className="crumb on" onClick={() => setOpen((o) => !o)}>
+        📁 {current?.name || t('Projects')} <span className="muted">▾</span>
+      </button>
+      {open && (
+        <>
+          <div className="menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="menu-pop picker-pop picker-pop-left">
+            <input autoFocus className="search picker-search" placeholder={t('Search projects or sessions')}
+              value={q} onChange={(e) => setQ(e.target.value)} />
+            {projects === null && <div className="muted small pad8">{t('Loading…')}</div>}
+            {list.map((p) => (
+              <button key={p.id} className="menu-item picker-item"
+                onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
+                <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
+                <span className="picker-body">
+                  <span className="picker-title">{p.name}</span>
+                  <span className="muted small">
+                    {p.session_count} {t('sessions')}
+                    {p.last_active && ` · ${ago(p.last_active)}`}
+                  </span>
+                </span>
+              </button>
+            ))}
+            {projects && !list.length && <div className="muted small pad8">{t('No projects match.')}</div>}
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 // Session dropdown (Chronicle-style): shows on both project and session pages.
 export function SessionPicker({ sessions, current, onPick, loading }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const title = (s) => (s.first_prompt ? s.first_prompt.slice(0, 48) : `Session ${String(s.id).slice(0, 8)}`);
+  const title = (s) => sessionDisplayName(s).slice(0, 48);
   const list = (sessions || []).filter((s) => !q || title(s).toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
 
   return (

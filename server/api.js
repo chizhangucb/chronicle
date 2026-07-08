@@ -207,7 +207,7 @@ api.get('/projects/:id', (req, res) => {
   // Optional time range (?days=7/30/365) — filters sessions and all analytics.
   const days = Number(req.query.days) || null;
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens,
+  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens,
       (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
     FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff)
@@ -229,6 +229,121 @@ api.get('/projects/:id', (req, res) => {
     .all(project.id, cutoff)
     .reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
   res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors } });
+});
+
+// Rename a session (user-set display name; survives re-import — see db.replaceSession).
+api.patch('/sessions/:id', (req, res) => {
+  const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Not found' });
+  if (req.body.name !== undefined) {
+    const name = (req.body.name || '').trim() || null; // empty clears back to the default
+    db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, req.params.id);
+  }
+  res.json(db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?').get(req.params.id));
+});
+
+// Re-import just this one session from its source (per-session "Sync Update").
+api.post('/sessions/:id/sync', async (req, res) => {
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Not found' });
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  try {
+    const bySource = {
+      'claude-code': scanClaudeProjects(),
+      codex: scanCodexProjects(),
+      cursor: scanCursorProjects(),
+      opencode: scanOpencodeProjects(),
+      'gemini-cli': scanGeminiProjects(),
+      'copilot-chat': scanCopilotProjects(),
+    };
+    const matches = (bySource[session.source] || [])
+      .filter((i) => i.physicalPath === project.path);
+    if (!matches.length) return res.status(404).json({ error: 'No source logs found for this session' });
+    let imported = 0, totalMessages = 0;
+    for (const item of matches) {
+      // Restrict the parse to this session's file where the source is per-file.
+      const scoped = PER_FILE_SOURCES.has(session.source) && session.file_path
+        ? { ...item, files: [session.file_path] } : item;
+      const parsed = (await gatherParsed(scoped)).filter((p) => p.session.id === session.id);
+      if (!parsed.length) continue;
+      const result = importParsed(parsed);
+      imported += result.imported;
+      totalMessages += result.totalMessages;
+    }
+    if (!imported) return res.status(404).json({ error: 'This session was not found in the current source logs' });
+    res.json({ ok: true, imported, totalMessages });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: String(err.message || err) });
+  }
+});
+
+// ---- Global search (home command palette) ----
+// Empty query → recent sessions ("Recent Access"). Non-empty → LIKE scan over
+// message text/tool input, grouped per session with a highlighted snippet.
+const SCOPE_KINDS = {
+  code: ['tool_use', 'tool_result'],
+  chat: ['user', 'assistant', 'thinking'],
+};
+
+function snippetAround(text, q, radius = 60) {
+  if (!text) return '';
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i === -1) return text.slice(0, radius * 2);
+  const start = Math.max(0, i - radius);
+  return (start > 0 ? '…' : '') + text.slice(start, i + q.length + radius) + (i + q.length + radius < text.length ? '…' : '');
+}
+
+api.get('/search', (req, res) => {
+  const q = (req.query.q || '').trim();
+  const scope = req.query.scope || 'all';
+  const days = Number(req.query.days) || null;
+  const projectId = req.query.project ? Number(req.query.project) : null;
+  const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
+  const kinds = SCOPE_KINDS[scope] || null;
+
+  if (!q) {
+    const where = ['1=1'];
+    const params = [];
+    if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
+    const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
+        s.started_at, s.ended_at, s.message_count, p.name AS project_name
+      FROM sessions s JOIN projects p ON p.id = s.project_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 12`).all(...params);
+    return res.json({ recent: true, results: rows.map((r) => ({ ...r, matchCount: 0, snippet: '', ts: r.ended_at || r.started_at })) });
+  }
+
+  const like = `%${q}%`;
+  const where = ['(m.text LIKE ? OR m.tool_input LIKE ?)'];
+  const params = [like, like];
+  if (kinds) { where.push(`m.kind IN (${kinds.map(() => '?').join(',')})`); params.push(...kinds); }
+  if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
+  if (cutoff) { where.push("COALESCE(s.started_at, '9') >= ?"); params.push(cutoff); }
+  const rows = db.prepare(`SELECT m.session_id, m.seq, m.kind, m.text, m.tool_name, m.tool_input, m.ts,
+      s.project_id, s.source, s.name, s.summary, s.first_prompt, p.name AS project_name
+    FROM messages m JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY m.ts DESC LIMIT 400`).all(...params);
+
+  const bySession = new Map();
+  for (const r of rows) {
+    let e = bySession.get(r.session_id);
+    if (!e) {
+      e = { id: r.session_id, project_id: r.project_id, source: r.source, name: r.name,
+        summary: r.summary, first_prompt: r.first_prompt, project_name: r.project_name,
+        matchCount: 0, snippet: '', seq: r.seq, ts: r.ts };
+      bySession.set(r.session_id, e);
+    }
+    e.matchCount++;
+    if (!e.snippet) {
+      const hay = r.text && r.text.toLowerCase().includes(q.toLowerCase()) ? r.text : (r.tool_input || r.text || '');
+      e.snippet = snippetAround(hay, q);
+      e.seq = r.seq;
+      e.ts = r.ts;
+    }
+  }
+  res.json({ recent: false, results: [...bySession.values()].slice(0, 40) });
 });
 
 api.get('/sessions/:id/messages', (req, res) => {

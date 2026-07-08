@@ -21,7 +21,12 @@ export const api = {
   deleteProject: (id) => j(`/api/projects/${id}`, { method: 'DELETE' }),
   syncProject: (id) => j(`/api/projects/${id}/sync`, { method: 'POST' }),
   project: (id, days) => j(`/api/projects/${id}${days ? `?days=${days}` : ''}`),
+  search: (params) => j('/api/search?' + new URLSearchParams(params)),
   sessionMessages: (id) => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
+  renameSession: (id, name) => j(`/api/sessions/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+  }),
+  syncSession: (id) => j(`/api/sessions/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
   deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
   sendFeedback: (message) => j('/api/feedback', {
