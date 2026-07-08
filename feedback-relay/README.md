@@ -21,15 +21,15 @@ Environment Variables, or the CLI):
 
 ```bash
 vercel env add RESEND_API_KEY production     # your Resend key (re_...)
-vercel env add FEEDBACK_TO   production      # optional; default chizhangucb@gmail.com
-vercel env add FEEDBACK_FROM production      # optional; default onboarding@resend.dev
+vercel env add FEEDBACK_TO   production      # optional; default feedback@getchronicle.dev
+vercel env add FEEDBACK_FROM production      # optional; default Chronicle Feedback <feedback@getchronicle.dev>
 vercel --prod                                # redeploy so the env vars take effect
 ```
 
-**About `FEEDBACK_FROM`:** the default `onboarding@resend.dev` needs no domain
-setup but only delivers to the Resend account owner's own address. To email an
-arbitrary inbox, verify a domain in Resend and set `FEEDBACK_FROM` to an address
-on it (e.g. `Chronicle Feedback <feedback@yourdomain>`).
+**About `FEEDBACK_FROM`:** it must be an address on a domain you've verified in
+Resend (here, `getchronicle.dev`). The relay sends to `feedback@getchronicle.dev`,
+which Porkbun email-forwarding relays to the maintainer's inbox — so the personal
+address never appears in this repo, the app bundle, Resend, or Vercel.
 
 ## Point Chronicle at it
 

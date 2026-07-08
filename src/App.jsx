@@ -202,7 +202,7 @@ function FeedbackModal({ onClose }) {
     } catch {
       setState('failed');
       // Relay unreachable — fall back to the user's mail client, pre-filled.
-      window.open(`mailto:chizhangucb@gmail.com?subject=${encodeURIComponent('Chronicle feedback')}&body=${encodeURIComponent(text.trim())}`);
+      window.open(`mailto:feedback@getchronicle.dev?subject=${encodeURIComponent('Chronicle feedback')}&body=${encodeURIComponent(text.trim())}`);
     }
   }
 
