@@ -155,7 +155,8 @@ plus real data end-to-end (see Verification below).
   (separately from create: 234 MB uploads exceed 5-min foreground timeouts) →
   reinstall locally (`ditto release/mac-arm64/Chronicle.app /Applications/…`) →
   `rm -rf release`. Tag must land on the bump commit so tag = package version = DMGs
-  = cask shas.
+  = cask shas. Auto-update needs the zip + latest-mac.yml + blockmap on the tap release too:
+  `gh release upload vX.Y.Z release/*.dmg release/*.zip release/latest-mac.yml release/*.blockmap`.
 - Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
   library; keep it that way.
 - **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight
@@ -264,6 +265,21 @@ plus real data end-to-end (see Verification below).
 - `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
   electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
   files are for electron-builder's own updater, which Chronicle doesn't use.
+- **Signing is guarded.** `build/notarize.cjs` (afterSign hook) notarizes only when
+  `APPLE_*` creds are in env; `build.mac` has no `identity`, so electron-builder signs
+  when a Developer ID cert is present and produces an UNSIGNED build otherwise. Do NOT
+  re-add `identity: null` (hard-disables signing). `npm run dist:mac` must stay green
+  with no Apple creds.
+- **Auto-update = electron-updater**, feed = `build.publish` github `chizhangucb/
+  homebrew-chronicle` (baked into `app-update.yml`). It installs only when the running
+  app and the update share a Developer ID signature — dormant until the first SIGNED
+  release. `quitAndInstall()` does the clean quit + swap + relaunch, replacing the old
+  `pkill`/`reinstall:mac` dance for end users. Mac targets are `["dmg","zip"]`;
+  electron-updater updates from the ZIP, not the DMG.
+- **The Relaunch toast** needs the preload (`electron/preload.cjs` → `window.
+  chronicleUpdater`) + IPC in `electron/main.mjs`. In dev/standalone (browser) the
+  bridge is absent, so the toast never renders. Updater calls are guarded by
+  `app.isPackaged` — `npm run desktop` runs unpacked, so no update runs there.
 
 ## Verification habits used here
 
@@ -273,4 +289,4 @@ Features were verified against real data: this repo's own Claude Code session
 and fixture DBs/JSON for Cursor/Codex/Gemini/Copilot/OpenCode-live. Prefer that over
 mocks: the fastest end-to-end check is importing Chronicle's own session and clicking
 around. Known deferrals: remote SSH (no host to test), OAuth browser flow, destructive
-skills takeover, signed auto-update.
+skills takeover.
