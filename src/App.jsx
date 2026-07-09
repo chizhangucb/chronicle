@@ -12,7 +12,16 @@ const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemin
 
 export default function App() {
   // view: {name:'home'} | {name:'project', id} | {name:'session', id, projectId}
-  const [view, setView] = useState({ name: 'home' });
+  // Restore from sessionStorage so a full page reload (the language switch reloads
+  // to re-translate module-scope strings) keeps you where you were, instead of
+  // dropping to Home. sessionStorage → a fresh app launch still starts at Home.
+  const [view, setView] = useState(() => {
+    try { const s = sessionStorage.getItem('chronicle-view'); if (s) return JSON.parse(s); } catch {}
+    return { name: 'home' };
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('chronicle-view', JSON.stringify(view)); } catch {}
+  }, [view]);
   const [projects, setProjects] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -189,6 +198,7 @@ export default function App() {
 // to email and always keeps a local copy in ~/.chronicle/feedback.log.
 function FeedbackModal({ onClose }) {
   const [text, setText] = useState('');
+  const [email, setEmail] = useState('');
   const [state, setState] = useState('idle'); // idle | sending | sent | failed
   const boxRef = useRef(null);
   useEffect(() => { boxRef.current?.focus(); }, []);
@@ -197,12 +207,13 @@ function FeedbackModal({ onClose }) {
     if (!text.trim() || state === 'sending') return;
     setState('sending');
     try {
-      await api.sendFeedback(text.trim());
+      await api.sendFeedback(text.trim(), email.trim());
       setState('sent');
       setTimeout(onClose, 1200);
     } catch {
       setState('failed');
-      // Relay unreachable — fall back to the user's mail client, pre-filled.
+      // Relay unreachable — fall back to the user's mail client, pre-filled. Their
+      // own From address is the reply path, so no need to embed the email here.
       window.open(`mailto:feedback@getchronicle.dev?subject=${encodeURIComponent('Chronicle feedback')}&body=${encodeURIComponent(text.trim())}`);
     }
   }
@@ -219,6 +230,11 @@ function FeedbackModal({ onClose }) {
         <textarea ref={boxRef} className="feedback-box" rows={5}
           placeholder={t('Describe the issue or suggestion…')}
           value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }} />
+        <label className="small feedback-label">{t('Your email (optional)')}</label>
+        <input className="feedback-email" type="email" autoComplete="email"
+          placeholder={t('name@example.com — so we can reply to you')}
+          value={email} onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }} />
         <div className="muted small">{t('Press ⌘+Enter to send')}</div>
         {state === 'sent' && <div className="ok small">✓ {t('Thanks — feedback sent!')}</div>}

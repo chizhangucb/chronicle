@@ -298,7 +298,7 @@ export function SessionPicker({ sessions, current, onPick, loading }) {
   return (
     <span className="session-picker">
       <button className={`crumb ${current ? 'on' : ''}`} onClick={() => setOpen((o) => !o)}>
-        💬 {current ? `${title(current)} (${current.message_count ?? ''})` : t('Select session')} <span className="muted">▾</span>
+        💬 {current ? title(current) : t('Select session')} <span className="muted">▾</span>
       </button>
       {open && (
         <>
