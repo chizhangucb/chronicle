@@ -1,9 +1,9 @@
 cask "chronicle" do
   arch arm: "arm64", intel: "x64"
 
-  version "0.1.5"
-  sha256 arm:   "75d319efb1c3ace12bb56e100e640fb13da29021d9233f032bcc9435e51c57f2",
-         intel: "b7550d54cb180dc544282106155c8b844f9de7e3c9b79735b34e8388178451de"
+  version "0.1.6"
+  sha256 arm:   "4a8ecd0b7d08600f473772c95789cd9780c82dedeea7a815e7360ed49c0bd3c3",
+         intel: "33725b8281e9ad35b6233c6514796851fe9ced15d45086383012ee8f8efc7db9"
 
   url "https://github.com/chizhangucb/homebrew-chronicle/releases/download/v#{version}/Chronicle-#{version}-#{arch}.dmg"
   name "Chronicle"
@@ -16,12 +16,4 @@ cask "chronicle" do
     "~/Library/Application Support/Chronicle",
     "~/.chronicle",
   ]
-
-  caveats <<~EOS
-    Chronicle is not code-signed or notarized yet, so macOS quarantines it on
-    first launch. Either install with:
-      brew install --cask chronicle --no-quarantine
-    or clear the flag after installing:
-      xattr -dr com.apple.quarantine "/Applications/Chronicle.app"
-  EOS
 end
