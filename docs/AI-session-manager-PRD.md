@@ -2,7 +2,7 @@
 
 **Working title:** *Chronicle* (placeholder — an in-house "time machine" for AI coding sessions)
 **Category:** AI coding-session time machine — import tool logs, then time-travel to the exact code state behind any message
-**Document status:** v1.0 — implemented through Phase 5 (see §9 Decision log); v0.1.0 released 2026-07-06
+**Document status:** v1.0 — implemented through Phase 5 (see §9 Decision log); v0.1.0 released 2026-07-06, **v0.1.6 (signed + notarized, auto-update) 2026-07-09**
 **Author:** Chi Zhang
 **Date:** 2026-07-03
 **Framing:** In-house build specification (full feature parity target, phased delivery)
@@ -391,5 +391,5 @@ Resolutions to §8's open questions, plus status as of v0.1.0 (2026-07-06):
 5. **Build-vs-adopt → built in-house.** Full feature surface achieved in-house (see status below); control-plane behavior (additive-only skills distribution, local share links) deliberately favors safety over a naive port.
 6. **Enterprise deployment → out of scope** for the personal rollout; unaddressed.
 
-**Implementation status:** Phases 1–5 complete except **remote SSH (§5.9)** — all 6 tool importers, time travel, Replay, Refine, Overview + mode rail, filtering, analytics, live streaming (JSONL + SQLite polling), security (redaction, pre-tool-use hook, share links), MCP Hub, Skills Hub, i18n (EN/zh-CN/ja), Electron desktop shell. **FR-IMP-1** is partial: macOS `.dmg` (arm64 + x64) + Homebrew cask shipped; Windows/Linux installers, code signing/notarization, and silent auto-update (NFR-7) pending. Context-window accounting was added beyond the PRD: real per-session token usage parsed from Claude Code usage records, with a usage bar against each model's context window.
+**Implementation status:** Phases 1–5 complete except **remote SSH (§5.9)** — all 6 tool importers, time travel, Replay, Refine, Overview + mode rail, filtering, analytics, live streaming (JSONL + SQLite polling), security (redaction, pre-tool-use hook, share links), MCP Hub, Skills Hub, i18n (EN/zh-CN/ja), Electron desktop shell. **FR-IMP-1** is mostly shipped: macOS `.dmg` (arm64 + x64) + Homebrew cask, and — as of **v0.1.6 (2026-07-09)** — Apple **Developer ID code signing + notarization** and **one-click auto-update (NFR-7)** via `electron-updater` with an in-app "Relaunch to update" toast; Windows/Linux installers remain pending. Context-window accounting was added beyond the PRD: real per-session token usage parsed from Claude Code usage records, with a usage bar against each model's context window. Feedback delivery moved to the branded `getchronicle.dev` domain (hosted Vercel relay → Resend → Porkbun forwarding), keeping the maintainer's personal address out of the repo and bundle.
 
