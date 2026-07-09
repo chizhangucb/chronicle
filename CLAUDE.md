@@ -171,6 +171,16 @@ plus real data end-to-end (see Verification below).
 - `packaging/homebrew/` — the cask + tap README published to the PUBLIC
   `chizhangucb/homebrew-chronicle` tap, which hosts the cask DMGs; the update feed
   and README DMG link point at the tap. (The `chronicle` repo is also public now.)
+- `website/` — the **getchronicle.dev download page** (THIRD deployable, after the app
+  and `feedback-relay/`). Static `index.html` (inline CSS/JS, no build), light+dark
+  themed. Fetches the latest release from the GitHub API at load time (falls back to a
+  hardcoded release + a built-in HTML mock of the UI if the API or screenshot is missing),
+  so **new releases surface with no page change** — publishing a Windows/Linux build just
+  makes its row appear. Its own Vercel project → apex `getchronicle.dev` + `www`; DMG
+  download URLs point at the tap, GitHub/"build from source" links at the source repo.
+  Same singleton gotcha as the relay: **deploy from `main` after merge**, add the apex DNS
+  record at Porkbun manually. Preview locally: `python3 -m http.server 4321 --directory
+  website` (launch config `website`).
 
 ## Patterns
 

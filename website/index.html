@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chronicle — A time machine for your AI coding sessions</title>
+<meta name="description" content="Local-first session manager for AI coding assistants. Import logs from Claude Code, Codex, Cursor, OpenCode, Gemini CLI & Copilot, then rewind to the exact code at any message. Signed & notarized. Download for macOS.">
+<link rel="canonical" href="https://getchronicle.dev/">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f8fc" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://getchronicle.dev/">
+<meta property="og:title" content="Chronicle — A time machine for your AI coding sessions">
+<meta property="og:description" content="Rewind to the exact code state at any message across six AI coding tools. 100% local. Signed & notarized.">
+<meta property="og:image" content="https://getchronicle.dev/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f8ef7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7'/%3E%3Cpath d='M3 4v4h4'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E">
+<style>
+  /* ---------- design tokens: light is the base, dark overrides ---------- */
+  :root{
+    --bg:#f5f8fc; --bg2:#ffffff; --bg3:#eef2f8; --bg4:#e3eaf3;
+    --border:#e3e9f1; --border2:#cdd7e4;
+    --text:#16202e; --muted:#586675; --faint:#8794a4;
+    --accent:#3b7de6; --accent-press:#2f6fd6; --accent-soft:rgba(59,125,230,.10);
+    --accent2:#1f9d6b; --accent2-soft:rgba(31,157,107,.12);
+    --danger:#d9563b;
+    --hero-glow:rgba(59,125,230,.13); --hero-glow2:rgba(31,157,107,.05);
+    --wordmark-a:#101d30; --wordmark-b:#44526a;
+    --shadow-shot:0 34px 70px -34px rgba(23,52,102,.42);
+    --btn-shadow:0 10px 30px -8px rgba(59,125,230,.5);
+    --btn-shadow-h:0 16px 40px -10px rgba(59,125,230,.62);
+    --code:#1f6feb;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+    --maxw:880px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1116; --bg2:#151a21; --bg3:#1c232d; --bg4:#232c38;
+      --border:#2a3340; --border2:#374453;
+      --text:#dce3ec; --muted:#8b98a9; --faint:#616f80;
+      --accent:#4f8ef7; --accent-press:#3d7de6; --accent-soft:rgba(79,142,247,.14);
+      --accent2:#34c98e; --accent2-soft:rgba(52,201,142,.12);
+      --danger:#e5684b;
+      --hero-glow:rgba(79,142,247,.16); --hero-glow2:rgba(52,201,142,.06);
+      --wordmark-a:#f2f6fc; --wordmark-b:#aebccd;
+      --shadow-shot:0 40px 80px -30px rgba(0,0,0,.75);
+      --btn-shadow:0 10px 30px -8px rgba(79,142,247,.55);
+      --btn-shadow-h:0 16px 40px -10px rgba(79,142,247,.7);
+      --code:#c7d3e2;
+    }
+  }
+  /* manual toggle wins over OS preference, in both directions */
+  :root[data-theme="light"]{
+    --bg:#f5f8fc; --bg2:#ffffff; --bg3:#eef2f8; --bg4:#e3eaf3;
+    --border:#e3e9f1; --border2:#cdd7e4;
+    --text:#16202e; --muted:#586675; --faint:#8794a4;
+    --accent:#3b7de6; --accent-press:#2f6fd6; --accent-soft:rgba(59,125,230,.10);
+    --accent2:#1f9d6b; --accent2-soft:rgba(31,157,107,.12);
+    --danger:#d9563b;
+    --hero-glow:rgba(59,125,230,.13); --hero-glow2:rgba(31,157,107,.05);
+    --wordmark-a:#101d30; --wordmark-b:#44526a;
+    --shadow-shot:0 34px 70px -34px rgba(23,52,102,.42);
+    --btn-shadow:0 10px 30px -8px rgba(59,125,230,.5);
+    --btn-shadow-h:0 16px 40px -10px rgba(59,125,230,.62);
+    --code:#1f6feb;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --bg2:#151a21; --bg3:#1c232d; --bg4:#232c38;
+    --border:#2a3340; --border2:#374453;
+    --text:#dce3ec; --muted:#8b98a9; --faint:#616f80;
+    --accent:#4f8ef7; --accent-press:#3d7de6; --accent-soft:rgba(79,142,247,.14);
+    --accent2:#34c98e; --accent2-soft:rgba(52,201,142,.12);
+    --danger:#e5684b;
+    --hero-glow:rgba(79,142,247,.16); --hero-glow2:rgba(52,201,142,.06);
+    --wordmark-a:#f2f6fc; --wordmark-b:#aebccd;
+    --shadow-shot:0 40px 80px -30px rgba(0,0,0,.75);
+    --btn-shadow:0 10px 30px -8px rgba(79,142,247,.55);
+    --btn-shadow-h:0 16px 40px -10px rgba(79,142,247,.7);
+    --code:#c7d3e2;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;font-family:var(--sans);color:var(--text);line-height:1.5;
+    background:
+      radial-gradient(900px 480px at 50% -140px, var(--hero-glow), transparent 70%),
+      radial-gradient(700px 500px at 88% 6%, var(--hero-glow2), transparent 65%),
+      var(--bg);
+    min-height:100vh;-webkit-font-smoothing:antialiased;
+    transition:background-color .3s ease,color .3s ease;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle{
+    position:fixed;top:18px;right:18px;z-index:40;
+    width:38px;height:38px;border-radius:10px;
+    display:grid;place-items:center;cursor:pointer;
+    background:var(--bg2);border:1px solid var(--border);color:var(--muted);
+    transition:color .15s,border-color .15s,background .15s;
+  }
+  .theme-toggle:hover{color:var(--accent);border-color:var(--border2)}
+  .theme-toggle svg{width:18px;height:18px}
+  .theme-toggle .moon{display:none}
+  @media (prefers-color-scheme:dark){.theme-toggle .sun{display:none}.theme-toggle .moon{display:block}}
+  :root[data-theme="dark"] .theme-toggle .sun{display:none}
+  :root[data-theme="dark"] .theme-toggle .moon{display:block}
+  :root[data-theme="light"] .theme-toggle .sun{display:block}
+  :root[data-theme="light"] .theme-toggle .moon{display:none}
+
+  /* ---------- hero ---------- */
+  .hero{padding:78px 0 8px;text-align:center;animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent2);margin-bottom:22px;display:inline-flex;align-items:center;gap:8px;
+  }
+  .eyebrow::before,.eyebrow::after{content:"";width:22px;height:1px;background:linear-gradient(90deg,transparent,var(--border2))}
+  .eyebrow::after{transform:scaleX(-1)}
+  .wordmark{
+    font-size:clamp(52px,9vw,84px);line-height:.98;margin:0;font-weight:800;
+    letter-spacing:-.035em;text-wrap:balance;
+    background:linear-gradient(180deg,var(--wordmark-a),var(--wordmark-b));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .tagline{font-size:clamp(19px,2.6vw,25px);margin:18px auto 6px;font-weight:600;color:var(--text);max-width:19ch;text-wrap:balance}
+  .subtag{color:var(--muted);font-size:16px;max-width:52ch;margin:0 auto;text-wrap:balance}
+
+  /* ---------- CTA ---------- */
+  .cta-wrap{margin-top:34px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  .btn-download{
+    display:inline-flex;align-items:center;gap:13px;
+    background:linear-gradient(180deg,var(--accent),var(--accent-press));
+    color:#fff;font-weight:650;font-size:16.5px;padding:15px 28px;border-radius:13px;
+    box-shadow:0 1px 0 rgba(255,255,255,.18) inset,var(--btn-shadow);
+    transition:transform .16s ease,box-shadow .16s ease;cursor:pointer;
+  }
+  .btn-download:hover{transform:translateY(-2px);box-shadow:0 1px 0 rgba(255,255,255,.22) inset,var(--btn-shadow-h)}
+  .btn-download:active{transform:translateY(0)}
+  .btn-download:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .btn-download svg{width:19px;height:19px;flex:none}
+  .btn-download .arch{opacity:.75;font-weight:500;font-size:13.5px;font-family:var(--mono);letter-spacing:-.01em}
+  .btn-download .arch::before{content:"·";margin-right:9px;opacity:.6}
+
+  .trust{display:inline-flex;align-items:center;gap:8px;color:var(--accent2);font-size:13.5px;font-weight:600}
+  .trust svg{width:15px;height:15px}
+  .meta-line{font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:-.01em}
+  .meta-line b{color:var(--muted);font-weight:600}
+  .meta-line .sep{opacity:.5;margin:0 8px}
+  .link-quiet{color:var(--muted);border-bottom:1px dashed var(--border2);padding-bottom:1px;transition:color .15s}
+  .link-quiet:hover{color:var(--accent)}
+
+  /* ---------- product shot ---------- */
+  .shot{margin:56px 0 8px;animation:rise .7s .12s cubic-bezier(.2,.7,.2,1) both}
+  .frame{
+    border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--bg2);
+    box-shadow:var(--shadow-shot);
+  }
+  .chrome{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot.r{background:#f0645a}.dot.y{background:#e6b649}.dot.g{background:#3fb968}
+  .chrome-title{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.01em}
+  .chrome-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--danger);text-transform:uppercase;letter-spacing:.12em}
+  .chrome-live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--danger);animation:pulse 2s infinite}
+  .shot-img{display:none;width:100%;height:auto}
+
+  .app{display:grid;grid-template-columns:150px 1fr 200px;min-height:308px;font-size:12px}
+  .app .rail{background:var(--bg2);border-right:1px solid var(--border);padding:12px 0;display:flex;flex-direction:column;gap:2px}
+  .rail .rail-h{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:2px 14px 8px}
+  .rail .r-item{display:flex;align-items:center;gap:8px;padding:6px 14px;color:var(--muted);white-space:nowrap;overflow:hidden}
+  .rail .r-item .rd{width:7px;height:7px;border-radius:2px;flex:none;background:var(--accent)}
+  .rail .r-item.on{background:var(--accent-soft);color:var(--text);box-shadow:inset 2px 0 0 var(--accent)}
+  .rail .r-item.on .rd{background:var(--accent2)}
+  .rail .r-item.dim .rd{background:var(--border2)}
+  .rail .spacer{flex:1}
+  .rail .r-item.pin{color:var(--faint);font-size:11px}
+  .rail .r-item.pin .pd{width:12px;text-align:center;opacity:.8}
+  .app .center{border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg)}
+  .scrub{display:flex;align-items:center;gap:2px;padding:12px 14px 10px;border-bottom:1px solid var(--border);background:var(--bg2)}
+  .scrub .tick{flex:1;height:16px;border-radius:2px;background:var(--bg4)}
+  .scrub .tick.a{background:var(--accent);opacity:.5}
+  .scrub .tick.play{background:var(--accent);opacity:1;box-shadow:0 0 10px rgba(79,142,247,.7)}
+  .scrub .scrub-t{margin-left:10px;font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .stream{padding:12px 14px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+  .msg{display:flex;gap:9px;align-items:flex-start}
+  .chip{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px;border:1px solid var(--border2);color:var(--muted);flex:none;margin-top:1px}
+  .chip.ai{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .chip.tool{color:var(--accent2);border-color:var(--accent2);background:var(--accent2-soft)}
+  .msg .body{color:var(--muted);line-height:1.45}
+  .msg .body b{color:var(--text);font-weight:600}
+  .msg .body .code{font-family:var(--mono);font-size:11px;color:var(--code);background:var(--bg3);padding:1px 5px;border-radius:4px}
+  .app .snap{background:var(--bg2);padding:12px 13px;display:flex;flex-direction:column;gap:9px}
+  .snap-h{display:flex;align-items:center;justify-content:space-between}
+  .snap-h .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .snap-h .commit{font-family:var(--mono);font-size:10px;color:var(--accent2)}
+  .snap-file{font-family:var(--mono);font-size:10.5px;color:var(--muted);padding-bottom:3px;border-bottom:1px solid var(--border)}
+  .diff{font-family:var(--mono);font-size:10px;line-height:1.7;border-radius:7px;overflow:hidden;border:1px solid var(--border)}
+  .diff div{padding:0 8px}
+  .diff .add{background:rgba(52,201,142,.14);color:#1f9d6b}
+  .diff .del{background:rgba(229,104,75,.14);color:#c2513a}
+  .diff .ctx{color:var(--faint)}
+  @media (prefers-color-scheme:dark){.diff .add{color:#8fe0bd}.diff .del{color:#e8a294}}
+  :root[data-theme="dark"] .diff .add{color:#8fe0bd}
+  :root[data-theme="dark"] .diff .del{color:#e8a294}
+  .snap-badge{margin-top:auto;font-family:var(--mono);font-size:10px;color:var(--faint);display:flex;align-items:center;gap:6px}
+  .snap-badge .g{width:6px;height:6px;border-radius:50%;background:var(--accent2)}
+
+  /* ---------- release timeline divider ---------- */
+  .relline{margin:60px 0 4px;position:relative}
+  .relline .track{height:1px;background:linear-gradient(90deg,transparent,var(--border2) 12%,var(--border2) 88%,transparent)}
+  .relline .ticks{display:flex;justify-content:space-between;margin-top:-5px;padding:0 4px}
+  .relline .rt{display:flex;flex-direction:column;align-items:center;gap:9px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .relline .rt i{width:9px;height:9px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2)}
+  .relline .rt.now{color:var(--accent)}
+  .relline .rt.now i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+
+  /* ---------- features ---------- */
+  .features{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:44px 0}
+  .feat{background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:18px;display:flex;gap:14px;align-items:flex-start;transition:border-color .18s,transform .18s}
+  .feat:hover{border-color:var(--border2);transform:translateY(-2px)}
+  .feat .ic{width:38px;height:38px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent);display:grid;place-items:center;flex:none;color:var(--accent)}
+  .feat .ic.g{background:var(--accent2-soft);border-color:var(--accent2);color:var(--accent2)}
+  .feat .ic svg{width:19px;height:19px}
+  .feat h3{margin:2px 0 5px;font-size:15px;font-weight:650}
+  .feat p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+
+  /* ---------- platforms ---------- */
+  .platforms{margin:56px 0 8px}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+  .sec-head h2{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+  .sec-head .all{font-family:var(--mono);font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;transition:color .15s}
+  .sec-head .all:hover{color:var(--accent)}
+  .sec-head .all svg{width:13px;height:13px}
+  .ptable{border:1px solid var(--border);border-radius:13px;overflow:hidden;background:var(--bg2)}
+  .prow{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--border)}
+  .prow:first-child{border-top:none}
+  .prow.os{background:var(--bg3);grid-template-columns:34px 1fr;padding:9px 18px}
+  .prow.os .oslabel{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:9px}
+  .prow.os .oslabel svg{width:15px;height:15px;color:var(--faint)}
+  .prow .glyph{color:var(--faint);display:grid;place-items:center}
+  .prow .glyph svg{width:17px;height:17px}
+  .prow .name{font-weight:550;font-size:14px}
+  .prow .name .arch{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:8px}
+  .prow .size{font-family:var(--mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prow .dl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--accent);border:1px solid var(--accent);background:var(--accent-soft);padding:6px 13px;border-radius:9px;transition:background .15s}
+  .prow .dl:hover{background:var(--accent);color:#fff}
+  .prow .dl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .prow .dl svg{width:14px;height:14px}
+  .prow.soon .name,.prow.soon .glyph{opacity:.55}
+  .prow .soon-tag{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px dashed var(--border2);padding:5px 12px;border-radius:9px}
+
+  /* ---------- brew ---------- */
+  .brew{margin:44px 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:18px 20px}
+  .brew .lbl{font-size:14px;color:var(--muted)}
+  .brew .lbl b{color:var(--text);font-weight:650}
+  .code-copy{display:inline-flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 9px 9px 15px;font-family:var(--mono);font-size:13px}
+  .code-copy code{color:var(--code)}
+  .code-copy .cbtn{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 11px;border-radius:7px;cursor:pointer;transition:color .15s,border-color .15s}
+  .code-copy .cbtn:hover{color:var(--accent);border-color:var(--border2)}
+  .code-copy .cbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .code-copy .cbtn svg{width:13px;height:13px}
+  .code-copy .cbtn.done{color:var(--accent2);border-color:var(--accent2)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--border);margin-top:24px;padding:28px 0 60px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:13px}
+  footer .fl{display:flex;align-items:center;gap:20px}
+  footer a{color:var(--muted);transition:color .15s}
+  footer a:hover{color:var(--accent)}
+  footer .fmono{font-family:var(--mono);font-size:11.5px}
+
+  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);font-size:13px;font-weight:600;padding:10px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;box-shadow:0 12px 30px -10px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(229,104,75,.5)}70%{box-shadow:0 0 0 7px rgba(229,104,75,0)}100%{box-shadow:0 0 0 0 rgba(229,104,75,0)}}
+
+  @media (max-width:720px){
+    .app{grid-template-columns:1fr}
+    .app .rail,.app .snap{display:none}
+    .features{grid-template-columns:1fr}
+    .prow{grid-template-columns:28px 1fr;row-gap:8px}
+    .prow .size{grid-column:2}
+    .prow .dl,.prow .soon-tag{grid-column:2;justify-self:start}
+    .brew{flex-direction:column;align-items:flex-start}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle color theme">
+  <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+</button>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="eyebrow">Local-first · Signed &amp; notarized</div>
+    <h1 class="wordmark">Chronicle</h1>
+    <p class="tagline">A time machine for your AI coding sessions.</p>
+    <p class="subtag">Import logs from six AI coding tools, then click any message to rewind to the exact code state at that moment — reconstructed from your Git history. Nothing leaves your machine.</p>
+
+    <div class="cta-wrap">
+      <a class="btn-download" id="mainBtn" href="#platforms">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span id="btnLabel">Download for macOS</span><span class="arch" id="btnArch">Apple Silicon</span>
+      </a>
+      <div class="trust">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        Signed &amp; notarized — opens with no Gatekeeper warning
+      </div>
+      <div class="meta-line">
+        Latest <b id="ver">v0.1.7</b><span class="sep">·</span><span id="reldate">Updated Jul 1, 2026</span><span class="sep">·</span><a href="#platforms" class="link-quiet">Windows &amp; Linux</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ PRODUCT SHOT (real capture, with built-in mock fallback) ============ -->
+  <section class="shot">
+    <div class="frame">
+      <div class="chrome">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="chrome-title">Chronicle — Playback</span>
+        <span class="chrome-live">Live</span>
+      </div>
+      <img class="shot-img" id="shotImg" alt="Chronicle showing an AI coding session next to the exact code snapshot at the selected message" width="1440" height="880">
+      <div class="app" id="shotMock">
+        <nav class="rail">
+          <div class="rail-h">Projects</div>
+          <div class="r-item on"><span class="rd"></span>ai-session-manager</div>
+          <div class="r-item"><span class="rd"></span>health-analyst</div>
+          <div class="r-item dim"><span class="rd"></span>coin-identifier</div>
+          <div class="spacer"></div>
+          <div class="r-item pin"><span class="pd">◇</span>MCP Hub</div>
+          <div class="r-item pin"><span class="pd">✦</span>Skills</div>
+          <div class="r-item pin"><span class="pd">⛨</span>Security</div>
+        </nav>
+        <div class="center">
+          <div class="scrub">
+            <span class="tick"></span><span class="tick a"></span><span class="tick a"></span><span class="tick a"></span><span class="tick play"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
+            <span class="scrub-t">14:32:08 · commit a1f9c</span>
+          </div>
+          <div class="stream">
+            <div class="msg"><span class="chip">You</span><span class="body">Refactor <span class="code">parseUsage()</span> to split cache-write tiers</span></div>
+            <div class="msg"><span class="chip ai">Assistant</span><span class="body">Splitting <b>5-minute</b> and <b>1-hour</b> cache writes into separate token buckets…</span></div>
+            <div class="msg"><span class="chip tool">Tool Call</span><span class="body">Edit <span class="code">server/parsers/claudeCode.js</span></span></div>
+            <div class="msg"><span class="chip tool">Tool Result</span><span class="body">2 hunks · <b>+18 −6</b></span></div>
+            <div class="msg"><span class="chip ai">Assistant</span><span class="body">Cost now aggregates per-model — Opus at $5/$25…</span></div>
+          </div>
+        </div>
+        <aside class="snap">
+          <div class="snap-h"><span class="t">Snapshot</span><span class="commit">@ a1f9c</span></div>
+          <div class="snap-file">server/parsers/claudeCode.js</div>
+          <div class="diff">
+            <div class="ctx">  usage[model] ??= {}</div>
+            <div class="del">- write: t.cache_write</div>
+            <div class="add">+ write5m: t.ephemeral_5m</div>
+            <div class="add">+ write1h: t.ephemeral_1h</div>
+            <div class="ctx">  read: t.cache_read</div>
+          </div>
+          <div class="snap-badge"><span class="g"></span>Reconstructed from Git · read-only</div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RELEASE TIMELINE DIVIDER ============ -->
+  <div class="relline" aria-hidden="true">
+    <div class="track"></div>
+    <div class="ticks" id="relTicks">
+      <span class="rt"><i></i>v0.1.1</span>
+      <span class="rt"><i></i>v0.1.3</span>
+      <span class="rt"><i></i>v0.1.5</span>
+      <span class="rt"><i></i>v0.1.6</span>
+      <span class="rt now"><i></i>v0.1.7</span>
+    </div>
+  </div>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="features">
+    <div class="feat">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg></div>
+      <div><h3>Time-travel any message</h3><p>Click a line in any session and see the exact code at that instant, rebuilt from your commit history.</p></div>
+    </div>
+    <div class="feat">
+      <div class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
+      <div><h3>Six tools, one timeline</h3><p>Claude Code, Codex, Cursor, OpenCode, Gemini CLI &amp; Copilot Chat — normalized into a single history.</p></div>
+    </div>
+    <div class="feat">
+      <div class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+      <div><h3>100% local, no cloud</h3><p>No LLM calls, no telemetry. Source logs and repos are opened read-only and never written to.</p></div>
+    </div>
+    <div class="feat">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6M15 3v6"/><path d="M6 9h12v3a6 6 0 0 1-12 0z"/><path d="M12 18v3"/></svg></div>
+      <div><h3>MCP &amp; Skills hubs built in</h3><p>Aggregate MCP servers, manage Skills, and scan sessions for leaked secrets with local redaction.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ ALL PLATFORMS ============ -->
+  <section class="platforms" id="platforms">
+    <div class="sec-head">
+      <h2>All platforms</h2>
+      <a class="all" href="https://github.com/chizhangucb/homebrew-chronicle/releases">View all releases
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a>
+    </div>
+    <div class="ptable" id="ptable">
+      <!-- rows rendered by JS from the latest release; this is the fallback static content -->
+      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c-1 .1-2.2.8-2.9 1.6-.6.7-1.2 1.9-1 3 .1 0 2.2-.1 3-1.5.6-.9.9-1.9.9-3.1zM19 17.5c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.4 3.1-4.1 3.1-1.5 0-1.9-1-3.9-1s-2.5 1-3.9 1c-1.7 0-3-1.6-4-3-2.7-4-3-8.6-1.3-11.1 1.2-1.7 3-2.7 4.7-2.7 1.8 0 2.9 1 4.4 1 1.4 0 2.3-1 4.4-1 1.5 0 3.2.8 4.3 2.3-3.8 2-3.2 7.4.9 8.7z"/></svg>macOS</span></div>
+      <div class="prow">
+        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
+        <span class="name">Apple Silicon<span class="arch">.dmg</span></span>
+        <span class="size">101 MB</span>
+        <a class="dl" href="https://github.com/chizhangucb/homebrew-chronicle/releases/download/v0.1.7/Chronicle-0.1.7-arm64.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>Download</a>
+      </div>
+      <div class="prow">
+        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
+        <span class="name">Intel<span class="arch">.dmg</span></span>
+        <span class="size">105 MB</span>
+        <a class="dl" href="https://github.com/chizhangucb/homebrew-chronicle/releases/download/v0.1.7/Chronicle-0.1.7-x64.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>Download</a>
+      </div>
+      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>Windows</span></div>
+      <div class="prow soon">
+        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
+        <span class="name">x64 installer<span class="arch">.exe / .msi</span></span>
+        <span></span>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 0 0-4 4c0 1.5.5 2.3.5 3.5 0 1.3-1.5 2.5-2.5 4.5-.8 1.6-.5 3 .5 3.5.3 1 .2 2 2 2 1.3 0 1.8-.7 3.5-.7s2.2.7 3.5.7c1.8 0 1.7-1 2-2 1-.5 1.3-1.9.5-3.5-1-2-2.5-3.2-2.5-4.5 0-1.2.5-2 .5-3.5a4 4 0 0 0-4-4z"/></svg>Linux</span></div>
+      <div class="prow soon">
+        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
+        <span class="name">AppImage · deb · rpm</span>
+        <span></span>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOMEBREW ============ -->
+  <section class="brew">
+    <div class="lbl">Prefer the terminal? <b>Install with Homebrew.</b></div>
+    <div class="code-copy">
+      <code id="brewcmd">brew install --cask chronicle</code>
+      <button class="cbtn" id="copybtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>
+        <span>Copy</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="fl">
+      <span class="fmono">Chronicle · MIT</span>
+      <a href="https://github.com/chizhangucb/chronicle">GitHub</a>
+      <a href="https://github.com/chizhangucb/homebrew-chronicle/releases">Releases</a>
+    </div>
+    <div class="fmono">getchronicle.dev</div>
+  </footer>
+</div>
+
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+(function(){
+  "use strict";
+  var REPO_API = "https://api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest";
+  var REPO = "https://github.com/chizhangucb/homebrew-chronicle"; // releases + DMG assets live on the tap
+  var SOURCE = "https://github.com/chizhangucb/chronicle";        // source code + run-from-source
+  var CACHE_KEY = "chronicle_release_v1";
+
+  // ---- fallback used if the GitHub API is unreachable ----
+  var FALLBACK = {
+    version:"v0.1.7", date:"July 1, 2026",
+    platforms:{
+      mac:[
+        {label:"Apple Silicon", ext:".dmg", size:"101 MB", url:REPO+"/releases/download/v0.1.7/Chronicle-0.1.7-arm64.dmg", key:"mac-arm64"},
+        {label:"Intel", ext:".dmg", size:"105 MB", url:REPO+"/releases/download/v0.1.7/Chronicle-0.1.7-x64.dmg", key:"mac-x64"}
+      ],
+      win:[], linux:[]
+    }
+  };
+
+  // ---------- theme ----------
+  var root = document.documentElement;
+  try{ var saved = localStorage.getItem("chronicle_theme"); if(saved) root.setAttribute("data-theme", saved); }catch(e){}
+  document.getElementById("themeToggle").addEventListener("click", function(){
+    var isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var current = root.getAttribute("data-theme") || (isDark ? "dark" : "light");
+    var next = current === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try{ localStorage.setItem("chronicle_theme", next); }catch(e){}
+  });
+
+  // ---------- product screenshot: try real capture, fall back to built mock ----------
+  var shotImg = document.getElementById("shotImg");
+  shotImg.onload = function(){ shotImg.style.display="block"; document.getElementById("shotMock").style.display="none"; };
+  shotImg.onerror = function(){ shotImg.style.display="none"; }; // missing image → keep the built-in mock
+  shotImg.src = "assets/chronicle-shot.png";
+
+  // ---------- byte formatting ----------
+  function mb(bytes){ return (bytes/1048576).toFixed(bytes >= 100*1048576 ? 0 : 1).replace(/\.0$/,"") + " MB"; }
+
+  // ---------- bucket a release's assets by platform ----------
+  function classify(assets){
+    var out = {mac:[], win:[], linux:[]};
+    assets.forEach(function(a){
+      var n = a.name;
+      if(/\.blockmap$/i.test(n) || /\.ya?ml$/i.test(n) || /\.zip$/i.test(n)) return; // skip updater/zip artifacts
+      if(/-arm64\.dmg$/i.test(n)) out.mac.push({label:"Apple Silicon", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-arm64"});
+      else if(/-(x64|x86_64|intel)\.dmg$/i.test(n)) out.mac.push({label:"Intel", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-x64"});
+      else if(/\.dmg$/i.test(n)) out.mac.push({label:"Universal", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-uni"});
+      else if(/\.(exe|msi)$/i.test(n)) out.win.push({label:/\.msi$/i.test(n)?"MSI installer":"Installer", ext:n.replace(/.*(\.[a-z]+)$/i,"$1"), size:mb(a.size), url:a.browser_download_url, key:"win-x64"});
+      else if(/\.appimage$/i.test(n)) out.linux.push({label:"AppImage", ext:".AppImage", size:mb(a.size), url:a.browser_download_url, key:"linux-appimage"});
+      else if(/\.deb$/i.test(n)) out.linux.push({label:"Debian / Ubuntu", ext:".deb", size:mb(a.size), url:a.browser_download_url, key:"linux-deb"});
+      else if(/\.rpm$/i.test(n)) out.linux.push({label:"Fedora / RHEL", ext:".rpm", size:mb(a.size), url:a.browser_download_url, key:"linux-rpm"});
+    });
+    // Apple Silicon first
+    out.mac.sort(function(a,b){ return (a.key==="mac-arm64"?0:1) - (b.key==="mac-arm64"?0:1); });
+    return out;
+  }
+
+  var ICON_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>';
+  var ICON_FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>';
+  var OS_ICON = {
+    mac:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c-1 .1-2.2.8-2.9 1.6-.6.7-1.2 1.9-1 3 .1 0 2.2-.1 3-1.5.6-.9.9-1.9.9-3.1zM19 17.5c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.4 3.1-4.1 3.1-1.5 0-1.9-1-3.9-1s-2.5 1-3.9 1c-1.7 0-3-1.6-4-3-2.7-4-3-8.6-1.3-11.1 1.2-1.7 3-2.7 4.7-2.7 1.8 0 2.9 1 4.4 1 1.4 0 2.3-1 4.4-1 1.5 0 3.2.8 4.3 2.3-3.8 2-3.2 7.4.9 8.7z"/></svg>',
+    win:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>',
+    linux:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 0 0-4 4c0 1.5.5 2.3.5 3.5 0 1.3-1.5 2.5-2.5 4.5-.8 1.6-.5 3 .5 3.5.3 1 .2 2 2 2 1.3 0 1.8-.7 3.5-.7s2.2.7 3.5.7c1.8 0 1.7-1 2-2 1-.5 1.3-1.9.5-3.5-1-2-2.5-3.2-2.5-4.5 0-1.2.5-2 .5-3.5a4 4 0 0 0-4-4z"/></svg>'
+  };
+  var OS_NAME = {mac:"macOS", win:"Windows", linux:"Linux"};
+  var SOON = {win:'x64 installer<span class="arch">.exe / .msi</span>', linux:"AppImage · deb · rpm"};
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  function renderTable(platforms){
+    var html = "";
+    ["mac","win","linux"].forEach(function(os){
+      html += '<div class="prow os"><span></span><span class="oslabel">'+OS_ICON[os]+OS_NAME[os]+'</span></div>';
+      var rows = platforms[os];
+      if(rows && rows.length){
+        rows.forEach(function(r){
+          html += '<div class="prow" data-key="'+esc(r.key)+'">'
+            + '<span class="glyph">'+ICON_FILE+'</span>'
+            + '<span class="name">'+esc(r.label)+'<span class="arch">'+esc(r.ext)+'</span></span>'
+            + '<span class="size">'+esc(r.size)+'</span>'
+            + '<a class="dl" href="'+esc(r.url)+'">'+ICON_DL+'Download</a>'
+            + '</div>';
+        });
+      } else {
+        html += '<div class="prow soon"><span class="glyph">'+ICON_FILE+'</span>'
+          + '<span class="name">'+(SOON[os]||"")+'</span><span></span>'
+          + '<span class="soon-tag">Coming soon</span></div>';
+      }
+    });
+    document.getElementById("ptable").innerHTML = html;
+  }
+
+  // ---------- hero button: OS/arch auto-detect ----------
+  function setHeroButton(platforms){
+    var ua = navigator.userAgent || "";
+    var btn = document.getElementById("mainBtn");
+    var label = document.getElementById("btnLabel");
+    var arch = document.getElementById("btnArch");
+    var isWin = /Windows|Win64|Win32/.test(ua);
+    var isLinux = /Linux|X11/.test(ua) && !/Android/.test(ua);
+    var isMac = /Mac|Macintosh|Mac OS X/.test(ua) || (navigator.platform||"").indexOf("Mac")===0;
+
+    function point(os, txt, sub){
+      var rows = platforms[os];
+      if(rows && rows.length){
+        label.textContent = txt; arch.style.display=""; arch.textContent = sub || rows[0].label;
+        btn.setAttribute("href", rows[0].url);
+      } else {
+        label.textContent = "Build for " + OS_NAME[os]; arch.style.display=""; arch.textContent = "coming soon — from source";
+        btn.setAttribute("href", SOURCE + "#run-from-source");
+      }
+    }
+    if(isMac) point("mac", "Download for macOS", "Apple Silicon");
+    else if(isWin) point("win", "Download for Windows");
+    else if(isLinux) point("linux", "Download for Linux");
+    else { label.textContent = "Download Chronicle"; arch.style.display="none"; btn.setAttribute("href", "#platforms"); }
+  }
+
+  // ---------- meta line ----------
+  function setMeta(rel){
+    document.getElementById("ver").textContent = rel.version;
+    document.getElementById("reldate").textContent = "Updated " + rel.date;
+  }
+
+  function apply(rel){ setMeta(rel); renderTable(rel.platforms); setHeroButton(rel.platforms); }
+
+  // ---------- fetch latest release (cache in sessionStorage) ----------
+  function fmtDate(iso){
+    try{ var d = new Date(iso); return d.toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}); }
+    catch(e){ return ""; }
+  }
+  function load(){
+    try{
+      var cached = sessionStorage.getItem(CACHE_KEY);
+      if(cached){ apply(JSON.parse(cached)); return; }
+    }catch(e){}
+    // render fallback immediately so there is never a blank state, then refine from the API
+    apply(FALLBACK);
+    fetch(REPO_API, {headers:{"Accept":"application/vnd.github+json"}})
+      .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
+      .then(function(j){
+        if(!j || !j.assets) return;
+        var rel = { version:j.tag_name, date:fmtDate(j.published_at), platforms:classify(j.assets) };
+        if(!rel.platforms.mac.length && !rel.platforms.win.length && !rel.platforms.linux.length) return; // keep fallback
+        try{ sessionStorage.setItem(CACHE_KEY, JSON.stringify(rel)); }catch(e){}
+        apply(rel);
+      })
+      .catch(function(){ /* fallback already rendered */ });
+  }
+  load();
+
+  // ---------- copy Homebrew command ----------
+  var copybtn = document.getElementById("copybtn");
+  var toast = document.getElementById("toast");
+  copybtn.addEventListener("click", function(){
+    var cmd = document.getElementById("brewcmd").textContent;
+    function done(){
+      copybtn.classList.add("done");
+      copybtn.querySelector("span").textContent = "Copied";
+      toast.classList.add("show");
+      setTimeout(function(){
+        copybtn.classList.remove("done");
+        copybtn.querySelector("span").textContent = "Copy";
+        toast.classList.remove("show");
+      }, 1600);
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(cmd).then(done, done); }
+    else { done(); }
+  });
+})();
+</script>
+</body>
+</html>
