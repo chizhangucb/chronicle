@@ -6,21 +6,20 @@
 
 ```bash
 brew tap chizhangucb/chronicle
-brew install --cask chronicle --no-quarantine
+brew install --cask chronicle
 ```
 
-`--no-quarantine` is recommended because the app is not yet code-signed/notarized.
-Without it, clear the quarantine flag manually after install:
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Chronicle.app"
-```
+Builds are signed with an Apple Developer ID and notarized, so they open with no
+Gatekeeper warning — no `--no-quarantine` flag needed.
 
 ## Upgrade
 
 ```bash
 brew update && brew upgrade --cask chronicle
 ```
+
+The app also updates itself: once installed, a new signed release downloads in the
+background and offers a one-click **Relaunch to update**.
 
 DMGs for each release are attached to this repository's
 [Releases](https://github.com/chizhangucb/homebrew-chronicle/releases).

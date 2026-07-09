@@ -78,6 +78,17 @@ plus real data end-to-end (see Verification below).
   feedback works from every user's machine, not just the maintainer's. This is a
   SECOND deployable, so the repo now has a `feedback-relay/` subdir (Vercel project
   `feedback-relay`, key + `FEEDBACK_TO`/`FEEDBACK_FROM` set as env vars there).
+  **getchronicle.dev migration (2026-07-09):** relay lives at the branded
+  `relay.getchronicle.dev` (Vercel custom domain; `DEFAULT_FEEDBACK_RELAY` in `api.js`).
+  Flow: app → relay → Resend sends **to `feedback@getchronicle.dev`** → **Porkbun
+  email forwarding** → the maintainer's personal inbox. The personal gmail lives ONLY
+  in Porkbun's forwarding rule — never in code, the bundle, Resend, or Vercel (git
+  author is also the GitHub noreply). `getchronicle.dev` is a Resend **Pro** domain
+  (free plan caps at 1 domain; it already had `healthverse.dev`), DKIM+SPF verified.
+  Actual sender is set via the Vercel env `FEEDBACK_FROM` (kept out of the public
+  repo); the code default stays `feedback@getchronicle.dev`. The legacy
+  `*.vercel.app` relay URL still works for already-shipped apps (the URL change only
+  affects new builds).
 - **Session display name = `name` (Chronicle override) → `summary` (parsed) →
   `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
   source of that precedence; reuse it everywhere (rows, pickers, overview title).
@@ -157,6 +168,15 @@ plus real data end-to-end (see Verification below).
   `rm -rf release`. Tag must land on the bump commit so tag = package version = DMGs
   = cask shas. Auto-update needs the zip + latest-mac.yml + blockmap on the tap release too:
   `gh release upload vX.Y.Z release/*.dmg release/*.zip release/latest-mac.yml release/*.blockmap`.
+  **Signed builds** need the signing keychain + notary env (see the signing gotcha):
+  `security unlock-keychain -p "$(cat ~/apple-signing/keychain-password.txt)"
+  ~/apple-signing/chronicle-sign.keychain-db` then run `dist:mac` with
+  `CSC_KEYCHAIN=~/apple-signing/chronicle-sign.keychain-db` (NOT `CSC_LINK`),
+  `APPLE_API_KEY=~/apple-signing/AuthKey_M2G8W47DPN.p8`, `APPLE_API_KEY_ID=M2G8W47DPN`,
+  `APPLE_API_ISSUER=2745be46-…`, `APPLE_TEAM_ID=9W7B6USGG9`. Verify before uploading:
+  `spctl -a -vvv <app>` → "accepted / source=Notarized Developer ID" and
+  `xcrun stapler validate <app>`. v0.1.6 was the first signed release; existing
+  UNSIGNED users (≤0.1.5) upgrade once manually, then auto-update takes over.
 - Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
   library; keep it that way.
 - **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight
@@ -246,11 +266,18 @@ plus real data end-to-end (see Verification below).
   server-side so feedback works from every install. **New Vercel projects default to
   Deployment Protection (SSO) ON** → the relay 401s until you disable it
   (`PATCH /v9/projects/<name>` `ssoProtection:null`, or dashboard → Settings →
-  Deployment Protection). The relay's stable URL is
-  `feedback-relay-chizhangucb-projects.vercel.app` (the deploy-hash URL changes each
-  deploy; use the project alias). Set `RESEND_API_KEY`/`FEEDBACK_TO`/`FEEDBACK_FROM`
-  as Vercel env vars; `onboarding@resend.dev` only delivers to the Resend account
-  owner, so verify a domain to reach arbitrary inboxes.
+  Deployment Protection). The relay's branded URL is now `relay.getchronicle.dev`
+  (Vercel custom domain → `DEFAULT_FEEDBACK_RELAY`); the legacy
+  `feedback-relay-chizhangucb-projects.vercel.app` alias still serves already-shipped
+  apps (the deploy-hash URL changes each deploy — never use it). Set
+  `RESEND_API_KEY`/`FEEDBACK_TO`/`FEEDBACK_FROM` as Vercel env vars and REDEPLOY
+  (`cd feedback-relay && vercel --prod`, authed as chizhangucb) for changes to take
+  effect. `getchronicle.dev` is DKIM+SPF-verified in Resend (Pro plan), so `FEEDBACK_FROM`
+  sends from it; `onboarding@resend.dev` only reaches the Resend account owner.
+  **Porkbun gotcha:** its Cloudflare-embedded DNS console frequently hangs in browser
+  automation ("Page still loading"/never idle) and the extension blocks reading
+  base64 (DKIM) values — paste DNS records manually; `vercel --prod` + `dig` were the
+  reliable verification paths.
 - `npm run reinstall:mac` rebuilds the bundle but its `pkill; …; open` **does not
   reliably relaunch the new code**: closing the window only hides the app to the
   tray, so `pkill` often fails to kill it, the old process keeps port 41730 (single-
@@ -272,6 +299,27 @@ plus real data end-to-end (see Verification below).
   when a Developer ID cert is present and produces an UNSIGNED build otherwise. Do NOT
   re-add `identity: null` (hard-disables signing). `npm run dist:mac` must stay green
   with no Apple creds.
+- **macOS signing needs a DEDICATED keychain, NOT `CSC_LINK`** (the v0.1.6 lesson, cost
+  ~5 build attempts). electron-builder's default `CSC_LINK=<p12>` imports the cert into
+  a throwaway TEMP keychain whose `codesign --keychain <temp>` can't reach the system
+  Apple Root → `codesign … errSecInternalComponent` + "unable to build chain to
+  self-signed root" (it also drops any intermediate/root bundled in the `.p12`).
+  **FIX** (all creds live in `~/apple-signing/`, OUTSIDE the repo): (1) build a `.p12`
+  with the FULL chain — leaf → `Developer ID Certification Authority` (G2, from
+  apple.com/certificateauthority) → `Apple Root CA` (apple.com/appleca) + private key;
+  (2) `security create-keychain -p <kcpw> chronicle-sign.keychain-db` +
+  `security set-keychain-settings` (no auto-lock); (3) `security import devid.p12 -k
+  <kc> -P <p12pw> -T /usr/bin/codesign`; (4) `security set-key-partition-list -S
+  apple-tool:,apple:,codesign: -k <kcpw> <kc>` (uses the KC's own password — the login
+  password is never needed); (5) **add the KC to the user search list**
+  (`security list-keychains -d user -s <kc> <existing…>`) so trust anchors to the
+  SYSTEM Apple Root; (6) build with `CSC_KEYCHAIN=<kc>` and NO `CSC_LINK`, and NO
+  `CSC_NAME` (electron-builder rejects the `Developer ID Application:` prefix —
+  auto-discovery finds the single identity). Sanity gate: `security find-identity -v
+  -p codesigning` must print "1 valid identities found" before building; a lone
+  `--keychain <kc>` (not in the search list) shows 0 valid. Notarization pre-flight:
+  `xcrun notarytool history --key <p8> --key-id <id> --issuer <uuid>` → "No submission
+  history" = creds OK. Team ID `9W7B6USGG9`.
 - **Auto-update = electron-updater**, feed = `build.publish` github
   `chizhangucb/homebrew-chronicle` (baked into `app-update.yml`). It installs only when the running
   app and the update share a Developer ID signature — dormant until the first SIGNED

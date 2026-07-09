@@ -15,13 +15,14 @@ Built from [the PRD](docs/AI-session-manager-PRD.md). Design doc:
 
 ```bash
 brew tap chizhangucb/chronicle
-brew install --cask chronicle --no-quarantine
+brew install --cask chronicle
 ```
 
 **Or download the DMG** from [Releases](https://github.com/chizhangucb/homebrew-chronicle/releases)
-(arm64 for Apple Silicon, x64 for Intel). The app is not yet code-signed, so
-`--no-quarantine` (or `xattr -dr com.apple.quarantine "/Applications/Chronicle.app"`
-after installing) is needed to skip the Gatekeeper warning.
+(arm64 for Apple Silicon, x64 for Intel). Builds are **signed with an Apple Developer ID
+and notarized**, so they open with no Gatekeeper warning — no `--no-quarantine` needed.
+After install, Chronicle **keeps itself up to date**: when a new signed release ships it
+downloads in the background and shows a one-click **Relaunch to update**.
 
 Windows / Linux installers: not built yet — run from source below.
 
@@ -169,8 +170,14 @@ Click **Import Sessions**, pick a source tool, and open a session.
   timeline tick decimation; a 6,000-message session renders 400 DOM rows.
 - **Desktop shell** — Electron app (`npm run desktop`): embedded production server,
   system tray that keeps the MCP Hub alive when the window closes, single-instance
-  lock, and a release-feed update check. (Tauri migration path intact — the server
-  layer has no Electron dependency. Silent auto-update needs a signing pipeline.)
+  lock, and **signed auto-update** — `electron-updater` polls the release feed,
+  downloads new **notarized** builds in the background, and surfaces a one-click
+  **Relaunch to update** toast (no manual reinstall, no stale process holding the
+  port). (Tauri migration path intact — the server layer has no Electron dependency.)
+- **Feedback** — the Feedback panel posts through a hosted relay
+  (`relay.getchronicle.dev`) that emails the maintainer; every message is logged
+  locally first and falls back to a `mailto:` draft if the relay is unreachable. No
+  secret ships in the app.
 
 ## Architecture
 
@@ -195,9 +202,9 @@ All data stays on this machine. Source logs and project repos are never written 
 ## Remaining (per [PRD](docs/AI-session-manager-PRD.md))
 
 Remote SSH access (import / browse / live-watch over SSH) · Windows + Linux
-installers · code signing + notarization and silent auto-update · destructive
-skills takeover · OAuth browser flow for MCP credentials. Everything else in the
-PRD's GA scope is implemented — see the
+installers · destructive skills takeover · OAuth browser flow for MCP credentials.
+Code signing + notarization and one-click auto-update **shipped in v0.1.6**; the rest
+of the PRD's GA scope is implemented — see the
 [decision log in the PRD](docs/AI-session-manager-PRD.md#9-decision-log-post-implementation).
 
 ## License
