@@ -49,8 +49,11 @@ Click **Import Sessions**, pick a source tool, and open a session.
   new sessions, search, rescan, and manual directory scan. Imports are read-only into
   a local SQLite DB (`~/.chronicle/chronicle.db`); SQLite sources are copied to temp
   (incl. WAL) before reading — foreign databases are never opened live.
-- **Session Overview** (`⌘1`, the session home page) — duration / messages / tool
-  calls / errors / context stat cards, a **Cost & Usage panel** (per-model token
+- **Session Overview** (`⌘1`, the session home page) — total duration / **active
+  duration** / messages / tool calls / errors / context stat cards (Active Duration
+  counts only real working time — the sum of gaps between messages, excluding any
+  idle pause over 5 minutes — with an ⓘ tooltip explaining it vs. wall-clock
+  duration), a **Cost & Usage panel** (per-model token
   totals for input / output / cache-read / cache-write with a per-category dollar
   breakdown and session total, computed locally from the current Anthropic list
   prices with separate 5-minute vs 1-hour cache-write pricing — matches Claude
@@ -67,8 +70,9 @@ Click **Import Sessions**, pick a source tool, and open a session.
   (`⌘1`–`⌘4`).
 - **Logical projects** — sessions from all tools aggregate by physical project path;
   Git badge, source icons.
-- **Playback Mode** — three-pane layout: typed message list (user / AI / thinking /
-  tool call / tool result), code snapshot panel, TimberLine timeline.
+- **Playback Mode** — three-pane layout: typed message list (User / Assistant /
+  Thinking / Tool Call / Tool Result — the same role-accurate labels Refine uses),
+  code snapshot panel, TimberLine timeline.
 - **Time travel** — selecting a message resolves the nearest preceding Git commit and
   renders the file tree + file contents *as they were at that moment*. Changed files
   are green-dotted and auto-selected.
@@ -85,7 +89,9 @@ Click **Import Sessions**, pick a source tool, and open a session.
 - **Refine Mode** (`⌘3`) — distill a session into documentation or a reusable prompt:
   original messages left, **Compressed Preview** right (Full / Changes Only /
   Hide Deleted views); Keep/Delete/Edit/Insert (`K`/`D`/`E`/`I`) with per-message
-  token badges; status bar with undo/redo/reset (`⌘Z`/`⇧⌘Z`), Original → Compressed →
+  token badges; **delete-by-type** toggle chips to keep or drop a whole message kind
+  (User / Assistant / Tool Call / …) at once; status bar with undo/redo/reset
+  (`⌘Z`/`⇧⌘Z`), Original → Compressed →
   Saved token stats, and an Export menu (Markdown / as Prompt, `⌘S`). Tool results
   and thinking start pre-deleted as noise — press `K` to keep the ones that matter.
 - **Security Check** — one-click scan with built-in rules (API keys, passwords,
@@ -133,8 +139,8 @@ Click **Import Sessions**, pick a source tool, and open a session.
   Remove from Chronicle), unlink a source into its own project, manual path
   association with auto-merge. Session cards show real context usage (`⧉ 530k ctx`).
   Breadcrumb **project + session dropdowns** switch context without leaving the page,
-  a per-session **Sync Update** button re-imports a single session, and the project
-  analytics page has a **Today / 7 / 30 / 365-day** time filter.
+  a per-session **Sync Update** button (or `⇧⌘U`) re-imports a single session, and
+  the project analytics page has a **Today / 7 / 30 / 365-day** time filter.
 - **Tool policies** — per-service ⛭ policy panel in the MCP Hub; unchecked tools are
   hidden from `tools/list` and blocked on `tools/call` (logged as interceptions).
 
@@ -165,7 +171,8 @@ Click **Import Sessions**, pick a source tool, and open a session.
   full-text search across all session content with All / Code / Chat scopes, time
   and project filters, "Recent Access" recents, highlighted snippets, and keyboard
   navigation; click a result to jump straight into that session.
-- **i18n** — English + 简体中文 + 日本語, dropdown in the top bar.
+- **i18n** — English + 简体中文 + 日本語, dropdown in the top bar; switching language
+  keeps you on the current page instead of returning home.
 - **Performance guardrails** — windowed message rendering (400 around selection) and
   timeline tick decimation; a 6,000-message session renders 400 DOM rows.
 - **Desktop shell** — Electron app (`npm run desktop`): embedded production server,
@@ -175,9 +182,10 @@ Click **Import Sessions**, pick a source tool, and open a session.
   **Relaunch to update** toast (no manual reinstall, no stale process holding the
   port). (Tauri migration path intact — the server layer has no Electron dependency.)
 - **Feedback** — the Feedback panel posts through a hosted relay
-  (`relay.getchronicle.dev`) that emails the maintainer; every message is logged
-  locally first and falls back to a `mailto:` draft if the relay is unreachable. No
-  secret ships in the app.
+  (`relay.getchronicle.dev`) that emails the maintainer; an **optional sender email**
+  is embedded in the message and set as the email's `Reply-To`, so the maintainer can
+  reply directly. Every message is logged locally first and falls back to a `mailto:`
+  draft if the relay is unreachable. No secret ships in the app.
 
 ## Architecture
 

@@ -88,7 +88,12 @@ plus real data end-to-end (see Verification below).
   Actual sender is set via the Vercel env `FEEDBACK_FROM` (kept out of the public
   repo); the code default stays `feedback@getchronicle.dev`. The legacy
   `*.vercel.app` relay URL still works for already-shipped apps (the URL change only
-  affects new builds).
+  affects new builds). **Sender identity (v0.1.7):** the feedback modal has an
+  optional email field; the local server embeds it in the message body (`↩ Reply to:
+  …`, so it's visible even on an older relay) AND passes `email` so the relay sets the
+  email's `Reply-To` (+ a "from <email>" subject). The relay does NOT also append its
+  own body line — that would duplicate the local embed. Deploy the relay from `main`
+  after merge (see the multi-worktree gotcha).
 - **Session display name = `name` (Chronicle override) → `summary` (parsed) →
   `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
   source of that precedence; reuse it everywhere (rows, pickers, overview title).
@@ -107,6 +112,19 @@ plus real data end-to-end (see Verification below).
   `tool_input` with `LIKE`, grouped per session (top ~40) with a snippet; empty
   query returns recent sessions ("Recent Access"). Fine at this scale (~15k rows);
   revisit with FTS5 only if it gets slow.
+- **Chat-type labels have ONE source of truth: `src/kinds.js`.** `KIND_LABEL`/`KIND_ICON`
+  (role-accurate: User / Assistant / Thinking / Tool Call / Tool Result / Inserted) are
+  imported by Playback (`SessionView` `KIND_META`), Refine (`RefineMode`, uppercased for
+  its tag look), and the Refine export. They used to drift (Playback said "You"/"AI",
+  Refine said "USER"/"ASSISTANT"); put new label wording here, never inline.
+- **Active Duration is a local heuristic, like everything else.** `activeDurationMs()` in
+  `SessionView` sums gaps between consecutive message timestamps but EXCLUDES any gap over
+  the 5-min idle cutoff (`IDLE_GAP_MS`) — "walked away" time — so it reads far lower than
+  wall-clock Total Duration on multi-day sessions. Shown with an `InfoTip` (ⓘ) explainer.
+- **Language switch keeps your place.** `setLang` still `location.reload()`s — many `t()`
+  calls run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
+  re-translate. To stop landing back on Home, `App` persists the current `view` in
+  `sessionStorage` and restores it on mount.
 
 ## Key files
 
@@ -129,15 +147,22 @@ plus real data end-to-end (see Verification below).
 - `src/SessionView.jsx` — the core session view; registers modes
   (overview/playback/refine/replay + security check, ⌘1–⌘4) into the sidebar via
   `onRailChange`; owns filtering, windowing, live SSE, causality panels, the
-  breadcrumb session switcher, and the Overview stats page (context-window bar,
+  breadcrumb session switcher, the `⇧⌘U` per-session sync shortcut, and the Overview
+  stats page (Total + Active Duration with an `InfoTip`, context-window bar,
   copyable session ID, deletion danger zone)
 - `src/ProjectDetail.jsx` — project analytics home (8 stat cards, line/bar trend,
   source donut, call ranking; time range via `/api/projects/:id?days=N`)
 - `src/models.js` — static per-model tables (never fetched): context windows +
   list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`).
   Update when new models ship or prices change.
+- `src/kinds.js` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels
+  architecture decision); imported by `SessionView` (Playback) and `RefineMode`.
 - `src/i18n.js` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the
-  key itself); language dropdown reloads the page. Add a locale = add a dict here.
+  key itself); `setLang` reloads the page (App restores the `view` from
+  `sessionStorage` so you stay put). Add a locale = add a dict here. **Because English
+  IS the key, a long explainer's key must BE the full English sentence, not a short
+  label** — using a label key (`'Active Duration explainer'`) renders that literal
+  string for English users (bit us once).
 - `src/ProjectDetail.jsx` — also exports `sessionDisplayName()`, `ProjectPicker`,
   `SessionPicker`; the `days` for "Today" is fractional-days-since-local-midnight,
   memoized on `range` (recomputing per render would loop `Date.now()` refetches).
@@ -184,6 +209,13 @@ plus real data end-to-end (see Verification below).
   direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
   checkout to `main`** (`git checkout main && git pull && git fetch --prune && git
   branch -D <branch>`) — see the git-pill gotcha below.
+- **Multi-worktree: singletons collide in the external resource, not in git.** When two
+  worktrees/branches both touch a singleton — the Vercel relay, `package.json` version, the
+  release tag, the Homebrew cask — git may merge cleanly while the *deployed* thing
+  diverges. Deploy/publish those from `main` AFTER merge, never from a feature branch. (This
+  session: two branches both edited `feedback-relay/api/feedback.js` → small "keep both"
+  rebase conflicts, and an early relay deploy from a feature branch was later superseded by
+  the deploy from `main`.)
 
 ## Gotchas
 
@@ -329,7 +361,26 @@ plus real data end-to-end (see Verification below).
 - **The Relaunch toast** needs the preload
   (`electron/preload.cjs` → `window.chronicleUpdater`) + IPC in `electron/main.mjs`. In dev/standalone (browser) the
   bridge is absent, so the toast never renders. Updater calls are guarded by
-  `app.isPackaged` — `npm run desktop` runs unpacked, so no update runs there.
+  `app.isPackaged` — `npm run desktop` runs unpacked, so no update runs there. Note the
+  toast is only visible after an update downloads — its *absence* is not proof the code is
+  missing (verify by grepping the installed bundle for a marker string instead).
+- **macOS App Management (TCC) blocks the harness from swapping the installed app.** Once
+  `Chronicle.app` is in `/Applications` and signed, an agent/sandboxed shell can't `ditto`
+  over it or `rm -rf` it → `Operation not permitted` (EPERM, not a running-process lock);
+  only the user's own Finder/Terminal has App Management. Build the new `.app` in the repo,
+  then have the USER do the final swap (Finder drag-replace, or a Terminal one-liner).
+- **A local `electron-builder --dir` build SIGNS but does NOT notarize** (afterSign only
+  fires with `APPLE_*` in env). Fine for a local reinstall — a locally-built app has no
+  quarantine, so Gatekeeper runs it. For a shipped release use full `dist:mac` + notary env.
+  And **bump the version for any new build**: two different builds both called `0.1.6` (a
+  stale `release/` DMG vs current `main`) triggered a "my install is missing the latest
+  features" hunt — the DMG was frozen at an older commit. Version = the truth; grep the
+  bundle to confirm what's actually in it.
+- **The auto-mode safety classifier gates outward/irreversible steps** — Vercel prod
+  deploys, `git push` to the default branch, `gh release` publishing, `rm` of things
+  outside the repo. Explicit user authorization in the immediately preceding turn usually
+  clears it (the release pushes went through after "ship it"); otherwise route via a PR or
+  hand the exact command to the user. Never work around a denial.
 
 ## Verification habits used here
 
