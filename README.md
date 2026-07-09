@@ -11,16 +11,17 @@ Built from [the PRD](docs/AI-session-manager-PRD.md). Design doc:
 
 ## Install (macOS)
 
-**Homebrew:**
+**[Download from getchronicle.dev](https://getchronicle.dev)** — one button, auto-detects
+Apple Silicon vs Intel. Builds are **signed with an Apple Developer ID and notarized**, so
+they open with no Gatekeeper warning — no `--no-quarantine` needed.
+
+**Or install with Homebrew:**
 
 ```bash
 brew tap chizhangucb/chronicle
 brew install --cask chronicle
 ```
 
-**Or download the DMG** from [Releases](https://github.com/chizhangucb/homebrew-chronicle/releases)
-(arm64 for Apple Silicon, x64 for Intel). Builds are **signed with an Apple Developer ID
-and notarized**, so they open with no Gatekeeper warning — no `--no-quarantine` needed.
 After install, Chronicle **keeps itself up to date**: when a new signed release ships it
 downloads in the background and shows a one-click **Relaunch to update**.
 
