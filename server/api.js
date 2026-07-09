@@ -179,17 +179,23 @@ function feedbackRelayUrl() {
 
 api.post('/feedback', async (req, res) => {
   const message = (req.body?.message || '').trim();
+  // Optional sender email so the maintainer knows who sent it and can reply. Kept
+  // in the local log too, so it's recoverable even if the relay/email fails.
+  const email = (req.body?.email || '').trim().slice(0, 200);
   if (!message) return res.status(400).json({ error: 'Feedback is empty' });
-  const entry = { ts: new Date().toISOString(), platform: process.platform, message };
+  const entry = { ts: new Date().toISOString(), platform: process.platform, email, message };
   try {
     fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
     fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
   } catch {}
+  // Embed the sender email in the message body too, so it's visible even on a relay
+  // that predates the `email` field (which only uses it for the Reply-To header).
+  const relayMessage = email ? `${message}\n\n↩ Reply to: ${email}` : message;
   try {
     const r = await fetch(feedbackRelayUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, platform: process.platform }),
+      body: JSON.stringify({ message: relayMessage, email, platform: process.platform }),
       signal: AbortSignal.timeout(10000),
     });
     const body = await r.json().catch(() => ({}));

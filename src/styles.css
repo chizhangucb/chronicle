@@ -271,6 +271,26 @@ body {
 .analytics-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .stat { min-width: 110px; text-align: center; }
 .stat-num { font-size: 26px; font-weight: 700; color: var(--accent); }
+
+/* Inline "ⓘ" tooltip affordance (stat explainers) */
+.info-tip {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 3px; font-size: 11px; line-height: 1; color: var(--muted);
+  cursor: help; vertical-align: middle; outline: none;
+}
+.info-tip:hover, .info-tip:focus { color: var(--accent); }
+.info-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: 230px; max-width: 62vw; text-align: left; font-size: 11.5px; line-height: 1.45; font-weight: 400;
+  color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 11px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  opacity: 0; visibility: hidden; transition: opacity 0.12s ease; z-index: 50; pointer-events: none;
+}
+.info-tip:hover .info-bubble, .info-tip:focus .info-bubble { opacity: 1; visibility: visible; }
+.info-bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--bg3);
+}
 .card.grow { flex: 1; min-width: 220px; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .bar-label { width: 110px; font-size: 12px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -350,6 +370,12 @@ body {
   border: 1px solid var(--accent); border-radius: 8px; padding: 10px;
   font: 13px/1.5 inherit; resize: vertical; margin-top: 4px;
 }
+.feedback-email {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font: 13px/1.5 inherit; margin-top: 4px;
+}
+.feedback-email:focus { outline: none; border-color: var(--accent); }
 .feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .session-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 
@@ -509,6 +535,31 @@ mark { background: #b58a2a; color: #fff; border-radius: 2px; padding: 0 1px; }
 .mode-switch { display: flex; gap: 6px; }
 .chip.security { color: var(--warn); }
 
+/* Replay Mode toolbar — sandbox path, progress bar, actions */
+.replay-toolbar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--bg2);
+}
+.replay-sandbox { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+.replay-sandbox-icon { font-size: 16px; opacity: 0.85; flex-shrink: 0; }
+.replay-sandbox-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.replay-sandbox-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--muted); font-weight: 700;
+}
+.replay-sandbox-path {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.replay-seed { flex-shrink: 0; align-self: center; }
+.replay-progress { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.replay-progress-track {
+  width: 130px; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden;
+}
+.replay-progress-fill { display: block; height: 100%; background: var(--accent2); transition: width 0.2s ease; }
+.replay-progress-count { font-size: 12px; font-weight: 600; color: var(--accent2); white-space: nowrap; }
+.replay-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
 /* Refine Mode */
 .refine { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .token-stats { font-size: 13px; font-weight: 600; color: var(--accent2); }
@@ -520,6 +571,13 @@ mark { background: #b58a2a; color: #fff; border-radius: 2px; padding: 0 1px; }
 .refine-bulk { display: flex; justify-content: center; gap: 6px; }
 .refine-bulk .btn { color: var(--muted); }
 .refine-bulk .btn:hover { color: var(--text); }
+/* Delete-by-type toggles: one chip per message kind present in the session.
+   "on" = kept (click to delete all of that kind); "off" = all deleted (click to restore). */
+.refine-bytype { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; }
+.bytype-label { margin-right: 2px; }
+.bytype-chip { font-size: 11px; padding: 2px 9px; letter-spacing: 0.3px; }
+.bytype-chip.off { opacity: 0.5; text-decoration: line-through; }
+.bytype-chip .bytype-count { margin-left: 3px; opacity: 0.65; font-variant-numeric: tabular-nums; }
 .refine-item {
   border: 1px solid var(--border); border-left: 3px solid var(--border);
   border-radius: 8px; padding: 7px 10px; cursor: pointer; background: var(--bg2);

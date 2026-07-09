@@ -1,19 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from './i18n.js';
+import { KIND_LABEL } from './kinds.js';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
 // Original messages left, compressed preview right, token stats +
 // undo/redo/reset in a bottom status bar.
 // Keep `K` / Delete `D` / Edit `E` / Insert `I`, ⌘Z undo, ⇧⌘Z redo, ⌘S export.
 
-const KIND_META = {
-  user: { label: 'USER', color: 'var(--warn)' },
-  assistant: { label: 'ASSISTANT', color: 'var(--accent)' },
-  thinking: { label: 'THINKING', color: 'var(--muted)' },
-  tool_use: { label: 'TOOL CALL', color: '#a78bfa' },
-  tool_result: { label: 'TOOL RESULT', color: 'var(--accent2)' },
-  note: { label: 'INSERTED', color: 'var(--accent2)' },
+// Words come from the shared canonical map (src/kinds.js) so Refine and Playback
+// never diverge; Refine renders them as uppercase tags. Colors are Refine-specific.
+const KIND_COLOR = {
+  user: 'var(--warn)', assistant: 'var(--accent)', thinking: 'var(--muted)',
+  tool_use: '#a78bfa', tool_result: 'var(--accent2)', note: 'var(--accent2)',
 };
+const KIND_ORDER = ['user', 'assistant', 'thinking', 'tool_use', 'tool_result', 'note'];
+const KIND_META = Object.fromEntries(
+  KIND_ORDER.map((k) => [k, { label: t(KIND_LABEL[k]).toUpperCase(), color: KIND_COLOR[k] }])
+);
 
 const tokens = (text) => Math.round((text || '').length / 4);
 const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -61,6 +64,10 @@ export default function RefineMode({ messages, session, project }) {
   function setAllDeleted(deleted) {
     apply(items.map((it) => (it.deleted === deleted ? it : { ...it, deleted })));
   }
+  // Bulk delete/keep every message of one kind (User, Assistant, Tool Call, …).
+  function setKindDeleted(kind, deleted) {
+    apply(items.map((it) => (it.kind === kind ? { ...it, deleted } : it)));
+  }
   function insertAt(idx) {
     const newItem = { id: `ins${Date.now()}`, kind: 'note', text: '', deleted: false, edited: true, inserted: true };
     apply([...items.slice(0, idx), newItem, ...items.slice(idx)]);
@@ -85,6 +92,14 @@ export default function RefineMode({ messages, session, project }) {
   const nEdited = items.filter((it) => it.edited && !it.inserted).length;
   const nInserted = items.filter((it) => it.inserted).length;
 
+  // Per-kind counts drive the "delete by type" toggles (task 5).
+  const kindCounts = useMemo(() => {
+    const c = {};
+    for (const it of items) c[it.kind] = (c[it.kind] || 0) + 1;
+    return c;
+  }, [items]);
+  const presentKinds = KIND_ORDER.filter((k) => kindCounts[k]);
+
   const previewItems = previewMode === 'hideDeleted' ? kept
     : previewMode === 'changes' ? items.filter((it) => it.deleted || it.edited || it.inserted)
     : items;
@@ -92,7 +107,7 @@ export default function RefineMode({ messages, session, project }) {
   function exportDoc(asPrompt) {
     setExportOpen(false);
     const lines = kept.map((it) => {
-      const label = { user: 'User', assistant: 'Assistant', thinking: 'Thinking', tool_use: 'Tool', tool_result: 'Result', note: 'Note' }[it.kind] || it.kind;
+      const label = KIND_LABEL[it.kind] || it.kind;
       return asPrompt ? it.text : `### ${label}\n\n${it.text}`;
     });
     const header = asPrompt ? '' : `# ${project?.name ?? 'Session'} — refined session\n\n> Source: ${session?.source} · ${session?.started_at ?? ''} · ${kept.length}/${items.length} messages kept · ~${fmtTok(compressedTokens)} tokens\n\n`;
@@ -150,6 +165,21 @@ export default function RefineMode({ messages, session, project }) {
             <button className="btn ghost small" title={t('Delete every message')}
               onClick={() => setAllDeleted(true)}>🗑 {t('Delete All')}</button>
           </div>
+          {presentKinds.length > 1 && (
+            <div className="refine-bytype" title={t('Toggle whole message types in or out')}>
+              <span className="muted small bytype-label">{t('By type')}</span>
+              {presentKinds.map((k) => {
+                const anyKept = items.some((it) => it.kind === k && !it.deleted);
+                return (
+                  <button key={k} className={`chip bytype-chip ${anyKept ? 'on' : 'off'}`}
+                    title={anyKept ? t('Delete all of this type') : t('Keep all of this type')}
+                    onClick={() => setKindDeleted(k, anyKept)}>
+                    {t(KIND_LABEL[k])} <span className="bytype-count">{kindCounts[k]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {items.map((it) => {
             const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--muted)' };
             const long = it.text.length > COLLAPSE_AT;

@@ -29,10 +29,10 @@ export const api = {
   syncSession: (id) => j(`/api/sessions/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
   deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
-  sendFeedback: (message) => j('/api/feedback', {
+  sendFeedback: (message, email) => j('/api/feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, email }),
   }),
   gitAt: (project, ts) => j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
   gitTree: (project, commit) => j(`/api/git/tree?project=${project}&commit=${commit}`),

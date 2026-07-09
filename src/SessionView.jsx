@@ -8,6 +8,7 @@ import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens } from './models.js';
 import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
+import { KIND_LABEL, KIND_ICON } from './kinds.js';
 
 const FILTER_CHIPS = [
   { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
@@ -34,6 +35,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const atBottomRef = useRef(true);
   const listRef = useRef(null);
   const searchRef = useRef(null);
+  const syncRef = useRef(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
 
   useEffect(() => {
     api.sessionMessages(sessionId).then((d) => {
@@ -159,6 +161,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '4') { e.preventDefault(); setMode('replay'); }
+      // ⇧⌘U (⇧Ctrl+U) — Sync Update this session
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') { e.preventDefault(); syncRef.current?.(); }
       if (e.key === 'Escape') { setKeyword(''); searchRef.current?.blur(); }
     }
     window.addEventListener('keydown', onKey);
@@ -206,6 +210,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       setSyncingSession(false);
     }
   }
+  syncRef.current = syncThisSession;
 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data) return <div className="page center muted">Loading session…</div>;
@@ -237,7 +242,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         <span className="muted small">Match: {visible.length}/{messages.length}</span></>}
         <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
-          title={t('Sync this session')} onClick={syncThisSession} disabled={syncingSession}
+          title={`${t('Sync this session')} (⇧⌘U)`} onClick={syncThisSession} disabled={syncingSession}
           aria-label={t('Sync this session')}>{syncingSession ? '◌' : '⟳'}</button>
       </div>
 
@@ -298,13 +303,12 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   );
 }
 
-const KIND_META = {
-  user: { icon: '👤', label: 'You', cls: 'user' },
-  assistant: { icon: '✳', label: 'AI', cls: 'assistant' },
-  thinking: { icon: '💭', label: 'Thinking', cls: 'thinking' },
-  tool_use: { icon: '🔧', label: 'Tool', cls: 'tool' },
-  tool_result: { icon: '↩', label: 'Result', cls: 'tool-result' },
-};
+// Labels/icons come from the shared canonical map (src/kinds.js) so Playback and
+// Refine stay consistent; only the per-view CSS class lives here.
+const KIND_CLS = { user: 'user', assistant: 'assistant', thinking: 'thinking', tool_use: 'tool', tool_result: 'tool-result' };
+const KIND_META = Object.fromEntries(
+  Object.keys(KIND_CLS).map((k) => [k, { icon: KIND_ICON[k], label: t(KIND_LABEL[k]), cls: KIND_CLS[k] }])
+);
 
 function MessageRow({ m, selected, keyword, onClick, causality, onJump }) {
   const [expanded, setExpanded] = useState(false);
@@ -473,6 +477,37 @@ function fmtTokNum(n) {
   return String(n);
 }
 
+// Human duration: "45m" under an hour, "2h 5m" above, "—" for null/zero.
+function fmtDur(ms) {
+  if (!ms || ms <= 0) return '—';
+  if (ms < 3600000) return `${Math.round(ms / 60000)}m`;
+  return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
+}
+
+// Active time the agent/user were actually working: sum of gaps between
+// consecutive message timestamps, EXCLUDING any gap longer than the idle cutoff
+// (a pause over 5 min is treated as "walked away", not work).
+const IDLE_GAP_MS = 5 * 60 * 1000;
+function activeDurationMs(messages) {
+  const ts = messages.map((m) => (m.ts ? new Date(m.ts).getTime() : null))
+    .filter((n) => n != null).sort((a, b) => a - b);
+  let sum = 0;
+  for (let i = 1; i < ts.length; i++) {
+    const g = ts[i] - ts[i - 1];
+    if (g > 0 && g <= IDLE_GAP_MS) sum += g;
+  }
+  return sum;
+}
+
+// Small "ⓘ" affordance with a hover/focus tooltip bubble, for stat explainers.
+function InfoTip({ text }) {
+  return (
+    <span className="info-tip" tabIndex={0} role="note" aria-label={text}>
+      ⓘ<span className="info-bubble">{text}</span>
+    </span>
+  );
+}
+
 function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
   const { session, messages } = data;
 
@@ -521,9 +556,8 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
 
   const durationMs = session.started_at && session.ended_at
     ? new Date(session.ended_at) - new Date(session.started_at) : null;
-  const dur = durationMs === null ? '—'
-    : durationMs < 3600000 ? `${Math.round(durationMs / 60000)}m`
-    : `${Math.floor(durationMs / 3600000)}h ${Math.round((durationMs % 3600000) / 60000)}m`;
+  const dur = durationMs === null ? '—' : fmtDur(durationMs);
+  const activeMs = useMemo(() => activeDurationMs(messages), [messages]);
 
   const totalCalls = stats.toolUses.length;
   let acc = 0;
@@ -588,7 +622,12 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
         <SessionIdChip id={session.id} />
       </div>
       <div className="analytics-row">
-        <div className="card stat"><div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
+        <div className="card stat" title={t('Wall-clock span from the first message to the last')}>
+          <div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
+        <div className="card stat">
+          <div className="stat-num">{fmtDur(activeMs)}</div>
+          <div className="muted small">{t('Active Duration')} <InfoTip text={t('Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+        </div>
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
         <div className="card stat"><div className={`stat-num ${stats.errors ? 'bad' : ''}`}>{stats.errors}</div><div className="muted small">{t('Errors')}</div></div>
