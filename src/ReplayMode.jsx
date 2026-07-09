@@ -103,17 +103,31 @@ export default function ReplayMode({ sessionId }) {
   }
 
   const done = Object.values(results).filter((r) => r.ok).length;
+  const pct = plan.steps.length ? Math.round((done / plan.steps.length) * 100) : 0;
 
   return (
     <div className="refine">
-      <div className="refine-toolbar">
-        <span className="muted small">
-          Sandbox: <code>{plan.workspace}</code>
-          {plan.seededFrom && <span className="pill git-pill" style={{ marginLeft: 6 }}>seeded @ {plan.seededFrom.hash?.slice(0, 7)}</span>}
-        </span>
-        <span className="token-stats">{done}/{plan.steps.length} steps executed</span>
-        <span style={{ display: 'flex', gap: 6 }}>
-          {!started && <button className="btn primary small" onClick={start}>⟳ Start replay (sandbox)</button>}
+      <div className="replay-toolbar">
+        <div className="replay-sandbox">
+          <span className="replay-sandbox-icon">🗂</span>
+          <div className="replay-sandbox-text">
+            <span className="replay-sandbox-label">Sandbox</span>
+            <code className="replay-sandbox-path" title={plan.workspace}>{plan.workspace}</code>
+          </div>
+          {plan.seededFrom && (
+            <span className="pill git-pill replay-seed" title={`Seeded from commit ${plan.seededFrom.hash || 'HEAD'}`}>
+              ⎇ seeded @ {plan.seededFrom.hash?.slice(0, 7)}
+            </span>
+          )}
+        </div>
+        <div className="replay-progress" title={`${done} of ${plan.steps.length} steps executed`}>
+          <div className="replay-progress-track">
+            <span className="replay-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="replay-progress-count">{done}/{plan.steps.length} steps</span>
+        </div>
+        <div className="replay-actions">
+          {!started && <button className="btn primary small" onClick={start}>⟳ Start replay</button>}
           {started && <>
             <button className={`btn small ${playing ? 'primary' : ''}`} onClick={() => setPlaying(!playing)}>
               {playing ? '⏸ Pause' : '▶ Auto-play'}
@@ -123,7 +137,7 @@ export default function ReplayMode({ sessionId }) {
             ))}
             <button className="btn small" onClick={() => post('/api/replay/open', { sessionId })}>Open in Finder</button>
           </>}
-        </span>
+        </div>
       </div>
       <div className="refine-panes">
         <div className="refine-left" ref={listRef}>

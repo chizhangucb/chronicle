@@ -260,6 +260,27 @@ const zh = {
   'Updated to': '已更新至',
   'Relaunch to apply': '重启以应用',
   'Relaunch': '重启',
+  // Canonical chat-type labels (shared by Playback + Refine)
+  'User': '用户',
+  'Assistant': '助手',
+  'Tool Call': '工具调用',
+  'Tool Result': '工具结果',
+  'Inserted': '已插入',
+  // Active duration
+  'Active Duration': '活跃时长',
+  'Wall-clock span from the first message to the last': '从第一条到最后一条消息的实际跨度',
+  'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
+    '真正工作的时间 —— 累计相邻消息间隔小于 5 分钟的部分；更长的空闲等待会被排除',
+  'Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    '只统计真正在工作的时间：累加相邻消息之间的间隔，但跳过任何超过 5 分钟的间隔（视为空闲/离开）。相比之下，“总时长”是从第一条到最后一条消息的完整跨度。',
+  // Refine: delete by type
+  'By type': '按类型',
+  'Toggle whole message types in or out': '整类消息一键保留或删除',
+  'Delete all of this type': '删除该类型全部',
+  'Keep all of this type': '保留该类型全部',
+  // Feedback: sender email
+  'Your email (optional)': '你的邮箱（可选）',
+  'name@example.com — so we can reply to you': 'name@example.com —— 方便我们回复你',
 };
 
 const ja = {
@@ -515,6 +536,27 @@ const ja = {
   'Updated to': 'アップデート済み：',
   'Relaunch to apply': '再起動して適用',
   'Relaunch': '再起動',
+  // Canonical chat-type labels (shared by Playback + Refine)
+  'User': 'ユーザー',
+  'Assistant': 'アシスタント',
+  'Tool Call': 'ツール呼び出し',
+  'Tool Result': 'ツール結果',
+  'Inserted': '挿入済み',
+  // Active duration
+  'Active Duration': 'アクティブ時間',
+  'Wall-clock span from the first message to the last': '最初のメッセージから最後までの実時間',
+  'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
+    '実際に作業していた時間 — メッセージ間隔が5分未満の合計。長いアイドル時間は除外されます',
+  'Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    '実際に作業していた時間だけを集計します。連続するメッセージ間の間隔を合計しますが、5分を超える間隔（アイドル／離席とみなす）は除外します。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
+  // Refine: delete by type
+  'By type': 'タイプ別',
+  'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
+  'Delete all of this type': 'このタイプをすべて削除',
+  'Keep all of this type': 'このタイプをすべて保持',
+  // Feedback: sender email
+  'Your email (optional)': 'あなたのメール（任意）',
+  'name@example.com — so we can reply to you': 'name@example.com — 返信できるように',
 };
 
 const DICTS = { zh, ja };
