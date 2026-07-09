@@ -16,3 +16,52 @@ Session UX polish, delivered via auto-update:
 - **Replay** — tidier sandbox toolbar.
 - **Feedback** — optional sender email, set as `Reply-To` so replies reach you.
 - **Fix** — switching language no longer jumps back to the home page.
+
+## v0.1.6 — 2026-07-09
+
+First **signed & notarized** release.
+
+- **One-click auto-update** — an in-app "Relaunch to apply" toast installs updates
+  and cleanly relaunches (electron-updater on a notarized Developer ID build).
+- Feedback moved to **getchronicle.dev**.
+- No more macOS quarantine. (0.1.5 was unsigned — upgrade to 0.1.6 once manually,
+  then every update is automatic.)
+
+## v0.1.5 — 2026-07-08
+
+Cost & usage, global search, session titles, Japanese.
+
+- **Cost & Usage** panel — local per-model token totals + dollar breakdown (no network).
+- **Global search** palette (⌘K) across all session content, with scopes and filters.
+- **Skill** and **MCP** distribution donuts on the session overview.
+- Reads Claude Code `/rename` titles; inline rename; per-session Sync Update.
+- Japanese (日本語) UI; project switcher dropdown; "Today" time filter.
+
+## v0.1.4 — 2026-07-08
+
+Documentation release — contributor docs (`CLAUDE.md`) captured the architecture,
+release checklist, and gotchas. No functional changes since 0.1.3.
+
+## v0.1.3 — 2026-07-07
+
+Moved-repo fix + sync-all.
+
+- Latest-`cwd`-wins so a moved project stops resurfacing under its old dead path.
+- Sidebar **sync-all** button — re-import every project in one click.
+- `npm run reinstall:mac` developer helper.
+
+## v0.1.2 — 2026-07-07
+
+Sidebar navigation + project analytics.
+
+- Collapsible global **sidebar** (Projects, session modes, MCP Hub / Skills / Security / Feedback).
+- **Project home**: 8 stat cards, activity trend (line/bar), tool distribution, call ranking, time-range filter.
+- Breadcrumbs, session switcher, copyable session ID.
+
+## v0.1.1 — 2026-07-07
+
+First installable release + Refine polish.
+
+- macOS **DMGs** (Apple Silicon + Intel) and a **Homebrew cask** (unsigned; `--no-quarantine`).
+- Refine: Keep All / Delete All, sensible pre-deleted noise, a single clear savings bar.
+- MIT license, README overhaul, PRD decision log.
