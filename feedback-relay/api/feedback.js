@@ -15,10 +15,10 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Relay not configured (set RESEND_API_KEY)' });
-  const to = process.env.FEEDBACK_TO || 'chizhangucb@gmail.com';
-  // onboarding@resend.dev needs no domain setup but only delivers to the Resend
-  // account owner; verify a domain and set FEEDBACK_FROM to reach any inbox.
-  const from = process.env.FEEDBACK_FROM || 'Chronicle Feedback <onboarding@resend.dev>';
+  const to = process.env.FEEDBACK_TO || 'feedback@getchronicle.dev';
+  // Resend sends to feedback@getchronicle.dev, which Porkbun forwards to the
+  // maintainer's inbox. from must be on the Resend-verified getchronicle.dev domain.
+  const from = process.env.FEEDBACK_FROM || 'Chronicle Feedback <feedback@getchronicle.dev>';
 
   try {
     const r = await fetch('https://api.resend.com/emails', {

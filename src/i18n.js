@@ -257,6 +257,9 @@ const zh = {
   'MCP Distribution': 'MCP 分布',
   'No skills used.': '未使用技能。',
   'No MCP tools used.': '未使用 MCP 工具。',
+  'Updated to': '已更新至',
+  'Relaunch to apply': '重启以应用',
+  'Relaunch': '重启',
 };
 
 const ja = {
@@ -509,6 +512,9 @@ const ja = {
   'MCP Distribution': 'MCP 分布',
   'No skills used.': 'スキルは使用されていません。',
   'No MCP tools used.': 'MCP ツールは使用されていません。',
+  'Updated to': 'アップデート済み：',
+  'Relaunch to apply': '再起動して適用',
+  'Relaunch': '再起動',
 };
 
 const DICTS = { zh, ja };
