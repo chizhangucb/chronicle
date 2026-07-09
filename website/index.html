@@ -324,10 +324,10 @@
     <div class="frame">
       <div class="chrome">
         <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="chrome-title">Chronicle — ai-session-manager · session a1f9c</span>
+        <span class="chrome-title">Chronicle — Playback</span>
         <span class="chrome-live">Live</span>
       </div>
-      <img class="shot-img" id="shotImg" alt="Chronicle showing an AI coding session next to the exact code snapshot at the selected message" width="1600" height="1000">
+      <img class="shot-img" id="shotImg" alt="Chronicle showing an AI coding session next to the exact code snapshot at the selected message" width="1440" height="880">
       <div class="app" id="shotMock">
         <nav class="rail">
           <div class="rail-h">Projects</div>
@@ -498,9 +498,8 @@
   // ---------- product screenshot: try real capture, fall back to built mock ----------
   var shotImg = document.getElementById("shotImg");
   shotImg.onload = function(){ shotImg.style.display="block"; document.getElementById("shotMock").style.display="none"; };
-  shotImg.onerror = function(){ shotImg.style.display="none"; };
-  // prefer a 2x asset when the screen is retina
-  shotImg.src = (window.devicePixelRatio > 1.5) ? "assets/chronicle-shot@2x.png" : "assets/chronicle-shot.png";
+  shotImg.onerror = function(){ shotImg.style.display="none"; }; // missing image → keep the built-in mock
+  shotImg.src = "assets/chronicle-shot.png";
 
   // ---------- byte formatting ----------
   function mb(bytes){ return (bytes/1048576).toFixed(bytes >= 100*1048576 ? 0 : 1).replace(/\.0$/,"") + " MB"; }
