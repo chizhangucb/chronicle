@@ -1,4 +1,6 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } from 'electron';
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,7 +27,10 @@ function showWindow() {
     width: 1440, height: 900,
     title: 'Chronicle',
     backgroundColor: '#0e1116',
-    webPreferences: { contextIsolation: true },
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
+    },
   });
   win.loadURL(URL);
   // Closing the window keeps the MCP Hub alive in the tray (FR-MCP-13)
@@ -50,27 +55,40 @@ function buildTray() {
   ]));
 }
 
-// Update check (NFR-7 lite): polls a releases feed; full silent auto-update
-// needs a signed publish pipeline — deferred until distribution is set up.
-// Points at the homebrew-chronicle tap, which hosts the release DMGs for the
-// Homebrew cask; the update check reuses that public feed.
-const UPDATE_FEED = process.env.CHRONICLE_UPDATE_FEED
-  || 'https://api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest';
+// Auto-update via electron-updater (NFR-7). Reads the github publish feed baked
+// into app-update.yml at build time (owner/repo in package.json build.publish).
+// autoUpdater only installs when the running app AND the update are signed by the
+// same Developer ID — so this stays dormant until the first signed release.
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
-async function checkForUpdates(interactive = true) {
+autoUpdater.on('update-available', (info) => {
+  if (win && !win.isDestroyed()) win.webContents.send('update:available', { version: info.version });
+});
+autoUpdater.on('update-downloaded', (info) => {
+  if (win && !win.isDestroyed()) win.webContents.send('update:downloaded', { version: info.version });
+});
+autoUpdater.on('error', (err) => {
+  console.error('[updater]', err?.message || err);
+});
+
+// quitAndInstall triggers a real quit; let the window's close handler through
+// instead of hiding to tray.
+app.on('before-quit-for-update', () => { quitting = true; });
+
+ipcMain.handle('update:relaunch', () => { quitting = true; autoUpdater.quitAndInstall(); });
+ipcMain.handle('update:check', () => checkForUpdates(false));
+
+async function checkForUpdates(interactive = false) {
+  if (!app.isPackaged) {
+    if (interactive) dialog.showMessageBox({ message: 'Updates are only available in the packaged app.' });
+    return;
+  }
   try {
-    const res = await fetch(UPDATE_FEED, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error(`feed ${res.status}`);
-    const release = await res.json();
-    const latest = String(release.tag_name || '').replace(/^v/, '');
+    const result = await autoUpdater.checkForUpdates();
+    const latest = result?.updateInfo?.version;
     const current = app.getVersion();
-    if (latest && latest !== current) {
-      const { response } = await dialog.showMessageBox({
-        message: `Chronicle ${latest} is available (you have ${current}).`,
-        buttons: ['Download', 'Later'],
-      });
-      if (response === 0) shell.openExternal(release.html_url);
-    } else if (interactive) {
+    if (interactive && latest && latest === current) {
       dialog.showMessageBox({ message: `Chronicle ${current} is up to date.` });
     }
   } catch (err) {
@@ -89,6 +107,7 @@ app.whenReady().then(async () => {
   buildTray();
   showWindow();
   checkForUpdates(false);
+  setInterval(() => checkForUpdates(false), 6 * 60 * 60 * 1000);
 });
 
 app.on('activate', showWindow);
