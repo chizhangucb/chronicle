@@ -60,10 +60,11 @@ npm run deploy:preview   # content copy + `vercel`        → unlisted preview U
 npm run deploy           # content copy + `vercel --prod` → production
 ```
 
-First-time setup links the local dir to the Vercel project:
+First-time setup links the local dir to the Vercel project (`chronicle-web` owns the
+`getchronicle.dev` domain and serves both the landing and the docs):
 
 ```bash
-vercel link --project chronicle-site --yes
+vercel link --project chronicle-web --yes
 ```
 
 > **Deploy production from `main`.** Like the other singletons in this repo (the relay, the
