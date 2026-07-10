@@ -10,3 +10,10 @@ contextBridge.exposeInMainWorld('chronicleUpdater', {
   relaunch: () => ipcRenderer.invoke('update:relaunch'),
   check: () => ipcRenderer.invoke('update:check'),
 });
+
+// Opens an external https URL in the user's real system browser. Present ONLY in
+// the Electron shell; in dev/standalone (browser) window.chronicleShell is undefined
+// and src/shell.js falls back to window.open (a normal new tab).
+contextBridge.exposeInMainWorld('chronicleShell', {
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+});

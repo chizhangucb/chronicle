@@ -7,6 +7,7 @@ import HubPage from './HubPage.jsx';
 import { t, lang, setLang } from './i18n.js';
 import SkillsPage from './SkillsPage.jsx';
 import SecurityPage from './SecurityPage.jsx';
+import SponsorModal from './SponsorModal.jsx';
 
 const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemini-cli': '✦' };
 
@@ -25,6 +26,7 @@ export default function App() {
   const [projects, setProjects] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [sponsorOpen, setSponsorOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
@@ -123,6 +125,9 @@ export default function App() {
             onClick={() => setView({ name: 'security' })}>
             <span className="sb-icon">🛡</span><span className="sb-label">{t('Security')}</span>
           </button>
+          <button className="sb-item util" title={t('Sponsor')} onClick={() => setSponsorOpen(true)}>
+            <span className="sb-icon">♥</span><span className="sb-label">{t('Sponsor')}</span>
+          </button>
           <button className="sb-item util" title={t('Feedback')} onClick={() => setFeedbackOpen(true)}>
             <span className="sb-icon">⊞</span><span className="sb-label">{t('Feedback')}</span>
           </button>
@@ -185,6 +190,7 @@ export default function App() {
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
       {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
+      {sponsorOpen && <SponsorModal onClose={() => setSponsorOpen(false)} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />

@@ -377,6 +377,28 @@ body {
 }
 .feedback-email:focus { outline: none; border-color: var(--accent); }
 .feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* Sponsor modal */
+.sponsor-modal { width: 520px; }
+.sponsor-toggle {
+  display: inline-flex; margin: 12px 0 6px; padding: 3px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+}
+.sponsor-toggle .seg {
+  background: none; border: none; color: var(--text); cursor: pointer;
+  padding: 5px 16px; border-radius: 6px; font: inherit; font-size: 13px;
+}
+.sponsor-toggle .seg.on { background: var(--accent); color: #fff; }
+.sponsor-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.sponsor-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sponsor-row-info { min-width: 0; }
+.sponsor-row-title { font-weight: 600; }
+.sponsor-row .btn { white-space: nowrap; }
+.sponsor-trust { margin-top: 12px; }
 .session-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 
 /* Session overview (stats home page) */

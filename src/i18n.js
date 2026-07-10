@@ -281,6 +281,25 @@ const zh = {
   // Feedback: sender email
   'Your email (optional)': '你的邮箱（可选）',
   'name@example.com — so we can reply to you': 'name@example.com —— 方便我们回复你',
+  // Sponsor
+  'Sponsor': '赞助',
+  'Support Chronicle': '支持 Chronicle',
+  'Chronicle is free and open-source. If it saves you time, consider sponsoring its development.':
+    'Chronicle 免费且开源。如果它帮你节省了时间，欢迎赞助它的持续开发。',
+  'One-time': '一次性',
+  'Monthly': '每月',
+  'Support': '赞助',
+  'Cards, PayPal & Venmo': '信用卡、PayPal 和 Venmo',
+  'One-time via Lemon Squeezy — cards, PayPal, Alipay & WeChat':
+    '通过 Lemon Squeezy 一次性支付 —— 信用卡、PayPal、支付宝和微信',
+  'Monthly card subscription via Lemon Squeezy': '通过 Lemon Squeezy 每月信用卡订阅',
+  'Alipay / WeChat (支付宝 / 微信)': '支付宝 / 微信',
+  'One-time (投喂) via 爱发电 Afdian': '通过爱发电一次性投喂',
+  'Monthly (包月) via 爱发电 Afdian': '通过爱发电按月赞助（包月）',
+  'GitHub Sponsors': 'GitHub Sponsors',
+  'Cards — one-time or monthly, chosen on GitHub': '信用卡 —— 一次性或每月，在 GitHub 上选择',
+  'Payments are handled by each provider — Chronicle never sees your card details.':
+    '支付由各平台处理 —— Chronicle 永远不会接触你的卡片信息。',
 };
 
 const ja = {
@@ -557,6 +576,25 @@ const ja = {
   // Feedback: sender email
   'Your email (optional)': 'あなたのメール（任意）',
   'name@example.com — so we can reply to you': 'name@example.com — 返信できるように',
+  // Sponsor
+  'Sponsor': '支援',
+  'Support Chronicle': 'Chronicle を支援',
+  'Chronicle is free and open-source. If it saves you time, consider sponsoring its development.':
+    'Chronicle は無料でオープンソースです。役に立ったら、開発の支援をご検討ください。',
+  'One-time': '一回',
+  'Monthly': '毎月',
+  'Support': '支援',
+  'Cards, PayPal & Venmo': 'カード・PayPal・Venmo',
+  'One-time via Lemon Squeezy — cards, PayPal, Alipay & WeChat':
+    'Lemon Squeezy で一回払い — カード・PayPal・Alipay・WeChat',
+  'Monthly card subscription via Lemon Squeezy': 'Lemon Squeezy で毎月のカード定期支援',
+  'Alipay / WeChat (支付宝 / 微信)': 'Alipay / WeChat（支付宝 / 微信）',
+  'One-time (投喂) via 爱发电 Afdian': '爱发电（Afdian）で一回支援',
+  'Monthly (包月) via 爱发电 Afdian': '爱发电（Afdian）で毎月支援',
+  'GitHub Sponsors': 'GitHub Sponsors',
+  'Cards — one-time or monthly, chosen on GitHub': 'カード — GitHub で一回／毎月を選択',
+  'Payments are handled by each provider — Chronicle never sees your card details.':
+    '決済は各プロバイダーが処理します — Chronicle がカード情報を見ることはありません。',
 };
 
 const DICTS = { zh, ja };

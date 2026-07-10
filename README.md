@@ -105,6 +105,16 @@ Code signing + notarization and one-click auto-update **shipped in v0.1.6**; the
 of the PRD's GA scope is implemented — see the
 [decision log in the PRD](docs/AI-session-manager-PRD.md#9-decision-log-post-implementation).
 
+## Support Chronicle
+
+Chronicle is free and 100% open-source. If it saves you time, you can sponsor its
+development — one-time or monthly. Payments are handled entirely by each provider;
+nothing touches Chronicle.
+
+- **[GitHub Sponsors](https://github.com/sponsors/chizhangucb)** — card, one-time or monthly (0% fee).
+- **[Lemon Squeezy](https://chronicle.lemonsqueezy.com/buy/one-time)** — card, PayPal & Venmo (Alipay & WeChat one-time too).
+- **[爱发电 Afdian](https://afdian.com/a/chronicle)** — 支付宝 / 微信 (Alipay / WeChat), one-time (投喂) or monthly (包月).
+
 ## License
 
 [MIT](LICENSE)
