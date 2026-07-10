@@ -28,27 +28,24 @@ export default defineConfig({
 
     nav: [
       { text: 'Home', link: 'https://getchronicle.dev' },
-      { text: 'Guide', link: '/guide/quickstart' },
-      { text: 'Reference', link: '/reference/keyboard-shortcuts' },
-      { text: 'Architecture', link: '/architecture/overview' },
-      { text: 'Download', link: 'https://getchronicle.dev' },
+      { text: 'Guide', link: '/guide/quickstart', activeMatch: '/guide/' },
+      { text: 'Reference', link: '/reference/keyboard-shortcuts', activeMatch: '/reference/' },
+      { text: 'Architecture', link: '/architecture/overview', activeMatch: '/architecture/' },
+      { text: 'Changelog', link: '/changelog' },
     ],
 
     sidebar: [
       {
-        text: 'Introduction',
+        text: 'Get started',
         items: [
-          { text: 'Overview', link: '/' },
-          { text: 'Contributing', link: '/contributing' },
+          { text: 'Quickstart', link: '/guide/quickstart' },
+          { text: 'Installation', link: '/guide/installation' },
+          { text: 'Importing sessions', link: '/guide/importing-sessions' },
         ],
       },
       {
-        text: 'Guide',
-        collapsed: false,
+        text: 'Features',
         items: [
-          { text: 'Installation', link: '/guide/installation' },
-          { text: 'Quickstart', link: '/guide/quickstart' },
-          { text: 'Importing sessions', link: '/guide/importing-sessions' },
           { text: 'Time travel', link: '/guide/time-travel' },
           { text: 'Search & filtering', link: '/guide/search-and-filtering' },
           { text: 'Session insights', link: '/guide/session-insights' },
@@ -64,7 +61,6 @@ export default defineConfig({
       },
       {
         text: 'Reference',
-        collapsed: false,
         items: [
           { text: 'Keyboard shortcuts', link: '/reference/keyboard-shortcuts' },
           { text: 'Compatibility', link: '/reference/compatibility' },
@@ -74,7 +70,6 @@ export default defineConfig({
       },
       {
         text: 'Architecture',
-        collapsed: false,
         items: [
           { text: 'Overview', link: '/architecture/overview' },
           { text: 'Data model', link: '/architecture/data-model' },
@@ -84,6 +79,14 @@ export default defineConfig({
           { text: 'Security, live & replay', link: '/architecture/security-live-replay' },
           { text: 'API reference', link: '/architecture/api-reference' },
           { text: 'Desktop & packaging', link: '/architecture/desktop-packaging' },
+        ],
+      },
+      {
+        text: 'More',
+        items: [
+          { text: 'Changelog', link: '/changelog' },
+          { text: 'Docs home', link: '/' },
+          { text: 'Contributing', link: '/contributing' },
         ],
       },
     ],
