@@ -1,10 +1,15 @@
-# getchronicle.dev — download landing page
+# getchronicle.dev — landing + docs
 
-Static, single-page download site for Chronicle. Plain `index.html` (inline CSS + vanilla
-JS), no build step. This is the **third deployable** in the repo (after the app and
-`feedback-relay/`).
+The public site for Chronicle. **Third deployable** in the repo (after the app and
+`feedback-relay/`). It has two halves, combined into one Vercel deployment:
 
-## What it does
+- **`/`** — the static download **landing page** (`index.html`, inline CSS/JS, no framework).
+- **`/docs/*`** — the **documentation**, built with [VitePress](https://vitepress.dev) from
+  the repo's canonical Markdown in [`../docs`](../docs).
+
+## The landing page (`/`)
+
+Static, single-page `index.html`:
 
 - Auto-detects the visitor's OS and shows one primary download button (macOS defaults to
   Apple Silicon; Windows/Linux fall back to "build from source" until those builds ship).
@@ -13,37 +18,71 @@ JS), no build step. This is the **third deployable** in the repo (after the app 
 - Falls back to a hardcoded last-known release (`FALLBACK` in the script) if the API is
   unreachable, so the page is never blank.
 - Light + dark themed (respects OS preference; manual toggle persists to `localStorage`).
+- Assets: `assets/chronicle-shot.png` (real screenshot; framed on the **public**
+  `ai-session-manager` session — no private names/code). Missing → built-in HTML/CSS mock.
+  `assets/og.png` — optional social-share image.
 
-## Assets
+## The docs (`/docs`)
 
-- `assets/chronicle-shot.png` (+ optional `@2x`) — real screenshot of Chronicle. Framed on
-  the **public** `ai-session-manager` session; must not show private project names/code.
-  If the image is missing, the page falls back to a built-in HTML/CSS mock of the UI.
-- `assets/og.png` — 1200×630 social-share image (optional; referenced in `<head>`).
+VitePress. `../docs` is the single source of truth (reviewed in the repo, rendered on
+GitHub). `scripts/build-content.mjs` copies it into `./docs` (gitignored) at build time and:
 
-## Local preview
+- excludes internal-only content (`superpowers/` specs, the PRD);
+- rewrites the few links that point outside `docs/` (repo-root files, the PRD) to absolute
+  GitHub URLs so nothing 404s on the site.
 
-```bash
-python3 -m http.server 4321 --directory website
-# → http://localhost:4321
-```
+Edit docs in `../docs`, never in `./docs` (regenerated each build). VitePress is configured
+with `base: '/docs/'` and `srcDir: 'docs'`; `scripts/assemble.mjs` places its build under
+`dist/docs` and copies the landing (`index.html` + `assets/`) to `dist/` root. Vercel serves
+`dist`.
 
-The GitHub API call works from any origin (CORS-enabled), so the live release data renders
-locally too.
-
-## Deploy (from `main`, after merge — never a feature branch)
-
-New Vercel project, static (framework preset "Other"), root directory `website/`:
+## Local development
 
 ```bash
-cd website
-vercel --prod          # authed as chizhangucb
+npm install
+npm run docs:dev   # content copy + VitePress dev server → http://localhost:5173/docs/
+npm run build      # content copy + vitepress build + assemble → dist/  (landing + docs)
 ```
 
-Then in Vercel: add the domains `getchronicle.dev` (apex) + `www.getchronicle.dev`, and add
-the DNS records Vercel provides at **Porkbun** (paste manually — Porkbun's console hangs in
-browser automation). `relay.getchronicle.dev` already resolves to Vercel, so the apex is the
-only new record. Verify with `dig getchronicle.dev` and a live load.
+Preview just the landing without a build: `python3 -m http.server 4321 --directory website`.
+For a faithful combined preview (clean URLs, headers), rely on the Vercel **preview**
+deployment (`npm run deploy:preview`) — a plain static file server won't resolve clean URLs.
 
-> Singleton gotcha: the Vercel project + the live domain are shared state. Deploy from
-> `main` after merge so the deployed site matches what's committed.
+## Deploying (Vercel CLI)
+
+Hosted on Vercel under the `chizhangucb` scope, one project for the whole site. A
+`website/`-rooted CLI deploy only uploads this folder (not `../docs`), so the docs content is
+generated **locally** first and uploaded; Vercel then runs `npm run build:site`
+(`vitepress build` + assemble). The `deploy` scripts wire this together:
+
+```bash
+npm run deploy:preview   # content copy + `vercel`        → unlisted preview URL
+npm run deploy           # content copy + `vercel --prod` → production
+```
+
+First-time setup links the local dir to the Vercel project:
+
+```bash
+vercel link --project chronicle-site --yes
+```
+
+> **Deploy production from `main`.** Like the other singletons in this repo (the relay, the
+> release tag, the live domain), the site should track `main`. After a PR merges:
+> `git checkout main && git pull && cd website && npm run deploy`.
+
+## Domain & DNS
+
+Production domain: **`getchronicle.dev`** (apex) + `www.getchronicle.dev`, on the site's Vercel
+project. `relay.getchronicle.dev` (feedback relay) is a **separate** project and is untouched.
+
+DNS is at **Porkbun**. Point the apex at Vercel with one record — it coexists with the existing
+`MX`/Resend records, so `feedback@getchronicle.dev` keeps working:
+
+| Type | Host | Value |
+| --- | --- | --- |
+| `A` | `@` (apex) | `76.76.21.21` |
+| `CNAME` | `www` | `cname.vercel-dns.com` |
+
+Add via the Porkbun DNS console (it can hang in browser automation — enter records by hand).
+Then verify the domain in Vercel (`vercel domains inspect getchronicle.dev`); TLS is automatic.
+Verify with `dig getchronicle.dev` and a live load of `/` and `/docs`.

@@ -1,0 +1,21 @@
+{
+  "name": "chronicle-website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chronicle website — download landing (/) + VitePress docs (/docs) for getchronicle.dev",
+  "scripts": {
+    "content": "node scripts/build-content.mjs",
+    "docs:dev": "npm run content && vitepress dev",
+    "build:site": "vitepress build && node scripts/assemble.mjs",
+    "build": "npm run content && npm run build:site",
+    "preview": "vite preview --outDir dist --port 4321",
+    "predeploy:preview": "npm run content",
+    "deploy:preview": "vercel",
+    "predeploy": "npm run content",
+    "deploy": "vercel --prod"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}
