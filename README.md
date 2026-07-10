@@ -6,8 +6,8 @@ click any message to **time-travel** to the exact code state at that moment —
 reconstructed from your project's Git history. Everything runs on your machine:
 no LLM calls, no cloud, source logs and project repos are never written to.
 
-Built from [the PRD](docs/AI-session-manager-PRD.md). Design doc:
-[docs/superpowers/specs](docs/superpowers/specs/2026-07-03-chronicle-phase1-design.md).
+Built from [the PRD](docs/AI-session-manager-PRD.md). Full docs:
+**[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
 
 ## Install (macOS)
 
@@ -42,151 +42,40 @@ Click **Import Sessions**, pick a source tool, and open a session.
 
 ## What's implemented
 
-- **Import wizard** — 4-step flow (Select Source → Select Files → Importing →
-  Complete) scanning all 6 tools' standard log locations: `~/.claude/projects/`
-  (Claude Code), `~/.codex/sessions/` (Codex), Cursor `workspaceStorage`, OpenCode's
-  `opencode.db`, `~/.gemini/tmp/`, and VS Code `chatSessions` (Copilot).
-  **Session-level selection** with NEW / Partial / Imported badges, auto-select of
-  new sessions, search, rescan, and manual directory scan. Imports are read-only into
-  a local SQLite DB (`~/.chronicle/chronicle.db`); SQLite sources are copied to temp
-  (incl. WAL) before reading — foreign databases are never opened live.
-- **Session Overview** (`⌘1`, the session home page) — total duration / **active
-  duration** / messages / tool calls / errors / context stat cards (Active Duration
-  counts only real working time — the sum of gaps between messages, excluding any
-  idle pause over 5 minutes — with an ⓘ tooltip explaining it vs. wall-clock
-  duration), a **Cost & Usage panel** (per-model token
-  totals for input / output / cache-read / cache-write with a per-category dollar
-  breakdown and session total, computed locally from the current Anthropic list
-  prices with separate 5-minute vs 1-hour cache-write pricing — matches Claude
-  Code's `/usage`), a **context-window usage bar** (real token usage vs. the model's
-  window, colored cyan → yellow → red as it fills), call timeline, and **Tool /
-  Skill / MCP distribution** donuts (Skills grouped by name, MCP calls by server).
-  Includes an inline **rename** and a danger zone to delete the source log file, the
-  Chronicle copy, or both (two-step confirm).
-- **Session titles** — Chronicle reads Claude Code's own custom session titles
-  (`/rename`), so every session you renamed shows its real name across all projects
-  and stays in sync on re-import; the first prompt is kept as a subline. Falls back
-  to the first prompt when untitled, and an inline overview rename overrides locally.
-- **Mode rail** — Overview / Playback / Refine / Replay / Security on the left edge
-  (`⌘1`–`⌘4`).
-- **Logical projects** — sessions from all tools aggregate by physical project path;
-  Git badge, source icons.
-- **Playback Mode** — three-pane layout: typed message list (User / Assistant /
-  Thinking / Tool Call / Tool Result — the same role-accurate labels Refine uses),
-  code snapshot panel, TimberLine timeline.
-- **Time travel** — selecting a message resolves the nearest preceding Git commit and
-  renders the file tree + file contents *as they were at that moment*. Changed files
-  are green-dotted and auto-selected.
-- **Diff view** — toolbar toggle or `D`; shows the selected file vs. its previous
-  committed version with compressed unchanged context.
-- **TimberLine** — blue dots = user messages, green squares = commits, gray ticks =
-  AI/tool events. Click/drag to seek, hover for timestamp, `←`/`→` fine-tune (1%),
-  `Home`/`End` jump. Seeking selects the nearest message and updates the snapshot.
-- **Filtering & search** — Conversation / Tool / Thinking chips (OR logic, tool
-  request+result pairing), `⌘F` keyword search (300 ms debounce, highlight, match
-  counts), combined filters, non-destructive.
-- **Analytics (lite)** — per-project sessions, message counts, active days, tool-call
-  distribution, activity sparkline.
-- **Refine Mode** (`⌘3`) — distill a session into documentation or a reusable prompt:
-  original messages left, **Compressed Preview** right (Full / Changes Only /
-  Hide Deleted views); Keep/Delete/Edit/Insert (`K`/`D`/`E`/`I`) with per-message
-  token badges; **delete-by-type** toggle chips to keep or drop a whole message kind
-  (User / Assistant / Tool Call / …) at once; status bar with undo/redo/reset
-  (`⌘Z`/`⇧⌘Z`), Original → Compressed →
-  Saved token stats, and an Export menu (Markdown / as Prompt, `⌘S`). Tool results
-  and thinking start pre-deleted as noise — press `K` to keep the ones that matter.
-- **Security Check** — one-click scan with built-in rules (API keys, passwords,
-  Bearer/JWT tokens, emails, phones, DB connection strings, private IPs — 13/13 recall
-  on seeded secrets), custom glob rules (`KITE-*`, `*@company.com`) with allow-list
-  exceptions and priority (custom > built-in, specific > broad), side-by-side
-  detected-vs-redacted preview, and one-way redacted markdown export. Originals are
-  never modified.
+Full details for every feature live at **[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
+The highlights:
 
-- **MCP Hub** — a real aggregating MCP server at `http://localhost:4173/mcp`
-  (Streamable HTTP, 2025-03-26 spec: `MCP-Session-Id`, origin validation, POST
-  JSON-RPC). Point any AI tool at it and every upstream service (stdio child
-  processes + remote HTTP) appears as namespaced `service__tool` tools. Includes
-  one-click **config takeover** from Claude Code / Cursor / Gemini / Codex configs
-  (New/Updated/Conflict classification, auto-backup to `~/.chronicle/backups/mcp/`,
-  sources never rewritten), per-service enable/disable, masked secrets, live status,
-  and a built-in **Inspector** (JSON-RPC log + manual tool invocation).
-- **Skills Hub** — scans `~/.claude/skills`, `~/.agents/skills`, `~/.cursor/skills`
-  etc., parses `SKILL.md` frontmatter, imports into central storage at
-  `~/.chronicle/skills/`, and distributes via symlinks to tool directories.
-  Strictly additive: it never overwrites a real skill directory and only removes
-  symlinks it created. Cards with search, local-only tags/ratings, link status per
-  tool, and a detail view.
+### Import & projects
+- **6-tool import** — Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Copilot Chat via a guided wizard; read-only into a local SQLite DB (WAL-safe temp copies, originals never touched).
+- **Logical projects** — sessions from every tool aggregate by repo path; manual association, unlink, per-session sync, live Git badge.
+- **Session overview** — per-session stats with **Active Duration** (real working time), a **Cost & Usage** panel (local token→$ from Anthropic list prices), and a context-window bar.
 
-- **Live streaming** — sessions whose log file was written in the last 5 minutes
-  auto-activate a live tail (incremental JSONL reads → SSE). New messages fade in,
-  auto-scroll when at the bottom, a floating "N new messages" button otherwise;
-  ● LIVE / Reconnecting / Stopped indicator with exponential-backoff recovery and
-  idle slow-down. Watchers stop automatically when the viewer closes.
-- **Replay Mode** (`⌘4`) — deterministic re-execution of a session's Write / Edit /
-  Bash operations in an isolated sandbox at `~/.chronicle/replay/<id>/`, seeded from
-  the Git snapshot at session start. Step-by-step with the AI's reasoning and an
-  upcoming-diff preview; Execute / Skip / Look Back; auto-play at 1x/2x/5x that
-  pauses on errors; shell commands always require explicit per-step confirmation
-  and run with the sandbox as cwd. No LLM calls; the real project is never touched.
+### Replay & time travel
+- **Time travel** — click any message to see your code exactly as it was, rebuilt from Git history (Playback mode).
+- **Diff & TimberLine** — file diffs against the previous commit plus a scrubbable timeline of messages and commits.
+- **Replay mode** — deterministic re-run of Write/Edit/Bash steps in a sandbox; no LLM calls, the real project is never touched.
+- **Refine mode** — distill a session into docs or a reusable prompt (Keep/Delete/Edit/Insert, token stats, Markdown export).
+- **Context causality** — heuristic links from what the AI *read* to what it *changed*, with confidence scores.
 
-- **Context Causality** — local heuristic analysis (no LLM) links what the AI *read*
-  to what it *changed*: ⛓ badges on Write/Edit messages open a panel of source
-  reference blocks with confidence scores (95% read-this-exact-file → 20% background
-  context); click a source to jump to it.
-- **Gemini CLI import** — parses `~/.gemini/tmp/<hash>/` logs + saved chats; Gemini
-  doesn't record real project paths, so imports land as "Needs association" and a
-  one-click banner merges them into the right project.
-- **Project management** — per-card gear menu (Sync Update / View Details / Rename /
-  Remove from Chronicle), unlink a source into its own project, manual path
-  association with auto-merge. Session cards show real context usage (`⧉ 530k ctx`).
-  Breadcrumb **project + session dropdowns** switch context without leaving the page,
-  a per-session **Sync Update** button (or `⇧⌘U`) re-imports a single session, and
-  the project analytics page has a **Today / 7 / 30 / 365-day** time filter.
-- **Tool policies** — per-service ⛭ policy panel in the MCP Hub; unchecked tools are
-  hidden from `tools/list` and blocked on `tools/call` (logged as interceptions).
+### Search & insights
+- **Filtering & search** — type chips and `⌘F` within a session; a `⌘K` global full-text command palette across all sessions.
+- **Analytics** — per-project sessions, active days, tool-call distribution, and Today / 7 / 30 / 365-day ranges.
 
-- **Real-time protection (pre-tool-use interception)** — `hooks/chronicle-guard.mjs`
-  is a Claude Code `PreToolUse` hook: before Read/Grep/Bash/WebFetch runs, Chronicle
-  scans the tool content (including actual file contents for Read). High-risk secrets
-  (API keys, passwords, tokens, DB credentials) block the call with an explanation;
-  lower-risk matches are flagged. All events land in Security → Interception records.
-  One-click installer (backs up `~/.claude/settings.json` first); fails open if
-  Chronicle isn't running.
-- **Share links** — 🛡 Security Check → "Create share link" mints a tokenized URL
-  (default 7-day validity) served by the local app. The share stores a redacted copy
-  frozen at creation — originals never leave the machine. Security → Share management
-  lists links with view counts and immediate revocation.
-- **Copilot Chat import** — parses VS Code `workspaceStorage/<hash>/chatSessions/`
-  (stable/Insiders/VSCodium), completing the 6-tool compatibility matrix.
+### Control plane
+- **MCP Hub** — a real aggregating Streamable-HTTP MCP server: one-click config takeover, per-tool policies, project roots, and a built-in Inspector.
+- **Skills Hub** — central skill store with symlink fanout to every tool; GitHub import, version history, strictly additive.
 
-- **Live polling for SQLite sources** — Cursor/OpenCode sessions live-stream via
-  read-only periodic re-parse (temp-copy snapshots, WAL-aware mtime checks).
-- **Skills: GitHub import & version history** — shallow-clone a public repo, scan all
-  `SKILL.md` dirs, import with commit SHA recorded; "Check upstream" via `ls-remote`;
-  automatic snapshots (`imported` permanent, `fs_change` 500 ms-debounced, rolling 50)
-  with hash dedup and one-click restore.
-- **MCP Roots + credentials** — services can be scoped to a project path; the hub
-  routes `tools/list` by longest-prefix-match on the client's root (header or
-  `initialize` rootUri). Per-service bearer credentials stored locally, always masked.
-- **Global search** — a command palette (🔍 on the home page or `⌘K` anywhere):
-  full-text search across all session content with All / Code / Chat scopes, time
-  and project filters, "Recent Access" recents, highlighted snippets, and keyboard
-  navigation; click a result to jump straight into that session.
-- **i18n** — English + 简体中文 + 日本語, dropdown in the top bar; switching language
-  keeps you on the current page instead of returning home.
-- **Performance guardrails** — windowed message rendering (400 around selection) and
-  timeline tick decimation; a 6,000-message session renders 400 DOM rows.
-- **Desktop shell** — Electron app (`npm run desktop`): embedded production server,
-  system tray that keeps the MCP Hub alive when the window closes, single-instance
-  lock, and **signed auto-update** — `electron-updater` polls the release feed,
-  downloads new **notarized** builds in the background, and surfaces a one-click
-  **Relaunch to update** toast (no manual reinstall, no stale process holding the
-  port). (Tauri migration path intact — the server layer has no Electron dependency.)
-- **Feedback** — the Feedback panel posts through a hosted relay
-  (`relay.getchronicle.dev`) that emails the maintainer; an **optional sender email**
-  is embedded in the message and set as the email's `Reply-To`, so the maintainer can
-  reply directly. Every message is logged locally first and falls back to a `mailto:`
-  draft if the relay is unreachable. No secret ships in the app.
+### Security & sharing
+- **Security Check** — built-in and custom redaction rules with a detected-vs-redacted preview and one-way redacted export.
+- **Real-time protection** — a Claude Code PreToolUse hook that blocks secrets before Read/Grep/Bash/WebFetch run.
+- **Share links** — tokenized, redacted, served by the local app; view counts and instant revocation.
+
+### Live & platform
+- **Live streaming** — auto-tail in-progress sessions (JSONL reads + read-only SQLite polling → SSE) with auto-reconnect.
+- **Desktop shell** — Electron app with a system tray and **signed auto-update** (notarized builds, one-click relaunch).
+- **i18n** — English · 简体中文 · 日本語.
+- **Performance** — windowed rendering and timeline decimation keep 6,000-message sessions fast.
+- **Feedback** — in-app, via a hosted relay; logged locally first, no secrets in the app.
 
 ## Architecture
 
