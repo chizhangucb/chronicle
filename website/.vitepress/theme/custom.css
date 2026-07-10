@@ -1,0 +1,21 @@
+/* Chronicle docs theme — matches the landing page + the app palette:
+   accent #4f8ef7 (blue), accent2 #34c98e (green), bg #0e1116 (near-black). */
+
+:root {
+  --vp-c-brand-1: #4f8ef7;
+  --vp-c-brand-2: #6ba1f8;
+  --vp-c-brand-3: #4f8ef7;
+  --vp-c-brand-soft: rgba(79, 142, 247, 0.14);
+}
+
+/* Dark surfaces tuned to Chronicle's near-black palette (the default here). */
+.dark {
+  --vp-c-bg: #0e1116;
+  --vp-c-bg-alt: #151a21;
+  --vp-c-bg-soft: #151a21;
+  --vp-c-bg-elv: #1c232d;
+  --vp-c-border: #2a3340;
+  --vp-c-divider: #2a3340;
+  --vp-c-brand-1: #6ba1f8;
+  --vp-c-brand-2: #4f8ef7;
+}

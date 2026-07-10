@@ -24,6 +24,13 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4321", "--directory", "website"],
       "port": 4321
+    },
+    {
+      "name": "docs-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "website", "run", "docs:dev", "--", "--port", "5199"],
+      "port": 5199,
+      "autoPort": false
     }
   ]
 }

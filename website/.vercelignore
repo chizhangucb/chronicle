@@ -1,0 +1,8 @@
+# Uploaded to Vercel: everything EXCEPT these. `docs/` is intentionally NOT listed —
+# it is generated locally by `npm run content` before deploy and must be uploaded
+# (Vercel runs `npm run build:site` = vitepress build + assemble, not the ../docs copy).
+node_modules
+dist
+.vitepress/dist
+.vitepress/cache
+.vercel
