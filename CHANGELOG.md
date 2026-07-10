@@ -3,6 +3,19 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## v0.1.8 — 2026-07-09
+
+Download site + developer docs. **No app changes** — the desktop app is unchanged
+from v0.1.7, so there's no update to install (like the v0.1.4 docs release).
+
+- **[getchronicle.dev](https://getchronicle.dev)** — a clean download page that
+  auto-detects your OS and offers one signed-&-notarized download, replacing the raw
+  GitHub Releases list. It reads the latest release live, so new versions (and future
+  Windows/Linux builds) appear automatically. Light + dark, mobile-responsive, with a
+  real in-app Playback screenshot. Built as a new `website/` deployable on Vercel.
+- **Developer documentation** — a layered `docs/` set (guide, architecture, reference)
+  covering install, time-travel, MCP/Skills, parsers, packaging, security, and more.
+
 ## v0.1.7 — 2026-07-09
 
 Session UX polish, delivered via auto-update:
