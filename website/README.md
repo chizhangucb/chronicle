@@ -36,6 +36,22 @@ with `base: '/docs/'` and `srcDir: 'docs'`; `scripts/assemble.mjs` places its bu
 `dist/docs` and copies the landing (`index.html` + `assets/`) to `dist/` root. Vercel serves
 `dist`.
 
+## Translations (i18n)
+
+The docs ship in **English (`/docs`), 简体中文 (`/docs/zh`), and 日本語 (`/docs/ja`)** — a
+language switcher is configured via `locales` in `.vitepress/config.mjs` (with translated
+nav/sidebar labels + UI strings). Content lives in `../docs`:
+
+- `../docs/*` — **English, the source of truth.** The changelog page is generated from the
+  repo's `CHANGELOG.md` at build time.
+- `../docs/zh/**`, `../docs/ja/**` — committed translations, mirroring the English structure.
+  `<Walkthrough />` localizes its own captions (see the component).
+
+> **Maintenance:** English is authoritative. When you edit an English page, the `zh`/`ja`
+> counterparts **drift until re-translated** — update `docs/<lang>/<same-path>.md` (and, for a
+> release, `docs/zh/changelog.md` + `docs/ja/changelog.md`). Keep code, paths, links, and
+> product names verbatim across all three.
+
 ## Local development
 
 ```bash
