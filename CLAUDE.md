@@ -125,6 +125,17 @@ plus real data end-to-end (see Verification below).
   calls run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
   re-translate. To stop landing back on Home, `App` persists the current `view` in
   `sessionStorage` and restores it on mount.
+- **The public site is ONE Vercel deployable serving two things.** `website/` (a THIRD
+  deployable, after the app and `feedback-relay/`) serves the static **download landing
+  page** (`website/index.html`) at `/` AND a **VitePress docs site** at `/docs`, combined
+  into one `dist/` at build time (`website/scripts/assemble.mjs`) and deployed to
+  **getchronicle.dev** via the **`chronicle-web`** Vercel project. The docs render the
+  canonical `docs/` Markdown (VitePress `base: '/docs/'`, `srcDir: 'docs'`); `docs/` stays
+  the single source of truth. **Edit `docs/`, never `website/docs/`** (generated at build).
+- **`docs/` is the layered developer documentation** (guide / reference / architecture,
+  ~28 pages + `index.md`/`contributing.md`), published at getchronicle.dev/docs.
+  `superpowers/` (brainstorming specs/plans) and the PRD are EXCLUDED from the public site.
+  The feature inventory in `README.md` is now a short categorized summary linking to the docs.
 
 ## Key files
 
@@ -171,16 +182,23 @@ plus real data end-to-end (see Verification below).
 - `packaging/homebrew/` — the cask + tap README published to the PUBLIC
   `chizhangucb/homebrew-chronicle` tap, which hosts the cask DMGs; the update feed
   and README DMG link point at the tap. (The `chronicle` repo is also public now.)
-- `website/` — the **getchronicle.dev download page** (THIRD deployable, after the app
-  and `feedback-relay/`). Static `index.html` (inline CSS/JS, no build), light+dark
-  themed. Fetches the latest release from the GitHub API at load time (falls back to a
-  hardcoded release + a built-in HTML mock of the UI if the API or screenshot is missing),
-  so **new releases surface with no page change** — publishing a Windows/Linux build just
-  makes its row appear. Its own Vercel project → apex `getchronicle.dev` + `www`; DMG
-  download URLs point at the tap, GitHub/"build from source" links at the source repo.
-  Same singleton gotcha as the relay: **deploy from `main` after merge**, add the apex DNS
-  record at Porkbun manually. Preview locally: `python3 -m http.server 4321 --directory
-  website` (launch config `website`).
+- `website/` — the **getchronicle.dev site** (THIRD deployable, after the app and
+  `feedback-relay/`), ONE Vercel project (`chronicle-web`) serving two halves:
+  - `/` — the static **download landing** (`website/index.html`, inline CSS/JS, light+dark).
+    Fetches the latest release from the GitHub API at load (falls back to a hardcoded release
+    + a built-in HTML mock if the API/screenshot is missing), so **new releases surface with
+    no page change**. DMG links → the tap; source links → the repo.
+  - `/docs` — the **VitePress docs** built from `docs/`. `website/.vitepress/config.mjs`
+    (`base: '/docs/'`, `srcDir: 'docs'`, nav + sidebar), `website/scripts/build-content.mjs`
+    (copies `../docs` → `website/docs`, excludes `superpowers/` + PRD, rewrites outside-`docs/`
+    links to GitHub), `website/scripts/assemble.mjs` (combines the VitePress build under
+    `dist/docs` with the landing at `dist/` root). `website/README.md` is the deploy runbook.
+  Deploy: `cd website && npm run deploy[:preview]` (from `main` after merge). Preview the
+  landing alone: `python3 -m http.server 4321 --directory website` (launch config `website`);
+  the docs dev server is launch config `docs-dev` (`npm run docs:dev`, base `/docs/`).
+- `docs/` — the layered developer docs (guide / reference / architecture, ~28 pages +
+  `index.md`/`contributing.md`); the single source of truth the website renders. Verified
+  with a link-checker before shipping; all internal links relative.
 
 ## Patterns
 
@@ -226,6 +244,11 @@ plus real data end-to-end (see Verification below).
   session: two branches both edited `feedback-relay/api/feedback.js` → small "keep both"
   rebase conflicts, and an early relay deploy from a feature branch was later superseded by
   the deploy from `main`.)
+- **Publishing the docs site.** `cd website && npm run deploy` = generate docs content locally
+  (`npm run content` → `website/docs`), upload `website/`, and Vercel runs `npm run build:site`
+  (`vitepress build` + `assemble.mjs`). Deploy from `main` after merge; the live project is
+  `chronicle-web`. Docs content lives in `docs/` — editing `website/docs/` is pointless (it's
+  regenerated on every build).
 
 ## Gotchas
 
@@ -391,6 +414,28 @@ plus real data end-to-end (see Verification below).
   outside the repo. Explicit user authorization in the immediately preceding turn usually
   clears it (the release pushes went through after "ship it"); otherwise route via a PR or
   hand the exact command to the user. Never work around a denial.
+- **getchronicle.dev is served by the `chronicle-web` Vercel project — NOT `chronicle-site`.**
+  This session accidentally created a duplicate `chronicle-site` project before noticing
+  `chronicle-web` (the PR #11 landing project) already owned the apex; `chronicle-site` was
+  deleted. The apex + `www` DNS (`A → 76.76.21.21`) already exist at Porkbun (coexisting with
+  the MX/Resend email records), so wiring the site needs NO DNS change — just attach the domain
+  to the project. `relay.getchronicle.dev` is a SEPARATE project (feedback-relay); leave it.
+- **A `website/`-rooted `vercel` CLI deploy only uploads `website/`, NOT `../docs`** — so the
+  docs content is generated LOCALLY (`npm run content` → `website/docs`) and uploaded, and
+  Vercel's buildCommand is `vitepress build` + assemble (it does NOT re-run the `../docs`
+  copy). `website/.vercelignore` must therefore NOT ignore `docs/` (the generated content must
+  ship) but must ignore `dist`/`.vitepress/dist`/`.vitepress/cache`/`node_modules`.
+- **VitePress base `/docs/` + `assemble.mjs`.** The docs are served under `/docs`, so VitePress
+  builds with `base: '/docs/'` and its output is placed at `dist/docs`; nav/sidebar `link`s are
+  srcDir-relative (base auto-prepends `/docs/`), and a link back to the landing at `/` must be
+  an absolute/external URL (base would otherwise prepend `/docs/`). `assemble.mjs` copies the
+  landing `index.html` + `assets/` to `dist/` root; the docs' hashed assets live at
+  `dist/docs/assets` (own immutable cache header in `website/vercel.json`).
+- **Multi-worktree collision (this session).** I branched off an OLD `main`; meanwhile the docs
+  PR and the landing PR both merged, so my branch clobbered the landing `website/`. The fix was
+  to rebranch off `main` and INTEGRATE (docs at `/docs` under the landing), not replace. Always
+  rebase onto latest `main` before touching a shared dir/deployable — `git reset --hard` is
+  blocked by the auto-mode classifier, so use `git checkout -b <branch> origin/main` instead.
 
 ## Verification habits used here
 

@@ -58,3 +58,11 @@ if (!fs.existsSync(SRC)) {
 fs.rmSync(DEST, { recursive: true, force: true });
 const n = copyDir(SRC, DEST);
 console.log(`[content] copied ${n} markdown files → website/docs/ (excluded: ${[...EXCLUDE].join(', ')})`);
+
+// Generate the English changelog page from the repo's CHANGELOG.md (single source of
+// truth). Localized changelogs live as committed files under docs/zh, docs/ja.
+const CHANGELOG = path.resolve(SRC, '..', 'CHANGELOG.md');
+if (fs.existsSync(CHANGELOG)) {
+  fs.writeFileSync(path.join(DEST, 'changelog.md'), rewrite(fs.readFileSync(CHANGELOG, 'utf8')));
+  console.log('[content] generated changelog.md from CHANGELOG.md');
+}
