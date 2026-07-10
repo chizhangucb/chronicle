@@ -133,9 +133,19 @@ plus real data end-to-end (see Verification below).
   canonical `docs/` Markdown (VitePress `base: '/docs/'`, `srcDir: 'docs'`); `docs/` stays
   the single source of truth. **Edit `docs/`, never `website/docs/`** (generated at build).
 - **`docs/` is the layered developer documentation** (guide / reference / architecture,
-  ~28 pages + `index.md`/`contributing.md`), published at getchronicle.dev/docs.
-  `superpowers/` (brainstorming specs/plans) and the PRD are EXCLUDED from the public site.
-  The feature inventory in `README.md` is now a short categorized summary linking to the docs.
+  ~28 pages + `index.md`/`contributing.md` + a generated `changelog.md`), published at
+  getchronicle.dev/docs. **Quickstart is the first page** (leads with download + install + a
+  `<Walkthrough/>` demo). `superpowers/` (brainstorming specs/plans) and the PRD are EXCLUDED
+  from the public site. The feature inventory in `README.md` is now a short categorized summary
+  linking to the docs.
+- **The docs are trilingual (EN · 简体中文 · 日本語), matching the product UI.** VitePress i18n
+  via `locales` in `website/.vitepress/config.mjs`: English is the root (`/docs`, content
+  `docs/*`), Chinese is `docs/zh/**` (`/docs/zh`), Japanese is `docs/ja/**` (`/docs/ja`) — each
+  with translated nav/sidebar labels + UI strings and a language switcher. **English is the
+  source of truth; `docs/zh` + `docs/ja` are committed translations that DRIFT until
+  re-translated** when an English page changes (re-translate `docs/<lang>/<same-path>.md`;
+  keep code/paths/links/product names verbatim). Every page exists in all three locales so
+  relative links resolve within a locale (VitePress fails the build on any dead link).
 
 ## Key files
 
@@ -189,16 +199,25 @@ plus real data end-to-end (see Verification below).
     + a built-in HTML mock if the API/screenshot is missing), so **new releases surface with
     no page change**. DMG links → the tap; source links → the repo.
   - `/docs` — the **VitePress docs** built from `docs/`. `website/.vitepress/config.mjs`
-    (`base: '/docs/'`, `srcDir: 'docs'`, nav + sidebar), `website/scripts/build-content.mjs`
-    (copies `../docs` → `website/docs`, excludes `superpowers/` + PRD, rewrites outside-`docs/`
-    links to GitHub), `website/scripts/assemble.mjs` (combines the VitePress build under
-    `dist/docs` with the landing at `dist/` root). `website/README.md` is the deploy runbook.
+    (`base: '/docs/'`, `srcDir: 'docs'`, `locales` for en/zh/ja + nav/sidebar per locale),
+    `website/.vitepress/theme/` (custom theme registering the `<Walkthrough/>` component),
+    `website/scripts/build-content.mjs` (copies `../docs` → `website/docs`, excludes
+    `superpowers/` + PRD, rewrites outside-`docs/` links to GitHub, **and generates
+    `changelog.md` from repo-root `CHANGELOG.md`**), `website/scripts/assemble.mjs` (combines
+    the VitePress build under `dist/docs` with the landing at `dist/` root). `website/README.md`
+    is the deploy runbook (incl. the translation-upkeep note).
   Deploy: `cd website && npm run deploy[:preview]` (from `main` after merge). Preview the
   landing alone: `python3 -m http.server 4321 --directory website` (launch config `website`);
   the docs dev server is launch config `docs-dev` (`npm run docs:dev`, base `/docs/`).
 - `docs/` — the layered developer docs (guide / reference / architecture, ~28 pages +
-  `index.md`/`contributing.md`); the single source of truth the website renders. Verified
-  with a link-checker before shipping; all internal links relative.
+  `index.md`/`contributing.md` + a generated `changelog.md`); the single source of truth the
+  website renders, in three locales: English at `docs/*`, `docs/zh/**` (简体中文), `docs/ja/**`
+  (日本語). **Quickstart is the first page.** All internal links relative; VitePress validates
+  them at build (a dead link fails the build), so no separate link-checker is needed.
+- `website/.vitepress/theme/components/Walkthrough.vue` — the self-contained, CSS-only animated
+  ~24s product demo embedded at the top of the Quickstart (message list → code rewinds → diff →
+  timeline scrub). Captions localize by `useData().lang` (en/zh/ja); respects
+  `prefers-reduced-motion`. Pure CSS keyframes — no external hosting, no JS timers to leak.
 
 ## Patterns
 
@@ -249,6 +268,12 @@ plus real data end-to-end (see Verification below).
   (`vitepress build` + `assemble.mjs`). Deploy from `main` after merge; the live project is
   `chronicle-web`. Docs content lives in `docs/` — editing `website/docs/` is pointless (it's
   regenerated on every build).
+- **Trilingual docs upkeep.** English (`docs/*` + the generated `changelog.md`) is the source of
+  truth; `docs/zh/**` + `docs/ja/**` are committed translations. When you edit an English page,
+  re-translate its `zh`/`ja` counterpart (`docs/<lang>/<same-path>.md`) or it drifts — keep code,
+  paths, links, and product names verbatim, translate only prose/headings/table text. The initial
+  pass used parallel translation subagents (one per locale × section). New English page = add its
+  `zh`/`ja` twin too, or the locale's relative links 404 and the build fails.
 
 ## Gotchas
 
@@ -431,6 +456,14 @@ plus real data end-to-end (see Verification below).
   an absolute/external URL (base would otherwise prepend `/docs/`). `assemble.mjs` copies the
   landing `index.html` + `assets/` to `dist/` root; the docs' hashed assets live at
   `dist/docs/assets` (own immutable cache header in `website/vercel.json`).
+- **VitePress i18n structure.** Locales live under `srcDir`: English at `docs/*` (root locale),
+  `docs/zh/**` + `docs/ja/**` for the others. `locales` in `config.mjs` sets each locale's
+  `label`/`lang`/`link` plus its OWN translated `themeConfig` (nav + sidebar labels). A relative
+  link in a translated page resolves WITHIN that locale, so every page must exist in every locale
+  or the link 404s — and VitePress fails the build on dead links (the safety net). The changelog
+  is GENERATED into `website/docs/changelog.md` (+ `zh`/`ja`) from repo-root `CHANGELOG.md` at
+  build time; never hand-edit `website/docs/**` — edit `CHANGELOG.md` or the `docs/<lang>` sources.
+  The `<Walkthrough/>` component reads `useData().lang` for captions, so it works in all three.
 - **Multi-worktree collision (this session).** I branched off an OLD `main`; meanwhile the docs
   PR and the landing PR both merged, so my branch clobbered the landing `website/`. The fix was
   to rebranch off `main` and INTEGRATE (docs at `/docs` under the landing), not replace. Always
