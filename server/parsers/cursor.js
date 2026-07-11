@@ -22,6 +22,38 @@ function openSnapshot(dbPath) {
   return { db: new DatabaseSync(copy), cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }) };
 }
 
+function globalSnapshotFingerprint(dbPath) {
+  try {
+    const st = fs.statSync(dbPath);
+    const walMtime = fs.existsSync(dbPath + '-wal') ? fs.statSync(dbPath + '-wal').mtimeMs : 0;
+    return `${st.mtimeMs}:${st.size}:${walMtime}`;
+  } catch {
+    return null;
+  }
+}
+
+// Cursor stores all composer bubbles in one global DB that can grow to multiple GB.
+// Copy it once per process (invalidate on mtime/size change) instead of per workspace.
+function getGlobalSnapshot(userDir) {
+  const globalDb = path.join(userDir, 'globalStorage', 'state.vscdb');
+  if (!fs.existsSync(globalDb)) return null;
+  const fingerprint = globalSnapshotFingerprint(globalDb);
+  if (!fingerprint) return null;
+  const cache = globalThis.__chronicleCursorGlobal ||= { snap: null, fingerprint: null, userDir: null };
+  if (cache.snap && cache.fingerprint === fingerprint && cache.userDir === userDir) return cache.snap;
+  cache.snap?.cleanup();
+  const snap = openSnapshot(globalDb);
+  cache.snap = snap;
+  cache.fingerprint = fingerprint;
+  cache.userDir = userDir;
+  return snap;
+}
+
+export function clearCursorGlobalCache() {
+  globalThis.__chronicleCursorGlobal?.snap?.cleanup();
+  globalThis.__chronicleCursorGlobal = null;
+}
+
 function itemTableGet(db, key) {
   try {
     const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get(key);
@@ -29,11 +61,20 @@ function itemTableGet(db, key) {
   } catch { return null; }
 }
 
-function diskKVGet(db, key) {
-  try {
-    const row = db.prepare('SELECT value FROM cursorDiskKV WHERE key = ?').get(key);
-    return row ? JSON.parse(row.value) : null;
-  } catch { return null; }
+function diskKVGetMany(db, keys) {
+  const out = new Map();
+  if (!keys.length) return out;
+  const chunkSize = 400;
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunk = keys.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    try {
+      for (const row of db.prepare(`SELECT key, value FROM cursorDiskKV WHERE key IN (${placeholders})`).all(...chunk)) {
+        try { out.set(row.key, JSON.parse(row.value)); } catch {}
+      }
+    } catch {}
+  }
+  return out;
 }
 
 function workspaceFolder(wsDir) {
@@ -83,10 +124,7 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir()) {
   const dbPath = path.join(wsDir, 'state.vscdb');
   const folder = workspaceFolder(wsDir);
   const snap = openSnapshot(dbPath);
-  let globalSnap = null;
-  const globalDb = path.join(userDir, 'globalStorage', 'state.vscdb');
   try {
-    if (fs.existsSync(globalDb)) { try { globalSnap = openSnapshot(globalDb); } catch {} }
     const out = [];
 
     // Legacy chat tabs
@@ -102,17 +140,35 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir()) {
 
     // Composer sessions: headers in workspace DB, bubbles in global cursorDiskKV
     const composers = itemTableGet(snap.db, 'composer.composerData');
-    for (const c of composers?.allComposers || []) {
+    const composerList = composers?.allComposers || [];
+    const needsGlobal = composerList.some((c) => !c.conversation);
+    const globalSnap = needsGlobal ? getGlobalSnapshot(userDir) : null;
+    const composerDataMap = globalSnap
+      ? diskKVGetMany(globalSnap.db, composerList.filter((c) => !c.conversation).map((c) => `composerData:${c.composerId}`))
+      : new Map();
+    const bubbleKeys = [];
+    for (const c of composerList) {
+      if (c.conversation) continue;
+      const data = composerDataMap.get(`composerData:${c.composerId}`);
+      const headers = data?.fullConversationHeadersOnly || c.fullConversationHeadersOnly || [];
+      for (const h of headers) bubbleKeys.push(`bubbleId:${c.composerId}:${h.bubbleId}`);
+    }
+    const bubbleMap = globalSnap ? diskKVGetMany(globalSnap.db, bubbleKeys) : new Map();
+
+    for (const c of composerList) {
       const events = [];
       let conv = c.conversation;
       if (!conv && globalSnap) {
-        const data = diskKVGet(globalSnap.db, `composerData:${c.composerId}`);
+        const data = composerDataMap.get(`composerData:${c.composerId}`);
         conv = data?.conversation;
-        if (!conv && (data?.fullConversationHeadersOnly || c.fullConversationHeadersOnly)) {
-          conv = [];
-          for (const h of data?.fullConversationHeadersOnly || c.fullConversationHeadersOnly || []) {
-            const bubble = diskKVGet(globalSnap.db, `bubbleId:${c.composerId}:${h.bubbleId}`);
-            if (bubble) conv.push(bubble);
+        if (!conv) {
+          const headers = data?.fullConversationHeadersOnly || c.fullConversationHeadersOnly || [];
+          if (headers.length) {
+            conv = [];
+            for (const h of headers) {
+              const bubble = bubbleMap.get(`bubbleId:${c.composerId}:${h.bubbleId}`);
+              if (bubble) conv.push(bubble);
+            }
           }
         }
       }
@@ -126,7 +182,6 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir()) {
     return out.filter((s) => s.events.length);
   } finally {
     snap.cleanup();
-    globalSnap?.cleanup();
   }
 }
 
