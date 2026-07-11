@@ -140,11 +140,41 @@ function countAgentSessions(folder, userDir = cursorUserDir()) {
   }
 }
 
+function isPlausibleIso(iso) {
+  if (!iso) return false;
+  const y = new Date(iso).getFullYear();
+  return y >= 2020 && y < 2100;
+}
+
+// Cursor bubbles often store clientStartTime as ms offset from session start, not epoch ms.
+function normalizeCursorMs(raw, anchorMs) {
+  if (raw == null) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 946684800000) return new Date(n).toISOString(); // absolute epoch ms (>= 2000-01-01)
+  const anchor = Number(anchorMs);
+  if (Number.isFinite(anchor) && anchor >= 946684800000) return new Date(anchor + n).toISOString();
+  return null;
+}
+
+function anchorIso(createdAt, lastUpdatedAt) {
+  const start = normalizeCursorMs(createdAt, null);
+  const end = normalizeCursorMs(lastUpdatedAt, null);
+  return { start: isPlausibleIso(start) ? start : null, end: isPlausibleIso(end) ? end : null };
+}
+
+function fileMtimeIso(filePath) {
+  try {
+    const iso = new Date(fs.statSync(filePath).mtimeMs).toISOString();
+    return isPlausibleIso(iso) ? iso : null;
+  } catch { return null; }
+}
 function extractTimestamp(text) {
   const m = text.match(/<timestamp>([^<]+)<\/timestamp>/);
   if (!m) return null;
   const d = new Date(m[1]);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  const iso = Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return isPlausibleIso(iso) ? iso : null;
 }
 
 function stripUserEnvelope(text) {
@@ -155,10 +185,12 @@ function stripUserEnvelope(text) {
     .trim();
 }
 
-export function parseAgentTranscriptJsonl(filePath) {
+export function parseAgentTranscriptJsonl(filePath, { createdAt, lastUpdatedAt } = {}) {
+  const { start: anchorStart, end: anchorEnd } = anchorIso(createdAt, lastUpdatedAt);
+  const fileEnd = fileMtimeIso(filePath);
   const lines = fs.readFileSync(filePath, 'utf8').trim().split('\n').filter(Boolean);
   const events = [];
-  let turnTs = null;
+  let turnTs = anchorStart;
   for (const line of lines) {
     let row;
     try { row = JSON.parse(line); } catch { continue; }
@@ -167,13 +199,14 @@ export function parseAgentTranscriptJsonl(filePath) {
     if (row.role === 'user') {
       for (const p of parts) {
         if (p.type !== 'text' || !p.text?.trim()) continue;
-        const ts = extractTimestamp(p.text) || turnTs;
-        if (extractTimestamp(p.text)) turnTs = ts;
+        const tagged = extractTimestamp(p.text);
+        const ts = tagged || turnTs || anchorStart;
+        if (tagged) turnTs = tagged;
         events.push({ ts, kind: 'user', text: stripUserEnvelope(p.text) });
       }
     } else if (row.role === 'assistant') {
       for (const p of parts) {
-        const ts = turnTs;
+        const ts = turnTs || anchorStart;
         if (p.type === 'text' && p.text?.trim()) {
           events.push({ ts, kind: 'assistant', text: p.text });
         } else if (p.type === 'tool_use') {
@@ -188,6 +221,14 @@ export function parseAgentTranscriptJsonl(filePath) {
         }
       }
     }
+  }
+  if (events.length && !events.some((e) => isPlausibleIso(e.ts))) {
+    const fallback = anchorStart || fileEnd;
+    if (fallback) events[0].ts = fallback;
+  }
+  if (events.length) {
+    const end = [anchorEnd, fileEnd].filter(isPlausibleIso).sort().at(-1);
+    if (end && !isPlausibleIso(events.at(-1).ts)) events.at(-1).ts = end;
   }
   return events;
 }
@@ -204,7 +245,7 @@ function parseComposerFromGlobal(globalDb, header) {
     }
   }
   for (const b of conv || []) {
-    const ev = bubbleToEvent(b);
+    const ev = bubbleToEvent(b, header.createdAt);
     if (ev) events.push(...ev);
   }
   return events;
@@ -219,7 +260,7 @@ export function parseCursorAgentSessions(folder, userDir = cursorUserDir()) {
     for (const h of headers) {
       const transcriptFile = path.join(agentTranscriptRoot(folder), h.composerId, `${h.composerId}.jsonl`);
       let events = [];
-      if (fs.existsSync(transcriptFile)) events = parseAgentTranscriptJsonl(transcriptFile);
+      if (fs.existsSync(transcriptFile)) events = parseAgentTranscriptJsonl(transcriptFile, { createdAt: h.createdAt, lastUpdatedAt: h.lastUpdatedAt });
       else if (globalSnap) events = parseComposerFromGlobal(globalSnap.db, h);
       if (!events.length) continue;
       out.push(makeSession(
@@ -230,6 +271,7 @@ export function parseCursorAgentSessions(folder, userDir = cursorUserDir()) {
         events,
         h.createdAt,
         fs.existsSync(transcriptFile) ? transcriptFile : path.join(userDir, 'globalStorage', 'state.vscdb'),
+        h.lastUpdatedAt,
       ));
     }
     return out;
@@ -342,10 +384,10 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir(), physicalP
     for (const tab of chat?.tabs || []) {
       const events = [];
       for (const b of tab.bubbles || []) {
-        const ev = bubbleToEvent(b);
+        const ev = bubbleToEvent(b, tab.lastSendTime);
         if (ev) events.push(...ev);
       }
-      out.push(makeSession(`cursor-chat-${tab.tabId}`, wsDir, folder, tab.chatTitle, events, tab.lastSendTime));
+      out.push(makeSession(`cursor-chat-${tab.tabId}`, wsDir, folder, tab.chatTitle, events, tab.lastSendTime, null, tab.lastSendTime));
     }
 
     // Legacy composer sessions: headers in workspace DB, bubbles in global cursorDiskKV
@@ -365,11 +407,11 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir(), physicalP
         }
       }
       for (const b of conv || []) {
-        const ev = bubbleToEvent(b);
+        const ev = bubbleToEvent(b, c.createdAt);
         if (ev) events.push(...ev);
       }
       out.push(makeSession(`cursor-composer-${c.composerId}`, wsDir, folder,
-        c.name || c.text?.slice(0, 100), events, c.createdAt));
+        c.name || c.text?.slice(0, 100), events, c.createdAt, null, c.lastUpdatedAt || c.createdAt));
     }
 
     return mergeSessions(out, parseCursorAgentSessions(folder, userDir)).filter((s) => s.events.length);
@@ -378,16 +420,19 @@ export function parseCursorWorkspace(wsDir, userDir = cursorUserDir(), physicalP
   }
 }
 
-function makeSession(id, wsDir, folder, title, events, createdAt, filePath = null) {
-  const timestamps = events.map((e) => e.ts).filter(Boolean).sort();
-  const fallback = createdAt ? new Date(createdAt).toISOString() : null;
+function makeSession(id, wsDir, folder, title, events, createdAt, filePath = null, lastUpdatedAt = null) {
+  const { start: anchorStart, end: anchorEnd } = anchorIso(createdAt, lastUpdatedAt);
+  const fileEnd = filePath?.endsWith('.jsonl') ? fileMtimeIso(filePath) : null;
+  const timestamps = events.map((e) => e.ts).filter(isPlausibleIso).sort();
+  const started_at = timestamps[0] ?? anchorStart ?? fileEnd;
+  const ended_at = timestamps[timestamps.length - 1] ?? anchorEnd ?? fileEnd ?? started_at;
   return {
     session: {
       id, source: 'cursor',
       file_path: filePath || (wsDir ? path.join(wsDir, 'state.vscdb') : null),
       cwd: folder,
-      started_at: timestamps[0] ?? fallback,
-      ended_at: timestamps[timestamps.length - 1] ?? fallback,
+      started_at,
+      ended_at,
       first_prompt: (events.find((e) => e.kind === 'user')?.text || title || '').slice(0, 200),
       skipped: 0,
     },
@@ -396,9 +441,8 @@ function makeSession(id, wsDir, folder, title, events, createdAt, filePath = nul
 }
 
 // Cursor bubble → normalized events. type 1/'user' = user, 2/'ai' = assistant.
-function bubbleToEvent(b) {
-  const ts = b.timingInfo?.clientStartTime || b.createdAt || null;
-  const iso = ts ? new Date(ts).toISOString() : null;
+function bubbleToEvent(b, anchorMs) {
+  const iso = normalizeCursorMs(b.timingInfo?.clientStartTime ?? b.createdAt ?? null, anchorMs);
   const events = [];
   const text = b.text || b.richText?.text || '';
   const isUser = b.type === 1 || b.type === 'user';
