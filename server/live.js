@@ -12,10 +12,50 @@ const live = globalThis.__chronicleLive ??= { watchers: new Map() }; // sessionI
 
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
 
-export function isLiveCandidate(filePath) {
+function fileRecentlyWritten(filePath) {
   try {
-    return Date.now() - fs.statSync(filePath).mtimeMs < LIVE_WINDOW_MS;
+    let mtime = fs.statSync(filePath).mtimeMs;
+    const wal = filePath + '-wal';
+    if (fs.existsSync(wal)) mtime = Math.max(mtime, fs.statSync(wal).mtimeMs);
+    return Date.now() - mtime < LIVE_WINDOW_MS;
   } catch { return false; }
+}
+
+function sessionRecentlyActive(session) {
+  if (!session?.ended_at) return true;
+  const ended = new Date(session.ended_at).getTime();
+  return Number.isFinite(ended) && Date.now() - ended < LIVE_WINDOW_MS;
+}
+
+// Mark at most one live session per shared log file (e.g. workspace/global SQLite).
+export function liveCandidatesForSessions(sessions) {
+  const winners = new Set();
+  const byFile = new Map();
+  for (const s of sessions) {
+    if (!s?.file_path || !fileRecentlyWritten(s.file_path)) continue;
+    const group = byFile.get(s.file_path) || [];
+    group.push(s);
+    byFile.set(s.file_path, group);
+  }
+  for (const group of byFile.values()) {
+    const eligible = group.filter(sessionRecentlyActive);
+    if (!eligible.length) continue;
+    if (group[0].file_path.endsWith('.jsonl')) {
+      for (const s of eligible) winners.add(s.id);
+      continue;
+    }
+    const best = eligible.sort((a, b) => new Date(b.ended_at || 0) - new Date(a.ended_at || 0))[0];
+    winners.add(best.id);
+  }
+  return winners;
+}
+
+export function isLiveCandidate(filePath, session = null, peers = null) {
+  if (!filePath) return false;
+  if (!fileRecentlyWritten(filePath)) return false;
+  if (session && peers?.length) return liveCandidatesForSessions(peers).has(session.id);
+  if (session) return sessionRecentlyActive(session);
+  return true;
 }
 
 class Watcher {

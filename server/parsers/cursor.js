@@ -16,9 +16,9 @@ export function cursorProjectsDir() {
   return path.join(os.homedir(), '.cursor', 'projects');
 }
 
-// Cursor names project dirs by stripping the leading slash and joining path segments with dashes.
+// Cursor slug: strip leading slash, then map both path separators and underscores to dashes.
 export function cursorProjectSlug(fsPath) {
-  return fsPath.replace(/^\//, '').replace(/\//g, '-');
+  return fsPath.replace(/^\//, '').replace(/[_/]/g, '-');
 }
 
 function agentTranscriptRoot(fsPath) {
