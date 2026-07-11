@@ -67,7 +67,7 @@ api.get('/scan', (req, res) => {
 
 // Gather parsed {session, events} pairs per source. files/sessionIds restrict
 // the import to a user-selected subset of sessions.
-async function gatherParsed({ source, logDir, files, directory, sessionIds }) {
+async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }) {
   const bad = (msg) => { const e = new Error(msg); e.status = 400; return e; };
   if (source === 'claude-code') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
@@ -86,7 +86,7 @@ async function gatherParsed({ source, logDir, files, directory, sessionIds }) {
   if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
   if (source === 'cursor') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-    return parseCursorWorkspace(logDir);
+    return parseCursorWorkspace(logDir, undefined, physicalPath || null);
   }
   if (source === 'gemini-cli') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Gemini project directory not found');

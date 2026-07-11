@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { db } from './db.js';
 import { parseClaudeLine } from './parsers/claudeCode.js';
 import { parseOpencodeSessions } from './parsers/opencode.js';
-import { parseCursorWorkspace } from './parsers/cursor.js';
+import { parseCursorWorkspace, parseAgentTranscriptJsonl } from './parsers/cursor.js';
 import path from 'node:path';
 
 // Session Live Streaming (FR-LS): incremental JSONL tail → SSE.
@@ -119,7 +119,10 @@ class SqlitePollWatcher {
       return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
     }
     if (this.session.source === 'cursor') {
-      const all = parseCursorWorkspace(path.dirname(this.session.file_path));
+      if (this.session.file_path.endsWith('.jsonl')) {
+        return parseAgentTranscriptJsonl(this.session.file_path);
+      }
+      const all = parseCursorWorkspace(path.dirname(this.session.file_path), undefined, this.session.cwd || null);
       return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
     }
     return [];
