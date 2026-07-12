@@ -1,9 +1,9 @@
 cask "chronicle" do
   arch arm: "arm64", intel: "x64"
 
-  version "0.1.9"
-  sha256 arm:   "152ea84b513f610efe229ef588dafee99f6bcb6e9d51d86781b4f65707ca84d0",
-         intel: "ffe2ca296474f1fab4bdfa663f2778ae859553e3e37f70b5107b9e664fd721f5"
+  version "0.1.10"
+  sha256 arm:   "4add864be93a63e19e6486d365012a727f8d53ebbbce1745b02d083f68464bfc",
+         intel: "f94195a7e800ec9fb11bb540211ccf0d2eaebde0330e90f2d96df21f34446bc3"
 
   url "https://github.com/chizhangucb/homebrew-chronicle/releases/download/v#{version}/Chronicle-#{version}-#{arch}.dmg"
   name "Chronicle"
