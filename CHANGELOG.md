@@ -3,6 +3,17 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## v0.1.10 — 2026-07-12
+
+A sharper session metric, delivered via auto-update:
+
+- **"Agent Active" (renamed from "Active Duration")** now measures agent working
+  time correctly. It still excludes the pause before each of your prompts, but no
+  longer counts background-task completions, in-app clicks, or interrupt markers as
+  "you thinking" — those all carry a `user` role in the logs, so a background build
+  finishing was being charged to your idle time. On a real session this moved the
+  number from 33m to 43m of a 59m span. The ⓘ tooltip explains the distinction.
+
 ## v0.1.9 — 2026-07-12
 
 Home-page and session-metric improvements, delivered via auto-update:
