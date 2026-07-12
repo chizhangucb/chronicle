@@ -357,6 +357,17 @@ plus real data end-to-end (see Verification below).
   and parsers as plain files via `import.meta.url`; enabling asar breaks those paths.
   Homebrew cask lives in `packaging/homebrew/` and is published to the
   `chizhangucb/homebrew-chronicle` tap with DMGs attached to that repo's releases.
+- **Not every tag ships an app binary — and the download page reads the TAP repo.**
+  A docs/website-only release (v0.1.4, v0.1.8) has NO DMGs, so the cask, `latest-mac.yml`,
+  and installed apps stay pinned to the last REAL app release (v0.1.8 shipped nothing →
+  everything sat at 0.1.7 until v0.1.9). The getchronicle.dev landing fetches
+  `api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest` (the **tap**, not
+  the `chronicle` repo), so the tap release must carry the DMGs AND be marked Latest. Split
+  per the v0.1.7/v0.1.9 pattern: the **`chronicle` repo** release carries just the 2 DMGs
+  "for the record"; the **tap** release carries the full auto-update set (2 DMGs + 2
+  blockmaps + 2 zips + 2 zip-blockmaps + `latest-mac.yml`). v0.1.9 (0.1.7→0.1.9, skipping
+  the binary-less 0.1.8) was the first confirmed over-the-air update — the "Relaunch to
+  apply" toast works end-to-end when both apps share the `9W7B6USGG9` Developer ID.
 - **New client-side npm deps go in devDependencies**, not dependencies — Vite bundles
   them into `dist/`, and electron-builder ships everything in `dependencies` inside
   the app (a misplaced client lib silently fattens every DMG). Only genuine
