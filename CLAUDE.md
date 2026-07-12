@@ -132,14 +132,22 @@ plus real data end-to-end (see Verification below).
   imported by Playback (`SessionView` `KIND_META`), Refine (`RefineMode`, uppercased for
   its tag look), and the Refine export. They used to drift (Playback said "You"/"AI",
   Refine said "USER"/"ASSISTANT"); put new label wording here, never inline.
-- **Active Duration = agent working time, not a 5-min idle cutoff.** `activeDurationMs()`
-  in `SessionView` sorts messages by ts while KEEPING each one's `kind`, then sums every
-  inter-message gap EXCEPT the gap leading into a `user` message — that pause is the human
-  reading/typing/away and is the only thing excluded. All assistant-thinking and
-  tool-execution gaps count in FULL, with no cap (a 20-min build or a long think shows up).
-  This replaced the old `IDLE_GAP_MS` 5-min cutoff, which dropped long tool runs and made
-  Active read absurdly low vs Total Duration. Shown with an `InfoTip` (ⓘ) explainer; if you
-  reword the explainer, its key IS the full English sentence — update the zh + ja dicts too.
+- **"Agent Active" (labeled thus, was "Active Duration") = agent working time, excluding
+  only real human turns.** `activeDurationMs()` in `SessionView` sums every inter-message
+  gap EXCEPT the gap leading into a genuine human prompt. The catch: **not every `user`-role
+  message is a human prompt** — `<task-notification>` (a background build finishing),
+  `<launch-selected-element>` (UI element pick), `<system-reminder>`, `<command-name>`/
+  `<local-command…>`, and `[Request interrupted…]` all log with role=user. `isHumanPrompt()`
+  filters those via `SYNTHETIC_USER_RE`, so their preceding gap counts as ACTIVE (the agent
+  was busy, e.g. building; or you were interacting with the app) — only a typed prompt
+  subtracts time. All assistant-thinking + tool-execution gaps count in FULL, no cap.
+  History: v0.1.7 used an `IDLE_GAP_MS` 5-min cutoff (dropped long tool runs); v0.1.9
+  switched to human-gap exclusion but counted EVERY role=user as human, which charged
+  background-build waits to your idle time (a real session read 33m Active / 59m Total, ~10m
+  of it a notarize-build wait); the classifier fix reclaimed that (→43m). Shown with an
+  `InfoTip` (ⓘ) explainer; if you reword it, its key IS the full English sentence — update
+  the zh + ja dicts too. `src/kinds.js` still labels the message kinds; the STAT-CARD label
+  is `t('Agent Active')`.
 - **Language switch keeps your place.** `setLang` still `location.reload()`s — many `t()`
   calls run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
   re-translate. To stop landing back on Home, `App` persists the current `view` in

@@ -484,23 +484,37 @@ function fmtDur(ms) {
   return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
 }
 
+// Not every `user`-role message is a human prompt. Background-task completions
+// (`<task-notification>`), UI element selections (`<launch-selected-element>`),
+// interrupt markers, and other harness/system injections all carry role=user in
+// the logs. The pause before one of these is NOT the human thinking — the agent
+// was busy (e.g. a background build) or you were interacting with the app — so it
+// must not be subtracted from active time. Only a genuine typed prompt counts as
+// "human turn". This regex matches the injected forms; a real prompt rarely opens
+// with one of these tags.
+const SYNTHETIC_USER_RE = /^\s*(?:<task-notification|<launch-selected-element|<system-reminder|<command-name|<command-message|<local-command|\[Request interrupted)/;
+function isHumanPrompt(m) {
+  return m.kind === 'user' && !SYNTHETIC_USER_RE.test(m.text || '');
+}
+
 // Active time the AGENT was actually working: sum of the gaps between consecutive
-// messages, but EXCLUDING the gap that leads into a user message — that pause is
-// the human reading, thinking, and typing (or walking away), not the agent. Every
-// other gap (assistant thinking, tool execution, tool results) is counted in full,
-// so a long build or a deep think shows up here even though it exceeds any idle
-// cutoff. We keep each kind alongside its timestamp to make that distinction.
+// messages, EXCLUDING only the gap that leads into a genuine human prompt — that
+// pause is you reading, thinking, and typing (or walking away). Every other gap
+// counts in full: assistant thinking, tool execution, tool results, AND the wait
+// during a background build (whose completion arrives as a `user`-role
+// notification) or an app interaction. No idle cap — a long build or deep think
+// shows up. We keep whether each message is a human prompt alongside its timestamp.
 function activeDurationMs(messages) {
   const seq = messages
     .filter((m) => m.ts)
-    .map((m) => ({ t: new Date(m.ts).getTime(), kind: m.kind }))
+    .map((m) => ({ t: new Date(m.ts).getTime(), human: isHumanPrompt(m) }))
     .filter((m) => Number.isFinite(m.t))
     .sort((a, b) => a.t - b.t);
   let sum = 0;
   for (let i = 1; i < seq.length; i++) {
     const g = seq[i].t - seq[i - 1].t;
     if (g <= 0) continue;
-    if (seq[i].kind === 'user') continue; // human think/type/away time
+    if (seq[i].human) continue; // real human reading/typing/away — the only exclusion
     sum += g;
   }
   return sum;
@@ -634,7 +648,7 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
           <div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
         <div className="card stat">
           <div className="stat-num">{fmtDur(activeMs)}</div>
-          <div className="muted small">{t('Active Duration')} <InfoTip text={t('Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+          <div className="muted small">{t('Agent Active')} <InfoTip text={t('How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
         </div>
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
