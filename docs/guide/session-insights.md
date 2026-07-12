@@ -9,13 +9,17 @@ Every session opens on **Overview** (`⌘1`), a dashboard that answers "what hap
 A row of cards up top:
 
 - **Total Duration** — wall-clock span from the first message to the last.
-- **Active Duration** — time actually spent working. This one's worth understanding.
+- **Agent Active** — how long the agent was actually working. This one's worth understanding.
 - **Messages**, **Tool Calls**, **Errors** — counts. Errors are tool results that look like failures (matching an error/traceback/`exit code`/"permission denied" heuristic).
 - **Context** — the real context-window size at the last message (only shown when captured; see below).
 
-### Active vs. Total Duration
+### Agent Active vs. Total Duration
 
-Active Duration sums the gaps between consecutive message timestamps but **excludes only the pause before each of your prompts** — that gap is you reading, thinking, and typing (or walking away), not the agent working. Every other gap counts in full: assistant thinking and tool execution are the agent working, with no cap, so a 20-minute build or a long think shows up. So on a session spread over two days, Total Duration might read "50h" while Active Duration reads the hours the agent was actually busy. That's not a bug; it's the point. An **ⓘ** tooltip on the card explains the distinction inline, since the gap between the two numbers surprises people.
+Agent Active sums the gaps between consecutive message timestamps but **excludes only the pause before each of your real prompts** — that gap is you reading, thinking, and typing (or walking away), not the agent working. Every other gap counts in full: assistant thinking and tool execution are the agent working, with no cap, so a 20-minute build or a long think shows up.
+
+A subtlety worth knowing: **not every `user`-role log entry is a human prompt.** Background-task completions (a build finishing), in-app element selections, interrupt markers, and other system injections all carry a `user` role. Chronicle does **not** treat the pause before those as your idle time — the agent was busy (e.g. building) or you were interacting with the app — so they count toward Agent Active. Only a genuine typed prompt subtracts time. (An earlier version counted every `user`-role entry as a human turn, which wrongly charged background-build waits to your idle time.)
+
+So on a session spread over two days, Total Duration might read "50h" while Agent Active reads the hours the agent was actually busy. That's not a bug; it's the point. An **ⓘ** tooltip on the card explains the distinction inline, since the gap between the two numbers surprises people.
 
 ## Cost & Usage
 

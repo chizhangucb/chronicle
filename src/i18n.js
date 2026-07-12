@@ -274,11 +274,10 @@ const zh = {
   'Inserted': '已插入',
   // Active duration
   'Active Duration': '活跃时长',
+  'Agent Active': '智能体活跃',
   'Wall-clock span from the first message to the last': '从第一条到最后一条消息的实际跨度',
-  'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
-    '真正工作的时间 —— 累计相邻消息间隔小于 5 分钟的部分；更长的空闲等待会被排除',
-  'Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '智能体真正在工作的时间：累加相邻消息之间的间隔，但跳过你每次提问前的停顿（你阅读/输入/离开的时间）。助手的思考和工具执行时间会被完整计入。相比之下，“总时长”是从第一条到最后一条消息的完整跨度。',
+  'How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    '智能体真正在工作的时长。助手的思考、工具执行，以及后台任务（如构建）期间的等待都会被完整计入——不设空闲上限。只有你每次真实提问前的那段停顿会被排除（你阅读/输入/离开的时间）；应用内的交互和系统通知不会被算作停顿。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
   // Refine: delete by type
   'By type': '按类型',
   'Toggle whole message types in or out': '整类消息一键保留或删除',
@@ -559,8 +558,9 @@ const ja = {
   'Wall-clock span from the first message to the last': '最初のメッセージから最後までの実時間',
   'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
     '実際に作業していた時間 — メッセージ間隔が5分未満の合計。長いアイドル時間は除外されます',
-  'Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    'エージェントが実際に作業していた時間です。メッセージ間の間隔を合計しますが、あなたが入力する前の停止（読む／入力する／離席する時間）は除外します。アシスタントの思考時間とツール実行時間は全て含まれます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
+  'Agent Active': 'エージェント稼働',
+  'How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    'エージェントが実際に作業していた時間です。アシスタントの思考、ツール実行、そしてバックグラウンドタスク（ビルドなど）中の待機はすべて全部カウントされ、アイドルの上限はありません。除外されるのは、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）だけです。アプリ内の操作やシステム通知は差し引かれません。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
   // Refine: delete by type
   'By type': 'タイプ別',
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
