@@ -286,16 +286,17 @@ body {
 }
 .info-tip:hover, .info-tip:focus { color: var(--accent); }
 .info-bubble {
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  width: 230px; max-width: 62vw; text-align: left; font-size: 11.5px; line-height: 1.45; font-weight: 400;
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: 300px; max-width: min(300px, 72vw); text-align: left; font-size: 11.5px; line-height: 1.5; font-weight: 400;
   color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
-  padding: 9px 11px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  padding: 10px 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   opacity: 0; visibility: hidden; transition: opacity 0.12s ease; z-index: 50; pointer-events: none;
+  white-space: normal; overflow-wrap: break-word;
 }
 .info-tip:hover .info-bubble, .info-tip:focus .info-bubble { opacity: 1; visibility: visible; }
 .info-bubble::after {
-  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 5px solid transparent; border-top-color: var(--bg3);
+  content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-bottom-color: var(--bg3);
 }
 .card.grow { flex: 1; min-width: 220px; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
