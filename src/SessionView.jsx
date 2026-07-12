@@ -6,7 +6,7 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
-import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens } from './models.js';
+import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from './models.js';
 import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
 import { KIND_LABEL, KIND_ICON } from './kinds.js';
 
@@ -484,17 +484,24 @@ function fmtDur(ms) {
   return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
 }
 
-// Active time the agent/user were actually working: sum of gaps between
-// consecutive message timestamps, EXCLUDING any gap longer than the idle cutoff
-// (a pause over 5 min is treated as "walked away", not work).
-const IDLE_GAP_MS = 5 * 60 * 1000;
+// Active time the AGENT was actually working: sum of the gaps between consecutive
+// messages, but EXCLUDING the gap that leads into a user message — that pause is
+// the human reading, thinking, and typing (or walking away), not the agent. Every
+// other gap (assistant thinking, tool execution, tool results) is counted in full,
+// so a long build or a deep think shows up here even though it exceeds any idle
+// cutoff. We keep each kind alongside its timestamp to make that distinction.
 function activeDurationMs(messages) {
-  const ts = messages.map((m) => (m.ts ? new Date(m.ts).getTime() : null))
-    .filter((n) => n != null).sort((a, b) => a - b);
+  const seq = messages
+    .filter((m) => m.ts)
+    .map((m) => ({ t: new Date(m.ts).getTime(), kind: m.kind }))
+    .filter((m) => Number.isFinite(m.t))
+    .sort((a, b) => a.t - b.t);
   let sum = 0;
-  for (let i = 1; i < ts.length; i++) {
-    const g = ts[i] - ts[i - 1];
-    if (g > 0 && g <= IDLE_GAP_MS) sum += g;
+  for (let i = 1; i < seq.length; i++) {
+    const g = seq[i].t - seq[i - 1].t;
+    if (g <= 0) continue;
+    if (seq[i].kind === 'user') continue; // human think/type/away time
+    sum += g;
   }
   return sum;
 }
@@ -588,7 +595,8 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
     return Object.entries(usage)
       // Drop token-less models (e.g. Claude Code's "<synthetic>" placeholder).
       .filter(([, u]) => (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + cacheWriteTokens(u) > 0)
-      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u), breakdown: costBreakdownOf(m, u) }))
+      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u), breakdown: costBreakdownOf(m, u),
+        cw: cacheWriteByTtl(u), cwCost: cacheWriteCostByTtl(m, u) }))
       .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
   }, [session.usage]);
   const totalCost = useMemo(() => {
@@ -626,7 +634,7 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
           <div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
         <div className="card stat">
           <div className="stat-num">{fmtDur(activeMs)}</div>
-          <div className="muted small">{t('Active Duration')} <InfoTip text={t('Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+          <div className="muted small">{t('Active Duration')} <InfoTip text={t('Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
         </div>
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
@@ -656,14 +664,24 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
                   <span><em>{t('Input')}</em> {fmtTokNum(r.u.input)}</span>
                   <span><em>{t('Output')}</em> {fmtTokNum(r.u.output)}</span>
                   <span><em>{t('Cache Read')}</em> {fmtTokNum(r.u.cacheRead)}</span>
-                  <span><em>{t('Cache Write')}</em> {fmtTokNum(cacheWriteTokens(r.u))}</span>
+                  <span title={t('5-minute TTL cache write')}>
+                    <em>{t('Cache Write')} <span className="ttl-tag">5m</span></em> {fmtTokNum(r.cw.cw5m)}</span>
+                  {r.cw.cw1h > 0 && (
+                    <span title={t('1-hour TTL cache write')}>
+                      <em>{t('Cache Write')} <span className="ttl-tag">1h</span></em> {fmtTokNum(r.cw.cw1h)}</span>
+                  )}
                 </div>
                 {r.breakdown && (
                   <div className="cost-tokens cost-dollars muted small">
                     <span><em>{t('Input')}</em> ${r.breakdown.input.toFixed(2)}</span>
                     <span><em>{t('Output')}</em> ${r.breakdown.output.toFixed(2)}</span>
                     <span><em>{t('Cache Read')}</em> ${r.breakdown.cacheRead.toFixed(2)}</span>
-                    <span><em>{t('Cache Write')}</em> ${r.breakdown.cacheWrite.toFixed(2)}</span>
+                    <span title={t('5-minute TTL cache write')}>
+                      <em>{t('Cache Write')} <span className="ttl-tag">5m</span></em> ${(r.cwCost?.cw5m ?? 0).toFixed(2)}</span>
+                    {r.cw.cw1h > 0 && (
+                      <span title={t('1-hour TTL cache write')}>
+                        <em>{t('Cache Write')} <span className="ttl-tag">1h</span></em> ${(r.cwCost?.cw1h ?? 0).toFixed(2)}</span>
+                    )}
                   </div>
                 )}
               </div>

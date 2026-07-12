@@ -103,6 +103,10 @@ const zh = {
   "(won't delete source project)": '（不会删除源项目）',
   'Remove': '移除',
   'from Chronicle? Your source logs and project folder are not touched.': '从 Chronicle 移除？不会改动你的源日志和项目文件夹。',
+  'Select': '选择',
+  'Select all': '全选',
+  'Removing…': '正在移除…',
+  'Remove these from Chronicle? Source logs and folders are not touched.': '从 Chronicle 移除这些项目？不会改动源日志和文件夹。',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
   // Session overview
   'Overview': '总览',
@@ -222,6 +226,8 @@ const zh = {
   'Input': '输入',
   'Output': '输出',
   'Cache Write': '缓存写入',
+  '5-minute TTL cache write': '5 分钟 TTL 缓存写入',
+  '1-hour TTL cache write': '1 小时 TTL 缓存写入',
   'Cache Read': '缓存读取',
   'Estimated from token counts × current list prices': '根据词元数 × 当前标价估算',
   'Wall Duration': '实际时长',
@@ -271,8 +277,8 @@ const zh = {
   'Wall-clock span from the first message to the last': '从第一条到最后一条消息的实际跨度',
   'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
     '真正工作的时间 —— 累计相邻消息间隔小于 5 分钟的部分；更长的空闲等待会被排除',
-  'Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '只统计真正在工作的时间：累加相邻消息之间的间隔，但跳过任何超过 5 分钟的间隔（视为空闲/离开）。相比之下，“总时长”是从第一条到最后一条消息的完整跨度。',
+  'Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    '智能体真正在工作的时间：累加相邻消息之间的间隔，但跳过你每次提问前的停顿（你阅读/输入/离开的时间）。助手的思考和工具执行时间会被完整计入。相比之下，“总时长”是从第一条到最后一条消息的完整跨度。',
   // Refine: delete by type
   'By type': '按类型',
   'Toggle whole message types in or out': '整类消息一键保留或删除',
@@ -383,6 +389,10 @@ const ja = {
   "(won't delete source project)": '（元のプロジェクトは削除されません）',
   'Remove': '削除',
   'from Chronicle? Your source logs and project folder are not touched.': 'を Chronicle から削除しますか？元のログとプロジェクトフォルダーは変更されません。',
+  'Select': '選択',
+  'Select all': 'すべて選択',
+  'Removing…': '削除中…',
+  'Remove these from Chronicle? Source logs and folders are not touched.': 'これらを Chronicle から削除しますか？元のログとフォルダーは変更されません。',
   'New display name (folder is not touched):': '新しい表示名（フォルダーは変更されません）：',
   'Overview': '概要',
   'Session Statistics': 'セッション統計',
@@ -498,6 +508,8 @@ const ja = {
   'Input': '入力',
   'Output': '出力',
   'Cache Write': 'キャッシュ書き込み',
+  '5-minute TTL cache write': '5分 TTL キャッシュ書き込み',
+  '1-hour TTL cache write': '1時間 TTL キャッシュ書き込み',
   'Cache Read': 'キャッシュ読み取り',
   'Estimated from token counts × current list prices': 'トークン数 × 現在の表示価格から推定',
   'Wall Duration': '実時間',
@@ -547,8 +559,8 @@ const ja = {
   'Wall-clock span from the first message to the last': '最初のメッセージから最後までの実時間',
   'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
     '実際に作業していた時間 — メッセージ間隔が5分未満の合計。長いアイドル時間は除外されます',
-  'Only counts time actually spent working. It sums the gaps between consecutive messages, but skips any gap longer than 5 minutes (counted as idle / away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '実際に作業していた時間だけを集計します。連続するメッセージ間の間隔を合計しますが、5分を超える間隔（アイドル／離席とみなす）は除外します。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
+  'Time the agent was actively working — it sums the gaps between messages but skips the pause before each of your prompts (your reading/typing/away time). Assistant thinking and tool-execution time are counted in full. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    'エージェントが実際に作業していた時間です。メッセージ間の間隔を合計しますが、あなたが入力する前の停止（読む／入力する／離席する時間）は除外します。アシスタントの思考時間とツール実行時間は全て含まれます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
   // Refine: delete by type
   'By type': 'タイプ別',
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',

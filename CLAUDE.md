@@ -56,6 +56,17 @@ plus real data end-to-end (see Verification below).
   securityOpen}` up via the `onRailChange` prop while mounted; App renders those as
   sidebar items. SessionView is keyed by session id so the breadcrumb session
   switcher remounts it cleanly.
+- **Top-bar actions (Search + Import) are global, not Home-only.** The `.topbar-right`
+  🔍 Search and "+ Import Sessions" buttons render in EVERY view alongside the language
+  switcher (they used to be gated on `view.name === 'home'`); import/search work from
+  anywhere and refresh projects. Only the LIVE pill stays session-scoped.
+- **Home multi-select delete uses an inline confirm, never `window.confirm`.** `HomePage`
+  has a "Select" mode: cards become checkboxes (`selectMode`/`selected` Set), with
+  Select-all/Clear/Cancel + a danger "Remove (N)". Deletion is a two-step INLINE confirm
+  bar in the title row (`confirming` state) — NOT `window.confirm`, which is blocked in
+  embedded/preview browsers (same gotcha as the rename). It loops `api.deleteProject` (same
+  "Remove from Chronicle", source logs untouched) then refreshes. The per-card gear
+  `ProjectMenu` is hidden while in select mode.
 - **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
   repo move keep the old path in early JSONL records; scanner and parser use the last
   seen cwd (where the repo and its Git history live now) and collapse subdirectory
@@ -107,7 +118,11 @@ plus real data end-to-end (see Verification below).
   `src/models.js` multiplies by a static per-model price table. 5-minute and
   1-hour cache writes are billed at different rates — keep them split. The table
   must track the current Anthropic pricing page (Opus 4.8 tier is $5/$25, NOT the
-  old Opus 4.1 $15/$75 — getting this wrong 3× inflates every number).
+  old Opus 4.1 $15/$75 — getting this wrong 3× inflates every number). The Overview
+  Cost & Usage block DISPLAYS the two tiers separately too (tokens + $), each with a
+  `5m`/`1h` `.ttl-tag`: `cacheWriteByTtl()` / `cacheWriteCostByTtl()` in `models.js`
+  split them (legacy `{cacheWrite}` logs are treated as 5m). The `1h` row only renders
+  when 1h writes exist; a session can be entirely 1h-cached (v0.1.8 test session was).
 - **Global search is LIKE-based, not FTS.** `/api/search` scans `messages.text` +
   `tool_input` with `LIKE`, grouped per session (top ~40) with a snippet; empty
   query returns recent sessions ("Recent Access"). Fine at this scale (~15k rows);
@@ -117,10 +132,14 @@ plus real data end-to-end (see Verification below).
   imported by Playback (`SessionView` `KIND_META`), Refine (`RefineMode`, uppercased for
   its tag look), and the Refine export. They used to drift (Playback said "You"/"AI",
   Refine said "USER"/"ASSISTANT"); put new label wording here, never inline.
-- **Active Duration is a local heuristic, like everything else.** `activeDurationMs()` in
-  `SessionView` sums gaps between consecutive message timestamps but EXCLUDES any gap over
-  the 5-min idle cutoff (`IDLE_GAP_MS`) — "walked away" time — so it reads far lower than
-  wall-clock Total Duration on multi-day sessions. Shown with an `InfoTip` (ⓘ) explainer.
+- **Active Duration = agent working time, not a 5-min idle cutoff.** `activeDurationMs()`
+  in `SessionView` sorts messages by ts while KEEPING each one's `kind`, then sums every
+  inter-message gap EXCEPT the gap leading into a `user` message — that pause is the human
+  reading/typing/away and is the only thing excluded. All assistant-thinking and
+  tool-execution gaps count in FULL, with no cap (a 20-min build or a long think shows up).
+  This replaced the old `IDLE_GAP_MS` 5-min cutoff, which dropped long tool runs and made
+  Active read absurdly low vs Total Duration. Shown with an `InfoTip` (ⓘ) explainer; if you
+  reword the explainer, its key IS the full English sentence — update the zh + ja dicts too.
 - **Language switch keeps your place.** `setLang` still `location.reload()`s — many `t()`
   calls run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
   re-translate. To stop landing back on Home, `App` persists the current `view` in
@@ -164,7 +183,8 @@ plus real data end-to-end (see Verification below).
   Streamable-HTTP aggregator at `/mcp`
 - `hooks/chronicle-guard.mjs` — Claude Code PreToolUse hook (exit 2 = block, fails open)
 - `src/App.jsx` — global sidebar (collapse state in localStorage, sync-all loop,
-  feedback modal), view routing, LIVE pill, project-card gear menus
+  feedback modal), view routing, LIVE pill, always-on top-bar Search/Import, project-card
+  gear menus, and the `HomePage` multi-select delete flow
 - `src/SessionView.jsx` — the core session view; registers modes
   (overview/playback/refine/replay + security check, ⌘1–⌘4) into the sidebar via
   `onRailChange`; owns filtering, windowing, live SSE, causality panels, the
@@ -174,7 +194,8 @@ plus real data end-to-end (see Verification below).
 - `src/ProjectDetail.jsx` — project analytics home (8 stat cards, line/bar trend,
   source donut, call ranking; time range via `/api/projects/:id?days=N`)
 - `src/models.js` — static per-model tables (never fetched): context windows +
-  list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`).
+  list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`,
+  `cacheWriteByTtl`, `cacheWriteCostByTtl` — the last two split 5m/1h for display).
   Update when new models ship or prices change.
 - `src/kinds.js` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels
   architecture decision); imported by `SessionView` (Playback) and `RefineMode`.
@@ -313,6 +334,13 @@ plus real data end-to-end (see Verification below).
   are blocked (silently return null) in embedded/preview browser contexts, so the
   action no-ops with no error. The session rename learned this the hard way; use an
   inline edit-in-place field instead (see `OverviewMode` in `SessionView.jsx`).
+  `ProjectMenu`'s gear still uses `prompt`/`confirm`/`alert`; the Home multi-select flow
+  is the confirm-free path (an inline confirm bar) — prefer that pattern for new UI.
+- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD** (`top: calc(100% + 8px)`, arrow on
+  top). The Overview stats row sits at the top of `.page`, which is `overflow-y: auto`
+  (and thus clips both axes) — an upward bubble got cut off at the viewport top and the
+  text was unreadable. It's 300px wide so long explainers stay short; every InfoTip shares
+  this one rule.
 - **`replaceSession` preserves the user-set `name`** across its delete+reinsert
   (reads `prev.name` first) — `summary`/`usage` are re-derived each import, but a
   Chronicle rename must survive re-sync. An OLD build sharing `~/.chronicle/chronicle.db`

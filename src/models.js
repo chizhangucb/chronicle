@@ -83,6 +83,22 @@ export function cacheWriteTokens(u) {
   return (u.cacheWrite5m ?? 0) + (u.cacheWrite1h ?? 0) || (u.cacheWrite ?? 0);
 }
 
+// Cache-write tokens split by TTL tier, for TTL-labeled display. Legacy logs
+// only carry {cacheWrite} — those were billed at the 5-minute rate, so treat
+// them as 5m. { cw5m, cw1h } in tokens.
+export function cacheWriteByTtl(u) {
+  if (!u) return { cw5m: 0, cw1h: 0 };
+  return { cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0 };
+}
+
+// Per-TTL cache-write cost in USD for one model's usage; null if unpriced.
+export function cacheWriteCostByTtl(model, u) {
+  const p = pricingFor(model);
+  if (!p || !u) return null;
+  const { cw5m, cw1h } = cacheWriteByTtl(u);
+  return { cw5m: (cw5m * p.cw5m) / 1e6, cw1h: (cw1h * p.cw1h) / 1e6 };
+}
+
 // Total cost in USD for one model's aggregated token usage; null if unpriced.
 export function costOf(model, u) {
   const b = costBreakdownOf(model, u);
