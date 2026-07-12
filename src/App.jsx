@@ -143,12 +143,8 @@ export default function App() {
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
               </span>
             )}
-            {view.name === 'home' && (
-              <button className="btn ghost icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>🔍</button>
-            )}
-            {view.name === 'home' && (
-              <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
-            )}
+            <button className="btn ghost icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>🔍</button>
+            <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
             <select className="chip lang-select" title="Language / 语言" value={lang()}
               onChange={(e) => setLang(e.target.value)}>
               <option value="en">EN</option>
@@ -469,6 +465,37 @@ function ProjectMenu({ project, onOpenProject, onRefresh }) {
 }
 
 function HomePage({ projects, onOpenProject, onImport, onRefresh }) {
+  // Multi-select delete: a "Select" mode turns the whole grid into checkboxes so
+  // several projects can be removed from Chronicle at once. Uses an inline confirm
+  // bar (not window.confirm, which is blocked in embedded/preview browsers).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
+  function toggle(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setConfirming(false);
+  }
+  async function deleteSelected() {
+    if (deleting || !selected.size) return;
+    setDeleting(true);
+    try {
+      for (const id of selected) {
+        try { await api.deleteProject(id); } catch {}
+      }
+      onRefresh();
+      exitSelect();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) {
     return (
@@ -481,30 +508,66 @@ function HomePage({ projects, onOpenProject, onImport, onRefresh }) {
       </div>
     );
   }
+
+  const allSelected = selected.size === projects.length && projects.length > 0;
+
   return (
     <div className="page">
-      <h2 className="page-title">{t('Projects')} <span className="muted">({projects.length})</span></h2>
+      <div className="page-title-row">
+        <h2 className="page-title">{t('Projects')} <span className="muted">({projects.length})</span></h2>
+        <div className="page-title-actions">
+          {!selectMode ? (
+            <button className="btn ghost" onClick={() => setSelectMode(true)}>☑ {t('Select')}</button>
+          ) : confirming ? (
+            <>
+              <span className="muted small">{t('Remove these from Chronicle? Source logs and folders are not touched.')}</span>
+              <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
+              <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
+                {deleting ? t('Removing…') : `🗑 ${t('Remove')} ${selected.size}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="muted small">{selected.size} {t('selected')}</span>
+              <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(projects.map((p) => p.id)))}>
+                {allSelected ? t('Clear') : t('Select all')}
+              </button>
+              <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
+              <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
+                🗑 {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
       <div className="project-grid">
-        {projects.map((p) => (
-          <div key={p.id} className="card project-card" onClick={() => onOpenProject(p.id)}>
-            <div className="project-card-head">
-              <span className="project-name">{p.name}</span>
-              <span className="project-card-actions">
-                {p.git?.isRepo && <span className="pill git-pill" title={`${p.git.commitCount} commits`}>⎇ {p.git.branch}</span>}
-                <ProjectMenu project={p} onOpenProject={onOpenProject} onRefresh={onRefresh} />
-              </span>
+        {projects.map((p) => {
+          const isSel = selected.has(p.id);
+          return (
+            <div key={p.id} className={`card project-card ${selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
+              onClick={() => (selectMode ? toggle(p.id) : onOpenProject(p.id))}>
+              <div className="project-card-head">
+                <span className="project-name">
+                  {selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
+                  {p.name}
+                </span>
+                <span className="project-card-actions">
+                  {p.git?.isRepo && <span className="pill git-pill" title={`${p.git.commitCount} commits`}>⎇ {p.git.branch}</span>}
+                  {!selectMode && <ProjectMenu project={p} onOpenProject={onOpenProject} onRefresh={onRefresh} />}
+                </span>
+              </div>
+              <div className="project-path muted">{p.path}</div>
+              <div className="project-stats">
+                <span>{p.session_count} sessions</span>
+                <span>{p.message_count} messages</span>
+                {(p.sources || '').split(',').filter(Boolean).map((s) => (
+                  <span key={s} className="pill src-pill">{SOURCE_ICONS[s] || '•'} {s}</span>
+                ))}
+              </div>
+              {p.last_active && <div className="muted small">Last active {new Date(p.last_active).toLocaleString()}</div>}
             </div>
-            <div className="project-path muted">{p.path}</div>
-            <div className="project-stats">
-              <span>{p.session_count} sessions</span>
-              <span>{p.message_count} messages</span>
-              {(p.sources || '').split(',').filter(Boolean).map((s) => (
-                <span key={s} className="pill src-pill">{SOURCE_ICONS[s] || '•'} {s}</span>
-              ))}
-            </div>
-            {p.last_active && <div className="muted small">Last active {new Date(p.last_active).toLocaleString()}</div>}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
