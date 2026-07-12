@@ -3,6 +3,25 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## v0.1.9 — 2026-07-12
+
+Home-page and session-metric improvements, delivered via auto-update:
+
+- **Multi-select project delete** — a new **Select** mode on the home page turns
+  project cards into checkboxes, so you can remove several projects from Chronicle
+  at once (Select-all / Clear + an inline confirm). Your source logs and folders are
+  never touched.
+- **Always-on toolbar** — **Search** (⌘K) and **+ Import Sessions** are now available
+  from every view, not just the home page.
+- **Truer Active Duration** — now counts all assistant-thinking and tool-execution time
+  in full and excludes only the pause before each of your prompts (your reading/typing/
+  away time). The old version dropped any gap over 5 minutes, undercounting long builds
+  and deep thinks.
+- **Cache-write cost split by TTL** — the Cost & Usage panel breaks cache-write tokens
+  and dollars into **5-minute** and **1-hour** tiers, matching how each is billed.
+- **Readable tooltips** — the ⓘ info bubbles open downward and are wider, so the full
+  explanation is always visible.
+
 ## v0.1.8 — 2026-07-09
 
 Download site + developer docs. **No app changes** — the desktop app is unchanged
