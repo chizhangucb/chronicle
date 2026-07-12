@@ -15,7 +15,7 @@ A row of cards up top:
 
 ### Active vs. Total Duration
 
-Active Duration sums the gaps between consecutive message timestamps but **excludes any gap longer than five minutes** — the idea being that a pause over five minutes is you walking away, not working. So on a session you picked at over two days, Total Duration might read "50h" while Active Duration reads "3h 20m". That's not a bug; it's the point. An **ⓘ** tooltip on the card explains the distinction inline, since the gap between the two numbers surprises people.
+Active Duration sums the gaps between consecutive message timestamps but **excludes only the pause before each of your prompts** — that gap is you reading, thinking, and typing (or walking away), not the agent working. Every other gap counts in full: assistant thinking and tool execution are the agent working, with no cap, so a 20-minute build or a long think shows up. So on a session spread over two days, Total Duration might read "50h" while Active Duration reads the hours the agent was actually busy. That's not a bug; it's the point. An **ⓘ** tooltip on the card explains the distinction inline, since the gap between the two numbers surprises people.
 
 ## Cost & Usage
 
@@ -23,11 +23,11 @@ Logs carry **tokens, not dollars** — no AI tool records what a session cost yo
 
 The panel breaks down, per model:
 
-- token totals for **Input**, **Output**, **Cache Read**, and **Cache Write**;
+- token totals for **Input**, **Output**, **Cache Read**, and **Cache Write** — the last split into **5m** and **1h** TTL tiers, each with a labeled tag;
 - a **per-category dollar breakdown** and a per-model subtotal;
 - a **session total** in the panel header.
 
-A subtlety that matters for accuracy: **5-minute and 1-hour cache writes are priced separately**. Claude Code bills each cache-write tier at a different rate, and a session can be entirely one or the other, so Chronicle keeps them split and sums them correctly. Unpriced models (some non-Claude sources) show token counts but a `—` for cost rather than guessing.
+A subtlety that matters for accuracy: **5-minute and 1-hour cache writes are priced separately**. Claude Code bills each cache-write tier at a different rate, and a session can be entirely one or the other, so Chronicle keeps them split — showing each tier's tokens and dollars under its own **5m**/**1h** tag — and sums them correctly (the `1h` row only appears when there are 1-hour writes). Unpriced models (some non-Claude sources) show token counts but a `—` for cost rather than guessing.
 
 > **Note:** These are estimates from token counts × current list prices, meant to match `/usage`. They're computed locally and are only as current as the price table in `src/models.js` — when Anthropic changes pricing, that table is what gets updated.
 
