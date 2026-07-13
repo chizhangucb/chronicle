@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildLocaleChangelog } from './translate-changelog.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(__dirname, '..', '..', 'docs'); // repo docs/ (canonical)
@@ -59,10 +60,23 @@ fs.rmSync(DEST, { recursive: true, force: true });
 const n = copyDir(SRC, DEST);
 console.log(`[content] copied ${n} markdown files → website/docs/ (excluded: ${[...EXCLUDE].join(', ')})`);
 
-// Generate the English changelog page from the repo's CHANGELOG.md (single source of
-// truth). Localized changelogs live as committed files under docs/zh, docs/ja.
+// Generate the changelog pages from the repo's CHANGELOG.md (single source of truth).
+// English is emitted verbatim. For zh/ja, merge the committed translations
+// (docs/<lang>/changelog.md) with on-the-fly OpenRouter translations of any version
+// that CHANGELOG.md has but the locale file doesn't — so translations never go stale
+// or missing without a manual step. Failures fall back to English (build never breaks).
 const CHANGELOG = path.resolve(SRC, '..', 'CHANGELOG.md');
 if (fs.existsSync(CHANGELOG)) {
-  fs.writeFileSync(path.join(DEST, 'changelog.md'), rewrite(fs.readFileSync(CHANGELOG, 'utf8')));
+  const enChangelog = fs.readFileSync(CHANGELOG, 'utf8');
+  fs.writeFileSync(path.join(DEST, 'changelog.md'), rewrite(enChangelog));
   console.log('[content] generated changelog.md from CHANGELOG.md');
+
+  for (const lang of ['zh', 'ja']) {
+    const committedPath = path.join(SRC, lang, 'changelog.md');
+    const committed = fs.existsSync(committedPath) ? fs.readFileSync(committedPath, 'utf8') : null;
+    const merged = await buildLocaleChangelog(lang, enChangelog, committed);
+    fs.mkdirSync(path.join(DEST, lang), { recursive: true });
+    fs.writeFileSync(path.join(DEST, lang, 'changelog.md'), rewrite(merged));
+    console.log(`[content] generated ${lang}/changelog.md (committed translations + auto-translated new versions)`);
+  }
 }
