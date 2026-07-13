@@ -97,9 +97,18 @@ stays as a fallback (and the workflow can be run on demand from the **Actions** 
 
 **One-time setup:** add a `VERCEL_TOKEN` repository secret (Vercel → Account Settings → Tokens →
 Create, then `gh secret set VERCEL_TOKEN --repo chizhangucb/chronicle`). The org/project IDs the
-CLI needs are inlined in the workflow (they're identifiers, not secrets). Note the workflow only
-regenerates the **English** changelog from `CHANGELOG.md`; keep the `docs/zh` + `docs/ja`
-changelog translations in sync yourself, or those locales drift.
+CLI needs are inlined in the workflow (they're identifiers, not secrets).
+
+### Changelog translations (auto)
+
+`scripts/translate-changelog.mjs` (called by `npm run content`) keeps the zh/ja changelog in
+sync automatically. For each version, it uses the committed `docs/<lang>/changelog.md` block if
+one exists, and otherwise translates the English entry on the fly via **OpenRouter** (free
+`nvidia/nemotron-3-ultra-550b-a55b:free`). Set an **`OPENROUTER_API_KEY`** repo secret to enable
+it (`gh secret set OPENROUTER_API_KEY --repo chizhangucb/chronicle`); without the key, or if the
+API call fails, a new version falls back to English with a "translation pending" note and the
+build still succeeds. Committed translations always win, so hand-editing `docs/zh|ja/changelog.md`
+for quality still works — it's just no longer required before a release.
 
 ## Domain & DNS
 

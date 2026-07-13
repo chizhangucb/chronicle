@@ -51,6 +51,11 @@ jobs:
       - name: Generate docs content (docs/** + CHANGELOG.md → website/docs)
         working-directory: website
         run: npm run content
+        env:
+          # Auto-translates any changelog version not yet in docs/zh|ja/changelog.md
+          # via OpenRouter (free Nemotron). Optional — without it, new entries fall
+          # back to English ("translation pending") and the build still succeeds.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Deploy to Vercel (production)
         working-directory: website

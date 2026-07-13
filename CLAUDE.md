@@ -283,12 +283,16 @@ plus real data end-to-end (see Verification below).
   `.github/workflows/deploy-docs.yml`, which regenerates content and deploys the
   `chronicle-web` Vercel project (needs the `VERCEL_TOKEN` repo secret; org/project
   IDs are inlined). So the changelog page updates on its own now — no manual
-  `cd website && npm run deploy` (still the fallback / `workflow_dispatch`). BUT
-  still add the release's entry to the zh + ja changelog TRANSLATIONS FIRST
-  (`docs/zh/changelog.md`, `docs/ja/changelog.md` — committed files the site
-  renders; `build-content.mjs` only regenerates the EN changelog from repo-root
-  `CHANGELOG.md`), else those locales drift (they sat at v0.1.8 through the v0.1.9 +
-  v0.1.10 app releases until caught up). Verify live after the Action runs:
+  `cd website && npm run deploy` (still the fallback / `workflow_dispatch`). The zh +
+  ja changelog is **auto-translated at build time** too: `build-content.mjs` calls
+  `translate-changelog.mjs`, which keeps the committed `docs/<lang>/changelog.md`
+  block for every already-translated version and LLM-translates only the versions
+  CHANGELOG.md has that the locale file lacks — via **OpenRouter** (free
+  `nvidia/nemotron-3-ultra-550b-a55b:free`, `OPENROUTER_API_KEY` repo secret). No key
+  or an API failure → English fallback with a "translation pending" note, so the build
+  never breaks and no version goes missing. Hand-translating in `docs/zh|ja/changelog.md`
+  is still preferred for quality (committed blocks always win over the LLM), but no
+  longer required before a release. Verify live after the Action runs:
   `curl -sL getchronicle.dev/docs/changelog.html | grep vX.Y.Z`.
 - Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
   library; keep it that way.
