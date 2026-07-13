@@ -278,14 +278,17 @@ plus real data end-to-end (see Verification below).
   `spctl -a -vvv <app>` → "accepted / source=Notarized Developer ID" and
   `xcrun stapler validate <app>`. v0.1.6 was the first signed release; existing
   UNSIGNED users (≤0.1.5) upgrade once manually, then auto-update takes over.
-  **LAST STEP — redeploy the docs site.** The app release updates `CHANGELOG.md`,
-  but getchronicle.dev/docs does NOT auto-rebuild — it's the separate `chronicle-web`
-  Vercel deployable, so its changelog page stays frozen at the last deploy until you
-  `cd website && npm run deploy` from `main`. FIRST add the release's entry to the
-  zh + ja changelog TRANSLATIONS (`docs/zh/changelog.md`, `docs/ja/changelog.md` —
-  committed files the site renders; `build-content.mjs` only regenerates the EN
-  changelog from repo-root `CHANGELOG.md`), else those locales drift (they sat at
-  v0.1.8 through the v0.1.9 + v0.1.10 app releases until caught up). Verify live:
+  **Docs site: now auto-deploys.** The app release updates `CHANGELOG.md`, and a
+  push to `main` touching `docs/**`, `CHANGELOG.md`, or `website/**` triggers
+  `.github/workflows/deploy-docs.yml`, which regenerates content and deploys the
+  `chronicle-web` Vercel project (needs the `VERCEL_TOKEN` repo secret; org/project
+  IDs are inlined). So the changelog page updates on its own now — no manual
+  `cd website && npm run deploy` (still the fallback / `workflow_dispatch`). BUT
+  still add the release's entry to the zh + ja changelog TRANSLATIONS FIRST
+  (`docs/zh/changelog.md`, `docs/ja/changelog.md` — committed files the site
+  renders; `build-content.mjs` only regenerates the EN changelog from repo-root
+  `CHANGELOG.md`), else those locales drift (they sat at v0.1.8 through the v0.1.9 +
+  v0.1.10 app releases until caught up). Verify live after the Action runs:
   `curl -sL getchronicle.dev/docs/changelog.html | grep vX.Y.Z`.
 - Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
   library; keep it that way.
