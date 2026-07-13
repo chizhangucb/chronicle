@@ -87,6 +87,20 @@ vercel link --project chronicle-web --yes
 > release tag, the live domain), the site should track `main`. After a PR merges:
 > `git checkout main && git pull && cd website && npm run deploy`.
 
+### Automatic deploys (GitHub Actions)
+
+You normally don't need to deploy by hand: [`.github/workflows/deploy-docs.yml`](../.github/workflows/deploy-docs.yml)
+redeploys production on every push to `main` that touches `docs/**`, `CHANGELOG.md`, or
+`website/**`. It runs the same `npm run content` + `vercel --prod` this runbook describes, so
+a merged docs/changelog change reaches getchronicle.dev on its own. The manual `npm run deploy`
+stays as a fallback (and the workflow can be run on demand from the **Actions** tab).
+
+**One-time setup:** add a `VERCEL_TOKEN` repository secret (Vercel → Account Settings → Tokens →
+Create, then `gh secret set VERCEL_TOKEN --repo chizhangucb/chronicle`). The org/project IDs the
+CLI needs are inlined in the workflow (they're identifiers, not secrets). Note the workflow only
+regenerates the **English** changelog from `CHANGELOG.md`; keep the `docs/zh` + `docs/ja`
+changelog translations in sync yourself, or those locales drift.
+
 ## Domain & DNS
 
 Production domain: **`getchronicle.dev`** (apex) + `www.getchronicle.dev`, on the site's Vercel

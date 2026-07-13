@@ -1,0 +1,59 @@
+# Auto-deploy the getchronicle.dev docs site (the `chronicle-web` Vercel project)
+# whenever docs source, the changelog, or the website itself changes on `main`.
+#
+# The docs site does NOT auto-rebuild on an app release — it's a separate Vercel
+# deployable and its changelog page froze at v0.1.8 through two app releases until
+# it was redeployed by hand. This workflow removes that manual step.
+#
+# It replicates the working manual command (`cd website && npm run content && vercel
+# --prod`): `npm run content` regenerates `website/docs` (gitignored) from the repo's
+# `docs/**` + `CHANGELOG.md`, then the Vercel CLI uploads `website/` and runs
+# `build:site` (vitepress build + assemble) on Vercel.
+#
+# One-time setup: add a `VERCEL_TOKEN` repository secret
+#   (Vercel → Account Settings → Tokens → Create, then
+#    `gh secret set VERCEL_TOKEN --repo chizhangucb/chronicle`).
+# The org/project IDs below are identifiers, not secrets (they live in the
+# gitignored website/.vercel/project.json), so they're inlined here.
+name: Deploy docs site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'website/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_eTODckSuy0p0N9WtU83LMRHO
+      VERCEL_PROJECT_ID: prj_FwPaL3x7NoMAsZtTrOd013TDR5z1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      - name: Generate docs content (docs/** + CHANGELOG.md → website/docs)
+        working-directory: website
+        run: npm run content
+
+      - name: Deploy to Vercel (production)
+        working-directory: website
+        run: npx vercel --prod --yes --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
