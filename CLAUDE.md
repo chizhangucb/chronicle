@@ -232,12 +232,17 @@ plus real data end-to-end (see Verification below).
     `website/.vitepress/theme/` (custom theme registering the `<Walkthrough/>` component),
     `website/scripts/build-content.mjs` (copies `../docs` → `website/docs`, excludes
     `superpowers/` + PRD, rewrites outside-`docs/` links to GitHub, **and generates
-    `changelog.md` from repo-root `CHANGELOG.md`**), `website/scripts/assemble.mjs` (combines
-    the VitePress build under `dist/docs` with the landing at `dist/` root). `website/README.md`
-    is the deploy runbook (incl. the translation-upkeep note).
-  Deploy: `cd website && npm run deploy[:preview]` (from `main` after merge). Preview the
-  landing alone: `python3 -m http.server 4321 --directory website` (launch config `website`);
-  the docs dev server is launch config `docs-dev` (`npm run docs:dev`, base `/docs/`).
+    `changelog.md` from repo-root `CHANGELOG.md`**), `website/scripts/translate-changelog.mjs`
+    (build-time zh/ja changelog auto-translation via OpenRouter — keeps committed blocks,
+    LLM-fills missing versions, English fallback on any failure), `website/scripts/assemble.mjs`
+    (combines the VitePress build under `dist/docs` with the landing at `dist/` root).
+    `website/README.md` is the deploy runbook. **`.github/workflows/deploy-docs.yml`**
+    auto-deploys the site on any push to `main` touching `docs/**`/`CHANGELOG.md`/`website/**`
+    (secrets: `VERCEL_TOKEN`, `OPENROUTER_API_KEY`; org/project IDs inlined).
+  Deploy: normally automatic via the workflow; manual fallback `cd website && npm run
+  deploy[:preview]` (from `main` after merge). Preview the landing alone:
+  `python3 -m http.server 4321 --directory website` (launch config `website`); the docs dev
+  server is launch config `docs-dev` (`npm run docs:dev`, base `/docs/`).
 - `docs/` — the layered developer docs (guide / reference / architecture, ~28 pages +
   `index.md`/`contributing.md` + a generated `changelog.md`); the single source of truth the
   website renders, in three locales: English at `docs/*`, `docs/zh/**` (简体中文), `docs/ja/**`
@@ -301,6 +306,15 @@ plus real data end-to-end (see Verification below).
   direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
   checkout to `main`** (`git checkout main && git pull && git fetch --prune && git
   branch -D <branch>`) — see the git-pill gotcha below.
+- **Squash-merge leaves stale head branches; they read as "not merged".** GitHub's
+  squash merge rewrites the PR into ONE new commit on `main`, so the original branch's
+  commits are NOT ancestors of `main` — `git merge-base --is-ancestor origin/<b> origin/main`
+  returns false and the branch looks unmerged even though its content shipped. Auto-delete
+  didn't fire (setting off / cloud-agent branches), so they linger on the remote. Before
+  deleting, confirm the work landed via a MERGED PR (`gh pr list --state all --head <b>`),
+  NOT via `is-ancestor`. Then `git push origin --delete <b>`. (This session cleaned
+  `claude/chronicle-developer-docs-58ad63` (PR #10) and `docs-v2-batch` (PR #16); PRs from
+  forks/cloud agents don't create branches in `origin` at all, so nothing to clean there.)
 - **Multi-worktree: singletons collide in the external resource, not in git.** When two
   worktrees/branches both touch a singleton — the Vercel relay, `package.json` version, the
   release tag, the Homebrew cask — git may merge cleanly while the *deployed* thing
