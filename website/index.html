@@ -281,6 +281,16 @@
   .code-copy .cbtn svg{width:13px;height:13px}
   .code-copy .cbtn.done{color:var(--accent2);border-color:var(--accent2)}
 
+  /* ---------- sponsor ---------- */
+  .sponsor{margin:44px 0}
+  .sponsor-lead{font-size:14px;color:var(--muted);margin:0 0 16px;max-width:620px}
+  .sponsor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .sponsor-card{display:block;background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:16px 18px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s,box-shadow .15s}
+  .sponsor-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-shot)}
+  .sponsor-card .sc-title{font-weight:650;font-size:14px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .sponsor-card .sc-title .arr{color:var(--accent);font-weight:700}
+  .sponsor-card .sc-sub{font-size:12.5px;color:var(--muted);line-height:1.45}
+
   /* ---------- footer ---------- */
   footer{border-top:1px solid var(--border);margin-top:24px;padding:28px 0 60px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:13px}
   footer .fl{display:flex;align-items:center;gap:20px}
@@ -302,6 +312,7 @@
     .prow .size{grid-column:2}
     .prow .dl,.prow .soon-tag{grid-column:2;justify-self:start}
     .brew{flex-direction:column;align-items:flex-start}
+    .sponsor-grid{grid-template-columns:1fr}
   }
   @media (max-width:600px){
     .navlink.hide-sm{display:none}
@@ -326,6 +337,7 @@
     </a>
     <nav class="topnav">
       <a class="navlink" href="/docs">Docs</a>
+      <a class="navlink hide-sm" href="#sponsor">Sponsor</a>
       <a class="navlink hide-sm" href="https://github.com/chizhangucb/chronicle/releases">Releases</a>
       <a class="navlink gh" id="ghLink" href="https://github.com/chizhangucb/chronicle" aria-label="Chronicle on GitHub">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.57.1.79-.25.79-.56v-1.96c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
@@ -496,11 +508,33 @@
     </div>
   </section>
 
+  <!-- ============ SPONSOR ============ -->
+  <!-- Keep these URLs in sync with src/sponsor.js and .github/FUNDING.yml -->
+  <section class="sponsor" id="sponsor">
+    <div class="sec-head"><h2>Support Chronicle</h2></div>
+    <p class="sponsor-lead">Chronicle is free and 100% open-source. If it saves you time, you can sponsor its development — one-time or monthly. Payments are handled by each provider; nothing ever touches Chronicle.</p>
+    <div class="sponsor-grid">
+      <a class="sponsor-card" href="https://github.com/sponsors/chizhangucb" target="_blank" rel="noopener">
+        <div class="sc-title"><span>GitHub Sponsors</span><span class="arr">→</span></div>
+        <div class="sc-sub">Card · one-time or monthly · 0% fee</div>
+      </a>
+      <a class="sponsor-card" href="https://chronicle.lemonsqueezy.com/buy/one-time" target="_blank" rel="noopener">
+        <div class="sc-title"><span>Card · PayPal · Venmo</span><span class="arr">→</span></div>
+        <div class="sc-sub">via Lemon Squeezy · also Alipay &amp; WeChat (one-time)</div>
+      </a>
+      <a class="sponsor-card" href="https://afdian.com/a/chronicle" target="_blank" rel="noopener">
+        <div class="sc-title"><span>Alipay / WeChat · 支付宝 / 微信</span><span class="arr">→</span></div>
+        <div class="sc-sub">via 爱发电 Afdian · one-time (投喂) or monthly (包月)</div>
+      </a>
+    </div>
+  </section>
+
   <!-- ============ FOOTER ============ -->
   <footer>
     <div class="fl">
       <span class="fmono">Chronicle · MIT</span>
       <a href="/docs">Docs</a>
+      <a href="#sponsor">Sponsor</a>
       <a href="https://github.com/chizhangucb/chronicle">GitHub</a>
       <a href="https://github.com/chizhangucb/chronicle/releases">Releases</a>
     </div>

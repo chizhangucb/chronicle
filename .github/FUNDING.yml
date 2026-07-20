@@ -1,0 +1,6 @@
+# Powers the "Sponsor" button on the GitHub repo page.
+# Keep these URLs in sync with src/sponsor.js and website/index.html.
+github: [chizhangucb]
+custom:
+  - "https://chronicle.lemonsqueezy.com/buy/one-time"
+  - "https://afdian.com/a/chronicle"
