@@ -33,6 +33,12 @@ function showWindow() {
     },
   });
   win.loadURL(URL);
+  // Route any https navigation that would open a new window (target="_blank",
+  // window.open) to the system browser instead of spawning a child BrowserWindow.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
   // Closing the window keeps the MCP Hub alive in the tray (FR-MCP-13)
   win.on('close', (e) => {
     if (!quitting) { e.preventDefault(); win.hide(); }
@@ -78,6 +84,12 @@ app.on('before-quit-for-update', () => { quitting = true; });
 
 ipcMain.handle('update:relaunch', () => { quitting = true; autoUpdater.quitAndInstall(); });
 ipcMain.handle('update:check', () => checkForUpdates(false));
+
+// Sponsorship links (and any external https URL) open in the user's real browser,
+// never an in-app BrowserWindow. Scheme-restricted to https for safety.
+ipcMain.handle('shell:open-external', (_e, url) => {
+  if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);
+});
 
 async function checkForUpdates(interactive = false) {
   if (!app.isPackaged) {
