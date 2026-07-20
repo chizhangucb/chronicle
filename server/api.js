@@ -16,7 +16,7 @@ import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js
 import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools, setProjectPath, setCredential } from './mcp/registry.js';
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
-import { attachLiveStream, isLiveCandidate, liveStatus } from './live.js';
+import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import * as replay from './replay.js';
 
 export const api = express();
@@ -67,7 +67,7 @@ api.get('/scan', (req, res) => {
 
 // Gather parsed {session, events} pairs per source. files/sessionIds restrict
 // the import to a user-selected subset of sessions.
-async function gatherParsed({ source, logDir, files, directory, sessionIds }) {
+async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }) {
   const bad = (msg) => { const e = new Error(msg); e.status = 400; return e; };
   if (source === 'claude-code') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
@@ -86,7 +86,7 @@ async function gatherParsed({ source, logDir, files, directory, sessionIds }) {
   if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
   if (source === 'cursor') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-    return parseCursorWorkspace(logDir);
+    return parseCursorWorkspace(logDir, undefined, physicalPath || null);
   }
   if (source === 'gemini-cli') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Gemini project directory not found');
@@ -227,11 +227,12 @@ api.get('/projects/:id', (req, res) => {
   // Optional time range (?days=7/30/365) — filters sessions and all analytics.
   const days = Number(req.query.days) || null;
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  const sessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens,
+  const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens,
       (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
-    FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff)
-    .map(({ file_path, ...s }) => ({ ...s, liveCandidate: isLiveCandidate(file_path) }));
+    FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff);
+  const liveIds = liveCandidatesForSessions(rawSessions);
+  const sessions = rawSessions.map(({ file_path, ...s }) => ({ ...s, liveCandidate: liveIds.has(s.id) }));
   const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
@@ -373,8 +374,9 @@ api.get('/sessions/:id/messages', (req, res) => {
   const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id);
   const commits = session.started_at && session.ended_at
     ? gitEngine.commitsBetween(project.path, session.started_at, session.ended_at) : [];
+  const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id);
   res.json({ session, project, messages, commits, git: gitEngine.repoInfo(project.path),
-    liveCandidate: isLiveCandidate(session.file_path) });
+    liveCandidate: isLiveCandidate(session.file_path, session, peers) });
 });
 
 // Delete the ORIGINAL log file on disk (explicit user request only, permanent —
@@ -391,7 +393,8 @@ api.delete('/sessions/:id/source-file', (req, res) => {
   if (!fs.existsSync(session.file_path) || !fs.statSync(session.file_path).isFile()) {
     return res.status(400).json({ error: 'Source file no longer exists on disk' });
   }
-  if (isLiveCandidate(session.file_path)) {
+  const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id);
+  if (isLiveCandidate(session.file_path, session, peers)) {
     return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting its log' });
   }
   try {
@@ -407,7 +410,8 @@ api.delete('/sessions/:id/source-file', (req, res) => {
 api.delete('/sessions/:id', (req, res) => {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
   if (!session) return res.status(404).json({ error: 'Not found' });
-  if (isLiveCandidate(session.file_path)) {
+  const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id);
+  if (isLiveCandidate(session.file_path, session, peers)) {
     return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting' });
   }
   let sourceDeleted = false;

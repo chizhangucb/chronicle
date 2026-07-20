@@ -1,0 +1,2 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Wednesday, Jul 1, 2026, 8:05 AM (UTC)</timestamp>\n<user_query>\nAdd agent transcript import\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"Implemented agent transcript parsing."}]}}
