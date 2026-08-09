@@ -2,7 +2,7 @@
 
 The four subsystems that make Chronicle feel "smart" — secret redaction, live session tailing, deterministic replay, and read→change causality — are all **local heuristics**. There are no LLM calls anywhere in this stack, which is exactly what preserves the offline-by-default guarantee.
 
-This page covers `server/security.js`, `hooks/chronicle-guard.mjs`, `server/live.js`, `server/replay.js`, `server/causality.js`, and `server/shares.js` for contributors. Each section explains the data flow and the design constraint it satisfies. The common thread: every "intelligent" behavior here is pattern-matching and structural analysis you could read and audit, not a model you have to trust.
+This page covers `server/security.js`, `server/live.js`, `server/replay.js`, `server/causality.js`, and `server/shares.js` for contributors. Each section explains the data flow and the design constraint it satisfies. The common thread: every "intelligent" behavior here is pattern-matching and structural analysis you could read and audit, not a model you have to trust.
 
 ## Security engine (`server/security.js`)
 
@@ -32,36 +32,9 @@ Custom rules are **globs** — `*` matches any run of non-whitespace, `?` a sing
 2. **Custom `redact` rules before built-ins.** They're spliced ahead of `BUILTIN_RULES` in the rule set.
 3. **Earlier match wins on overlap.** A `claimed` interval list means once a span is redacted, a later rule can't re-claim overlapping characters.
 
-The result is deterministic: findings are sorted by position and the redacted string is rebuilt by splicing replacements over the claimed spans. Exports: `listRules`, `addRule`, `deleteRule`, `toggleRule`, `scanText(text)`, `scanSession(messages)`, `preToolUseCheck(...)`, `listInterceptions`.
+The result is deterministic: findings are sorted by position and the redacted string is rebuilt by splicing replacements over the claimed spans. Exports: `listRules`, `addRule`, `deleteRule`, `toggleRule`, `scanText(text)`, `scanSession(messages)`.
 
 `scanSession(messages)` is the batch path used by the Security Check and by share creation: it scans each message's `text` and `tool_input`, returns per-message findings plus redacted copies, and aggregates a `totals` histogram and `findingCount`.
-
-### The pre-tool-use path
-
-`preToolUseCheck({ tool_name, tool_input }, readFileFn)` is the live-guard entry point. For a read-like tool (`Read`, `read_file`, `View`, `Grep`, `NotebookRead`) it scans the **actual file contents** via the injected `readFileFn`; for anything else it scans the serialized tool input. Only high-severity rules block:
-
-```js
-const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
-```
-
-High-severity findings (or any custom rule) return `decision: 'block'` with a human-readable reason; lower-severity matches (email, phone, private IP) are `flagged` but allowed. Either way the event is written to the `interceptions` table so it shows up in Security → Interceptions.
-
-### The PreToolUse hook (`hooks/chronicle-guard.mjs`)
-
-The hook is the thin CLI shim that wires Chronicle's engine into Claude Code's `PreToolUse` event. It reads the hook payload from stdin, POSTs `{tool_name, tool_input}` to `POST /api/security/pretooluse`, and acts on the verdict:
-
-```js
-if (verdict.decision === 'block') {
-  console.error(verdict.reason);   // stderr is shown to the model
-  process.exit(2);                 // exit 2 = block the tool call
-}
-process.exit(0);                   // allow
-```
-
-Two design guarantees make this safe to install:
-
-- **Fails open.** A 3-second `fetch` timeout guards the call; if Chronicle isn't running, or errors, or times out, the hook exits `0` and the tool call proceeds untouched. Security tooling that breaks your editor when it's down is worse than no tooling.
-- **Backs up first.** The one-click installer (`POST /api/security/install-hook`) backs up `~/.claude/settings.json` before adding the hook. It is **not installed by default** — you opt in. The endpoint is overridable via `CHRONICLE_URL`.
 
 > **Contributor gotcha — two error heuristics, keep them in sync.** The "is this tool result an error?" check exists in two places: `ERROR_RE` in `server/api.js` (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview stats). Change one and the Errors counts diverge. If you touch error detection, touch both.
 
@@ -131,7 +104,7 @@ createShare(sessionId, days = 7)   // → { token, url: `/share/${token}`, expir
 Redaction regexes, live-tail polling, replay's file-op re-execution, and causality's structural scoring are all things a contributor can read, reason about, and audit — no network, no inference, no external dependency. That's the point: **everything heavy is heuristic + local, so Chronicle keeps working with the network unplugged**, and its "intelligence" is inspectable rather than opaque.
 
 ## Related
-- [Security & sharing](../guide/security-and-sharing.md) — Security Check, custom rules, the hook, share links.
+- [Security & sharing](../guide/security-and-sharing.md) — Security Check, custom rules, share links.
 - [Live streaming](../guide/live-streaming.md) — the LIVE indicator and reconnection UX.
 - [Replay mode](../guide/replay-mode.md) — the deterministic sandbox replay walkthrough.
 - [Context causality](../guide/context-causality.md) — read→change linking and confidence tiers.

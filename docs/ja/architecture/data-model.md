@@ -80,6 +80,8 @@ CREATE INDEX idx_sessions_project ON sessions(project_id);
 
 `usage` JSON の形状は `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}` です — 5 分キャッシュ書き込みと 1 時間キャッシュ書き込みは課金レートが異なるため、分けて保持されます（[セッションインサイト](../guide/session-insights.md) を参照）。
 
+> **v0.2 での追加。** `messages` にはサイドチェーン/帰属のカラム（`is_sidechain`、`agent_type`、`skill`）とメッセージ単位のトークンカラムが加わり、`sessions` には `sidechain_count` と、保存される時間メトリクス `agent_active_ms` / `engaged_ms` が加わりました。FTS5 インデックス（`messages_fts`）がグローバル検索を支え、バージョン管理された 2 つの `contract_*` ビューが外部コンシューマー向けの読み取り専用メトリクスサーフェスを公開します。すべて同じ冪等マイグレーションのパターンです — 詳細は [メトリクスとコントラクトビュー](metrics-and-contract.md) にあります。
+
 **`messages`** はセッション内で `seq` によって順序づけられた正規化イベントストリームです。`(session_id, seq)` インデックスこそが、ウィンドウ化された再生（playback）を安価にするものです。UI は選択箇所の周辺約 400 行をレンダリングするため、6,000 メッセージのセッションを DOM にロードするのではなく、`seq` でスライスします。
 
 ## 正規化イベントモデル

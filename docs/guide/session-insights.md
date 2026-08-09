@@ -15,15 +15,19 @@ A row of cards up top:
 
 ### Agent Active vs. Total Duration
 
-Agent Active sums the gaps between consecutive message timestamps but **excludes only the pause before each of your real prompts** — that gap is you reading, thinking, and typing (or walking away), not the agent working. Every other gap counts in full: assistant thinking and tool execution are the agent working, with no cap, so a 20-minute build or a long think shows up.
+Agent Active sums the gaps between consecutive message timestamps but **excludes the pause before each of your real prompts** — that gap is you reading, thinking, and typing (or walking away), not the agent working. A gap that ends in a tool result matched to a prior tool call counts **in full** (that's real tool or build time, no cap), and every other gap counts with a **10-minute cap** so a stray timestamp can't inflate the number. Subagent (sidechain) activity participates too, without double-counting overlapping time.
 
-A subtlety worth knowing: **not every `user`-role log entry is a human prompt.** Background-task completions (a build finishing), in-app element selections, interrupt markers, and other system injections all carry a `user` role. Chronicle does **not** treat the pause before those as your idle time — the agent was busy (e.g. building) or you were interacting with the app — so they count toward Agent Active. Only a genuine typed prompt subtracts time. (An earlier version counted every `user`-role entry as a human turn, which wrongly charged background-build waits to your idle time.)
+A subtlety worth knowing: **not every `user`-role log entry is a human prompt.** Background-task completions (a build finishing), in-app element selections, permission approvals, interrupt markers, and other system injections all carry a `user` role. Chronicle does **not** treat the pause before those as your idle time — the agent was busy (e.g. building) or you were interacting with the app — so they count toward Agent Active. Only a genuine typed prompt (or a permission approval, which is you at the keyboard) subtracts time.
 
-So on a session spread over two days, Total Duration might read "50h" while Agent Active reads the hours the agent was actually busy. That's not a bug; it's the point. An **ⓘ** tooltip on the card explains the distinction inline, since the gap between the two numbers surprises people.
+Below Agent Active, a secondary **Engaged time** line shows a different cut: the sum of *all* inter-message gaps, each capped at 90 minutes, with no human/agent distinction — a rough "hands-on time" in the style of editor-extension trackers. Both numbers are **computed at import and stored on the session** (`agent_active_ms`, `engaged_ms`), so the UI and the [contract views](../architecture/metrics-and-contract.md) read the same values.
+
+So on a session spread over two days, Total Duration might read "50h" while Agent Active reads the hours the agent was actually busy. That's not a bug; it's the point. An **ⓘ** tooltip on each number explains its definition inline, since the gaps between them surprise people.
 
 ## Cost & Usage
 
 Logs carry **tokens, not dollars** — no AI tool records what a session cost you. Chronicle reproduces the cost the way Claude Code's `/usage` does: it aggregates per-model token totals from the log and multiplies by a static list-price table (`src/models.js`, never fetched at runtime).
+
+Totals include **subagent (sidechain) usage** — the tokens spent by background agents a session launched, which older versions dropped entirely. Usage is also stored **per message**, which is what makes costliest-message and per-skill attribution possible downstream (see [Metrics & contract views](../architecture/metrics-and-contract.md)).
 
 The panel breaks down, per model:
 

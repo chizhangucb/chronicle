@@ -80,6 +80,8 @@ CREATE INDEX idx_sessions_project ON sessions(project_id);
 
 The `usage` JSON is shaped `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}` — 5-minute and 1-hour cache writes are kept split because they bill at different rates (see [Session insights](../guide/session-insights.md)).
 
+> **v0.2 additions.** `messages` gains sidechain/attribution columns (`is_sidechain`, `agent_type`, `skill`) and per-message token columns; `sessions` gains `sidechain_count` and the stored duration metrics `agent_active_ms` / `engaged_ms`; an FTS5 index (`messages_fts`) backs global search; and two versioned `contract_*` views expose a read-only metrics surface for external consumers. All are the same idempotent-migration pattern — the full details live in [Metrics & contract views](metrics-and-contract.md).
+
 **`messages`** is the normalized event stream, ordered by `seq` within a session. The `(session_id, seq)` index is what makes windowed playback cheap — the UI renders ~400 rows around the selection, so it slices by `seq` rather than loading a 6,000-message session into the DOM.
 
 ## The normalized event model

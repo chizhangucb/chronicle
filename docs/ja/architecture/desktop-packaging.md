@@ -8,9 +8,9 @@ Chronicle のデスクトップアプリは、dev や standalone モードで動
 
 起動時、シェルは 4 つのことを順に行います。単一インスタンスのロックを取得し、組み込みサーバーを起動し、トレイを構築し、ウィンドウを表示します。
 
-**組み込みサーバー。** `startBackend()` は `server/standalone.js` を import し、`startServer(41730)` を呼びます — 他のすべてのモードで配信されるのとまったく同じ Express アプリ（`/api`、`/share`、`/mcp`）です。ウィンドウはその後、単に `http://localhost:41730` をロードします。別個の API プロセスはありません。デスクトップアプリ*そのもの*が、Chromium ウィンドウを取り付けた standalone サーバーです。
+**組み込みサーバー。** `startBackend()` は `server/standalone.js` を import し、`startServer(41730)` を呼びます — 他のすべてのモードで配信されるのとまったく同じ Express アプリ（`/api`、`/share`）です。ウィンドウはその後、単に `http://localhost:41730` をロードします。別個の API プロセスはありません。デスクトップアプリ*そのもの*が、Chromium ウィンドウを取り付けた standalone サーバーです。
 
-**トレイが MCP Hub を生かし続ける。** ウィンドウを閉じてもアプリは終了**しません** — close ハンドラーは `e.preventDefault()` を呼び、代わりにウィンドウを隠します。
+**トレイが自動同期を生かし続ける。** ウィンドウを閉じてもアプリは終了**しません** — close ハンドラーは `e.preventDefault()` を呼び、代わりにウィンドウを隠します。
 
 ```js
 win.on('close', (e) => {
@@ -18,7 +18,7 @@ win.on('close', (e) => {
 });
 ```
 
-アプリはシステムトレイに常駐し続けるため、ウィンドウが開いていなくても集約型 MCP Hub が下流のクライアントに配信し続けます。本当に終了する唯一の方法は、トレイメニューの **Quit (stops MCP Hub)** 項目で、これは `app.quit()` の前に `quitting = true` を設定します。`window-all-closed` は意図的に何もしません — アプリはトレイに住むことを意図しています。
+アプリはシステムトレイに常駐し続けるため、ウィンドウが開いていなくても [自動同期](../guide/auto-sync.md) がバックグラウンドでインポートを続けます — fs ウォッチャー、30 分間隔のバックストップタイマー、`powerMonitor` の復帰ハンドラー（システムのスリープ解除時の同期パス）は、すべてメインプロセスで動きます。本当に終了する唯一の方法は、トレイメニューの **Quit** 項目で、これは `app.quit()` の前に `quitting = true` を設定します。`window-all-closed` は意図的に何もしません — アプリはトレイに住むことを意図しています。シェルはまた、フレッシュネス関連の設定（ログイン時起動のための `app.setLoginItemSettings`）を所有し、`chronicle://` スキームを登録します（`setAsDefaultProtocolClient` + ウィンドウをフォーカスしてセッションへ遷移する open-url ハンドラー）。
 
 **単一インスタンスのロック。** `app.requestSingleInstanceLock()` は 1 マシンにつき 1 つの Chronicle を保証します（ポート `41730` も所有します）。2 度目の起動は既存のウィンドウをフォーカスして終了します。ロックやポートを保持したままの古いプロセスが、「新しいビルドが起動しない」症状のよくある原因です — `CLAUDE.md` のパッケージングの落とし穴を参照してください。
 
@@ -41,7 +41,7 @@ dev や standalone（素のブラウザで preload なし）では、そのブ�
 | --- | --- | --- |
 | `asar` | `false` | サーバーは `dist/` とパーサーを `import.meta.url` 経由で素のファイルとして解決する。asar パッキングはそれらのパスを壊す |
 | `electronLanguages` | `en`、`zh_CN` | 他のロケールバンドルを削ってアプリを縮小する |
-| `files` | `dist/`、`server/`、`electron/`、`hooks/`、`package.json` | ランタイムが必要とするものだけ |
+| `files` | `dist/`、`server/`、`electron/`、`package.json` | ランタイムが必要とするものだけ |
 | `mac.target` | `dmg`、`zip` | ダウンロード用の DMG。**zip は electron-updater が更新に使うもの** |
 | `mac.hardenedRuntime` | `true` | 公証に必須 |
 | `dmg.format` | `ULFO` | electron-builder 26 が受け付ける最も強い DMG 圧縮（`ULMO` ではない） |

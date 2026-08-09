@@ -8,9 +8,9 @@ The guiding constraint is that Electron is a **thin shell**: it starts the serve
 
 On launch the shell does four things, in order: acquire the single-instance lock, start the embedded server, build the tray, and show the window.
 
-**Embedded server.** `startBackend()` imports `server/standalone.js` and calls `startServer(41730)` — the exact same Express apps (`/api`, `/share`, `/mcp`) served in every other mode. The window then just loads `http://localhost:41730`. There is no separate API process; the desktop app *is* the standalone server with a Chromium window attached.
+**Embedded server.** `startBackend()` imports `server/standalone.js` and calls `startServer(41730)` — the exact same Express apps (`/api`, `/share`) served in every other mode. The window then just loads `http://localhost:41730`. There is no separate API process; the desktop app *is* the standalone server with a Chromium window attached.
 
-**Tray keeps the MCP Hub alive.** Closing the window does **not** quit the app — the close handler calls `e.preventDefault()` and hides the window instead:
+**Tray keeps auto-sync alive.** Closing the window does **not** quit the app — the close handler calls `e.preventDefault()` and hides the window instead:
 
 ```js
 win.on('close', (e) => {
@@ -18,7 +18,7 @@ win.on('close', (e) => {
 });
 ```
 
-The app stays resident in the system tray so the aggregating MCP Hub keeps serving downstream clients even with no window open. The only way to truly quit is the tray menu's **Quit (stops MCP Hub)** item, which sets `quitting = true` before `app.quit()`. `window-all-closed` deliberately does nothing — the app is meant to live in the tray.
+The app stays resident in the system tray so [auto-sync](../guide/auto-sync.md) keeps importing in the background even with no window open — the fs-watchers, the 30-minute backstop timer, and the `powerMonitor` resume handler (a sync pass on system wake) all run in the main process. The only way to truly quit is the tray menu's **Quit** item, which sets `quitting = true` before `app.quit()`. `window-all-closed` deliberately does nothing — the app is meant to live in the tray. The shell also owns the freshness settings (`app.setLoginItemSettings` for launch-at-login) and registers the `chronicle://` scheme (`setAsDefaultProtocolClient` + an open-url handler that focuses the window and navigates to the session).
 
 **Single-instance lock.** `app.requestSingleInstanceLock()` guarantees one Chronicle per machine (it also owns port `41730`); a second launch focuses the existing window and exits. A stale process holding the lock or the port is the usual cause of a "new build won't start" symptom — see the packaging gotchas in `CLAUDE.md`.
 
@@ -41,7 +41,7 @@ Packaging is `electron-builder`, configured entirely in `package.json`. The choi
 | --- | --- | --- |
 | `asar` | `false` | The server resolves `dist/` and parsers as plain files via `import.meta.url`; asar packing breaks those paths |
 | `electronLanguages` | `en`, `zh_CN` | Strip the other locale bundles to shrink the app |
-| `files` | `dist/`, `server/`, `electron/`, `hooks/`, `package.json` | Exactly what the runtime needs |
+| `files` | `dist/`, `server/`, `electron/`, `package.json` | Exactly what the runtime needs |
 | `mac.target` | `dmg`, `zip` | DMG for download; **zip is what electron-updater updates from** |
 | `mac.hardenedRuntime` | `true` | Required for notarization |
 | `dmg.format` | `ULFO` | Strongest DMG compression electron-builder 26 accepts (not `ULMO`) |

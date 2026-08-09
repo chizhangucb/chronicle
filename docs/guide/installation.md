@@ -38,13 +38,13 @@ Source runs on macOS, Windows, and Linux. It is also the *only* way to run Chron
 npm install
 ```
 
-Then pick a run mode. All three modes serve the **same** Express apps (`/api`, `/share`, `/mcp`) — they differ only in how the UI is served and whether there's a desktop shell around it.
+Then pick a run mode. All three modes serve the **same** Express apps (`/api`, `/share`) — they differ only in how the UI is served and whether there's a desktop shell around it.
 
 | Command | What it's for | Port |
 | --- | --- | --- |
 | `npm run dev` | Vite dev server with the API mounted in-process. API routes hot-reload on save (per-request `ssrLoadModule`). Use this for development. | http://localhost:4173 |
 | `npm run desktop` | Production build wrapped in the Electron shell with a system tray. The everyday desktop experience. | 41730 |
-| `npm run standalone` | Headless production server (UI + `/api` + `/share` + `/mcp`), bound to `127.0.0.1`. Handy for running Chronicle without Electron; override the port with `PORT`. | 41730 |
+| `npm run standalone` | Headless production server (UI + `/api` + `/share`), bound to `127.0.0.1`. Handy for running Chronicle without Electron; override the port with `PORT`. | 41730 |
 | `npm run build` | `vite build` → `dist/`. Just the static client bundle; no server. | — |
 
 Why one port and one process? The Express apps are mounted directly into the Vite dev server (via a plugin in `vite.config.js`) and served without Vite by `server/standalone.js` under Electron. Any endpoint you add works in all three modes for free. The architecture overview goes deeper into this.

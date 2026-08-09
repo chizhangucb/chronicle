@@ -11,14 +11,10 @@ Chronicle 写入的一切都位于一个基础目录下（默认为 `~/.chronicl
 | 路径 | 存放内容 |
 | --- | --- |
 | `chronicle.db` | SQLite 数据库——所有项目、会话和消息。通过 `node:sqlite`（`DatabaseSync`）打开，无需原生编译 |
-| `skills/` | 中央 Skills Hub 存储（`CENTRAL_SKILLS`），以符号链接分发到每个工具的 skills 目录 |
-| `snapshots/` | Skill 版本历史（导入快照 + 经防抖处理的文件系统变更快照） |
-| `backups/mcp/` | 一键接管前所做的 MCP 配置备份（源配置从不被就地重写） |
 | `replay/<id>/` | 各次运行的 Replay 沙箱，以会话开始时的 Git 快照为种子创建 |
+| `backups/` | 在破坏性或用户可见操作（如恢复）之前写入的备份——在更改任何你可能会遗漏的内容之前，Chronicle 总是先备份 |
 | `feedback.log` | 每一次反馈提交，均在任何网络发送*之前*先在本地追加 |
 | `config.json` | 可选的用户覆盖（见下文） |
-
-> **注意：** `backups/` 也是其他破坏性或用户可见操作（hook 安装、恢复）先行备份的位置——在更改任何你可能会遗漏的内容之前，Chronicle 总是先写入一份备份。
 
 ## 环境变量
 
@@ -30,7 +26,6 @@ Chronicle 写入的一切都位于一个基础目录下（默认为 `~/.chronicl
 | `CHRONICLE_FEEDBACK_RELAY` | `relay.getchronicle.dev` | 覆盖托管的反馈中继 URL | `server/api.js` |
 | `CHRONICLE_CURSOR_DIR` | Cursor 的 VS Code `workspaceStorage` | 将 Cursor 解析器指向非标准位置 | `server/parsers/cursor.js` |
 | `CHRONICLE_VSCODE_DIR` | VS Code / Insiders / VSCodium 用户目录 | 将 Copilot Chat 解析器指向非标准的 VS Code 用户目录 | `server/parsers/copilot.js` |
-| `CHRONICLE_URL` | `http://localhost:4173` | pre-tool-use 守卫 hook 提交扫描请求的地址 | `hooks/chronicle-guard.mjs` |
 | `PORT` | `41730` | 无界面 standalone 服务器的端口 | `server/standalone.js` |
 
 > **注意：** `CHRONICLE_DATA_DIR` 是数据目录唯一的环境变量。在 `server/api.js` 内部，它解析后的值保存在一个名为 `CHRONICLE_DIR` 的常量中——那是一个内部名称，而不是第二个变量，因此只需设置 `CHRONICLE_DATA_DIR`，数据库和反馈日志便都会随之改变。
@@ -49,7 +44,7 @@ Chronicle 写入的一切都位于一个基础目录下（默认为 `~/.chronicl
 
 ## 端口与绑定
 
-三种运行模式都提供相同的 Express 应用（`/api`、`/share`、`/mcp`）；它们只在端口和外壳上有所不同。
+三种运行模式都提供相同的 Express 应用（`/api`、`/share`）；它们只在端口和外壳上有所不同。
 
 | 模式 | 端口 | 绑定 |
 | --- | --- | --- |

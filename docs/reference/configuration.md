@@ -11,14 +11,10 @@ Everything Chronicle writes lives under one base directory (`~/.chronicle` by de
 | Path | What it holds |
 | --- | --- |
 | `chronicle.db` | The SQLite database — all projects, sessions, and messages. Opened via `node:sqlite` (`DatabaseSync`), no native compile |
-| `skills/` | The central Skills Hub store (`CENTRAL_SKILLS`), symlinked out to each tool's skills directory |
-| `snapshots/` | Skill version history (import snapshots + debounced filesystem-change snapshots) |
-| `backups/mcp/` | Backups of MCP configs taken before a one-click takeover (sources are never rewritten in place) |
 | `replay/<id>/` | Per-run Replay sandboxes, seeded from the Git snapshot at session start |
+| `backups/` | Backups written before destructive or user-visible operations (e.g. restores) — Chronicle always backs up before it changes anything you could miss |
 | `feedback.log` | Every feedback submission, appended locally *before* any network send |
 | `config.json` | Optional user overrides (see below) |
-
-> **Note:** `backups/` is also where other destructive or user-visible operations (hook install, restores) back up first — Chronicle always writes a backup before it changes anything you could miss.
 
 ## Environment variables
 
@@ -30,7 +26,6 @@ Each variable is read by a specific file, noted in the last column. Unset variab
 | `CHRONICLE_FEEDBACK_RELAY` | `relay.getchronicle.dev` | Override the hosted feedback relay URL | `server/api.js` |
 | `CHRONICLE_CURSOR_DIR` | Cursor's VS Code `workspaceStorage` | Point the Cursor parser at a non-standard location | `server/parsers/cursor.js` |
 | `CHRONICLE_VSCODE_DIR` | VS Code / Insiders / VSCodium user dirs | Point the Copilot Chat parser at a non-standard VS Code user directory | `server/parsers/copilot.js` |
-| `CHRONICLE_URL` | `http://localhost:4173` | Where the pre-tool-use guard hook posts scan requests | `hooks/chronicle-guard.mjs` |
 | `PORT` | `41730` | Port for the headless standalone server | `server/standalone.js` |
 
 > **Note:** `CHRONICLE_DATA_DIR` is the only environment variable for the data directory. Inside `server/api.js` its resolved value is held in a constant named `CHRONICLE_DIR` — that is an internal name, not a second variable, so set `CHRONICLE_DATA_DIR` and both the database and the feedback log follow.
@@ -49,7 +44,7 @@ Precedence for the relay URL is: `CHRONICLE_FEEDBACK_RELAY` env → `feedbackRel
 
 ## Ports and binding
 
-All three run modes serve the same Express apps (`/api`, `/share`, `/mcp`); they differ only in port and shell.
+All three run modes serve the same Express apps (`/api`, `/share`); they differ only in port and shell.
 
 | Mode | Port | Bind |
 | --- | --- | --- |

@@ -10,12 +10,9 @@ import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
 import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
 import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
-import { scanSession, listRules, addRule, deleteRule, toggleRule, preToolUseCheck, listInterceptions } from './security.js';
+import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
 import { createShare, listShares, revokeShare } from './shares.js';
 import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
-import { classifyScan, backupSources, listServices, upsertService, setServiceEnabled, deleteService, maskService, setDisabledTools, setProjectPath, setCredential } from './mcp/registry.js';
-import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
-import * as skills from './skills.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
 import * as replay from './replay.js';
@@ -261,7 +258,7 @@ api.get('/projects/:id', (req, res) => {
   // Optional time range (?days=7/30/365) — filters sessions and all analytics.
   const days = Number(req.query.days) || null;
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens,
+  const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
       (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
     FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff);
@@ -600,45 +597,6 @@ api.get('/sessions/:id/export-redacted', (req, res) => {
   res.send(lines.join('\n'));
 });
 
-// Pre-tool-use interception (FR-SEC-5/6) — called by hooks/chronicle-guard.mjs
-api.post('/security/pretooluse', (req, res) => {
-  try {
-    res.json(preToolUseCheck(req.body, (p) => {
-      try {
-        if (!fs.existsSync(p) || fs.statSync(p).size > 2 * 1024 * 1024) return null;
-        return fs.readFileSync(p, 'utf8');
-      } catch { return null; }
-    }));
-  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/security/interceptions', (req, res) => res.json(listInterceptions()));
-
-// Hook installer — explicit user action; backs up settings first.
-api.post('/security/install-hook', (req, res) => {
-  try {
-    const os = process.env.HOME || process.env.USERPROFILE;
-    const settingsPath = path.join(os, '.claude', 'settings.json');
-    const guardPath = path.resolve(import.meta.dirname, '..', 'hooks', 'chronicle-guard.mjs');
-    let settings = {};
-    if (fs.existsSync(settingsPath)) {
-      fs.mkdirSync(path.join(os, '.chronicle', 'backups', 'hooks'), { recursive: true });
-      const backup = path.join(os, '.chronicle', 'backups', 'hooks', `settings-${Date.now()}.json`);
-      fs.copyFileSync(settingsPath, backup);
-      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    }
-    settings.hooks ??= {};
-    settings.hooks.PreToolUse ??= [];
-    const command = `node "${guardPath}"`;
-    const already = JSON.stringify(settings.hooks.PreToolUse).includes('chronicle-guard');
-    if (!already) {
-      settings.hooks.PreToolUse.push({ matcher: 'Read|Grep|Bash|WebFetch', hooks: [{ type: 'command', command }] });
-      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-    }
-    res.json({ ok: true, installed: !already, settingsPath, command });
-  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-
 // Share links (FR-SEC-8)
 api.post('/sessions/:id/share', (req, res) => {
   try { res.json(createShare(req.params.id, req.body?.days ?? 7)); }
@@ -656,86 +614,6 @@ api.post('/security/rules', (req, res) => {
 });
 api.delete('/security/rules/:id', (req, res) => { deleteRule(req.params.id); res.json(listRules()); });
 api.patch('/security/rules/:id', (req, res) => { toggleRule(req.params.id, !!req.body.enabled); res.json(listRules()); });
-
-// ---- MCP Hub (FR-MCP) ----
-
-api.get('/mcp/services', (req, res) => res.json(listServices().map(maskService)));
-api.get('/mcp/scan', (req, res) => res.json(classifyScan().map((i) => maskService({ ...i, env: i.env, headers: i.headers }))));
-api.post('/mcp/takeover', (req, res) => {
-  try {
-    const backupDir = backupSources();
-    const wanted = new Set(req.body.names || []);
-    const items = classifyScan().filter((i) => wanted.has(i.name));
-    for (const item of items) upsertService(item);
-    res.json({ ok: true, imported: items.length, backupDir, services: listServices().map(maskService) });
-  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/mcp/services', (req, res) => {
-  try {
-    const { name, transport, command, args, env, url, headers } = req.body;
-    if (!name) return res.status(400).json({ error: 'name required' });
-    upsertService({ name, transport: transport || (url ? 'http' : 'stdio'), command: command ?? null,
-      args: JSON.stringify(args ?? []), env: JSON.stringify(env ?? {}), url: url ?? null,
-      headers: JSON.stringify(headers ?? {}), origin: 'manual' });
-    res.json(listServices().map(maskService));
-  } catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.patch('/mcp/services/:id', (req, res) => {
-  if (req.body.enabled !== undefined) setServiceEnabled(req.params.id, !!req.body.enabled);
-  if (req.body.disabledTools !== undefined) setDisabledTools(req.params.id, req.body.disabledTools);
-  if (req.body.projectPath !== undefined) setProjectPath(req.params.id, req.body.projectPath);
-  if (req.body.bearer !== undefined) setCredential(req.params.id, req.body.bearer);
-  res.json(listServices().map(maskService));
-});
-api.delete('/mcp/services/:id', (req, res) => { deleteService(req.params.id); res.json(listServices().map(maskService)); });
-api.get('/mcp/status', (req, res) => res.json(hubStatus()));
-api.get('/mcp/log', (req, res) => res.json(hubLog()));
-api.get('/mcp/tools', async (req, res) => res.json(await aggregateTools('*')));
-api.post('/mcp/call', async (req, res) => {
-  try { res.json({ ok: true, result: await callTool(req.body.name, req.body.arguments) }); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-
-// ---- Skills Hub (FR-SK) ----
-
-api.get('/skills', (req, res) => res.json(skills.listSkills()));
-api.get('/skills/scan', (req, res) => res.json(skills.scanSkills()));
-api.post('/skills/import', (req, res) => {
-  try {
-    const skill = skills.importSkill(req.body.path, req.body.origin);
-    skills.takeSnapshot(skill.id, 'imported');
-    res.json({ ok: true, skill });
-  }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/skills/github', (req, res) => {
-  try { res.json(skills.importFromGithub(req.body.url, req.body.branch || 'main', req.body.subpath || '')); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/skills/:id/snapshots', (req, res) => res.json(skills.listSnapshots(req.params.id)));
-api.post('/skills/:id/restore', (req, res) => {
-  try { res.json(skills.restoreSnapshot(req.params.id, req.body.snapshotId)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/skills/:id/check-upstream', (req, res) => {
-  try { res.json(skills.checkUpstream(req.params.id)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-skills.startSkillWatcher();
-api.get('/skills/:id', (req, res) => {
-  const s = skills.skillContent(req.params.id);
-  s ? res.json(s) : res.status(404).json({ error: 'Not found' });
-});
-api.post('/skills/:id/link', (req, res) => {
-  try { skills.linkSkill(req.params.id, req.body.tool); res.json(skills.listSkills()); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/skills/:id/unlink', (req, res) => {
-  try { skills.unlinkSkill(req.params.id, req.body.tool); res.json(skills.listSkills()); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.patch('/skills/:id', (req, res) => { skills.updateSkillMeta(req.params.id, req.body); res.json(skills.listSkills()); });
-api.delete('/skills/:id', (req, res) => { skills.deleteSkill(req.params.id, req.query.removeFiles === '1'); res.json(skills.listSkills()); });
 
 // ---- Git snapshot engine ----
 

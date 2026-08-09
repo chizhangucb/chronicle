@@ -8,9 +8,9 @@ Chronicle 的桌面应用是一层 Electron shell，包裹在那个既跑在 dev
 
 启动时，这层 shell 按顺序做四件事：获取单实例锁、启动内嵌服务器、构建托盘、显示窗口。
 
-**内嵌服务器。** `startBackend()` 导入 `server/standalone.js` 并调用 `startServer(41730)`——就是在其他每一种模式下都被提供的那几个完全相同的 Express 应用（`/api`、`/share`、`/mcp`）。窗口随后就只是加载 `http://localhost:41730`。没有单独的 API 进程；桌面应用*就是*那个 standalone 服务器，外加一个 Chromium 窗口。
+**内嵌服务器。** `startBackend()` 导入 `server/standalone.js` 并调用 `startServer(41730)`——就是在其他每一种模式下都被提供的那几个完全相同的 Express 应用（`/api`、`/share`）。窗口随后就只是加载 `http://localhost:41730`。没有单独的 API 进程；桌面应用*就是*那个 standalone 服务器，外加一个 Chromium 窗口。
 
-**托盘让 MCP Hub 保持存活。** 关闭窗口**不会**退出应用——关闭处理器会调用 `e.preventDefault()` 并转而隐藏窗口：
+**托盘让自动同步保持存活。** 关闭窗口**不会**退出应用——关闭处理器会调用 `e.preventDefault()` 并转而隐藏窗口：
 
 ```js
 win.on('close', (e) => {
@@ -18,7 +18,7 @@ win.on('close', (e) => {
 });
 ```
 
-应用会常驻在系统托盘里，于是即便没有窗口打开，聚合式 MCP Hub 也持续为下游客户端服务。真正退出的唯一方式是托盘菜单里的 **Quit (stops MCP Hub)** 项，它会在 `app.quit()` 之前把 `quitting = true` 置上。`window-all-closed` 刻意什么都不做——这个应用注定要活在托盘里。
+应用会常驻在系统托盘里，于是即便没有窗口打开，[自动同步](../guide/auto-sync.md)也持续在后台导入——文件系统 watcher、30 分钟的兜底计时器，以及 `powerMonitor` 的唤醒处理器（系统唤醒时跑一轮同步）全都运行在主进程里。真正退出的唯一方式是托盘菜单里的 **Quit** 项，它会在 `app.quit()` 之前把 `quitting = true` 置上。`window-all-closed` 刻意什么都不做——这个应用注定要活在托盘里。这层 shell 还掌管新鲜度设置（用 `app.setLoginItemSettings` 实现登录即启动），并注册 `chronicle://` scheme（`setAsDefaultProtocolClient` 加上一个 open-url 处理器，用来聚焦窗口并导航到对应会话）。
 
 **单实例锁。** `app.requestSingleInstanceLock()` 保证每台机器只有一个 Chronicle（它同时占用端口 `41730`）；第二次启动会聚焦已存在的窗口并退出。一个占着锁或端口的过期进程，是「新构建不肯启动」这种症状的常见成因——见 `CLAUDE.md` 里的打包陷阱。
 
@@ -41,7 +41,7 @@ win.on('close', (e) => {
 | --- | --- | --- |
 | `asar` | `false` | 服务器通过 `import.meta.url` 把 `dist/` 和解析器当作普通文件来解析；asar 打包会破坏那些路径 |
 | `electronLanguages` | `en`、`zh_CN` | 剥掉其他语言包以缩小应用 |
-| `files` | `dist/`、`server/`、`electron/`、`hooks/`、`package.json` | 恰好是运行时所需的东西 |
+| `files` | `dist/`、`server/`、`electron/`、`package.json` | 恰好是运行时所需的东西 |
 | `mac.target` | `dmg`、`zip` | DMG 用于下载；**zip 才是 electron-updater 用来更新的东西** |
 | `mac.hardenedRuntime` | `true` | 公证所必需 |
 | `dmg.format` | `ULFO` | electron-builder 26 接受的最强 DMG 压缩（不是 `ULMO`） |
