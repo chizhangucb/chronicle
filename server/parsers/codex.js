@@ -80,6 +80,22 @@ export async function parseCodexSession(file) {
       events.push({ ts, kind: 'tool_use', tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id });
     } else if (t === 'function_call_output') {
       events.push({ ts, kind: 'tool_result', text: typeof p.output === 'string' ? p.output : JSON.stringify(p.output), tool_use_id: p.call_id });
+    } else if (t === 'token_count' && p.info?.last_token_usage) {
+      // Per-message usage: a token_count event reports the API call that produced
+      // the most recent model output — attach to it (Codex input_tokens include
+      // the cached portion; split it out to match the CC column semantics).
+      const u = p.info.last_token_usage;
+      for (let i = events.length - 1; i >= 0; i--) {
+        const e = events[i];
+        if (e.input_tokens != null) break;
+        if (e.kind === 'assistant' || e.kind === 'thinking' || e.kind === 'tool_use') {
+          e.input_tokens = Math.max(0, (u.input_tokens || 0) - (u.cached_input_tokens || 0));
+          e.output_tokens = u.output_tokens || 0;
+          e.cache_read_tokens = u.cached_input_tokens || 0;
+          e.cache_w5m_tokens = u.cache_write_input_tokens || 0;
+          break;
+        }
+      }
     }
   }
 
