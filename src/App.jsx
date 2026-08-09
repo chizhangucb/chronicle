@@ -27,6 +27,7 @@ export default function App() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [sponsorOpen, setSponsorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
@@ -40,6 +41,23 @@ export default function App() {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
   useEffect(() => { if (view.name === 'home') refresh(); }, [view.name, refresh]);
+
+  // chronicle://session/<id> deep links: the Electron shell sets
+  // location.hash to `session=<id>`; resolve the owning project and navigate.
+  useEffect(() => {
+    async function onHash() {
+      const m = /^#session=(.+)$/.exec(location.hash);
+      if (!m) return;
+      location.hash = '';
+      try {
+        const s = await api.resolveSession(decodeURIComponent(m[1]));
+        setView({ name: 'session', id: s.id, projectId: s.project_id });
+      } catch {}
+    }
+    onHash();
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   // ⌘K / Ctrl+K opens the global search palette from anywhere.
   useEffect(() => {
@@ -125,6 +143,9 @@ export default function App() {
             onClick={() => setView({ name: 'security' })}>
             <span className="sb-icon">🛡</span><span className="sb-label">{t('Security')}</span>
           </button>
+          <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
+            <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
+          </button>
           <button className="sb-item util" title={t('Sponsor')} onClick={() => setSponsorOpen(true)}>
             <span className="sb-icon">♥</span><span className="sb-label">{t('Sponsor')}</span>
           </button>
@@ -186,12 +207,49 @@ export default function App() {
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
       {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {sponsorOpen && <SponsorModal onClose={() => setSponsorOpen(false)} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
       )}
       <UpdateBanner />
+    </div>
+  );
+}
+
+// Settings: auto-sync (server-side watchers + timer) and launch-at-login
+// (applied by the Electron shell; stored but inert in browser modes).
+function SettingsModal({ onClose }) {
+  const [settings, setSettings] = useState(null);
+  useEffect(() => { api.settings().then(setSettings).catch(() => setSettings({})); }, []);
+  async function toggle(key) {
+    const next = { ...settings, [key]: !settings[key] };
+    setSettings(next);
+    try { setSettings(await api.patchSettings({ [key]: next[key] })); } catch {}
+  }
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>{t('Settings')}</h3>
+          <button className="btn ghost" onClick={onClose}>✕</button>
+        </div>
+        {!settings ? <div className="muted pad8">…</div> : (
+          <div className="pad8">
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.autoSync !== false} onChange={() => toggle('autoSync')} />
+              <span>{t('Auto-sync sessions')}</span>
+              <span className="muted small">{t('Keep imported projects up to date automatically (on launch, on wake, and when source logs change)')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.launchAtLogin === true} onChange={() => toggle('launchAtLogin')} />
+              <span>{t('Launch at login')}</span>
+              <span className="muted small">{t('Start Chronicle in the tray when you log in (desktop app only)')}</span>
+            </label>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

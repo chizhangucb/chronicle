@@ -34,6 +34,11 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, email }),
   }),
+  settings: () => j('/api/settings'),
+  patchSettings: (patch) => j('/api/settings', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+  }),
+  resolveSession: (id) => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project, ts) => j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
   gitTree: (project, commit) => j(`/api/git/tree?project=${project}&commit=${commit}`),
   gitFile: (project, commit, path) =>

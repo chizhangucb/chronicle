@@ -50,6 +50,7 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN summary TEXT'); } catch {}    // 
 try { db.exec('ALTER TABLE sessions ADD COLUMN usage TEXT'); } catch {}      // per-model token totals as JSON
 // v0.2 substrate (design doc §1.1/§1.3)
 try { db.exec('ALTER TABLE sessions ADD COLUMN sidechain_count INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN imported_at TEXT'); } catch {} // last import time (incremental auto-sync)
 try { db.exec('ALTER TABLE sessions ADD COLUMN agent_active_ms INTEGER'); } catch {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN engaged_ms INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN is_sidechain INTEGER DEFAULT 0'); } catch {}
@@ -117,13 +118,13 @@ export function replaceSession(session, events) {
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
     const sidechainCount = events.reduce((n, e) => n + (e.is_sidechain ? 1 : 0), 0);
     db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens, name, summary, usage,
-                                      sidechain_count, agent_active_ms, engaged_ms)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                                      sidechain_count, agent_active_ms, engaged_ms, imported_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
            session.started_at, session.ended_at, events.length, session.first_prompt,
            session.context_tokens ?? null, session.name ?? prev?.name ?? null,
            session.summary ?? null, session.usage ?? null,
-           sidechainCount, agentActiveMs(events), engagedMs(events));
+           sidechainCount, agentActiveMs(events), engagedMs(events), new Date().toISOString());
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
                                                   is_sidechain, agent_type, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
