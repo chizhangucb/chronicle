@@ -11,14 +11,10 @@ Chronicle が書き込むものはすべて 1 つのベースディレクトリ�
 | パス | 保持する内容 |
 | --- | --- |
 | `chronicle.db` | SQLite データベース — すべてのプロジェクト、セッション、メッセージ。`node:sqlite`（`DatabaseSync`）経由で開かれ、ネイティブコンパイルは不要 |
-| `skills/` | 中央 Skills Hub ストア（`CENTRAL_SKILLS`）。各ツールの skills ディレクトリへシンボリックリンクで展開される |
-| `snapshots/` | スキルのバージョン履歴（インポート時のスナップショットと、デバウンスされたファイルシステム変更のスナップショット） |
-| `backups/mcp/` | ワンクリックのテイクオーバー前に取得される MCP 設定のバックアップ（ソースがその場で書き換えられることはない） |
 | `replay/<id>/` | 実行ごとの Replay サンドボックス。セッション開始時の Git スナップショットからシードされる |
+| `backups/` | 破壊的またはユーザーに影響する操作（例: リストア）の前に書き込まれるバックアップ — Chronicle は、見落とす可能性のあるものを変更する前に必ずバックアップを取ります |
 | `feedback.log` | すべてのフィードバック送信。ネットワーク送信の *前に* ローカルへ追記される |
 | `config.json` | 任意のユーザー上書き（後述） |
-
-> **注意:** `backups/` は、その他の破壊的またはユーザーに影響する操作（フック導入、リストア）が最初にバックアップを取る場所でもあります。Chronicle は、見落とす可能性のあるものを変更する前に、常にバックアップを書き込みます。
 
 ## 環境変数
 
@@ -30,7 +26,6 @@ Chronicle が書き込むものはすべて 1 つのベースディレクトリ�
 | `CHRONICLE_FEEDBACK_RELAY` | `relay.getchronicle.dev` | ホスト型フィードバックリレーの URL を上書きする | `server/api.js` |
 | `CHRONICLE_CURSOR_DIR` | Cursor の VS Code `workspaceStorage` | Cursor パーサーを標準外の場所に向ける | `server/parsers/cursor.js` |
 | `CHRONICLE_VSCODE_DIR` | VS Code / Insiders / VSCodium のユーザーディレクトリ | Copilot Chat パーサーを標準外の VS Code ユーザーディレクトリに向ける | `server/parsers/copilot.js` |
-| `CHRONICLE_URL` | `http://localhost:4173` | pre-tool-use ガードフックがスキャンリクエストを POST する先 | `hooks/chronicle-guard.mjs` |
 | `PORT` | `41730` | ヘッドレスの standalone サーバーのポート | `server/standalone.js` |
 
 > **注意:** `CHRONICLE_DATA_DIR` は、データディレクトリに関する唯一の環境変数です。`server/api.js` の内部では、その解決済みの値が `CHRONICLE_DIR` という名前の定数に保持されています。これは内部的な名前であり、2 つ目の変数ではありません。したがって `CHRONICLE_DATA_DIR` を設定すれば、データベースとフィードバックログの両方がそれに従います。
@@ -49,7 +44,7 @@ Chronicle が書き込むものはすべて 1 つのベースディレクトリ�
 
 ## ポートとバインド
 
-3 つの実行モードはいずれも同じ Express アプリ（`/api`、`/share`、`/mcp`）を提供します。異なるのはポートとシェルだけです。
+3 つの実行モードはいずれも同じ Express アプリ（`/api`、`/share`）を提供します。異なるのはポートとシェルだけです。
 
 | モード | ポート | バインド |
 | --- | --- | --- |

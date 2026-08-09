@@ -32,7 +32,7 @@ The palette gives you:
 - **Recent Access** — with an empty query, the palette lists your recent sessions, so it doubles as a quick jump-back.
 - **Keyboard navigation** — **`↑` / `↓`** to move, **`Enter`** to open the highlighted result (jumping straight into that session), **`Esc`** to close.
 
-> **Note:** Global search is `LIKE`-based, not a full-text index. It scans message text and tool input directly, which is plenty fast at Chronicle's scale (tens of thousands of rows). If your database ever grows to where this feels slow, that's the signal to revisit — until then, the simpler approach keeps imports cheap and behavior predictable.
+> **Note:** Global search is backed by an **FTS5 full-text index** (`messages_fts`, over message text and tool input), kept consistent automatically on every import — so search stays fast as the database grows into hundreds of thousands of rows. If the FTS index is unavailable (an SQLite build without FTS5), Chronicle **falls back to plain `LIKE` scanning** with identical results, just slower. Internals in [Metrics & contract views](../architecture/metrics-and-contract.md).
 
 ## Related
 

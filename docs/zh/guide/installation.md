@@ -46,14 +46,14 @@ brew install --cask chronicle
 npm install
 ```
 
-然后选择一种运行模式。全部三种模式都提供**相同**的 Express 应用（`/api`、`/share`、`/mcp`）——它们仅在
+然后选择一种运行模式。全部三种模式都提供**相同**的 Express 应用（`/api`、`/share`）——它们仅在
 UI 的提供方式，以及外面是否包裹着桌面外壳上有所不同。
 
 | 命令 | 用途 | 端口 |
 | --- | --- | --- |
 | `npm run dev` | Vite dev server，API 在进程内挂载。API 路由在保存时热重载（按请求 `ssrLoadModule`）。开发时使用这个。 | http://localhost:4173 |
 | `npm run desktop` | 用带系统托盘的 Electron 外壳包裹的生产构建。日常桌面体验。 | 41730 |
-| `npm run standalone` | 无头生产服务器（UI + `/api` + `/share` + `/mcp`），绑定到 `127.0.0.1`。适合在不带 Electron 的情况下运行 Chronicle；用 `PORT` 覆盖端口。 | 41730 |
+| `npm run standalone` | 无头生产服务器（UI + `/api` + `/share`），绑定到 `127.0.0.1`。适合在不带 Electron 的情况下运行 Chronicle；用 `PORT` 覆盖端口。 | 41730 |
 | `npm run build` | `vite build` → `dist/`。仅构建静态客户端包；不含服务器。 | — |
 
 为何是一个端口、一个进程？Express 应用被直接挂载进 Vite dev server（通过 `vite.config.js` 中的一个

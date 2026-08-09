@@ -39,7 +39,7 @@ function showWindow() {
     if (/^https:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  // Closing the window keeps the MCP Hub alive in the tray (FR-MCP-13)
+  // Closing the window keeps auto-sync alive in the tray
   win.on('close', (e) => {
     if (!quitting) { e.preventDefault(); win.hide(); }
   });
@@ -50,14 +50,14 @@ function buildTray() {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAmklEQVR4nKWTUQ6AIAxDW+9/aP2SIHZlA/tHNvZoywDgTgmwCwUgvWkA7Ea1zMxSTM/MTLU2vFXKZuoSpJRShVpjA3F16dPZAvsWl4vpVW+wjdEDCLROnRvNlxJgBOwBRs0r4DVBFtxeZR2s+g22Fdt/1oQTQLQ/Y5W7fLoHkVdY+xtQNRHtDwvIRjXlnyleZfvzMTnwx2f6AKQ5Hjry5UK/AAAAAElFTkSuQmCC');
   tray = new Tray(icon);
-  tray.setToolTip('Chronicle — MCP Hub running');
+  tray.setToolTip('Chronicle — auto-sync running');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Chronicle', click: showWindow },
-    { label: 'MCP Hub endpoint', sublabel: `${URL}/mcp`, click: () => shell.openExternal(`${URL}`) },
+    { label: 'Sync now', click: () => fetch(`${URL}/api/autosync/run`, { method: 'POST' }).catch(() => {}) },
     { type: 'separator' },
     { label: 'Check for updates', click: checkForUpdates },
     { type: 'separator' },
-    { label: 'Quit (stops MCP Hub)', click: () => { quitting = true; app.quit(); } },
+    { label: 'Quit (stops auto-sync)', click: () => { quitting = true; app.quit(); } },
   ]));
 }
 

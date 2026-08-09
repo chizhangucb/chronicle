@@ -1,8 +1,9 @@
 # Chronicle — project notes for Claude
 
 Local-first AI coding session manager ("time machine"): imports logs from 6 AI tools,
-maps every message to a Git code snapshot, plus MCP Hub, Skills Hub, security
-redaction, live streaming, replay, and an Electron shell. Spec: `docs/AI-session-manager-PRD.md`.
+maps every message to a Git code snapshot, plus security redaction, live streaming,
+replay, tray auto-sync, SQL contract views, and an Electron shell. (v0.2.0 removed
+the MCP Hub, Skills Hub, and guard hook.) Spec: `docs/AI-session-manager-PRD.md`.
 Feature inventory with FR-numbers: `README.md`.
 
 ## Commands
@@ -177,7 +178,7 @@ plus real data end-to-end (see Verification below).
 ## Key files
 
 - `server/db.js` — schema (projects/sessions/messages) + `replaceSession` transaction
-- `server/api.js` — ALL REST routes; also installs the skills fs-watcher on load
+- `server/api.js` — ALL REST routes; also starts the auto-sync watchers on load
 - `server/git.js` — snapshot engine; `commitsBetween` pads ±10 min for timeline ticks
 - `server/parsers/` — claudeCode, codex, cursor, opencode, gemini, copilot
 - `server/live.js` — JSONL tail (`Watcher`) + SQLite poll (`SqlitePollWatcher`) → SSE
@@ -185,11 +186,10 @@ plus real data end-to-end (see Verification below).
 - `server/causality.js` — read→change linking, confidence 0.95/0.55/0.5/0.45/0.2
 - `server/security.js` — redaction rules, `scanSession`, `preToolUseCheck`, interceptions
 - `server/shares.js` — share tokens + the public `/share/:token` HTML page
-- `server/skills.js` — central store `~/.chronicle/skills/`, symlink fanout, GitHub
-  import, snapshot history (`~/.chronicle/snapshots/`)
-- `server/mcp/{registry,hub}.js` — service registry (+policies/scoping/credentials),
-  Streamable-HTTP aggregator at `/mcp`
-- `hooks/chronicle-guard.mjs` — Claude Code PreToolUse hook (exit 2 = block, fails open)
+- `server/autosync.js` — incremental tray auto-sync (mtime > imported_at; watchers,
+  30-min backstop, debounce; state on globalThis); settings in ~/.chronicle/config.json
+- `server/durations.js` — canonical Agent Active (10-min cap, tool_result exemption)
+  + Engaged (90-min cap), stored on sessions at import
 - `src/App.jsx` — global sidebar (collapse state in localStorage, sync-all loop,
   feedback modal), view routing, LIVE pill, always-on top-bar Search/Import, project-card
   gear menus, and the `HomePage` multi-select delete flow

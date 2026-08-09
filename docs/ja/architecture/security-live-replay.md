@@ -2,7 +2,7 @@
 
 Chronicle を「賢い」と感じさせる 4 つのサブシステム — 秘密情報のリダクション、ライブセッションの追尾（tailing）、決定論的なリプレイ、read→change の因果関係 — は、すべて**ローカルなヒューリスティック**です。このスタックのどこにも LLM 呼び出しはなく、これこそがデフォルトでオフラインという保証を守るものです。
 
-このページは、コントリビューター向けに `server/security.js`、`hooks/chronicle-guard.mjs`、`server/live.js`、`server/replay.js`、`server/causality.js`、`server/shares.js` を扱います。各セクションは、データフローとそれが満たす設計上の制約を説明します。共通する筋は、ここでのすべての「知的な」振る舞いが、信頼しなければならないモデルではなく、あなたが読んで監査できるパターンマッチングと構造分析であるということです。
+このページは、コントリビューター向けに `server/security.js`、`server/live.js`、`server/replay.js`、`server/causality.js`、`server/shares.js` を扱います。各セクションは、データフローとそれが満たす設計上の制約を説明します。共通する筋は、ここでのすべての「知的な」振る舞いが、信頼しなければならないモデルではなく、あなたが読んで監査できるパターンマッチングと構造分析であるということです。
 
 ## セキュリティエンジン（`server/security.js`）
 
@@ -32,36 +32,9 @@ Chronicle を「賢い」と感じさせる 4 つのサブシステム — 秘�
 2. **カスタム `redact` ルールが組み込みより先。** それらはルールセット内で `BUILTIN_RULES` の前に差し込まれます。
 3. **重複時は先の一致が勝つ。** `claimed`（占有済み）区間リストは、あるスパンが一度リダクションされると、後のルールが重複する文字を再占有できないことを意味します。
 
-結果は決定論的です。findings は位置でソートされ、リダクション済みの文字列は占有済みスパンの上に置換を差し込むことで再構築されます。エクスポート: `listRules`、`addRule`、`deleteRule`、`toggleRule`、`scanText(text)`、`scanSession(messages)`、`preToolUseCheck(...)`、`listInterceptions`。
+結果は決定論的です。findings は位置でソートされ、リダクション済みの文字列は占有済みスパンの上に置換を差し込むことで再構築されます。エクスポート: `listRules`、`addRule`、`deleteRule`、`toggleRule`、`scanText(text)`、`scanSession(messages)`。
 
 `scanSession(messages)` は、セキュリティチェックと共有作成で使われるバッチパスです。各メッセージの `text` と `tool_input` をスキャンし、メッセージごとの findings とリダクション済みコピーを返し、`totals` ヒストグラムと `findingCount` を集計します。
-
-### pre-tool-use パス
-
-`preToolUseCheck({ tool_name, tool_input }, readFileFn)` はライブガードのエントリポイントです。読み取り系ツール（`Read`、`read_file`、`View`、`Grep`、`NotebookRead`）に対しては、注入された `readFileFn` を介して**実際のファイル内容**をスキャンし、それ以外については直列化されたツール入力をスキャンします。ブロックするのは高重要度ルールのみです。
-
-```js
-const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
-```
-
-高重要度の findings（または任意のカスタムルール）は、人間可読な理由とともに `decision: 'block'` を返します。低重要度の一致（email、phone、private IP）は `flagged`（フラグ付け）されますが許可されます。いずれの場合も、そのイベントは `interceptions` テーブルに書き込まれ、Security → Interceptions に表示されます。
-
-### PreToolUse フック（`hooks/chronicle-guard.mjs`）
-
-このフックは、Chronicle のエンジンを Claude Code の `PreToolUse` イベントに配線する薄い CLI シムです。フックのペイロードを stdin から読み、`{tool_name, tool_input}` を `POST /api/security/pretooluse` に POST し、判定に基づいて動作します。
-
-```js
-if (verdict.decision === 'block') {
-  console.error(verdict.reason);   // stderr is shown to the model
-  process.exit(2);                 // exit 2 = block the tool call
-}
-process.exit(0);                   // allow
-```
-
-これをインストールしても安全である理由は、2 つの設計上の保証です。
-
-- **フェイルオープン。** 3 秒の `fetch` タイムアウトが呼び出しを守ります。Chronicle が実行されていない、あるいはエラーになる、あるいはタイムアウトする場合、フックは `0` で終了し、ツール呼び出しは手を触れられずに進みます。停止しているときにエディターを壊すセキュリティツールは、ツールがないよりも悪いです。
-- **まずバックアップ。** ワンクリックのインストーラー（`POST /api/security/install-hook`）は、フックを追加する前に `~/.claude/settings.json` をバックアップします。これはデフォルトでは**インストールされません** — オプトインです。エンドポイントは `CHRONICLE_URL` で上書きできます。
 
 > **コントリビューターの落とし穴 — 2 つのエラーヒューリスティックを同期させること。** 「このツール結果はエラーか？」というチェックは 2 箇所に存在します。`server/api.js` の `ERROR_RE`（プロジェクト分析）と `src/SessionView.jsx` の `isErrorResult`（Overview の統計）です。一方だけを変更すると Errors のカウントがずれます。エラー検出に手を入れるなら、両方に手を入れてください。
 
@@ -131,7 +104,7 @@ createShare(sessionId, days = 7)   // → { token, url: `/share/${token}`, expir
 リダクションの正規表現、ライブ追尾のポーリング、リプレイのファイル操作の再実行、因果関係の構造スコアリングは、すべてコントリビューターが読み、理由づけ、監査できるものです — ネットワークも、推論も、外部依存もありません。それが要点です。すなわち、**重い処理はすべてヒューリスティック + ローカルなので、Chronicle はネットワークを抜いても動き続け**、その「知性」は不透明ではなく検査可能なのです。
 
 ## 関連ページ
-- [セキュリティと共有](../guide/security-and-sharing.md) — セキュリティチェック、カスタムルール、フック、共有リンク。
+- [セキュリティと共有](../guide/security-and-sharing.md) — セキュリティチェック、カスタムルール、共有リンク。
 - [ライブストリーミング](../guide/live-streaming.md) — LIVE インジケーターと再接続の UX。
 - [リプレイモード](../guide/replay-mode.md) — 決定論的なサンドボックスリプレイのウォークスルー。
 - [コンテキストの因果関係](../guide/context-causality.md) — read→change の結びつけと確信度ティア。

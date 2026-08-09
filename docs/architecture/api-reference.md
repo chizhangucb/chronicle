@@ -1,8 +1,10 @@
 # HTTP API Reference
 
-Chronicle exposes three mounts on one local port: `/api` (the REST API), `/share` (public redacted pages), and `/mcp` (the aggregating MCP server). This page is a route-level reference for contributors and anyone scripting against a running instance.
+Chronicle exposes two mounts on one local port: `/api` (the REST API) and `/share` (public redacted pages). This page is a route-level reference for contributors and anyone scripting against a running instance.
 
 Everything is served from a single origin — `http://localhost:4173` in dev (`npm run dev`) or `http://localhost:41730` in desktop/standalone — and the exact same Express apps back all three run modes (see [Architecture overview](overview.md)). Requests are local only; the standalone server binds `127.0.0.1`.
+
+> **Reading the database directly?** External consumers should read the versioned `contract_*` SQL views rather than these routes — see [Metrics & contract views](metrics-and-contract.md).
 
 ## Mounts
 
@@ -10,9 +12,6 @@ Everything is served from a single origin — `http://localhost:4173` in dev (`n
 | --- | --- | --- |
 | `/api` | `server/api.js` | The REST API — every route below unless noted |
 | `/share` | `server/shares.js` | Public, redacted, tokenized session pages (HTML) |
-| `/mcp` | `server/mcp/hub.js` | The aggregating MCP server (Streamable HTTP, JSON-RPC) |
-
-> **Note:** `/mcp` (the MCP protocol endpoint) is **distinct** from the `/api/mcp/*` routes (the management REST API that lists services and drives takeover). Downstream MCP clients talk to `/mcp`; the Chronicle UI talks to `/api/mcp/*`. See [MCP & Skills internals](mcp-and-skills-internals.md).
 
 All paths in the tables below are relative to `/api` — e.g. `GET /projects` is `GET http://localhost:41730/api/projects`.
 
@@ -69,7 +68,7 @@ These are read-only wrappers over `server/git.js`, which shells out to `git`. Se
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/search` | `LIKE`-based full-text search over `messages.text` + `tool_input`, grouped per session (empty query → recent sessions) |
+| `GET` | `/search` | Full-text search over `messages.text` + `tool_input` (FTS5 `MATCH`, `LIKE` fallback if the FTS table is missing), grouped per session (empty query → recent sessions) |
 
 ## Live
 
@@ -85,43 +84,6 @@ These are read-only wrappers over `server/git.js`, which shells out to `git`. Se
 | `POST` | `/security/rules` | Add a custom rule |
 | `PATCH` | `/security/rules/:id` | Enable/disable a rule |
 | `DELETE` | `/security/rules/:id` | Delete a rule |
-| `GET` | `/security/interceptions` | Recent pre-tool-use interception records |
-| `POST` | `/security/pretooluse` | Scan a tool call; returns `{ decision: 'allow' \| 'block', ... }` (called by the hook) |
-| `POST` | `/security/install-hook` | Install the Claude Code PreToolUse hook (backs up settings first) |
-
-## Skills
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/skills` | List central skills (with per-tool link status) |
-| `GET` | `/skills/scan` | Scan tool dirs for importable/managed/duplicate/broken skills |
-| `POST` | `/skills/import` | Import a scanned skill into the central store |
-| `POST` | `/skills/github` | Import skills from a public GitHub repo (shallow clone, records SHA) |
-| `GET` | `/skills/:id` | Skill detail + `SKILL.md` content |
-| `PATCH` | `/skills/:id` | Update local metadata (tags, rating) |
-| `DELETE` | `/skills/:id` | Delete a skill (`?removeFiles=1` to remove central files) |
-| `POST` | `/skills/:id/link` | Symlink the skill into a tool's dir |
-| `POST` | `/skills/:id/unlink` | Remove a Chronicle-created symlink |
-| `GET` | `/skills/:id/snapshots` | List version snapshots |
-| `POST` | `/skills/:id/restore` | Restore a snapshot |
-| `POST` | `/skills/:id/check-upstream` | Compare recorded SHA to the remote tip (`ls-remote`) |
-
-## MCP management
-
-These manage the registry and drive the hub; they are separate from the `/mcp` protocol endpoint.
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/mcp/services` | List registered services (secrets masked) |
-| `POST` | `/mcp/services` | Add/update a service |
-| `PATCH` | `/mcp/services/:id` | Update a service (enable, scope, credential, tool policy) |
-| `DELETE` | `/mcp/services/:id` | Remove a service |
-| `GET` | `/mcp/scan` | Scan tool configs, classified New/Updated/Conflict/Unchanged |
-| `POST` | `/mcp/takeover` | Import scanned services (backs up source configs first) |
-| `GET` | `/mcp/status` | Hub status (protocol version, service/session counts) |
-| `GET` | `/mcp/tools` | Aggregated tool list (`aggregateTools('*')`) — Inspector |
-| `POST` | `/mcp/call` | Invoke a namespaced `service__tool` — Inspector |
-| `GET` | `/mcp/log` | The hub's JSON-RPC ring-buffer log — Inspector |
 
 ## Replay
 
@@ -173,5 +135,5 @@ Cost is computed locally from this by `src/models.js` (a static price table) —
 
 ## Related
 - [Architecture overview](overview.md) — single process / single port, run modes, component map.
-- [MCP & Skills internals](mcp-and-skills-internals.md) — the `/mcp` endpoint and the `/api/mcp/*` split.
+- [Metrics & contract views](metrics-and-contract.md) — the versioned `contract_*` views for external readers, and the FTS5 index behind `/search`.
 - [Data model](data-model.md) — the SQLite schema and normalized event model behind these routes.

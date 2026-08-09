@@ -1,18 +1,17 @@
 # アーキテクチャ概要
 
-Chronicle は、AI コーディングセッションのためのローカルファースト（local-first）な「タイムマシン」です。6 つのツールから会話ログをインポートし、すべてのメッセージをその時点の Git スナップショットにマッピングし、さらに MCP Hub、Skills Hub、セキュリティのリダクション（秘匿情報の伏せ字化）、ライブストリーミング、決定論的なリプレイを提供します。これらはすべて、クラウドバックエンドも LLM 呼び出しもない単一の Node プロセス内で完結します。
+Chronicle は、AI コーディングセッションのためのローカルファースト（local-first）な「タイムマシン」です。6 つのツールから会話ログをインポートし、すべてのメッセージをその時点の Git スナップショットにマッピングし、さらにセキュリティのリダクション（秘匿情報の伏せ字化）、ライブストリーミング、バックグラウンドの自動同期、決定論的なリプレイ、バージョン付きのメトリクスコントラクトを提供します。これらはすべて、クラウドバックエンドも LLM 呼び出しもない単一の Node プロセス内で完結します。
 
 このページは全体の地図です。ほかのすべてが依存する唯一の設計判断 — **シングルプロセス・シングルポート** — を説明したうえで、コンポーネントの各レイヤー、3 つの実行モード、そしてコードベースを健全に保つプロダクト原則を順に見ていきます。最初にこのページを読んでください。ほかのアーキテクチャ各ページは、それぞれのボックスを掘り下げます。
 
 ## シングルプロセス・シングルポート
 
-Chronicle は 3 つの Express アプリと 1 つの React UI で構成されています。各アプリは次のとおりです。
+Chronicle は 2 つの Express アプリと 1 つの React UI で構成されています。各アプリは次のとおりです。
 
 | アプリ | マウント先 | 責務 |
 | --- | --- | --- |
-| `server/api.js` | `/api` | すべての REST ルート（スキャン/インポート、プロジェクト、セッション、git、検索、セキュリティ、skills、MCP 管理、リプレイ、フィードバック） |
+| `server/api.js` | `/api` | すべての REST ルート（スキャン/インポート、プロジェクト、セッション、git、検索、セキュリティ、リプレイ、フィードバック） |
 | `server/shares.js` | `/share` | ローカルアプリが配信する、公開用にリダクション済みでトークン化された共有ページ |
-| `server/mcp/hub.js` | `/mcp` | 集約型 MCP サーバー（Streamable HTTP） |
 
 鍵となるのは、**まったく同じアプリオブジェクトがすべての実行モードで配信される**という点です。開発時にはそれらが Vite 開発サーバーの*中に*マウントされ、本番では素の Express サーバー（`server/standalone.js`）がそれらを直接マウントします。これらのアプリのいずれかにエンドポイントを追加すれば、それが dev・desktop・standalone のすべてで自動的に動作します。モードごとの配線は不要です。
 
@@ -28,15 +27,14 @@ server.middlewares.use('/api', async (req, res, next) => {
 
 `ssrLoadModule` の呼び出しは意図的なものです。これにより API が Vite の SSR モジュールグラフを経由するため、**`server/*.js` を編集すると API がホットリロードされ**、プロセスを再起動する必要がありません。UI の HMR と API のホットリロードを同じポート（`4173`）上で得られます。
 
-本番には Vite はありません。`server/standalone.js` が Express アプリを構築し、同じ 3 つのアプリをマウントし、それ以外のすべてについてはビルド済みの `dist/` を配信します。
+本番には Vite はありません。`server/standalone.js` が Express アプリを構築し、同じアプリをマウントし、それ以外のすべてについてはビルド済みの `dist/` を配信します。
 
 ```js
 // server/standalone.js
 app.use('/api', api);
 app.use('/share', sharePage);
-app.use('/mcp', mcpEndpoint);
 app.use(express.static(dist));
-app.get(/^\/(?!api|share|mcp).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
+app.get(/^\/(?!api|share).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
 ```
 
 > **注意点 — Router ではなく Express *アプリ*をマウントすること。** Vite ミドルウェアはアプリに素の Node の `req`/`res` を渡します。Express の *Router* はこれらのオブジェクトを装飾しないため、`res.json` が `undefined` となり、すべてのルートが例外を投げます。これらのレスポンスヘルパーをインストールする完全な Express *アプリケーション*をマウントすることこそが、同じコードを Vite の背後でも `standalone.js` の背後でも動作させる仕組みです。新しいエンドポイントは素の Router ではなく、これらのアプリ上に置いてください。
@@ -59,12 +57,10 @@ app.get(/^\/(?!api|share|mcp).*/, (req, res) => res.sendFile(path.join(dist, 'in
 │  live.js       JSONL tail + SQLite poll → SSE                 │
 │  replay.js     deterministic sandbox re-execution             │
 │  causality.js  read→change linking (heuristic)                │
-│  security.js   redaction rules, pre-tool-use check            │
-│  mcp/          registry + Streamable-HTTP hub                  │
-│  skills.js     central store + symlink fanout                 │
+│  security.js   redaction rules, session scan                  │
 │  shares.js     tokenized redacted /share pages                │
 │                                                               │
-│  Exposed as three Express apps → /api · /share · /mcp         │
+│  Exposed as two Express apps → /api · /share                  │
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTP + SSE
 ┌───────────────────────────▼──────────────────────────────────┐
@@ -78,13 +74,13 @@ app.get(/^\/(?!api|share|mcp).*/, (req, res) => res.sendFile(path.join(dist, 'in
 
 ## 実行モード
 
-3 つのモードはすべて同じ 3 つのアプリを配信し、それらを何でラップするかだけが異なります。
+3 つのモードはすべて同じアプリを配信し、それらを何でラップするかだけが異なります。
 
 | コマンド | 実行内容 | ポート | 備考 |
 | --- | --- | --- | --- |
 | `npm run dev` | Vite 開発サーバー + プラグイン経由でマウントされたアプリ | `http://localhost:4173` | UI の HMR **と** API のホットリロード（`ssrLoadModule`） |
 | `npm run desktop` | `vite build` → Electron シェル + トレイ | `41730` | 本番バンドル、ウィンドウはトレイに隠れる |
-| `npm run standalone` | `server/standalone.js`、ヘッドレス | `41730` | `127.0.0.1` にバインド、`PORT` で上書き可、UI + `/api` + `/share` + `/mcp` |
+| `npm run standalone` | `server/standalone.js`、ヘッドレス | `41730` | `127.0.0.1` にバインド、`PORT` で上書き可、UI + `/api` + `/share` |
 
 Electron は standalone サーバーを内部で実行するため、「desktop」と「standalone」はウィンドウの有無を除けば同じサーバーコードです。
 
@@ -93,8 +89,7 @@ Electron は standalone サーバーを内部で実行するため、「desktop�
 Vite の SSR はモジュールを再評価することでリロードします。もしウォッチャーや子プロセスがモジュールスコープの変数に置かれていた場合、リロードによってそれらが孤立してしまいます。古いタイマーは動き続け、新しいモジュールからは見えなくなります。Chronicle はこれを回避するために、長命なシングルトンを `globalThis` に置いています。
 
 - `__chronicleLive` — ライブ tail/ポーリングのウォッチャー（`server/live.js`）
-- `__chronicleHub` — MCP hub のアップストリーム子プロセスとセッション
-- `__chronicleSkillWatch` — skills のファイルシステムウォッチャー
+- 自動同期のウォッチャーとタイマー（ソースディレクトリの fs-watch、30 分ごとのバックストップ）
 
 `globalThis` はモジュールの再評価を生き延びるため、ホットリロードは管理しているリソースを漏らすことなくコードだけを再バインドします。これが、ウォッチャーを積み上げることなくセッションの途中で `server/live.js` を編集できる理由です。
 
@@ -102,9 +97,9 @@ Vite の SSR はモジュールを再評価することでリロードします�
 
 6 つの原則がすべてのサブシステムを貫いています。これらを明示するのは、そうしなければ単に保守的に見えかねない選択を説明できるからです。
 
-1. **ローカルファースト、デフォルトでオフライン。** セッションのパース、閲覧、管理にネットワーク呼び出しは不要です。意図的なアウトバウンド機能はアップデートチェック、GitHub スキルのインポート、フィードバックのリレーのみで、いずれもオプトインかつ限定的です。
+1. **ローカルファースト、デフォルトでオフライン。** セッションのパース、閲覧、管理にネットワーク呼び出しは不要です。意図的なアウトバウンド機能はアップデートチェックとフィードバックのリレーのみで、いずれもオプトインかつ限定的です。
 2. **コードの状態については Git が信頼できる唯一の情報源。** スナップショットは、会話のタイムスタンプに対応づけられたコミット履歴から再構築されます。別のスナップショットストアからでも、現在のディスクからでもありません。[Git スナップショットエンジン](git-snapshot-engine.md) を参照してください。
-3. **テイクオーバー → 集約 → 分配（Takeover → Centralize → Distribute）。** MCP Hub と Skills Hub の背後にある、共有コントロールプレーンのパターンです。散在した設定を取り込み、一箇所に保持し、再分配します（名前空間付きのツール、シンボリックリンクされた skills）。
+3. **データベースはコントラクトである。** 外部のコンシューマーはバージョン付きの `contract_*` ビュー（メトリクスのみ、コンテンツなし）だけを読むため、ベーステーブルは自由にリファクタリングできます。[メトリクスとコントラクトビュー](metrics-and-contract.md) を参照してください。
 4. **外部システムに対しては読み取り専用。** ソースログやプロジェクトリポジトリに書き込むことはありません。SQLite のソースは開く前に一時ディレクトリへコピーされ（[パーサーとインジェスト](parsers-and-ingestion.md) を参照）、git エンジンは読み取りのみを行います。
 5. **デフォルトで安全。** リプレイはサンドボックス内で実行され、リダクションは一方向で、破壊的な操作はまずバックアップを取り、明示的なクリックを要求します。
 6. **重い処理はすべてヒューリスティック + ローカル。** 因果関係の確信度ティア、リダクションの正規表現、アクティブ時間の計算 — いずれもローカルなヒューリスティックです。**どこにも LLM 呼び出しはなく**、これがオフライン保証を守っています。

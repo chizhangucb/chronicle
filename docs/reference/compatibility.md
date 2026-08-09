@@ -2,7 +2,7 @@
 
 Which AI coding tools Chronicle supports, what each feature does per tool, and where each tool's logs live on disk.
 
-Chronicle imports conversation logs from six tools and maps every message to the Git snapshot at that moment. Most features work identically across all six; a handful of control-plane features (MCP Hub, Skills Hub) apply only to tools that keep the relevant config, and remote access is not built yet. Everything below reflects what ships in v0.1.7 — read the source key against `server/parsers/<tool>.js` if you need to go deeper.
+Chronicle imports conversation logs from six tools and maps every message to the Git snapshot at that moment. Most features work identically across all six; subagent (sidechain) attribution is Claude Code-specific, and remote access is not built yet. Everything below reflects what ships in v0.2.0 — read the source key against `server/parsers/<tool>.js` if you need to go deeper.
 
 ## Feature support matrix
 
@@ -17,14 +17,16 @@ Chronicle imports conversation logs from six tools and maps every message to the
 | Context Causality | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Git history matching | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Live streaming | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| MCP Hub takeover | ✅ | ✅ | ✅ | – | ✅ | – |
-| Skills Hub takeover | ✅ | ✅ | ✅ | – | ✅ | – |
+| Auto-sync | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sidechain (subagent) import | ✅ | – | – | – | – | – |
+| Per-message token usage | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
 | Remote SSH access | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
 
 Legend: ✅ full · ⚠️ partial · 🔜 planned (not yet built) · – not applicable.
 
 - **Tool call viewing** is partial for Gemini CLI — its logs record tool activity less completely than the JSONL-based tools.
-- **MCP / Skills Hub takeover** applies to the tools that keep a discoverable MCP/skills config that Chronicle can scan and centralize: Claude Code, Codex, Cursor, and Gemini CLI. OpenCode and Copilot Chat have no such config to take over.
+- **Sidechain (subagent) import** — with `agent_type` and `skill` attribution — is a Claude Code concept; the other parsers mark every row `is_sidechain = 0`.
+- **Per-message token usage** is captured wherever a tool's logs carry usage records; coverage varies by tool and log version. See [Metrics & contract views](../architecture/metrics-and-contract.md).
 - **Remote SSH access** (import / browse / live-watch over SSH) is **planned but not implemented** for any tool. Everything Chronicle does today runs against local files.
 
 ## Log locations
