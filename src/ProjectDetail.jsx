@@ -226,6 +226,9 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             )}
             <div className="session-meta muted small">
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
+              {!s.liveCandidate && s.ongoing && (
+                <span className="pill ongoing-pill" title={t('The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh')}>◔ {t('ongoing')}</span>
+              )}
               <span className="pill src-pill">{s.source}</span>
               <span>{s.message_count} messages</span>
               {s.context_tokens > 0 ? (

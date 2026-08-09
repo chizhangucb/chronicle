@@ -17,6 +17,7 @@ import { classifyScan, backupSources, listServices, upsertService, setServiceEna
 import { hubStatus, hubLog, callTool, aggregateTools } from './mcp/hub.js';
 import * as skills from './skills.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
+import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
 import * as replay from './replay.js';
 
 export const api = express();
@@ -157,6 +158,39 @@ api.post('/projects/:id/sync', async (req, res) => {
   }
 });
 
+// ---- Auto-sync & settings ----
+// Settings live in ~/.chronicle/config.json. launchAtLogin is applied by the
+// Electron shell via an optional hook on globalThis (the server layer stays
+// Electron-free); in browser/standalone modes the toggle is stored but inert.
+api.get('/settings', (req, res) => {
+  const cfg = readConfig();
+  res.json({ autoSync: cfg.autoSync !== false, launchAtLogin: cfg.launchAtLogin === true });
+});
+
+api.patch('/settings', (req, res) => {
+  const patch = {};
+  if (typeof req.body?.autoSync === 'boolean') patch.autoSync = req.body.autoSync;
+  if (typeof req.body?.launchAtLogin === 'boolean') patch.launchAtLogin = req.body.launchAtLogin;
+  const cfg = writeConfig(patch);
+  if ('autoSync' in patch) (patch.autoSync ? startAutoSync() : stopAutoSync());
+  if ('launchAtLogin' in patch) { try { globalThis.__chronicleOnSettings?.(cfg); } catch {} }
+  res.json({ autoSync: cfg.autoSync !== false, launchAtLogin: cfg.launchAtLogin === true });
+});
+
+api.get('/autosync/status', (req, res) => res.json(autoSyncStatus()));
+
+// Manual trigger (also called by Electron on powerMonitor resume).
+api.post('/autosync/run', async (req, res) => {
+  res.json(await runIncrementalSync());
+});
+
+// Tiny resolver for chronicle://session/<id> deep links.
+api.get('/sessions/:id/resolve', (req, res) => {
+  const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  res.json(s);
+});
+
 // ---- Feedback ----
 // Sends feedback to email through the hosted relay (`feedback-relay/`, a Vercel
 // function that holds the Resend API key SERVER-SIDE), and always writes a local
@@ -232,7 +266,15 @@ api.get('/projects/:id', (req, res) => {
        FROM messages m WHERE m.session_id = sessions.id) AS char_count
     FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff);
   const liveIds = liveCandidatesForSessions(rawSessions);
-  const sessions = rawSessions.map(({ file_path, ...s }) => ({ ...s, liveCandidate: liveIds.has(s.id) }));
+  // "Ongoing" = the source log was written to in the last 10 minutes — the
+  // session is likely still in progress (auto-sync keeps it fresh; stats read
+  // "so far" in the UI).
+  const ONGOING_MS = 10 * 60 * 1000;
+  const sessions = rawSessions.map(({ file_path, ...s }) => {
+    let ongoing = false;
+    try { ongoing = Date.now() - fs.statSync(file_path).mtime.getTime() < ONGOING_MS; } catch {}
+    return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
+  });
   const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
@@ -728,3 +770,8 @@ api.get('/git/file', (req, res) => {
     res.status(500).json({ error: String(err.message || err) });
   }
 });
+
+// Auto-sync starts with the server in every run mode (dev / standalone /
+// Electron); watchers + timer live on globalThis so SSR reloads don't orphan
+// them. No-op when the user disabled auto-sync in settings.
+startAutoSync();

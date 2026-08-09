@@ -277,6 +277,13 @@ const zh = {
   'Agent Active': '智能体活跃',
   'Wall-clock span from the first message to the last': '从第一条到最后一条消息的实际跨度',
   'Engaged': '参与时长',
+  'Settings': '设置',
+  'Auto-sync sessions': '自动同步会话',
+  'Keep imported projects up to date automatically (on launch, on wake, and when source logs change)': '自动保持已导入项目最新（启动时、唤醒时、源日志变化时）',
+  'Launch at login': '登录时启动',
+  'Start Chronicle in the tray when you log in (desktop app only)': '登录后在托盘中启动 Chronicle（仅桌面应用）',
+  'ongoing': '进行中',
+  'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': '源日志在最近 10 分钟内有写入——统计为“至今”数据，自动同步会保持其最新',
   'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
     '智能体真正在工作的时长（包含子智能体活动）。工具执行时间（紧随工具调用的工具结果）会被完整计入——长时间的构建或测试都会体现出来。其余每段间隔以 10 分钟为上限，而你每次真实提问前的停顿（阅读/输入/离开的时间）会被完全排除。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
   'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
@@ -582,6 +589,13 @@ const ja = {
     '実際に作業していた時間 — メッセージ間隔が5分未満の合計。長いアイドル時間は除外されます',
   'Agent Active': 'エージェント稼働',
   'Engaged': 'エンゲージ時間',
+  'Settings': '設定',
+  'Auto-sync sessions': 'セッションを自動同期',
+  'Keep imported projects up to date automatically (on launch, on wake, and when source logs change)': 'インポート済みプロジェクトを自動で最新に保ちます（起動時・スリープ復帰時・ソースログ変更時）',
+  'Launch at login': 'ログイン時に起動',
+  'Start Chronicle in the tray when you log in (desktop app only)': 'ログイン時にトレイで Chronicle を起動します（デスクトップアプリのみ）',
+  'ongoing': '進行中',
+  'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': 'ソースログが直近 10 分以内に書き込まれています。統計は「現時点まで」の値で、自動同期が最新に保ちます',
   'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
     'エージェントが実際に作業していた時間です（サブエージェントの活動を含む）。ツールの実行時間（ツール呼び出しに続くツール結果）は全部カウントされ、長いビルドやテストもそのまま反映されます。それ以外の間隔は 1 回あたり最大 10 分まで、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）は完全に除外されます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
   'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
