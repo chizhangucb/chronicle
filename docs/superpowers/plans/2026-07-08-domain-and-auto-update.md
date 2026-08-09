@@ -122,7 +122,7 @@ address never appears in this repo, the app bundle, Resend, or Vercel.
 
 Run:
 ```bash
-cd /Users/chizhang/personal/ai-session-manager
+cd /Users/chizhang/personal-projects/chronicle
 grep -rn "gmail.com" . --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=release
 npm run build
 ```
@@ -267,7 +267,7 @@ Add `@electron/notarize` to `"devDependencies"` (alphabetical, after `diff`):
 
 Run (the `--dir` unpacked build is fast — it skips DMG/zip packing but exercises signing config + the afterSign hook):
 ```bash
-cd /Users/chizhang/personal/ai-session-manager
+cd /Users/chizhang/personal-projects/chronicle
 npm install
 npm run build && npx electron-builder --mac --arm64 --dir --publish never
 ```
@@ -391,7 +391,7 @@ The tray menu already calls `checkForUpdates` (line 47) — no change needed the
 
 Run:
 ```bash
-cd /Users/chizhang/personal/ai-session-manager
+cd /Users/chizhang/personal-projects/chronicle
 npm run build
 ```
 Expected: build succeeds. Then a maintainer smoke-check (documented, run manually since it needs a GUI): quit any running Chronicle (`pkill -f 'Chronicle.app/Contents/MacOS/Chronicle' || true`), run `npm run desktop`, and in the app's devtools console confirm `typeof window.chronicleUpdater` is `'object'` and `window.chronicleUpdater.relaunch` is a function. Because `app.isPackaged` is false when run this way, `checkForUpdates` returns early — no network call, no `app-update.yml` error.
@@ -494,7 +494,7 @@ and to the `ja` object (before its closing `};` at ~line 512):
 
 Run the dev server and drive it with the preview tools:
 ```bash
-cd /Users/chizhang/personal/ai-session-manager
+cd /Users/chizhang/personal-projects/chronicle
 npm run dev
 ```
 Then, via the preview tools against `http://localhost:4173`:
@@ -563,7 +563,7 @@ In `CLAUDE.md`, in the "Known deferrals" line at the bottom (under "Verification
 - [ ] **Step 4: Verify + commit**
 
 ```bash
-cd /Users/chizhang/personal/ai-session-manager
+cd /Users/chizhang/personal-projects/chronicle
 grep -n "electron-updater\|guarded\|latest-mac.yml" CLAUDE.md | head
 git add CLAUDE.md
 git commit -m "docs: release checklist + gotchas for signing and electron-updater"
