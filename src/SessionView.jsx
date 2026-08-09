@@ -114,7 +114,10 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return () => clearTimeout(t);
   }, [keyword]);
 
-  const messages = data?.messages ?? [];
+  // Sidechain (subagent) rows are imported since v0.2 but EXCLUDED from the
+  // default playback/refine/overview lists; durations and Cost & Usage include
+  // them via the server-stored numbers.
+  const messages = useMemo(() => (data?.messages ?? []).filter((m) => !m.is_sidechain), [data]);
   const activeKinds = useMemo(() => {
     if (!chips.size) return null; // no filter → all
     const set = new Set();
@@ -285,7 +288,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       </>}
 
       {mode === 'overview' && (
-        <OverviewMode data={data} liveStatus={liveStatus} onDeleted={onBack} onRename={renameSession} />
+        <OverviewMode data={data} messages={messages} liveStatus={liveStatus} onDeleted={onBack} onRename={renameSession} />
       )}
 
       {mode === 'refine' && (
@@ -497,25 +500,40 @@ function isHumanPrompt(m) {
   return m.kind === 'user' && !SYNTHETIC_USER_RE.test(m.text || '');
 }
 
-// Active time the AGENT was actually working: sum of the gaps between consecutive
-// messages, EXCLUDING only the gap that leads into a genuine human prompt — that
-// pause is you reading, thinking, and typing (or walking away). Every other gap
-// counts in full: assistant thinking, tool execution, tool results, AND the wait
-// during a background build (whose completion arrives as a `user`-role
-// notification) or an app interaction. No idle cap — a long build or deep think
-// shows up. We keep whether each message is a human prompt alongside its timestamp.
+// Client-side fallback for sessions imported before v0.2 (which stored
+// agent_active_ms / engaged_ms at import — server/durations.js is the canonical
+// implementation; keep the rules in sync). Agent Active: exclude gaps into a
+// genuine human prompt; count tool_result gaps (matched to a prior tool_use) in
+// FULL; cap every other gap at 10 minutes. Engaged: every gap, 90-minute cap.
 function activeDurationMs(messages) {
   const seq = messages
     .filter((m) => m.ts)
-    .map((m) => ({ t: new Date(m.ts).getTime(), human: isHumanPrompt(m) }))
-    .filter((m) => Number.isFinite(m.t))
+    .map((m) => ({ m, t: new Date(m.ts).getTime() }))
+    .filter((r) => Number.isFinite(r.t))
     .sort((a, b) => a.t - b.t);
+  const seenToolUse = new Set();
   let sum = 0;
-  for (let i = 1; i < seq.length; i++) {
-    const g = seq[i].t - seq[i - 1].t;
-    if (g <= 0) continue;
-    if (seq[i].human) continue; // real human reading/typing/away — the only exclusion
-    sum += g;
+  for (let i = 0; i < seq.length; i++) {
+    const { m } = seq[i];
+    if (i > 0) {
+      const g = seq[i].t - seq[i - 1].t;
+      if (g > 0 && !isHumanPrompt(m)) {
+        const matchedResult = m.kind === 'tool_result' && m.tool_use_id && seenToolUse.has(m.tool_use_id);
+        sum += matchedResult ? g : Math.min(g, 10 * 60 * 1000);
+      }
+    }
+    if (m.kind === 'tool_use' && m.tool_use_id) seenToolUse.add(m.tool_use_id);
+  }
+  return sum;
+}
+
+function engagedDurationMs(messages) {
+  const ts = messages.map((m) => (m.ts ? new Date(m.ts).getTime() : NaN))
+    .filter(Number.isFinite).sort((a, b) => a - b);
+  let sum = 0;
+  for (let i = 1; i < ts.length; i++) {
+    const g = ts[i] - ts[i - 1];
+    if (g > 0) sum += Math.min(g, 90 * 60 * 1000);
   }
   return sum;
 }
@@ -529,8 +547,8 @@ function InfoTip({ text }) {
   );
 }
 
-function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
-  const { session, messages } = data;
+function OverviewMode({ data, messages, liveStatus, onDeleted, onRename }) {
+  const { session } = data;
 
   // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
   // embedded/preview browser contexts and would fail silently.
@@ -578,7 +596,12 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
   const durationMs = session.started_at && session.ended_at
     ? new Date(session.ended_at) - new Date(session.started_at) : null;
   const dur = durationMs === null ? '—' : fmtDur(durationMs);
-  const activeMs = useMemo(() => activeDurationMs(messages), [messages]);
+  // Stored at import since v0.2 (sidechains included); client fallback for
+  // older imports and live-only sessions.
+  const fallbackActiveMs = useMemo(() => activeDurationMs(data.messages), [data.messages]);
+  const fallbackEngagedMs = useMemo(() => engagedDurationMs(data.messages), [data.messages]);
+  const activeMs = session.agent_active_ms ?? fallbackActiveMs;
+  const engagedMs = session.engaged_ms ?? fallbackEngagedMs;
 
   const totalCalls = stats.toolUses.length;
   let acc = 0;
@@ -648,7 +671,8 @@ function OverviewMode({ data, liveStatus, onDeleted, onRename }) {
           <div className="stat-num">{dur}</div><div className="muted small">{t('Total Duration')}</div></div>
         <div className="card stat">
           <div className="stat-num">{fmtDur(activeMs)}</div>
-          <div className="muted small">{t('Agent Active')} <InfoTip text={t('How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+          <div className="muted small">{t('Agent Active')} <InfoTip text={t('How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+          <div className="muted small">{t('Engaged')} {fmtDur(engagedMs)} <InfoTip text={t('Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.')} /></div>
         </div>
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>

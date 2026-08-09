@@ -98,7 +98,6 @@ function reduceCwd(pick, seen) {
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
 export function parseClaudeLine(o) {
   const events = [];
-  if (o.isSidechain) return events;
   if (o.type === 'user' && o.message) {
     const content = o.message.content;
     if (typeof content === 'string') {
@@ -127,6 +126,7 @@ export function parseClaudeLine(o) {
       }
     }
   }
+  if (o.isSidechain) for (const e of events) e.is_sidechain = 1;
   return events;
 }
 
@@ -143,6 +143,9 @@ export async function parseClaudeSession(file) {
   let skipped = 0;
   let contextTokens = null;
   const usageByModel = new Map(); // model → { input, output, cacheWrite, cacheRead }
+  const taskPromptType = new Map(); // Task prompt head → subagent_type (sidechain pairing)
+  const uuidAgentType = new Map();  // sidechain uuid → agent_type (parent-chain propagation)
+  let pendingCommandSkill = null;   // set by a <command-name> turn, consumed by the next assistant event
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -165,11 +168,15 @@ export async function parseClaudeSession(file) {
     if (o.cwd) { cwd = o.cwd; cwdsSeen.add(o.cwd); }
     // Real context-window size: the prompt side of the LAST main-chain API call
     // (matches Claude Code's own status line; sidechains are separate contexts).
-    // Same pass aggregates per-model token usage for the Cost & Usage panel.
-    if (!o.isSidechain && o.type === 'assistant' && o.message?.usage) {
+    // Same pass aggregates per-model token usage for the Cost & Usage panel —
+    // sidechain usage INCLUDED (v0.2: it's real spend; context_tokens stays
+    // main-chain only).
+    if (o.type === 'assistant' && o.message?.usage) {
       const u = o.message.usage;
-      const ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
-      if (ctx > 0) contextTokens = ctx;
+      if (!o.isSidechain) {
+        const ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+        if (ctx > 0) contextTokens = ctx;
+      }
       const model = o.message.model || 'unknown';
       const agg = usageByModel.get(model) || { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
       agg.input += u.input_tokens || 0;
@@ -185,9 +192,128 @@ export async function parseClaudeSession(file) {
       }
       usageByModel.set(model, agg);
     }
-    for (const e of parseClaudeLine(o)) {
+    // Skill context: a Skill tool_use row carries its own skill name; a
+    // `/command` turn tags the first assistant event that follows it
+    // (per-invocation marker only — no span attribution, by design).
+    if (o.type === 'user' && typeof o.message?.content === 'string') {
+      const cm = o.message.content.match(/^<command-name>\/?([^<]+)<\/command-name>/);
+      if (cm) pendingCommandSkill = cm[1].trim().slice(0, 100) || null;
+    }
+    const lineEvents = parseClaudeLine(o);
+    // Sidechain agent_type: pair the sidechain's first user message with the
+    // main chain's Task/Agent tool_use input (subagent_type + prompt), then
+    // propagate along the parentUuid chain.
+    if (o.isSidechain) {
+      let at = o.parentUuid ? uuidAgentType.get(o.parentUuid) : undefined;
+      if (at === undefined && o.type === 'user') {
+        const txt = typeof o.message?.content === 'string' ? o.message.content
+          : o.message?.content?.find?.((b) => b.type === 'text')?.text;
+        if (txt) at = taskPromptType.get(txt.slice(0, 300)) ?? null;
+      }
+      uuidAgentType.set(o.uuid, at ?? null);
+      if (at) for (const e of lineEvents) e.agent_type = at;
+    }
+    let usageAttached = o.type !== 'assistant' || !o.message?.usage;
+    for (const e of lineEvents) {
+      if (e.kind === 'tool_use') {
+        if (e.tool_name === 'Task' || e.tool_name === 'Agent') {
+          try {
+            const inp = JSON.parse(e.tool_input || '{}');
+            if (inp.subagent_type && inp.prompt) taskPromptType.set(String(inp.prompt).slice(0, 300), inp.subagent_type);
+          } catch {}
+        }
+        if (e.tool_name === 'Skill') {
+          try { e.skill = JSON.parse(e.tool_input || '{}').skill || null; } catch {}
+        }
+      }
+      // Per-message usage: one API call = one set of numbers, stored on the
+      // FIRST event of that assistant line (others NULL).
+      if (!usageAttached) {
+        const u = o.message.usage;
+        const cc = u.cache_creation;
+        e.input_tokens = u.input_tokens || 0;
+        e.output_tokens = u.output_tokens || 0;
+        e.cache_read_tokens = u.cache_read_input_tokens || 0;
+        if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+          e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
+          e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
+        } else {
+          e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
+          e.cache_w1h_tokens = 0;
+        }
+        usageAttached = true;
+      }
+      if (pendingCommandSkill && !o.isSidechain && (e.kind === 'assistant' || e.kind === 'thinking' || e.kind === 'tool_use')) {
+        if (!e.skill) e.skill = pendingCommandSkill;
+        pendingCommandSkill = null;
+      }
       events.push(e);
-      if (e.kind === 'user' && !firstPrompt) firstPrompt = e.text.slice(0, 200);
+      if (e.kind === 'user' && !e.is_sidechain && !firstPrompt) firstPrompt = e.text.slice(0, 200);
+    }
+  }
+
+  // Sidechains: current Claude Code writes subagent transcripts to separate
+  // files (<logDir>/<sessionId>/subagents/agent-*.jsonl) rather than inline
+  // isSidechain lines. Import them as sidechain rows: usage aggregates into the
+  // session totals (real spend), context_tokens stays main-chain. agent_type is
+  // paired via the main chain's Task/Agent tool_use prompt; unmatched → NULL.
+  // Sidechain events are appended after the main chain (UI excludes them by
+  // default; consumers order by ts).
+  const subagentsDir = path.join(path.dirname(file), sessionId, 'subagents');
+  if (fs.existsSync(subagentsDir)) {
+    for (const sf of fs.readdirSync(subagentsDir).filter((f) => f.endsWith('.jsonl'))) {
+      let agentType;
+      const subEvents = [];
+      const srl = readline.createInterface({ input: fs.createReadStream(path.join(subagentsDir, sf)), crlfDelay: Infinity });
+      for await (const line of srl) {
+        if (!line.trim()) continue;
+        let o;
+        try { o = JSON.parse(line); } catch { skipped++; continue; }
+        if (o.type === 'assistant' && o.message?.usage) {
+          const u = o.message.usage;
+          const model = o.message.model || 'unknown';
+          const agg = usageByModel.get(model) || { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
+          agg.input += u.input_tokens || 0;
+          agg.output += u.output_tokens || 0;
+          agg.cacheRead += u.cache_read_input_tokens || 0;
+          const cc = u.cache_creation;
+          if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+            agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
+            agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
+          } else {
+            agg.cacheWrite5m += u.cache_creation_input_tokens || 0;
+          }
+          usageByModel.set(model, agg);
+        }
+        const lineEvents = parseClaudeLine(o);
+        if (agentType === undefined && o.type === 'user') {
+          const txt = typeof o.message?.content === 'string' ? o.message.content
+            : o.message?.content?.find?.((b) => b.type === 'text')?.text;
+          if (txt) agentType = taskPromptType.get(txt.slice(0, 300)) ?? null;
+        }
+        let usageAttached = o.type !== 'assistant' || !o.message?.usage;
+        for (const e of lineEvents) {
+          e.is_sidechain = 1;
+          if (agentType) e.agent_type = agentType;
+          if (!usageAttached) {
+            const u = o.message.usage;
+            const cc = u.cache_creation;
+            e.input_tokens = u.input_tokens || 0;
+            e.output_tokens = u.output_tokens || 0;
+            e.cache_read_tokens = u.cache_read_input_tokens || 0;
+            if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+              e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
+              e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
+            } else {
+              e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
+              e.cache_w1h_tokens = 0;
+            }
+            usageAttached = true;
+          }
+          subEvents.push(e);
+        }
+      }
+      events.push(...subEvents);
     }
   }
 
