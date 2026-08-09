@@ -352,7 +352,7 @@ api.get('/search', (req, res) => {
       const ftsQuery = `"${q.replace(/"/g, '""')}"*`;
       rows = db.prepare(`${select}
         JOIN messages_fts f ON f.rowid = m.id
-        WHERE messages_fts MATCH ?${tail}
+        WHERE f MATCH ?${tail}
         ORDER BY m.ts DESC LIMIT 400`).all(ftsQuery, ...params);
     } catch { rows = null; }
   }
