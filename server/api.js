@@ -479,6 +479,7 @@ api.delete('/sessions/:id', (req, res) => {
       catch (err) { return res.status(500).json({ error: String(err.message || err) }); }
     }
   }
+  backupDbBeforeDelete();
   db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
   db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
   res.json({ ok: true, sourceDeleted });
@@ -558,7 +559,28 @@ api.post('/projects/:id/unlink', (req, res) => {
   res.json({ ok: true, projectId: target.id });
 });
 
+// Snapshot the whole DB before destructive deletes (project or session removal).
+// At most one snapshot per hour (a multi-select Remove loop = one backup, not N);
+// keeps the 5 newest. This is the recovery net for an accidental Remove-all —
+// restore = quit the app and copy the snapshot back over chronicle.db.
+function backupDbBeforeDelete() {
+  try {
+    const dir = path.join(CHRONICLE_DIR, 'backups', 'db');
+    fs.mkdirSync(dir, { recursive: true });
+    const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();
+    const newest = existing[existing.length - 1];
+    if (newest && Date.now() - fs.statSync(path.join(dir, newest)).mtime.getTime() < 60 * 60 * 1000) return;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    db.exec('BEGIN'); db.exec('COMMIT'); // barrier: no open write txn while copying
+    fs.copyFileSync(path.join(CHRONICLE_DIR, 'chronicle.db'), path.join(dir, `chronicle-${stamp}.db`));
+    for (const f of existing.slice(0, Math.max(0, existing.length - 4))) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch {}
+    }
+  } catch {}
+}
+
 api.delete('/projects/:id', (req, res) => {
+  backupDbBeforeDelete();
   db.prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run(req.params.id);
   db.prepare('DELETE FROM sessions WHERE project_id = ?').run(req.params.id);
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
