@@ -38,13 +38,13 @@ brew install --cask chronicle
 npm install
 ```
 
-その後、実行モードを選びます。3 つのモードはすべて**同じ** Express アプリ（`/api`、`/share`、`/mcp`）を提供します——異なるのは、UI をどのように配信するか、そしてその周囲にデスクトップシェルがあるかどうかだけです。
+その後、実行モードを選びます。3 つのモードはすべて**同じ** Express アプリ（`/api`、`/share`）を提供します——異なるのは、UI をどのように配信するか、そしてその周囲にデスクトップシェルがあるかどうかだけです。
 
 | コマンド | 用途 | ポート |
 | --- | --- | --- |
 | `npm run dev` | API をプロセス内にマウントした Vite dev サーバー。API ルートは保存時にホットリロードされます（リクエストごとの `ssrLoadModule`）。開発時にはこれを使います。 | http://localhost:4173 |
 | `npm run desktop` | Electron シェルにシステムトレイ付きで包まれたプロダクションビルド。日常的なデスクトップ体験です。 | 41730 |
-| `npm run standalone` | `127.0.0.1` にバインドされたヘッドレスのプロダクションサーバー（UI + `/api` + `/share` + `/mcp`）。Electron なしで Chronicle を動かすのに便利です。ポートは `PORT` で上書きします。 | 41730 |
+| `npm run standalone` | `127.0.0.1` にバインドされたヘッドレスのプロダクションサーバー（UI + `/api` + `/share`）。Electron なしで Chronicle を動かすのに便利です。ポートは `PORT` で上書きします。 | 41730 |
 | `npm run build` | `vite build` → `dist/`。静的なクライアントバンドルだけで、サーバーはありません。 | — |
 
 なぜ 1 つのポート・1 つのプロセスなのか。Express アプリは Vite dev サーバーに直接マウントされ（`vite.config.js` のプラグイン経由）、Electron 下では `server/standalone.js` によって Vite なしで提供されます。追加したエンドポイントは、3 つのモードすべてで自動的に動作します。この点は、アーキテクチャ概要でさらに詳しく扱っています。

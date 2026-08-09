@@ -3,9 +3,7 @@ import { api } from './api.js';
 import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail, { sessionDisplayName } from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
-import HubPage from './HubPage.jsx';
 import { t, lang, setLang } from './i18n.js';
-import SkillsPage from './SkillsPage.jsx';
 import SecurityPage from './SecurityPage.jsx';
 import SponsorModal from './SponsorModal.jsx';
 
@@ -131,14 +129,6 @@ export default function App() {
         </nav>
 
         <nav className="sb-bottom">
-          <button className={`sb-item util ${view.name === 'hub' ? 'on' : ''}`} title={t('MCP Hub')}
-            onClick={() => setView({ name: 'hub' })}>
-            <span className="sb-icon">⬢</span><span className="sb-label">{t('MCP Hub')}</span>
-          </button>
-          <button className={`sb-item util ${view.name === 'skills' ? 'on' : ''}`} title={t('Skills')}
-            onClick={() => setView({ name: 'skills' })}>
-            <span className="sb-icon">✦</span><span className="sb-label">{t('Skills')}</span>
-          </button>
           <button className={`sb-item util ${view.name === 'security' ? 'on' : ''}`} title={t('Security')}
             onClick={() => setView({ name: 'security' })}>
             <span className="sb-icon">🛡</span><span className="sb-label">{t('Security')}</span>
@@ -198,8 +188,6 @@ export default function App() {
             onSwitchSession={(sid) => setView({ name: 'session', id: sid, projectId: view.projectId })}
             onBack={() => setView({ name: 'project', id: view.projectId })} />
         )}
-        {view.name === 'hub' && <HubPage />}
-        {view.name === 'skills' && <SkillsPage />}
         {view.name === 'security' && <SecurityPage />}
       </div>
 

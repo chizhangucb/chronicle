@@ -3,6 +3,35 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## v0.2.0 — 2026-08-09
+
+The substrate release: Chronicle becomes a metrics-grade session database while
+staying a standalone product. Feature removals make this a minor bump.
+
+- **Subagent (sidechain) import** — Claude Code subagent transcripts are now
+  imported (with their agent type and skill attribution) instead of dropped.
+  Their token spend counts in Cost & Usage; playback/refine stay main-chain by
+  default. Per-message token columns unlock costliest-message and $-weighted
+  attribution analyses.
+- **Contract views** — external consumers (dashboards) read two stable SQL
+  views, `contract_message_metrics` and `contract_sessions` (metrics + pointers,
+  no content), versioned via `PRAGMA user_version`.
+- **Truer durations, stored at import** — **Agent Active** now counts tool
+  execution in full, caps other gaps at 10 minutes, and excludes only your real
+  prompt pauses; a new **Engaged** metric (all gaps, 90-minute cap) approximates
+  hands-on time. Both are stored per session and explained with ⓘ tooltips.
+- **Auto-sync** — the tray app keeps imported projects fresh automatically: on
+  launch, on wake from sleep, every 30 minutes, and when source logs change
+  (debounced). Sessions written to in the last 10 minutes show an "ongoing"
+  pill. Toggles in the new Settings modal, plus launch-at-login.
+- **Full-text search** — global search (⌘K) is now FTS5-indexed, with a LIKE
+  fallback on older databases.
+- **`chronicle://session/<id>` deep links** — open a session directly from
+  other apps.
+- **Removed: MCP Hub, Skills Hub, and the pre-tool-use guard hook.** Chronicle
+  refocuses on session history and metrics; security scanning, redaction, and
+  share links remain.
+
 ## v0.1.10 — 2026-07-12
 
 A sharper session metric, delivered via auto-update:

@@ -18,7 +18,7 @@ npm run dev        # Vite dev server + API in one process → http://localhost:4
 
 ```bash
 npm run desktop    # production build + Electron shell (port 41730, tray)
-npm run standalone # headless production server (UI + /api + /share + /mcp)
+npm run standalone # headless production server (UI + /api + /share)
 ```
 
 Chronicle 将其全部数据写入 `~/.chronicle/`（可用 `CHRONICLE_DATA_DIR` 覆盖）。你在开发中所做的
@@ -27,8 +27,8 @@ Chronicle 将其全部数据写入 `~/.chronicle/`（可用 `CHRONICLE_DATA_DIR`
 
 ## 约定
 
-- **将新增端点保留在现有的 Express 应用中**（`server/api.js`、`server/shares.js`、
-  `server/mcp/hub.js`）。因为这些应用在全部三种运行模式中都会被挂载，所以在此添加的路由无需额外工作
+- **将新增端点保留在现有的 Express 应用中**（`server/api.js`、`server/shares.js`）。
+  因为这些应用在全部三种运行模式中都会被挂载，所以在此添加的路由无需额外工作
   即可在 dev、desktop 和 standalone 中生效。
 - **纯 React + 一个 `styles.css`。** 没有 UI 框架，也没有图表库——图表是手写的 SVG/CSS
   （折线图和 conic-gradient 甜甜圈图）。请保持这一风格。
@@ -36,8 +36,8 @@ Chronicle 将其全部数据写入 `~/.chronicle/`（可用 `CHRONICLE_DATA_DIR`
   请保持这一离线保证——绝不要为核心功能引入网络依赖。
 - **对外部系统只读。** SQLite 来源在打开前会被复制到临时位置（连同它们的 `-wal`/`-shm` 文件）；
   原始日志和仓库永远不会被写入。
-- **长期存活的状态存放在 `globalThis` 上**（`__chronicleLive`、`__chronicleHub`、
-  `__chronicleSkillWatch`），这样 Vite 的 SSR 模块重载才不会遗弃监听器或子进程。
+- **长期存活的状态存放在 `globalThis` 上**（例如 `__chronicleLive`），这样 Vite 的 SSR 模块
+  重载才不会遗弃监听器或子进程。
 - **共享词汇只有单一事实来源。** 聊天类型标签只存在于 `src/kinds.js`；各模型的上下文窗口和价格
   只存在于 `src/models.js`。新的措辞或数字请加到那里，绝不内联写死。
 - **新增的客户端 npm 依赖放入 `devDependencies`**，而非 `dependencies`——Vite 会把客户端库
@@ -65,10 +65,9 @@ UI 中项目卡片上的 **Git 药丸标签** 会在每次 `/api/projects` 调�
 验证。最快的端到端检查是**导入 Chronicle 自己的 Claude Code 会话并四处点击**——时间旅行、因果分析
 和回放都能在 Chronicle 自身的构建历史上运行。
 
-功能已针对本仓库自身的会话、`~/health-analyst` 仓库（234 次提交）、在线的 `anthropics/skills`
-仓库（用于 GitHub skill 导入），以及 Cursor、Codex、Gemini、Copilot 和 OpenCode-live 的固件
-数据库/JSON 进行了验证。相比 mock，更推荐这样做：一次真实导入会一次性走完整条流水线
-（扫描 → 解析 → 快照 → 渲染）。
+功能已针对本仓库自身的会话、`~/health-analyst` 仓库（234 次提交），以及 Cursor、Codex、Gemini、
+Copilot 和 OpenCode-live 的固件数据库/JSON 进行了验证。相比 mock，更推荐这样做：
+一次真实导入会一次性走完整条流水线（扫描 → 解析 → 快照 → 渲染）。
 
 当你添加一个新的来源工具时，请遵循
 [解析器与摄取](architecture/parsers-and-ingestion.md#howto-add-a-new-source) 中的操作步骤，并在提交
@@ -79,10 +78,9 @@ PR 之前用一个固件加上一次真实会话来验证它。
 [架构](architecture/overview.md) 章节详细描绘了代码库。简而言之：
 
 ```
-server/     Express API + parsers + Git engine + live/replay/security/mcp/skills/shares
+server/     Express API + parsers + Git engine + live/replay/security/shares
 src/        React UI (Vite) — plain React + one styles.css
-electron/   Desktop shell (tray, single instance, auto-update)
-hooks/      chronicle-guard.mjs — the Claude Code PreToolUse hook
+electron/   Desktop shell (tray, single instance, auto-sync, auto-update)
 docs/       This documentation set
 ```
 

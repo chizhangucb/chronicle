@@ -1,6 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { costOf } from './models.js';
+
+// Session-list scale UX (v0.2): sort + source filter + windowed rendering.
+const SESSION_WINDOW = 100;
+function sessionCost(s) {
+  try {
+    const usage = s.usage ? JSON.parse(s.usage) : null;
+    if (!usage) return 0;
+    return Object.entries(usage).reduce((sum, [m, u]) => sum + (costOf(m, u) ?? 0), 0);
+  } catch { return 0; }
+}
+function sessionDurationMs(s) {
+  return s.agent_active_ms ?? (s.started_at && s.ended_at ? new Date(s.ended_at) - new Date(s.started_at) : 0);
+}
 
 const FRIENDLY_CALL = {
   Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
@@ -26,6 +40,9 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const [error, setError] = useState(null);
   const [assocPath, setAssocPath] = useState('');
   const [range, setRange] = useState('all');
+  const [sortKey, setSortKey] = useState('recent');
+  const [sourceFilter, setSourceFilter] = useState(null);
+  const [listLimit, setListLimit] = useState(SESSION_WINDOW);
   const [trendStyle, setTrendStyle] = useState('line'); // line | bar
 
   // "Today" = fractional days since local midnight, computed once per range change
@@ -112,6 +129,20 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       trend, sources, ranking,
     };
   }, [data, days]);
+
+  // Sorted + filtered view of the session list; rendering is windowed
+  // (SESSION_WINDOW rows + "Show more") so 1000-session projects stay snappy.
+  const sortedSessions = useMemo(() => {
+    let list = data?.sessions ?? [];
+    if (sourceFilter) list = list.filter((s) => s.source === sourceFilter);
+    const by = {
+      recent: (a, b) => (b.started_at || '').localeCompare(a.started_at || ''),
+      cost: (a, b) => sessionCost(b) - sessionCost(a),
+      duration: (a, b) => sessionDurationMs(b) - sessionDurationMs(a),
+      messages: (a, b) => (b.message_count || 0) - (a.message_count || 0),
+    }[sortKey];
+    return [...list].sort(by);
+  }, [data, sortKey, sourceFilter]);
 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data || !stats) return <div className="page center muted">Loading…</div>;
@@ -216,9 +247,22 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <span className="pill live-pill live clickable" title={t('Open the live session')}
             onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
         )}
+        <div className="filter-chips" style={{ marginLeft: 'auto' }}>
+          {[...new Set(sessions.map((s) => s.source))].length > 1 &&
+            [...new Set(sessions.map((s) => s.source))].map((src) => (
+              <button key={src} className={`chip ${sourceFilter === src ? 'on' : ''}`}
+                onClick={() => setSourceFilter(sourceFilter === src ? null : src)}>{src}</button>
+            ))}
+          <select className="chip" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+            <option value="recent">{t('Recent')}</option>
+            <option value="cost">{t('Cost')}</option>
+            <option value="duration">{t('Duration')}</option>
+            <option value="messages">{t('Messages')}</option>
+          </select>
+        </div>
       </div>
       <div className="session-list">
-        {sessions.map((s) => (
+        {sortedSessions.slice(0, listLimit).map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
             <div className="session-prompt">{sessionDisplayName(s)}</div>
             {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
@@ -241,7 +285,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             </div>
           </div>
         ))}
-        {!sessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
+        {sortedSessions.length > listLimit && (
+          <button className="btn small window-btn" onClick={() => setListLimit((n) => n + SESSION_WINDOW)}>
+            ↓ {(sortedSessions.length - listLimit).toLocaleString()} more sessions
+          </button>
+        )}
+        {!sortedSessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
       </div>
 
     </div>

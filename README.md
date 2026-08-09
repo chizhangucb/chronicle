@@ -33,7 +33,7 @@ Windows / Linux installers: not built yet — run from source below.
 npm install
 npm run dev        # dev server → http://localhost:4173
 npm run desktop    # desktop app (Electron shell + tray, port 41730)
-npm run standalone # headless production server (API + UI + /mcp)
+npm run standalone # headless production server (API + UI)
 npm run dist:mac   # build macOS DMGs (arm64 + x64) into release/
 npm run reinstall:mac # rebuild (arm64), replace /Applications/Chronicle.app, clean release/
 ```
@@ -48,7 +48,9 @@ The highlights:
 ### Import & projects
 - **6-tool import** — Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Copilot Chat via a guided wizard; read-only into a local SQLite DB (WAL-safe temp copies, originals never touched).
 - **Logical projects** — sessions from every tool aggregate by repo path; manual association, unlink, per-session sync, live Git badge.
-- **Session overview** — per-session stats with **Active Duration** (real working time), a **Cost & Usage** panel (local token→$ from Anthropic list prices), and a context-window bar.
+- **Auto-sync** — background incremental import from the tray: on launch, on wake, every 30 min, and on filesystem change; settings toggles for auto-sync + launch-at-login, an "ongoing" indicator for in-progress sessions, and `chronicle://session/<id>` deep links.
+- **Sidechain import** — subagent (sidechain) events are imported with `agent_type`/skill attribution and per-message token usage, so subagent cost is no longer invisible.
+- **Session overview** — per-session stats with stored duration metrics — **Agent Active** (human-prompt gaps excluded, tool time in full, other gaps capped at 10 min) and **Engaged time** (all gaps, 90-min cap) — plus a **Cost & Usage** panel (local token→$ from Anthropic list prices) and a context-window bar.
 
 ### Replay & time travel
 - **Time travel** — click any message to see your code exactly as it was, rebuilt from Git history (Playback mode).
@@ -58,16 +60,12 @@ The highlights:
 - **Context causality** — heuristic links from what the AI *read* to what it *changed*, with confidence scores.
 
 ### Search & insights
-- **Filtering & search** — type chips and `⌘F` within a session; a `⌘K` global full-text command palette across all sessions.
+- **Filtering & search** — type chips and `⌘F` within a session; a `⌘K` global command palette backed by an **FTS5 full-text index** (`LIKE` fallback) across all sessions.
 - **Analytics** — per-project sessions, active days, tool-call distribution, and Today / 7 / 30 / 365-day ranges.
-
-### Control plane
-- **MCP Hub** — a real aggregating Streamable-HTTP MCP server: one-click config takeover, per-tool policies, project roots, and a built-in Inspector.
-- **Skills Hub** — central skill store with symlink fanout to every tool; GitHub import, version history, strictly additive.
+- **Contract views** — versioned read-only SQL views (`contract_message_metrics`, `contract_sessions`, `PRAGMA user_version`) exposing metrics (never content) to external consumers like dashboards.
 
 ### Security & sharing
 - **Security Check** — built-in and custom redaction rules with a detected-vs-redacted preview and one-way redacted export.
-- **Real-time protection** — a Claude Code PreToolUse hook that blocks secrets before Read/Grep/Bash/WebFetch run.
 - **Share links** — tokenized, redacted, served by the local app; view counts and instant revocation.
 
 ### Live & platform
@@ -87,12 +85,9 @@ server/            Express API, mounted inside the Vite dev server (one process)
   git.js           read-only Git snapshot engine (rev-list / ls-tree / show)
   api.js           REST: /api/scan /import /projects /sessions /git/*
   live.js          JSONL tail + SQLite polling → SSE
-  mcp/             service registry + aggregating hub at /mcp
-  security.js      redaction rules, session scan, pre-tool-use checks
-  skills.js        central skill store, symlink fanout, GitHub import
+  security.js      redaction rules, session scan
 src/               React UI (Vite) — plain React + one styles.css
-electron/          desktop shell (tray, single instance, update check)
-hooks/             chronicle-guard.mjs — Claude Code PreToolUse hook
+electron/          desktop shell (tray, single instance, auto-sync, update check)
 ```
 
 All data stays on this machine. Source logs and project repos are never written to.
@@ -100,7 +95,7 @@ All data stays on this machine. Source logs and project repos are never written 
 ## Remaining (per [PRD](docs/AI-session-manager-PRD.md))
 
 Remote SSH access (import / browse / live-watch over SSH) · Windows + Linux
-installers · destructive skills takeover · OAuth browser flow for MCP credentials.
+installers.
 Code signing + notarization and one-click auto-update **shipped in v0.1.6**; the rest
 of the PRD's GA scope is implemented — see the
 [decision log in the PRD](docs/AI-session-manager-PRD.md#9-decision-log-post-implementation).

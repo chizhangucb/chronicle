@@ -20,7 +20,7 @@ To exercise the packaged experience:
 
 ```bash
 npm run desktop    # production build + Electron shell (port 41730, tray)
-npm run standalone # headless production server (UI + /api + /share + /mcp)
+npm run standalone # headless production server (UI + /api + /share)
 ```
 
 Chronicle writes all of its data under `~/.chronicle/` (override with `CHRONICLE_DATA_DIR`).
@@ -30,9 +30,9 @@ full directory layout and environment variables.
 
 ## Conventions
 
-- **Keep new endpoints in the existing Express apps** (`server/api.js`, `server/shares.js`,
-  `server/mcp/hub.js`). Because those apps are mounted in all three run modes, a route added
-  there works in dev, desktop, and standalone for free.
+- **Keep new endpoints in the existing Express apps** (`server/api.js`, `server/shares.js`).
+  Because those apps are mounted in all three run modes, a route added there works in dev,
+  desktop, and standalone for free.
 - **Plain React + one `styles.css`.** There is no UI framework and no chart library — charts
   are hand-rolled SVG/CSS (polylines and conic-gradient donuts). Match that style.
 - **Everything heavy is heuristic and local.** Causality, redaction, and cost accounting run
@@ -40,9 +40,8 @@ full directory layout and environment variables.
   dependency to a core feature.
 - **Read-only on foreign systems.** SQLite sources are copied to a temp location (including
   their `-wal`/`-shm` files) before opening; original logs and repos are never written.
-- **Long-lived state lives on `globalThis`** (`__chronicleLive`, `__chronicleHub`,
-  `__chronicleSkillWatch`) so Vite's SSR module reloads don't orphan watchers or child
-  processes.
+- **Long-lived state lives on `globalThis`** (e.g. `__chronicleLive`) so Vite's SSR module
+  reloads don't orphan watchers or child processes.
 - **Single source of truth for shared vocabulary.** Chat-type labels live only in
   `src/kinds.js`; per-model context windows and prices live only in `src/models.js`. Add new
   wording or numbers there, never inline.
@@ -75,8 +74,8 @@ end-to-end check is to **import Chronicle's own Claude Code session and click ar
 time-travel, causality, and replay all work on Chronicle's own construction history.
 
 Features have been verified against this repo's own session, the `~/health-analyst` repo
-(234 commits), the live `anthropics/skills` repo (for GitHub skill import), and fixture
-databases/JSON for Cursor, Codex, Gemini, Copilot, and OpenCode-live. Prefer that over mocks:
+(234 commits), and fixture databases/JSON for Cursor, Codex, Gemini, Copilot, and
+OpenCode-live. Prefer that over mocks:
 a real import exercises the whole pipeline (scan → parse → snapshot → render) at once.
 
 When you add a new source tool, follow the walkthrough in
@@ -88,10 +87,9 @@ it against a fixture plus a real session before opening a PR.
 The [Architecture](architecture/overview.md) section maps the codebase in detail. In short:
 
 ```
-server/     Express API + parsers + Git engine + live/replay/security/mcp/skills/shares
+server/     Express API + parsers + Git engine + live/replay/security/shares
 src/        React UI (Vite) — plain React + one styles.css
-electron/   Desktop shell (tray, single instance, auto-update)
-hooks/      chronicle-guard.mjs — the Claude Code PreToolUse hook
+electron/   Desktop shell (tray, single instance, auto-sync, auto-update)
 docs/       This documentation set
 ```
 

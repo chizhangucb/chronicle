@@ -2,7 +2,7 @@
 
 让 Chronicle 显得「聪明」的四个子系统——机密脱敏、实时会话 tail、确定性回放，以及读→改因果关系——全都是**本地启发式**。这套栈里任何地方都没有 LLM 调用，这恰恰是「默认离线」保证得以成立的原因。
 
-本页面向贡献者，涵盖 `server/security.js`、`hooks/chronicle-guard.mjs`、`server/live.js`、`server/replay.js`、`server/causality.js` 与 `server/shares.js`。每一节都解释其数据流以及它所满足的设计约束。贯穿始终的一条线是：这里每一种「智能」行为都是你能读、能审计的模式匹配与结构分析，而不是一个你不得不去信任的模型。
+本页面向贡献者，涵盖 `server/security.js`、`server/live.js`、`server/replay.js`、`server/causality.js` 与 `server/shares.js`。每一节都解释其数据流以及它所满足的设计约束。贯穿始终的一条线是：这里每一种「智能」行为都是你能读、能审计的模式匹配与结构分析，而不是一个你不得不去信任的模型。
 
 ## 安全引擎（`server/security.js`）
 
@@ -32,36 +32,9 @@
 2. **自定义 `redact` 规则先于内置规则。** 它们在规则集里被拼接到 `BUILTIN_RULES` 之前。
 3. **重叠时更早的匹配胜出。** 一个 `claimed`（已占用）区间列表意味着，一旦一段跨度被脱敏，后来的规则就无法再占用重叠的字符。
 
-结果是确定性的：findings 按位置排序，脱敏后的字符串通过把替换物拼接到那些已占用跨度之上来重建。导出：`listRules`、`addRule`、`deleteRule`、`toggleRule`、`scanText(text)`、`scanSession(messages)`、`preToolUseCheck(...)`、`listInterceptions`。
+结果是确定性的：findings 按位置排序，脱敏后的字符串通过把替换物拼接到那些已占用跨度之上来重建。导出：`listRules`、`addRule`、`deleteRule`、`toggleRule`、`scanText(text)`、`scanSession(messages)`。
 
 `scanSession(messages)` 是安全检查与分享创建所用的批量路径：它扫描每条消息的 `text` 和 `tool_input`，返回按消息的 findings 加上脱敏副本，并汇总一个 `totals` 直方图和 `findingCount`。
-
-### 工具调用前（pre-tool-use）路径
-
-`preToolUseCheck({ tool_name, tool_input }, readFileFn)` 是实时守卫的入口点。对于一个读取类工具（`Read`、`read_file`、`View`、`Grep`、`NotebookRead`），它通过注入的 `readFileFn` 扫描**文件的实际内容**；对于其他任何工具，它扫描序列化后的工具输入。只有高严重级别的规则才会拦截：
-
-```js
-const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
-```
-
-高严重级别的 findings（或任何自定义规则）返回 `decision: 'block'`，附带一个人类可读的原因；较低严重级别的匹配（email、phone、private IP）会被 `flagged` 但放行。无论哪种情形，该事件都会被写入 `interceptions` 表，于是它会出现在「安全 → 拦截」中。
-
-### PreToolUse 钩子（`hooks/chronicle-guard.mjs`）
-
-这个钩子是把 Chronicle 的引擎接进 Claude Code `PreToolUse` 事件的那层薄薄的 CLI 垫片。它从 stdin 读取钩子负载，把 `{tool_name, tool_input}` POST 给 `POST /api/security/pretooluse`，并依裁决行事：
-
-```js
-if (verdict.decision === 'block') {
-  console.error(verdict.reason);   // stderr is shown to the model
-  process.exit(2);                 // exit 2 = block the tool call
-}
-process.exit(0);                   // allow
-```
-
-两条设计保证让它可以安全安装：
-
-- **失败即放行（Fails open）。** 一个 3 秒的 `fetch` 超时守着这次调用；如果 Chronicle 没在运行、报错，或超时，钩子就退出 `0`，工具调用原封不动地继续。一套在自己宕机时会拖垮你编辑器的安全工具，比没有工具更糟。
-- **先备份。** 那个一键安装器（`POST /api/security/install-hook`）会在添加钩子之前备份 `~/.claude/settings.json`。它**默认不安装**——你要主动选择加入。该端点可通过 `CHRONICLE_URL` 覆盖。
 
 > **贡献者陷阱——两处错误启发式，务必保持同步。** 「这条工具结果是不是一个错误？」这个检查存在于两个地方：`server/api.js` 里的 `ERROR_RE`（项目分析）和 `src/SessionView.jsx` 里的 `isErrorResult`（概览统计）。改了一处而不改另一处，两边的错误计数就会分道扬镳。如果你动了错误检测，请两处都动。
 
@@ -132,7 +105,7 @@ createShare(sessionId, days = 7)   // → { token, url: `/share/${token}`, expir
 
 ## 相关
 
-- [安全与分享](../guide/security-and-sharing.md) —— 安全检查、自定义规则、钩子、分享链接。
+- [安全与分享](../guide/security-and-sharing.md) —— 安全检查、自定义规则、分享链接。
 - [实时流式](../guide/live-streaming.md) —— LIVE 指示器与重连 UX。
 - [回放模式](../guide/replay-mode.md) —— 确定性沙箱回放的演练。
 - [上下文因果关系](../guide/context-causality.md) —— 读→改链接与置信度分级。
