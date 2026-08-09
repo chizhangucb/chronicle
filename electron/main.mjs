@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain, powerMonitor } from 'electron';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import path from 'node:path';
@@ -108,6 +108,27 @@ async function checkForUpdates(interactive = false) {
   }
 }
 
+// chronicle://session/<id> deep links (dashboard integrations). The renderer
+// watches location.hash; we just focus the window and set it.
+app.setAsDefaultProtocolClient('chronicle');
+function handleDeepLink(url) {
+  const m = /^chronicle:\/\/session\/([^/?#]+)/.exec(url || '');
+  if (!m) return;
+  showWindow();
+  win?.webContents.executeJavaScript(`location.hash = 'session=${encodeURIComponent(m[1])}'`).catch(() => {});
+}
+app.on('open-url', (e, url) => { e.preventDefault(); handleDeepLink(url); });
+app.on('second-instance', (_e, argv) => {
+  const link = argv?.find((a) => a.startsWith('chronicle://'));
+  if (link) handleDeepLink(link);
+});
+
+// launchAtLogin: applied when the server writes settings (hook set below) and
+// once at startup from ~/.chronicle/config.json.
+function applyLoginItem(cfg) {
+  try { app.setLoginItemSettings({ openAtLogin: cfg?.launchAtLogin === true }); } catch {}
+}
+
 app.whenReady().then(async () => {
   try {
     await startBackend();
@@ -120,6 +141,16 @@ app.whenReady().then(async () => {
   showWindow();
   checkForUpdates(false);
   setInterval(() => checkForUpdates(false), 6 * 60 * 60 * 1000);
+  // Auto-sync on system wake: macOS drops fs-watch events across sleep, so a
+  // resume is the main missed-event window. The server module lives in this
+  // process (standalone), so the hook + fetch both work.
+  globalThis.__chronicleOnSettings = applyLoginItem;
+  applyLoginItem(await import('node:fs').then((fs) => {
+    try { return JSON.parse(fs.readFileSync(path.join(app.getPath('home'), '.chronicle', 'config.json'), 'utf8')); } catch { return {}; }
+  }));
+  powerMonitor.on('resume', () => {
+    fetch(`${URL}/api/autosync/run`, { method: 'POST' }).catch(() => {});
+  });
 });
 
 app.on('activate', showWindow);

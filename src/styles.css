@@ -818,3 +818,8 @@ h4 { margin: 6px 0; }
 .search-footer {
   display: flex; gap: 18px; padding: 9px 16px; border-top: 1px solid var(--border); background: var(--bg3);
 }
+
+/* v0.2: ongoing session pill + settings modal rows */
+.ongoing-pill { color: var(--warn, #fbbf24); border-color: var(--warn, #fbbf24); }
+.settings-row { display: grid; grid-template-columns: auto auto 1fr; gap: 8px 10px; align-items: baseline; padding: 10px 4px; cursor: pointer; }
+.settings-row .small { grid-column: 2 / 4; }
