@@ -276,8 +276,11 @@ const zh = {
   'Active Duration': '活跃时长',
   'Agent Active': '智能体活跃',
   'Wall-clock span from the first message to the last': '从第一条到最后一条消息的实际跨度',
-  'How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '智能体真正在工作的时长。助手的思考、工具执行，以及后台任务（如构建）期间的等待都会被完整计入——不设空闲上限。只有你每次真实提问前的那段停顿会被排除（你阅读/输入/离开的时间）；应用内的交互和系统通知不会被算作停顿。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
+  'Engaged': '参与时长',
+  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    '智能体真正在工作的时长（包含子智能体活动）。工具执行时间（紧随工具调用的工具结果）会被完整计入——长时间的构建或测试都会体现出来。其余每段间隔以 10 分钟为上限，而你每次真实提问前的停顿（阅读/输入/离开的时间）会被完全排除。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
+  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
+    '参与时长用来估计你实际投入这个会话的时间：把相邻消息之间的每段间隔相加，每段以 90 分钟为上限。与“智能体活跃”不同，它不区分智能体工作和你的停顿——更接近会话被使用的挂钟时间。',
   // Refine: delete by type
   'By type': '按类型',
   'Toggle whole message types in or out': '整类消息一键保留或删除',
@@ -578,8 +581,11 @@ const ja = {
   'Time actually working — gaps between messages under 5 min; longer idle waits are excluded':
     '実際に作業していた時間 — メッセージ間隔が5分未満の合計。長いアイドル時間は除外されます',
   'Agent Active': 'エージェント稼働',
-  'How long the agent was actively working. Assistant thinking, tool execution, and waits during background tasks (like builds) all count in full — no idle cap. Only the pause before each of your real prompts is excluded (your reading/typing/away time); app interactions and system notifications are not counted against it. Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    'エージェントが実際に作業していた時間です。アシスタントの思考、ツール実行、そしてバックグラウンドタスク（ビルドなど）中の待機はすべて全部カウントされ、アイドルの上限はありません。除外されるのは、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）だけです。アプリ内の操作やシステム通知は差し引かれません。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
+  'Engaged': 'エンゲージ時間',
+  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
+    'エージェントが実際に作業していた時間です（サブエージェントの活動を含む）。ツールの実行時間（ツール呼び出しに続くツール結果）は全部カウントされ、長いビルドやテストもそのまま反映されます。それ以外の間隔は 1 回あたり最大 10 分まで、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）は完全に除外されます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
+  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
+    'エンゲージ時間は、このセッションに実際に向き合っていた時間の目安です。連続するメッセージ間の間隔をすべて合計し、1 回あたり最大 90 分で打ち切ります。「エージェント稼働」と違い、エージェントの作業とあなたの停止を区別しないため、セッションが使われていた実時間に近い値になります。',
   // Refine: delete by type
   'By type': 'タイプ別',
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',

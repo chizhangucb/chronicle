@@ -1,0 +1,2 @@
+{"parentUuid":null,"isSidechain":true,"agentId":"abc123","type":"user","sessionId":"fixture-session","uuid":"s1","timestamp":"2026-08-01T10:00:10.000Z","message":{"role":"user","content":"Survey the repo layout"}}
+{"parentUuid":"s1","isSidechain":true,"agentId":"abc123","type":"assistant","sessionId":"fixture-session","uuid":"s2","timestamp":"2026-08-01T10:00:30.000Z","message":{"model":"claude-fable-5","usage":{"input_tokens":80,"output_tokens":40,"cache_read_input_tokens":500,"cache_creation_input_tokens":10},"content":[{"type":"text","text":"One module: src/."}]}}

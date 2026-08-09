@@ -562,3 +562,12 @@ and fixture DBs/JSON for Cursor/Codex/Gemini/Copilot/OpenCode-live. Prefer that 
 mocks: the fastest end-to-end check is importing Chronicle's own session and clicking
 around. Known deferrals: remote SSH (no host to test), OAuth browser flow, destructive
 skills takeover.
+
+## Records seam (AIOS hub)
+
+Chronicle is a registered AIOS satellite (minimal: records seam only; no runtime hub reads yet). Its dev sessions and decisions flow into the hub.
+
+- Decisions meeting the hub logging bar: top of `<hub>/records/decisions.md`, header ending `(session <id>, stream: chronicle)`. Hub = `$AIOS_HUB` or `~/chizhang-2`.
+- Brainstorms: `<hub>/records/brainstorms/`.
+- Session end: the registry-scoped Stop hook (hub `.claude/hooks/session-ledger.py`, wired here via gitignored `.claude/settings.local.json`, CHI-115) appends this session's row to `<hub>/records/sessions_index.md` with `Repo = chronicle`. If it is not wired on this machine, append the row manually.
+- Pre-push scan list: deferred until Chronicle reads hub data (CHI-107 decision). Chronicle never reads the hub today, so it cannot carry hub-confidential data. Standard push confirm-first still applies.
