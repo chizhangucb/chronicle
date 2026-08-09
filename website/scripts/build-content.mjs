@@ -16,7 +16,7 @@ const DEST = path.resolve(__dirname, '..', 'docs'); // website/docs/ (generated,
 const GH = 'https://github.com/chizhangucb/chronicle';
 
 // Top-level entries under docs/ that must NOT ship on the public site.
-const EXCLUDE = new Set(['superpowers', 'AI-session-manager-PRD.md']);
+const EXCLUDE = new Set(['superpowers', 'AI-session-manager-PRD.md', 'design-v0.2-substrate.md']);
 
 // Link targets outside docs/ → absolute GitHub URLs. (Prefix match; the PRD rule
 // preserves any trailing #anchor before the closing paren.)
