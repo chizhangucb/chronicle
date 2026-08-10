@@ -99,7 +99,11 @@ export interface Project {
 export interface ParsedSession {
   id: string;
   source: SourceId;
-  file_path: string;
+  // Nullable because Cursor's makeSession() can (in its type signature) produce
+  // a session with neither an explicit file nor a workspace dir to derive one
+  // from — in practice every real call site supplies one or the other, but the
+  // type stays honest rather than asserting it away.
+  file_path: string | null;
   cwd: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -118,7 +122,11 @@ export interface SessionInput {
   id: string;
   project_id: number;
   source: SourceId;
-  file_path: string;
+  // Nullable because Cursor's makeSession() can (in its type signature) produce
+  // a session with neither an explicit file nor a workspace dir to derive one
+  // from — in practice every real call site supplies one or the other, but the
+  // type stays honest rather than asserting it away.
+  file_path: string | null;
   started_at?: string | null;
   ended_at?: string | null;
   first_prompt?: string | null;
@@ -141,7 +149,9 @@ export interface ParseResult {
 // (e.g. Codex has no summary label), hence the optionals.
 export interface ScannedSession {
   id: string;
-  file: string;
+  // Per-file sources (Claude Code, Codex) always set this; DB-backed sources
+  // (OpenCode) have no per-session file, so it's null there.
+  file: string | null;
   label?: string | null;
   modifiedAt?: string | null;
   messageEstimate?: number;
@@ -155,7 +165,13 @@ export interface ScannedProject {
   physicalPath: string | null;
   sessionCount: number;
   messageEstimate: number;
-  sessions: ScannedSession[];
+  // Cursor's scan only returns aggregate counts per workspace, not a per-session
+  // list (the client guards with `Array.isArray(item.sessions)`), so this is
+  // optional — every other source's scanner sets it.
+  sessions?: ScannedSession[];
   // Codex groups by cwd across many files.
   files?: string[];
+  // OpenCode groups by directory (== physicalPath here); autosync/live re-parse
+  // by directory directly rather than re-deriving it from physicalPath.
+  directory?: string;
 }

@@ -1,12 +1,12 @@
 import express from 'express';
-import { mountImportSync } from './routes/import-sync.js';
-import { mountSettings }   from './routes/settings.js';
-import { mountProjects }   from './routes/projects.js';
-import { mountSessions }   from './routes/sessions.js';
-import { mountSearch }     from './routes/search.js';
-import { mountSecurity }   from './routes/security.js';
-import { mountGit }        from './routes/git.js';
-import { startAutoSync }   from './autosync.js';
+import { mountImportSync } from './routes/import-sync.ts';
+import { mountSettings }   from './routes/settings.ts';
+import { mountProjects }   from './routes/projects.ts';
+import { mountSessions }   from './routes/sessions.ts';
+import { mountSearch }     from './routes/search.ts';
+import { mountSecurity }   from './routes/security.ts';
+import { mountGit }        from './routes/git.ts';
+import { startAutoSync }   from './autosync.ts';
 
 export const api = express();
 api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH

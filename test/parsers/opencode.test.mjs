@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { scanOpencodeProjects, parseOpencodeSessions } from '../../server/parsers/opencode.js';
+import { scanOpencodeProjects, parseOpencodeSessions } from '../../server/parsers/opencode.ts';
 
 const FIXTURE = 'test/fixtures/oc-live.db';
 

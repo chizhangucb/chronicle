@@ -2,21 +2,76 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
+import type { Event, ModelUsage, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 
 export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
+interface HeadSniff {
+  cwd: string | null;
+  summary: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Raw JSONL line shapes (Claude Code transcript format — external, untyped by
+// upstream). Fields are optional/loosely typed on purpose: the parser is
+// defensive against missing/malformed data by design (see try/catch below).
+
+interface ClaudeContentBlock {
+  type: string;
+  text?: string;
+  thinking?: string;
+  tool_use_id?: string;
+  content?: unknown;
+  name?: string;
+  id?: string;
+  input?: unknown;
+}
+
+interface ClaudeCacheCreation {
+  ephemeral_5m_input_tokens?: number;
+  ephemeral_1h_input_tokens?: number;
+}
+
+interface ClaudeUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_creation?: ClaudeCacheCreation;
+}
+
+interface ClaudeMessage {
+  role?: string;
+  model?: string;
+  content?: string | ClaudeContentBlock[];
+  usage?: ClaudeUsage;
+}
+
+interface ClaudeLine {
+  type?: string;
+  uuid?: string;
+  timestamp?: string;
+  sessionId?: string;
+  cwd?: string;
+  isSidechain?: boolean;
+  parentUuid?: string;
+  message?: ClaudeMessage;
+  customTitle?: string;
+  summary?: string;
+}
+
 // Scan ~/.claude/projects for importable projects with session/message estimates.
-export function scanClaudeProjects(baseDir = CLAUDE_PROJECTS_DIR) {
+export function scanClaudeProjects(baseDir: string = CLAUDE_PROJECTS_DIR): ScannedProject[] {
   if (!fs.existsSync(baseDir)) return [];
-  const results = [];
+  const results: ScannedProject[] = [];
   for (const dirent of fs.readdirSync(baseDir, { withFileTypes: true })) {
     if (!dirent.isDirectory()) continue;
     const logDir = path.join(baseDir, dirent.name);
     const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl'));
     if (!files.length) continue;
     let messageEstimate = 0;
-    let physicalPath = null;
-    const sessions = [];
+    let physicalPath: string | null = null;
+    const sessions: ScannedSession[] = [];
     for (const f of files) {
       const full = path.join(logDir, f);
       const stat = fs.statSync(full);
@@ -32,7 +87,7 @@ export function scanClaudeProjects(baseDir = CLAUDE_PROJECTS_DIR) {
         messageEstimate: est,
       });
     }
-    sessions.sort((a, b) => (a.modifiedAt < b.modifiedAt ? 1 : -1));
+    sessions.sort((a, b) => ((a.modifiedAt ?? '') < (b.modifiedAt ?? '') ? 1 : -1));
     results.push({
       source: 'claude-code',
       logDir,
@@ -51,8 +106,8 @@ export function scanClaudeProjects(baseDir = CLAUDE_PROJECTS_DIR) {
 // The cwd comes from the TAIL: sessions resumed after a repo move keep the old
 // path in their early records, and the latest cwd is where the project (and its
 // Git history) lives now. Falls back to the head when the tail has no cwd.
-function sniffHead(file) {
-  const head = { cwd: null, summary: null };
+function sniffHead(file: string): HeadSniff {
+  const head: HeadSniff = { cwd: null, summary: null };
   try {
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
@@ -76,7 +131,7 @@ function sniffHead(file) {
       }
       if (head.cwd && head.summary) break;
     }
-    const tailCwds = [];
+    const tailCwds: string[] = [];
     for (const m of tailText.matchAll(/"cwd":"((?:[^"\\]|\\.)*)"/g)) {
       try { tailCwds.push(JSON.parse(`"${m[1]}"`)); } catch {}
     }
@@ -87,7 +142,7 @@ function sniffHead(file) {
 
 // A session can record subdirectory cwds (e.g. <repo>/server). Walk the pick up
 // to the shortest seen ancestor so grouping lands on the project root.
-function reduceCwd(pick, seen) {
+function reduceCwd(pick: string, seen: Set<string>): string {
   let out = pick;
   for (const c of seen) {
     if (c && c !== out && out.startsWith(c + '/')) out = c;
@@ -96,8 +151,8 @@ function reduceCwd(pick, seen) {
 }
 
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
-export function parseClaudeLine(o) {
-  const events = [];
+export function parseClaudeLine(o: ClaudeLine): Event[] {
+  const events: Event[] = [];
   if (o.type === 'user' && o.message) {
     const content = o.message.content;
     if (typeof content === 'string') {
@@ -115,7 +170,7 @@ export function parseClaudeLine(o) {
     }
   } else if (o.type === 'assistant' && o.message) {
     const model = o.message.model;
-    for (const block of o.message.content || []) {
+    for (const block of o.message.content as ClaudeContentBlock[] || []) {
       if (block.type === 'text' && block.text?.trim()) {
         events.push({ uuid: o.uuid, ts: o.timestamp, kind: 'assistant', text: block.text, model });
       } else if (block.type === 'thinking' && block.thinking?.trim()) {
@@ -130,26 +185,60 @@ export function parseClaudeLine(o) {
   return events;
 }
 
+function newUsageAgg(): ModelUsage {
+  return { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
+}
+
+function accumulateUsage(usageByModel: Map<string, ModelUsage>, model: string, u: ClaudeUsage): void {
+  const agg = usageByModel.get(model) || newUsageAgg();
+  agg.input += u.input_tokens || 0;
+  agg.output += u.output_tokens || 0;
+  agg.cacheRead += u.cache_read_input_tokens || 0;
+  // 5-minute and 1-hour cache writes are billed at different rates.
+  const cc = u.cache_creation;
+  if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+    agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
+    agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
+  } else {
+    agg.cacheWrite5m += u.cache_creation_input_tokens || 0; // default tier when unsplit
+  }
+  usageByModel.set(model, agg);
+}
+
+function attachPerEventUsage(e: Event, u: ClaudeUsage): void {
+  const cc = u.cache_creation;
+  e.input_tokens = u.input_tokens || 0;
+  e.output_tokens = u.output_tokens || 0;
+  e.cache_read_tokens = u.cache_read_input_tokens || 0;
+  if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
+    e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
+    e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
+  } else {
+    e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
+    e.cache_w1h_tokens = 0;
+  }
+}
+
 // Parse one session JSONL file into { session, events }.
-export async function parseClaudeSession(file) {
+export async function parseClaudeSession(file: string): Promise<ParseResult> {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
-  const events = [];
+  const events: Event[] = [];
   let sessionId = path.basename(file, '.jsonl');
-  let cwd = null;
-  const cwdsSeen = new Set();
-  let firstPrompt = null;
-  let summary = null;
-  let customTitle = null;
+  let cwd: string | null = null;
+  const cwdsSeen = new Set<string>();
+  let firstPrompt: string | null = null;
+  let summary: string | null = null;
+  let customTitle: string | null = null;
   let skipped = 0;
-  let contextTokens = null;
-  const usageByModel = new Map(); // model → { input, output, cacheWrite, cacheRead }
-  const taskPromptType = new Map(); // Task prompt head → subagent_type (sidechain pairing)
-  const uuidAgentType = new Map();  // sidechain uuid → agent_type (parent-chain propagation)
-  let pendingCommandSkill = null;   // set by a <command-name> turn, consumed by the next assistant event
+  let contextTokens: number | null = null;
+  const usageByModel = new Map<string, ModelUsage>();
+  const taskPromptType = new Map<string, string>(); // Task prompt head → subagent_type (sidechain pairing)
+  const uuidAgentType = new Map<string, string | null>();  // sidechain uuid → agent_type (parent-chain propagation)
+  let pendingCommandSkill: string | null = null;   // set by a <command-name> turn, consumed by the next assistant event
 
   for await (const line of rl) {
     if (!line.trim()) continue;
-    let o;
+    let o: ClaudeLine;
     try { o = JSON.parse(line); } catch { skipped++; continue; }
     if (o.sessionId) sessionId = o.sessionId;
     // Claude Code stores a user rename as `{"type":"custom-title","customTitle":"…"}`
@@ -178,19 +267,7 @@ export async function parseClaudeSession(file) {
         if (ctx > 0) contextTokens = ctx;
       }
       const model = o.message.model || 'unknown';
-      const agg = usageByModel.get(model) || { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
-      agg.input += u.input_tokens || 0;
-      agg.output += u.output_tokens || 0;
-      agg.cacheRead += u.cache_read_input_tokens || 0;
-      // 5-minute and 1-hour cache writes are billed at different rates.
-      const cc = u.cache_creation;
-      if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-        agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
-        agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
-      } else {
-        agg.cacheWrite5m += u.cache_creation_input_tokens || 0; // default tier when unsplit
-      }
-      usageByModel.set(model, agg);
+      accumulateUsage(usageByModel, model, u);
     }
     // Skill context: a Skill tool_use row carries its own skill name; a
     // `/command` turn tags the first assistant event that follows it
@@ -204,13 +281,14 @@ export async function parseClaudeSession(file) {
     // main chain's Task/Agent tool_use input (subagent_type + prompt), then
     // propagate along the parentUuid chain.
     if (o.isSidechain) {
-      let at = o.parentUuid ? uuidAgentType.get(o.parentUuid) : undefined;
+      let at: string | null | undefined = o.parentUuid ? uuidAgentType.get(o.parentUuid) : undefined;
       if (at === undefined && o.type === 'user') {
-        const txt = typeof o.message?.content === 'string' ? o.message.content
-          : o.message?.content?.find?.((b) => b.type === 'text')?.text;
+        const content = o.message?.content;
+        const txt = typeof content === 'string' ? content
+          : Array.isArray(content) ? content.find((b) => b.type === 'text')?.text : undefined;
         if (txt) at = taskPromptType.get(txt.slice(0, 300)) ?? null;
       }
-      uuidAgentType.set(o.uuid, at ?? null);
+      uuidAgentType.set(o.uuid as string, at ?? null);
       if (at) for (const e of lineEvents) e.agent_type = at;
     }
     let usageAttached = o.type !== 'assistant' || !o.message?.usage;
@@ -228,19 +306,8 @@ export async function parseClaudeSession(file) {
       }
       // Per-message usage: one API call = one set of numbers, stored on the
       // FIRST event of that assistant line (others NULL).
-      if (!usageAttached) {
-        const u = o.message.usage;
-        const cc = u.cache_creation;
-        e.input_tokens = u.input_tokens || 0;
-        e.output_tokens = u.output_tokens || 0;
-        e.cache_read_tokens = u.cache_read_input_tokens || 0;
-        if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-          e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
-          e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
-        } else {
-          e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
-          e.cache_w1h_tokens = 0;
-        }
+      if (!usageAttached && o.message?.usage) {
+        attachPerEventUsage(e, o.message.usage);
         usageAttached = true;
       }
       if (pendingCommandSkill && !o.isSidechain && (e.kind === 'assistant' || e.kind === 'thinking' || e.kind === 'tool_use')) {
@@ -248,7 +315,7 @@ export async function parseClaudeSession(file) {
         pendingCommandSkill = null;
       }
       events.push(e);
-      if (e.kind === 'user' && !e.is_sidechain && !firstPrompt) firstPrompt = e.text.slice(0, 200);
+      if (e.kind === 'user' && !e.is_sidechain && !firstPrompt) firstPrompt = (e.text ?? '').slice(0, 200);
     }
   }
 
@@ -262,52 +329,31 @@ export async function parseClaudeSession(file) {
   const subagentsDir = path.join(path.dirname(file), sessionId, 'subagents');
   if (fs.existsSync(subagentsDir)) {
     for (const sf of fs.readdirSync(subagentsDir).filter((f) => f.endsWith('.jsonl'))) {
-      let agentType;
-      const subEvents = [];
+      let agentType: string | null | undefined;
+      const subEvents: Event[] = [];
       const srl = readline.createInterface({ input: fs.createReadStream(path.join(subagentsDir, sf)), crlfDelay: Infinity });
       for await (const line of srl) {
         if (!line.trim()) continue;
-        let o;
+        let o: ClaudeLine;
         try { o = JSON.parse(line); } catch { skipped++; continue; }
         if (o.type === 'assistant' && o.message?.usage) {
           const u = o.message.usage;
           const model = o.message.model || 'unknown';
-          const agg = usageByModel.get(model) || { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
-          agg.input += u.input_tokens || 0;
-          agg.output += u.output_tokens || 0;
-          agg.cacheRead += u.cache_read_input_tokens || 0;
-          const cc = u.cache_creation;
-          if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-            agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
-            agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
-          } else {
-            agg.cacheWrite5m += u.cache_creation_input_tokens || 0;
-          }
-          usageByModel.set(model, agg);
+          accumulateUsage(usageByModel, model, u);
         }
         const lineEvents = parseClaudeLine(o);
         if (agentType === undefined && o.type === 'user') {
-          const txt = typeof o.message?.content === 'string' ? o.message.content
-            : o.message?.content?.find?.((b) => b.type === 'text')?.text;
+          const content = o.message?.content;
+          const txt = typeof content === 'string' ? content
+            : Array.isArray(content) ? content.find((b) => b.type === 'text')?.text : undefined;
           if (txt) agentType = taskPromptType.get(txt.slice(0, 300)) ?? null;
         }
         let usageAttached = o.type !== 'assistant' || !o.message?.usage;
         for (const e of lineEvents) {
           e.is_sidechain = 1;
           if (agentType) e.agent_type = agentType;
-          if (!usageAttached) {
-            const u = o.message.usage;
-            const cc = u.cache_creation;
-            e.input_tokens = u.input_tokens || 0;
-            e.output_tokens = u.output_tokens || 0;
-            e.cache_read_tokens = u.cache_read_input_tokens || 0;
-            if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-              e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
-              e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
-            } else {
-              e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
-              e.cache_w1h_tokens = 0;
-            }
+          if (!usageAttached && o.message?.usage) {
+            attachPerEventUsage(e, o.message.usage);
             usageAttached = true;
           }
           subEvents.push(e);
@@ -317,7 +363,7 @@ export async function parseClaudeSession(file) {
     }
   }
 
-  const timestamps = events.map((e) => e.ts).filter(Boolean).sort();
+  const timestamps = events.map((e) => e.ts).filter(Boolean).sort() as string[];
   if (cwd) cwd = reduceCwd(cwd, cwdsSeen);
   return {
     session: {
@@ -337,7 +383,7 @@ export async function parseClaudeSession(file) {
   };
 }
 
-function blockText(content) {
+function blockText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content.map((c) => (c.type === 'text' ? c.text : `[${c.type}]`)).join('\n');
@@ -345,6 +391,6 @@ function blockText(content) {
   return content == null ? '' : String(content);
 }
 
-function safeStringify(v) {
+function safeStringify(v: unknown): string | null {
   try { return JSON.stringify(v); } catch { return null; }
 }

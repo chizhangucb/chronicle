@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "standalone": "npm run build && node server/standalone.js",
+    "standalone": "npm run build && node server/standalone.ts",
     "test": "node --test 'test/**/*.test.mjs'",
     "typecheck": "tsc -b"
   },

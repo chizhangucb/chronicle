@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db } from './db.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS security_rules (
@@ -22,11 +22,52 @@ CREATE TABLE IF NOT EXISTS interceptions (
   action TEXT          -- 'blocked' | 'flagged'
 );`);
 
+export interface SecurityRuleRow {
+  id: number;
+  name: string;
+  pattern: string;
+  replacement: string;
+  kind: 'redact' | 'allow';
+  enabled: number;
+  builtin_override: string | null;
+}
+
+export interface InterceptionRow {
+  id: number;
+  ts: string;
+  tool_name: string | null;
+  file_path: string | null;
+  rules: string | null;
+  sample: string | null;
+  action: string | null;
+}
+
+export interface Finding {
+  rule: string;
+  ruleName: string;
+  match: string;
+  start: number;
+  end: number;
+  replacement: string;
+}
+
+export interface ScanTextResult {
+  findings: Finding[];
+  redacted: string | null | undefined;
+}
+
+interface RuleSpec {
+  id: string;
+  name: string;
+  re: RegExp;
+  replace: (...args: string[]) => string;
+}
+
 // Rules that justify hard-blocking a tool call (vs. merely flagging).
 const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
 
 // FR-SEC-1: built-in detection rules — meaningful placeholders keep structure readable.
-export const BUILTIN_RULES = [
+export const BUILTIN_RULES: RuleSpec[] = [
   {
     id: 'api_key', name: 'API keys',
     re: /\b(sk-[A-Za-z0-9_-]{8,}|anthropic-[A-Za-z0-9_-]{8,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|xox[bap]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{20,})/g,
@@ -65,62 +106,71 @@ export const BUILTIN_RULES = [
   },
 ];
 
-export function listRules() {
-  return db.prepare('SELECT * FROM security_rules ORDER BY id').all();
+export function listRules(): SecurityRuleRow[] {
+  return db.prepare('SELECT * FROM security_rules ORDER BY id').all() as unknown as SecurityRuleRow[];
 }
-export function addRule({ name, pattern, replacement, kind }) {
+
+export interface RuleInput {
+  name?: string | null;
+  pattern: string;
+  replacement?: string | null;
+  kind?: string;
+}
+
+export function addRule({ name, pattern, replacement, kind }: RuleInput): void {
   db.prepare('INSERT INTO security_rules (name, pattern, replacement, kind) VALUES (?, ?, ?, ?)')
     .run(name || pattern, pattern, replacement || '****', kind === 'allow' ? 'allow' : 'redact');
 }
-export function deleteRule(id) {
+export function deleteRule(id: number | string): void {
   db.prepare('DELETE FROM security_rules WHERE id = ?').run(id);
 }
-export function toggleRule(id, enabled) {
+export function toggleRule(id: number | string, enabled: boolean): void {
   db.prepare('UPDATE security_rules SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
 }
 
 // Glob → regex: * any length, ? single char (FR-SEC-2)
-function globToRegex(glob) {
+function globToRegex(glob: string): RegExp {
   const esc = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^\\s]*').replace(/\?/g, '.');
   return new RegExp(esc, 'g');
 }
 
-function activeCustomRules() {
+function activeCustomRules(): (SecurityRuleRow & { re: RegExp })[] {
   return listRules().filter((r) => r.enabled).map((r) => {
     try { return { ...r, re: globToRegex(r.pattern) }; } catch { return null; }
-  }).filter(Boolean);
+  }).filter((r): r is SecurityRuleRow & { re: RegExp } => Boolean(r));
 }
 
 // Scan text → findings + redacted text. Priority (FR-SEC-3):
 // allow rules protect spans; custom redact rules run before built-ins;
 // earlier matches win on overlap.
-export function scanText(text) {
+export function scanText(text: string | null | undefined): ScanTextResult {
   if (!text) return { findings: [], redacted: text };
   const custom = activeCustomRules();
-  const allowSpans = [];
+  const allowSpans: [number, number][] = [];
   for (const rule of custom.filter((r) => r.kind === 'allow')) {
     for (const m of text.matchAll(rule.re)) {
-      if (m[0]) allowSpans.push([m.index, m.index + m[0].length]);
+      if (m[0] && m.index !== undefined) allowSpans.push([m.index, m.index + m[0].length]);
     }
   }
-  const inAllowed = (start, end) => allowSpans.some(([a, b]) => start >= a && end <= b);
+  const inAllowed = (start: number, end: number) => allowSpans.some(([a, b]) => start >= a && end <= b);
 
-  const findings = [];
-  const claimed = [];
-  const overlaps = (s, e) => claimed.some(([a, b]) => s < b && e > a);
+  const findings: Finding[] = [];
+  const claimed: [number, number][] = [];
+  const overlaps = (s: number, e: number) => claimed.some(([a, b]) => s < b && e > a);
 
-  const ruleSets = [
-    ...custom.filter((r) => r.kind === 'redact').map((r) => ({
+  const ruleSets: RuleSpec[] = [
+    ...custom.filter((r) => r.kind === 'redact').map((r): RuleSpec => ({
       id: `custom-${r.id}`, name: r.name, re: r.re, replace: () => r.replacement,
     })),
     ...BUILTIN_RULES,
   ];
   for (const rule of ruleSets) {
     for (const m of text.matchAll(rule.re)) {
+      if (m.index === undefined) continue;
       const start = m.index, end = m.index + m[0].length;
       if (!m[0] || inAllowed(start, end) || overlaps(start, end)) continue;
-      let replacement;
-      try { replacement = rule.replace(...[m[0], ...m.slice(1)]); } catch { replacement = '****'; }
+      let replacement: string;
+      try { replacement = rule.replace(...[m[0], ...m.slice(1)] as string[]); } catch { replacement = '****'; }
       findings.push({ rule: rule.id, ruleName: rule.name, match: m[0], start, end, replacement });
       claimed.push([start, end]);
     }
@@ -136,13 +186,28 @@ export function scanText(text) {
   return { findings, redacted };
 }
 
+export interface PreToolUseInput {
+  tool_name?: string | null;
+  tool_input?: string | Record<string, unknown> | null;
+}
+
+export interface PreToolUseResult {
+  decision: 'allow' | 'block';
+  action?: 'blocked' | 'flagged';
+  findings: { rule: string; match: string }[];
+  reason?: string | null;
+}
+
 // Pre-tool-use detection (FR-SEC-5): scan tool content BEFORE it reaches the
 // model. For Read-like tools we scan the actual file contents; otherwise the
 // tool input itself. Only high-severity findings block; the rest are flagged.
-export function preToolUseCheck({ tool_name, tool_input }, readFileFn) {
-  const input = typeof tool_input === 'string' ? safeParse(tool_input) : (tool_input ?? {});
+export function preToolUseCheck(
+  { tool_name, tool_input }: PreToolUseInput,
+  readFileFn?: ((filePath: string) => string | null | undefined) | null,
+): PreToolUseResult {
+  const input: Record<string, unknown> = typeof tool_input === 'string' ? safeParse(tool_input) : (tool_input ?? {});
   let content = '';
-  let filePath = input.file_path || input.path || null;
+  let filePath = (input.file_path || input.path || null) as string | null;
   if (filePath && /^(Read|read_file|View|Grep|NotebookRead)$/i.test(tool_name || '') && readFileFn) {
     content = readFileFn(filePath) ?? '';
   } else {
@@ -165,30 +230,58 @@ export function preToolUseCheck({ tool_name, tool_input }, readFileFn) {
   };
 }
 
-function safeParse(s) { try { return JSON.parse(s); } catch { return {}; } }
+function safeParse(s: string): Record<string, unknown> {
+  try { return JSON.parse(s); } catch { return {}; }
+}
 
-export function listInterceptions(limit = 200) {
-  return db.prepare('SELECT * FROM interceptions ORDER BY id DESC LIMIT ?').all(limit);
+export function listInterceptions(limit = 200): InterceptionRow[] {
+  return db.prepare('SELECT * FROM interceptions ORDER BY id DESC LIMIT ?').all(limit) as unknown as InterceptionRow[];
+}
+
+export interface ScanMessage {
+  seq: number;
+  kind: string;
+  ts?: string | null;
+  tool_name?: string | null;
+  text?: string | null;
+  tool_input?: string | null;
+}
+
+export interface ScannedMessage {
+  seq: number;
+  kind: string;
+  ts?: string | null;
+  tool_name?: string | null;
+  findings: (Finding & { field: 'text' | 'tool_input' })[];
+  redactedText: string | null | undefined;
+  redactedInput: string | null | undefined;
+  originalText: string | null | undefined;
+  originalInput: string | null | undefined;
+}
+
+export interface ScanSessionResult {
+  messages: ScannedMessage[];
+  totals: Record<string, number>;
+  findingCount: number;
 }
 
 // Scan a whole session's messages (FR-SEC-4 preview payload)
-export function scanSession(messages) {
-  const results = [];
-  const totals = {};
+export function scanSession(messages: ScanMessage[]): ScanSessionResult {
+  const results: ScannedMessage[] = [];
+  const totals: Record<string, number> = {};
   for (const m of messages) {
-    const fields = [m.text, m.tool_input].filter(Boolean);
-    const perMessage = [];
+    const perMessage: (Finding & { field: 'text' | 'tool_input' })[] = [];
     let redactedText = m.text;
     let redactedInput = m.tool_input;
     if (m.text) {
       const r = scanText(m.text);
       redactedText = r.redacted;
-      perMessage.push(...r.findings.map((f) => ({ ...f, field: 'text' })));
+      perMessage.push(...r.findings.map((f) => ({ ...f, field: 'text' as const })));
     }
     if (m.tool_input) {
       const r = scanText(m.tool_input);
       redactedInput = r.redacted;
-      perMessage.push(...r.findings.map((f) => ({ ...f, field: 'tool_input' })));
+      perMessage.push(...r.findings.map((f) => ({ ...f, field: 'tool_input' as const })));
     }
     if (perMessage.length) {
       for (const f of perMessage) totals[f.ruleName] = (totals[f.ruleName] || 0) + 1;

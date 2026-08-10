@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { db } from './db.js';
+import { db } from './db.ts';
 
 // Context Causality (FR-CC): link the material the AI read (Reference Blocks)
 // to the code changes it made, with a heuristic confidence score.
@@ -8,34 +8,73 @@ import { db } from './db.js';
 const READ_TOOLS = new Set(['Read', 'read_file', 'Grep', 'grep', 'Glob', 'glob', 'View', 'cat', 'NotebookRead']);
 const CHANGE_TOOLS = new Set(['Write', 'Edit', 'write_file', 'edit_file', 'NotebookEdit']);
 
-function extractPath(toolName, inputJson) {
+interface ToolUseRow {
+  seq: number;
+  ts: string | null;
+  kind: string;
+  tool_name: string | null;
+  tool_input: string | null;
+}
+
+interface ReadRecord {
+  seq: number;
+  ts: string | null;
+  file: string | null;
+  pattern: string | null;
+  tool: string | null;
+}
+
+interface ChangeSource {
+  seq: number;
+  file: string | null;
+  pattern: string | null;
+  tool: string | null;
+  confidence: number;
+  reason: string | null;
+}
+
+interface ChangeRecord {
+  seq: number;
+  ts: string | null;
+  file: string;
+  tool: string | null;
+  sources: ChangeSource[];
+}
+
+export interface CausalityResult {
+  changes: ChangeRecord[];
+  readCount: number;
+  mentioned: Record<number, (string | null)[]>;
+}
+
+function extractPath(_toolName: string | null, inputJson: string | null): string | null {
   try {
     const input = JSON.parse(inputJson || '{}');
     return input.file_path || input.path || input.notebook_path || null;
   } catch { return null; }
 }
 
-function extractPattern(inputJson) {
+function extractPattern(inputJson: string | null): string | null {
   try {
     const input = JSON.parse(inputJson || '{}');
     return input.pattern || input.query || null;
   } catch { return null; }
 }
 
-export function analyzeCausality(sessionId) {
+export function analyzeCausality(sessionId: string): CausalityResult {
   const messages = db.prepare(
     `SELECT seq, ts, kind, tool_name, tool_input FROM messages
-     WHERE session_id = ? AND kind = 'tool_use' ORDER BY seq`).all(sessionId);
+     WHERE session_id = ? AND kind = 'tool_use' ORDER BY seq`).all(sessionId) as unknown as ToolUseRow[];
 
-  const reads = [];    // {seq, ts, file|pattern, tool}
-  const changes = [];  // {seq, ts, file, tool, sources: []}
+  const reads: ReadRecord[] = [];
+  const changes: ChangeRecord[] = [];
 
   for (const m of messages) {
-    if (READ_TOOLS.has(m.tool_name)) {
+    if (m.tool_name && READ_TOOLS.has(m.tool_name)) {
       const file = extractPath(m.tool_name, m.tool_input);
       const pattern = extractPattern(m.tool_input);
       if (file || pattern) reads.push({ seq: m.seq, ts: m.ts, file, pattern, tool: m.tool_name });
-    } else if (CHANGE_TOOLS.has(m.tool_name)) {
+    } else if (m.tool_name && CHANGE_TOOLS.has(m.tool_name)) {
       const file = extractPath(m.tool_name, m.tool_input);
       if (file) changes.push({ seq: m.seq, ts: m.ts, file, tool: m.tool_name, sources: [] });
     }
@@ -44,10 +83,10 @@ export function analyzeCausality(sessionId) {
   for (const change of changes) {
     const priorReads = reads.filter((r) => r.seq < change.seq);
     const recentWindow = priorReads.slice(-8); // temporal proximity window
-    const seen = new Set();
+    const seen = new Set<string>();
     for (const read of priorReads) {
       let confidence = 0;
-      let reason = null;
+      let reason: string | null = null;
       if (read.file && read.file === change.file) {
         confidence = 0.95; reason = 'read this exact file before changing it';
       } else if (read.file && path.dirname(read.file) === path.dirname(change.file)) {
@@ -71,7 +110,7 @@ export function analyzeCausality(sessionId) {
   }
 
   // Mentioned files per message (FR-CC-1): quick lookup for header chips
-  const mentioned = {};
+  const mentioned: Record<number, (string | null)[]> = {};
   for (const r of reads) {
     if (r.file) (mentioned[r.seq] ??= []).push(r.file);
   }
@@ -80,11 +119,11 @@ export function analyzeCausality(sessionId) {
   return { changes, readCount: reads.length, mentioned };
 }
 
-function stem(f) {
+function stem(f: string): string {
   return path.basename(f).replace(/\.[^.]+$/, '');
 }
 
-function matchesPattern(file, pattern) {
+function matchesPattern(file: string, pattern: string): boolean {
   try {
     const p = pattern.toLowerCase();
     const f = file.toLowerCase();

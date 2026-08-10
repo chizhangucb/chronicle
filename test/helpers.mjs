@@ -20,7 +20,7 @@ export async function withTempDb() {
   // module instance that server/causality.js's `import { db } from './db.js'`
   // resolves to (same absolute file URL) — one shared DatabaseSync, not two
   // separate connections to the same file.
-  const dbModule = await import('../server/db.js');
+  const dbModule = await import('../server/db.ts');
   function teardown() {
     fs.rmSync(dir, { recursive: true, force: true });
   }

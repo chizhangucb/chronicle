@@ -2,14 +2,50 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
+import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 
 export const CODEX_SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
 
+interface CodexContentItem {
+  text?: string;
+  input_text?: string;
+  output_text?: string;
+}
+
+interface CodexTokenUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cached_input_tokens?: number;
+  cache_write_input_tokens?: number;
+}
+
+interface CodexPayload {
+  id?: string;
+  cwd?: string;
+  type?: string;
+  role?: string;
+  content?: string | CodexContentItem[];
+  summary?: { text?: string }[];
+  name?: string;
+  arguments?: string;
+  action?: unknown;
+  call_id?: string;
+  output?: unknown;
+  info?: { last_token_usage?: CodexTokenUsage };
+}
+
+interface CodexLine {
+  timestamp?: string;
+  ts?: string;
+  type?: string;
+  payload?: CodexPayload;
+}
+
 // Codex CLI writes rollout-*.jsonl files (possibly nested by date).
-export function scanCodexProjects(baseDir = CODEX_SESSIONS_DIR) {
+export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
   if (!fs.existsSync(baseDir)) return [];
-  const files = [];
-  (function walk(dir) {
+  const files: string[] = [];
+  (function walk(dir: string): void {
     for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, d.name);
       if (d.isDirectory()) walk(full);
@@ -18,13 +54,13 @@ export function scanCodexProjects(baseDir = CODEX_SESSIONS_DIR) {
   })(baseDir);
   if (!files.length) return [];
   // Group by cwd sniffed from each file
-  const groups = new Map();
+  const groups = new Map<string, string[]>();
   for (const f of files) {
     const cwd = sniffCodexCwd(f) || 'unknown';
     if (!groups.has(cwd)) groups.set(cwd, []);
-    groups.get(cwd).push(f);
+    (groups.get(cwd) as string[]).push(f);
   }
-  return [...groups.entries()].map(([cwd, fs_]) => ({
+  return [...groups.entries()].map(([cwd, fs_]): ScannedProject => ({
     source: 'codex',
     logDir: baseDir,
     files: fs_,
@@ -33,14 +69,14 @@ export function scanCodexProjects(baseDir = CODEX_SESSIONS_DIR) {
     sessionCount: fs_.length,
     messageEstimate: fs_.length * 40,
     sessions: fs_.map((f) => {
-      let mtime = null;
+      let mtime: string | null = null;
       try { mtime = fs.statSync(f).mtime.toISOString(); } catch {}
       return { id: path.basename(f, '.jsonl'), file: f, label: null, modifiedAt: mtime, messageEstimate: 40 };
     }).sort((a, b) => ((a.modifiedAt || '') < (b.modifiedAt || '') ? 1 : -1)),
   }));
 }
 
-function sniffCodexCwd(file) {
+function sniffCodexCwd(file: string): string | null {
   try {
     const fd = fs.openSync(file, 'r');
     const buf = Buffer.alloc(32 * 1024);
@@ -52,19 +88,19 @@ function sniffCodexCwd(file) {
   return null;
 }
 
-export async function parseCodexSession(file) {
+export async function parseCodexSession(file: string): Promise<ParseResult> {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
-  const events = [];
+  const events: Event[] = [];
   let sessionId = path.basename(file, '.jsonl');
-  let cwd = null;
-  let firstPrompt = null;
+  let cwd: string | null = null;
+  let firstPrompt: string | null = null;
 
   for await (const line of rl) {
     if (!line.trim()) continue;
-    let o;
+    let o: CodexLine;
     try { o = JSON.parse(line); } catch { continue; }
     const ts = o.timestamp || o.ts || null;
-    const p = o.payload || o;
+    const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
     if (p.id && p.cwd) { cwd = p.cwd; if (p.id) sessionId = p.id; }
     const t = p.type || o.type;
     if (t === 'message' && p.role === 'user') {
@@ -99,7 +135,7 @@ export async function parseCodexSession(file) {
     }
   }
 
-  const timestamps = events.map((e) => e.ts).filter(Boolean).sort();
+  const timestamps = events.map((e) => e.ts).filter(Boolean).sort() as string[];
   return {
     session: {
       id: `codex-${sessionId}`,
@@ -115,7 +151,7 @@ export async function parseCodexSession(file) {
   };
 }
 
-function itemText(content) {
+function itemText(content: string | CodexContentItem[] | undefined): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content.map((c) => c.text || c.input_text || c.output_text || '').filter(Boolean).join('\n');

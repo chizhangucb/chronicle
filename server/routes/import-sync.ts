@@ -1,19 +1,65 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, upsertProject, replaceSession } from '../db.js';
-import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.js';
-import { scanCodexProjects, parseCodexSession } from '../parsers/codex.js';
-import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.js';
-import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.js';
-import { PER_FILE_SOURCES } from './_shared.js';
+import type { Express, Request, Response } from 'express';
+import { db, upsertProject, replaceSession, type ProjectRow, type SessionRow } from '../db.ts';
+import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts';
+import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
+import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';
+import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.ts';
+import { PER_FILE_SOURCES } from './_shared.ts';
+import type { ParseResult, ScannedProject } from '../../shared/types.ts';
 
-export function mountImportSync(app) {
+interface StatusError extends Error {
+  status?: number;
+}
+
+function bad(msg: string): StatusError {
+  const e = new Error(msg) as StatusError;
+  e.status = 400;
+  return e;
+}
+
+function errStatus(err: unknown): number {
+  return (err as StatusError)?.status || 500;
+}
+function errMessage(err: unknown): string {
+  return String((err as Error)?.message || err);
+}
+
+interface GatherParsedParams {
+  source: string;
+  logDir?: string | null;
+  files?: string[];
+  directory?: string;
+  sessionIds?: string[];
+  physicalPath?: string | null;
+}
+
+interface ProjectAgg {
+  id: number;
+  name: string;
+  path: string;
+  created: boolean;
+  sessions: number;
+  messages: number;
+}
+
+interface ImportResult {
+  ok: true;
+  imported: number;
+  skippedSessions: number;
+  totalMessages: number;
+  projects: ProjectAgg[];
+  projectId: number | null;
+}
+
+export function mountImportSync(app: Express): void {
   // ---- Import wizard ----
 
-  function annotateScan(items) {
-    const importedPaths = new Set(db.prepare('SELECT path FROM projects').all().map((p) => p.path));
-    const importedIds = new Set(db.prepare('SELECT id FROM sessions').all().map((s) => s.id));
-    const importedFiles = new Set(db.prepare('SELECT file_path FROM sessions').all().map((s) => s.file_path));
+  function annotateScan(items: ScannedProject[]) {
+    const importedPaths = new Set((db.prepare('SELECT path FROM projects').all() as unknown as ProjectRow[]).map((p) => p.path));
+    const importedIds = new Set((db.prepare('SELECT id FROM sessions').all() as unknown as { id: string }[]).map((s) => s.id));
+    const importedFiles = new Set((db.prepare('SELECT file_path FROM sessions').all() as unknown as { file_path: string }[]).map((s) => s.file_path));
     return items.map((i) => ({
       ...i,
       imported: i.physicalPath ? importedPaths.has(i.physicalPath) : false,
@@ -24,11 +70,11 @@ export function mountImportSync(app) {
     }));
   }
 
-  app.get('/scan', (req, res) => {
-    const { source, dir } = req.query;
+  app.get('/scan', (req: Request, res: Response) => {
+    const { source, dir } = req.query as { source?: string; dir?: string };
     if (source && dir) {
       // Manual directory scan for one source (FR: "Select Directory Manually")
-      const scanners = {
+      const scanners: Record<string, (d: string) => ScannedProject[]> = {
         'claude-code': (d) => scanClaudeProjects(d),
         codex: (d) => scanCodexProjects(d),
         opencode: (d) => scanOpencodeProjects(d),
@@ -37,7 +83,7 @@ export function mountImportSync(app) {
       if (!scanners[source]) return res.status(400).json({ error: `Unsupported source: ${source}` });
       if (!fs.existsSync(dir)) return res.status(400).json({ error: 'Directory not found' });
       try { return res.json({ [source]: annotateScan(scanners[source](dir)) }); }
-      catch (err) { return res.status(500).json({ error: String(err.message || err) }); }
+      catch (err) { return res.status(500).json({ error: errMessage(err) }); }
     }
     res.json({
       'claude-code': annotateScan(scanClaudeProjects()),
@@ -49,19 +95,18 @@ export function mountImportSync(app) {
 
   // Gather parsed {session, events} pairs per source. files/sessionIds restrict
   // the import to a user-selected subset of sessions.
-  async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }) {
-    const bad = (msg) => { const e = new Error(msg); e.status = 400; return e; };
+  async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }: GatherParsedParams): Promise<ParseResult[]> {
     if (source === 'claude-code') {
       if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
       const sessionFiles = files?.length
         ? files.filter((f) => fs.existsSync(f))
         : fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
-      const parsed = [];
+      const parsed: ParseResult[] = [];
       for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
       return parsed;
     }
     if (source === 'codex') {
-      const parsed = [];
+      const parsed: ParseResult[] = [];
       for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
       return parsed;
     }
@@ -75,9 +120,9 @@ export function mountImportSync(app) {
 
   // Import parsed sessions; reports per-project aggregates so the UI can show
   // which projects were created vs updated.
-  function importParsed(parsed) {
+  function importParsed(parsed: ParseResult[]): ImportResult {
     let imported = 0, skippedSessions = 0, totalMessages = 0;
-    const byProject = new Map();
+    const byProject = new Map<number, ProjectAgg>();
     for (const { session, events } of parsed) {
       if (!events.length || !session.cwd) { skippedSessions++; continue; }
       const existed = !!db.prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
@@ -95,20 +140,20 @@ export function mountImportSync(app) {
     return { ok: true, imported, skippedSessions, totalMessages, projects, projectId: projects[0]?.id ?? null };
   }
 
-  app.post('/import', async (req, res) => {
+  app.post('/import', async (req: Request, res: Response) => {
     try {
       res.json(importParsed(await gatherParsed(req.body)));
     } catch (err) {
-      res.status(err.status || 500).json({ error: String(err.message || err) });
+      res.status(errStatus(err)).json({ error: errMessage(err) });
     }
   });
 
   // Re-import every source log location that maps to this project's path (FR: "Sync Update").
-  app.post('/projects/:id/sync', async (req, res) => {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  app.post('/projects/:id/sync', async (req: Request, res: Response) => {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     try {
-      const bySource = {
+      const bySource: Record<string, ScannedProject[]> = {
         'claude-code': scanClaudeProjects(),
         codex: scanCodexProjects(),
         cursor: scanCursorProjects(),
@@ -125,18 +170,18 @@ export function mountImportSync(app) {
       }
       res.json({ ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) });
     } catch (err) {
-      res.status(err.status || 500).json({ error: String(err.message || err) });
+      res.status(errStatus(err)).json({ error: errMessage(err) });
     }
   });
 
   // Re-import just this one session from its source (per-session "Sync Update").
-  app.post('/sessions/:id/sync', async (req, res) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+  app.post('/sessions/:id/sync', async (req: Request, res: Response) => {
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id);
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Project not found' });
     try {
-      const bySource = {
+      const bySource: Record<string, ScannedProject[]> = {
         'claude-code': scanClaudeProjects(),
         codex: scanCodexProjects(),
         cursor: scanCursorProjects(),
@@ -148,7 +193,7 @@ export function mountImportSync(app) {
       let imported = 0, totalMessages = 0;
       for (const item of matches) {
         // Restrict the parse to this session's file where the source is per-file.
-        const scoped = PER_FILE_SOURCES.has(session.source) && session.file_path
+        const scoped: GatherParsedParams = PER_FILE_SOURCES.has(session.source) && session.file_path
           ? { ...item, files: [session.file_path] } : item;
         const parsed = (await gatherParsed(scoped)).filter((p) => p.session.id === session.id);
         if (!parsed.length) continue;
@@ -159,7 +204,7 @@ export function mountImportSync(app) {
       if (!imported) return res.status(404).json({ error: 'This session was not found in the current source logs' });
       res.json({ ok: true, imported, totalMessages });
     } catch (err) {
-      res.status(err.status || 500).json({ error: String(err.message || err) });
+      res.status(errStatus(err)).json({ error: errMessage(err) });
     }
   });
 }

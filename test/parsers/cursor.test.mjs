@@ -11,7 +11,7 @@ import {
   parseCursorAgentSessions,
   scanCursorProjects,
   parseCursorWorkspace,
-} from '../../server/parsers/cursor.js';
+} from '../../server/parsers/cursor.ts';
 
 const FIXTURE_ROOT = fileURLToPath(new URL('../fixtures/cursor-user', import.meta.url));
 const PROJECT_PATH = '/Users/dev/example-repo';
