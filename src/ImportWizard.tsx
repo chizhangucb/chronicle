@@ -1,8 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import type { ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
 
-const SOURCES = [
+// scan<Tool>Projects() results, as annotated by the server's `annotateScan`
+// (server/routes/import-sync.ts) with an `imported` flag per project/session
+// (not part of the shared ScannedProject/ScannedSession contract, which
+// describes the raw scanner output before that annotation).
+interface AnnotatedSession extends ScannedSession {
+  imported: boolean;
+}
+interface AnnotatedProject extends ScannedProject {
+  imported: boolean;
+  sessions?: AnnotatedSession[];
+}
+type Scan = Partial<Record<SourceId, AnnotatedProject[]>>;
+
+interface SourceInfo {
+  key: SourceId;
+  label: string;
+  hint: string;
+  icon: string;
+}
+
+const SOURCES: SourceInfo[] = [
   { key: 'claude-code', label: 'Claude Code', hint: '~/.claude/projects/', icon: '✳' },
   { key: 'codex', label: 'Codex', hint: '~/.codex/sessions/', icon: '⬡' },
   { key: 'cursor', label: 'Cursor', hint: 'workspaceStorage + agent-transcripts (read-only)', icon: '▮' },
@@ -11,16 +32,29 @@ const SOURCES = [
 
 const STEPS = ['Select Source', 'Select Files', 'Importing', 'Complete'];
 
-const projKey = (item) => `${item.source}|${item.logDir}|${item.directory || item.physicalPath || item.name}`;
-const sessKey = (pk, sid) => `${pk}##${sid}`;
-const granular = (item) => Array.isArray(item.sessions) && item.sessions.length > 0;
+// One selectable unit: one session (when a project can be enumerated) or one
+// whole project (when it can't — e.g. Cursor's aggregate-only workspaces).
+interface Unit {
+  key: string;
+  imported: boolean;
+}
+
+const projKey = (item: AnnotatedProject) => `${item.source}|${item.logDir}|${item.directory || item.physicalPath || item.name}`;
+const sessKey = (pk: string, sid: string) => `${pk}##${sid}`;
+const granular = (item: AnnotatedProject): item is AnnotatedProject & { sessions: AnnotatedSession[] } =>
+  Array.isArray(item.sessions) && item.sessions.length > 0;
 // Selectable units of a project: one per session when we can enumerate them,
 // otherwise the whole project is a single unit.
-const unitsOf = (item) => (granular(item)
+const unitsOf = (item: AnnotatedProject): Unit[] => (granular(item)
   ? item.sessions.map((s) => ({ key: sessKey(projKey(item), s.id), imported: s.imported }))
   : [{ key: projKey(item), imported: item.imported }]);
 
-function badgeOf(item) {
+interface Badge {
+  kind: 'imported' | 'partial' | 'new';
+  text: string;
+}
+
+function badgeOf(item: AnnotatedProject): Badge {
   if (granular(item)) {
     const done = item.sessions.filter((s) => s.imported).length;
     if (done === item.sessions.length) return { kind: 'imported', text: t('Imported') };
@@ -30,24 +64,68 @@ function badgeOf(item) {
   return item.imported ? { kind: 'imported', text: t('Imported') } : { kind: 'new', text: 'NEW' };
 }
 
-export default function ImportWizard({ onClose, onImported }) {
+// Import job payload — one of these per project with selected units, POSTed to
+// /api/import (server/routes/import-sync.ts).
+interface ImportPayload {
+  source: SourceId;
+  logDir: string;
+  directory?: string;
+  physicalPath: string | null;
+  files?: string[];
+  sessionIds?: string[];
+}
+
+// Mirrors server/routes/import-sync.ts's ImportResult (client only reads a
+// subset of these fields).
+interface ImportResultProjectAgg {
+  id: number;
+  name: string;
+  path: string;
+  created: boolean;
+  sessions: number;
+  messages: number;
+}
+interface ImportResult {
+  ok: true;
+  imported: number;
+  skippedSessions: number;
+  totalMessages: number;
+  projects: ImportResultProjectAgg[];
+  projectId: number | null;
+}
+
+interface ImportJob {
+  item: AnnotatedProject;
+  payload: ImportPayload;
+  count: number;
+  status: 'pending' | 'importing' | 'done' | 'failed';
+  result?: ImportResult;
+  error?: string;
+}
+
+export interface ImportWizardProps {
+  onClose: () => void;
+  onImported: () => void;
+}
+
+export default function ImportWizard({ onClose, onImported }: ImportWizardProps) {
   const [step, setStep] = useState(1);
-  const [scan, setScan] = useState(null);
-  const [error, setError] = useState(null);
-  const [source, setSource] = useState(null);
-  const [extraItems, setExtraItems] = useState([]); // from "Select Directory Manually"
-  const [selected, setSelected] = useState(new Set());
-  const [expanded, setExpanded] = useState(new Set());
+  const [scan, setScan] = useState<Scan | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<SourceId | null>(null);
+  const [extraItems, setExtraItems] = useState<AnnotatedProject[]>([]); // from "Select Directory Manually"
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
-  const [dirForm, setDirForm] = useState(null); // null | current input value
+  const [dirForm, setDirForm] = useState<string | null>(null); // null | current input value
   const [rescanning, setRescanning] = useState(false);
-  const [jobs, setJobs] = useState([]); // [{item, payload, status, result, error}]
+  const [jobs, setJobs] = useState<ImportJob[]>([]);
 
   useEffect(() => {
-    api.scan().then(setScan).catch((e) => setError(String(e.message)));
+    api.scan().then(setScan).catch((e: Error) => setError(String(e.message)));
   }, []);
 
-  const items = useMemo(() => {
+  const items = useMemo<AnnotatedProject[]>(() => {
     if (!scan || !source) return [];
     const base = scan[source] || [];
     const seen = new Set(base.map(projKey));
@@ -76,28 +154,28 @@ export default function ImportWizard({ onClose, onImported }) {
         if (sess?.length) return { ...i, sessions: sess, _sessionMatch: true };
         return null;
       })
-      .filter(Boolean);
+      .filter((i): i is AnnotatedProject & { _sessionMatch?: boolean } => Boolean(i));
   }, [items, query]);
 
-  function selectAllNew(list = items) {
+  function selectAllNew(list: AnnotatedProject[] = items) {
     setSelected(new Set(list.flatMap(unitsOf).filter((u) => !u.imported).map((u) => u.key)));
   }
-  function chooseSource(key) {
+  function chooseSource(key: SourceId) {
     setSource(key);
-    const list = (scan[key] || []);
+    const list = (scan?.[key] || []);
     setSelected(new Set(list.flatMap(unitsOf).filter((u) => !u.imported).map((u) => u.key)));
     setExpanded(new Set());
     setQuery('');
     setStep(2);
   }
-  function toggleUnit(key) {
+  function toggleUnit(key: string) {
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   }
-  function toggleProject(item) {
+  function toggleProject(item: AnnotatedProject) {
     const units = unitsOf(item).map((u) => u.key);
     setSelected((prev) => {
       const next = new Set(prev);
@@ -113,22 +191,22 @@ export default function ImportWizard({ onClose, onImported }) {
     setRescanning(true);
     setError(null);
     try {
-      const fresh = await api.scan();
+      const fresh: Scan = await api.scan();
       setScan(fresh);
       // Keep only selections that still exist; newly-appeared NEW sessions get selected.
-      const freshItems = fresh[source] || [];
+      const freshItems = (source && fresh[source]) || [];
       const freshUnits = freshItems.flatMap(unitsOf);
       setSelected((prev) => new Set(freshUnits
         .filter((u) => prev.has(u.key) || !u.imported)
         .map((u) => u.key)));
-    } catch (e) { setError(String(e.message)); }
+    } catch (e) { setError(String((e as Error).message)); }
     finally { setRescanning(false); }
   }
   async function scanDirectory() {
-    if (!dirForm?.trim()) return;
+    if (!dirForm?.trim() || !source) return;
     setError(null);
     try {
-      const result = await api.scan({ source, dir: dirForm.trim() });
+      const result: Scan = await api.scan({ source, dir: dirForm.trim() });
       const found = result[source] || [];
       if (!found.length) { setError(t('No importable sessions found in that directory')); return; }
       setExtraItems((prev) => [...prev, ...found]);
@@ -138,20 +216,20 @@ export default function ImportWizard({ onClose, onImported }) {
         return next;
       });
       setDirForm(null);
-    } catch (e) { setError(String(e.message)); }
+    } catch (e) { setError(String((e as Error).message)); }
   }
 
   async function startImport() {
     // One import job per project that has selected units.
-    const built = [];
+    const built: ImportJob[] = [];
     for (const item of items) {
       const pk = projKey(item);
       if (granular(item)) {
         const chosen = item.sessions.filter((s) => selected.has(sessKey(pk, s.id)));
         if (!chosen.length) continue;
-        const payload = { source: item.source, logDir: item.logDir, directory: item.directory, physicalPath: item.physicalPath };
+        const payload: ImportPayload = { source: item.source, logDir: item.logDir, directory: item.directory, physicalPath: item.physicalPath };
         if (item.source === 'opencode') payload.sessionIds = chosen.map((s) => s.id);
-        else payload.files = chosen.map((s) => s.file);
+        else payload.files = chosen.map((s) => s.file as string);
         built.push({ item, payload, count: chosen.length, status: 'pending' });
       } else if (selected.has(pk)) {
         built.push({
@@ -168,10 +246,10 @@ export default function ImportWizard({ onClose, onImported }) {
     for (let i = 0; i < built.length; i++) {
       setJobs((js) => js.map((j, k) => (k === i ? { ...j, status: 'importing' } : j)));
       try {
-        const result = await api.import(built[i].payload);
+        const result: ImportResult = await api.import(built[i].payload);
         built[i] = { ...built[i], status: 'done', result };
       } catch (e) {
-        built[i] = { ...built[i], status: 'failed', error: String(e.message) };
+        built[i] = { ...built[i], status: 'failed', error: String((e as Error).message) };
       }
       setJobs([...built]);
     }
@@ -184,7 +262,7 @@ export default function ImportWizard({ onClose, onImported }) {
   const failedJobs = jobs.filter((j) => j.status === 'failed');
   const importedSessions = doneJobs.reduce((s, j) => s + (j.result?.imported || 0), 0);
   const importedMessages = doneJobs.reduce((s, j) => s + (j.result?.totalMessages || 0), 0);
-  const resultProjects = [];
+  const resultProjects: ImportResultProjectAgg[] = [];
   for (const j of doneJobs) for (const p of j.result?.projects || []) {
     const existing = resultProjects.find((x) => x.id === p.id);
     if (existing) { existing.sessions += p.sessions; existing.messages += p.messages; existing.created = existing.created || p.created; }
@@ -227,7 +305,7 @@ export default function ImportWizard({ onClose, onImported }) {
                 <div className="wiz-source-section muted small">◎ {t('Local')}</div>
                 <div className="wiz-source-grid">
                   {SOURCES.filter((s) => (scan[s.key] || []).length).map((s) => {
-                    const list = scan[s.key];
+                    const list = scan[s.key] as AnnotatedProject[];
                     const sessions = list.reduce((n, i) => n + (i.sessionCount || 0), 0);
                     return (
                       <button key={s.key} className="wiz-source-card" onClick={() => chooseSource(s.key)}>
@@ -279,7 +357,7 @@ export default function ImportWizard({ onClose, onImported }) {
                 const units = unitsOf(item).map((u) => u.key);
                 const nSel = units.filter((k) => selected.has(k)).length;
                 const badge = badgeOf(item);
-                const isOpen = expanded.has(pk) || item._sessionMatch;
+                const isOpen = expanded.has(pk) || Boolean((item as { _sessionMatch?: boolean })._sessionMatch);
                 return (
                   <div key={pk} className="wiz-proj">
                     <div className="wiz-proj-row">
@@ -290,7 +368,7 @@ export default function ImportWizard({ onClose, onImported }) {
                         </button>
                       ) : <span className="wiz-chevron" />}
                       <input type="checkbox" checked={nSel === units.length && units.length > 0}
-                        ref={(el) => el && (el.indeterminate = nSel > 0 && nSel < units.length)}
+                        ref={(el) => { if (el) el.indeterminate = nSel > 0 && nSel < units.length; }}
                         onChange={() => toggleProject(item)} />
                       <div className="wiz-proj-info" onClick={() => toggleProject(item)}>
                         <span className={badge.kind === 'imported' ? 'muted' : ''}>🗀 {item.name}</span>
@@ -351,7 +429,7 @@ export default function ImportWizard({ onClose, onImported }) {
                 </span>
                 <span>{j.item.name}</span>
                 <span className="muted small">{j.count} {t('sessions')}</span>
-                {j.status === 'done' && <span className="muted small">{j.result.totalMessages} {t('messages')}</span>}
+                {j.status === 'done' && <span className="muted small">{j.result?.totalMessages} {t('messages')}</span>}
                 {j.status === 'failed' && <span className="bad small">{j.error}</span>}
               </div>
             ))}
