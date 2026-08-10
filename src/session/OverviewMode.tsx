@@ -10,6 +10,7 @@ import {
 import type { PlaybackMessage } from './MessageRow.tsx';
 import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
 import type { ModelUsage } from '@shared/types.ts';
+import type { DeletedEntry } from '../SessionSelect.tsx';
 
 // Cost & Usage math lives in ../models.js (still untyped JS — see the task
 // report for the shared-type gap this stands in for). These mirror its actual
@@ -21,7 +22,10 @@ export interface OverviewModeProps {
   data: SessionData;
   messages: PlaybackMessage[];
   liveStatus: LiveStatus;
-  onDeleted: () => void;
+  // Passes the deleted session's undo payload (same shape the multi-select
+  // flow uses) so the destination view can surface the SHARED undo toast —
+  // an Overview delete navigates away immediately, so it can't show its own.
+  onDeleted: (undo?: DeletedEntry) => void;
   onRename: (name: string) => Promise<void>;
 }
 
@@ -371,7 +375,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 interface SourceFileZoneProps {
   session: Session;
   liveStatus: LiveStatus;
-  onDeleted: () => void;
+  onDeleted: (undo?: DeletedEntry) => void;
 }
 
 type ConfirmKind = 'file' | 'everywhere' | 'chronicle';
@@ -401,8 +405,10 @@ function SourceFileZone({ session, liveStatus, onDeleted }: SourceFileZoneProps)
         setFileDeleted(true);
         setConfirming(null);
       } else {
-        await api.deleteSession(session.id, action === 'everywhere');
-        onDeleted(); // session no longer exists — back to the project page
+        const r = await api.deleteSession(session.id, action === 'everywhere');
+        // session no longer exists — back to the project page, carrying the
+        // undo payload so the destination can surface the shared undo toast.
+        onDeleted({ id: session.id, source: r.source, projectId: r.projectId });
       }
     } catch (e) { setError(String((e as Error).message)); }
     finally { setBusy(false); }

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
 
@@ -19,7 +19,7 @@ export interface SelectableSession {
   project_id: number;
 }
 
-interface DeletedEntry {
+export interface DeletedEntry {
   id: string;
   source: string;
   projectId: number;
@@ -36,13 +36,31 @@ export interface UseSessionSelect {
   Toast: React.ReactNode;
 }
 
-export function useSessionSelect(sessions: SelectableSession[], onRefresh: () => void): UseSessionSelect {
+// `pendingUndo`: a delete performed elsewhere (e.g. the Overview single-session
+// danger-zone delete, which navigates away immediately) that should surface the
+// SAME undo toast here once this component mounts at the destination view —
+// see OverviewMode's onDeleted / App's pendingUndo plumbing. Consumed once.
+export function useSessionSelect(sessions: SelectableSession[], onRefresh: () => void, pendingUndo?: DeletedEntry | null): UseSessionSelect {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [undoEntries, setUndoEntries] = useState<DeletedEntry[] | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks the last `pendingUndo` object processed (by reference) so a fresh
+  // delete from the caller (a new object) re-triggers the toast even if an
+  // earlier one was already consumed here, while re-renders with the same
+  // reference don't loop.
+  const lastPendingUndo = useRef<DeletedEntry | null | undefined>(null);
+
+  useEffect(() => {
+    if (!pendingUndo || pendingUndo === lastPendingUndo.current) return;
+    lastPendingUndo.current = pendingUndo;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndoEntries([pendingUndo]);
+    undoTimer.current = setTimeout(() => setUndoEntries(null), UNDO_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUndo]);
 
   function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
   function enterSelect() { setSelectMode(true); }

@@ -196,3 +196,67 @@ test('pause: unpausing clears the flag', () => {
   autosync.writeConfig({ autoSyncPaused: false });
   assert.equal(autosync.autoSyncPaused(), false);
 });
+
+// ---------------------------------------------------------------------------
+// Noise gate — project analytics aggregates (code-review "Important" finding:
+// the session LIST already filtered `minor=0`, but the tool-ranking,
+// kind-distribution, timeline, and error-count aggregates in
+// server/routes/projects.ts did not, so a project's stat cards/charts counted
+// sessions hidden from its own session list). These tests run the SAME SQL
+// shapes as GET /api/projects/:id and GET /api/projects directly against the
+// db, since there's no HTTP-route test harness in this repo yet.
+// ---------------------------------------------------------------------------
+
+test('analytics aggregates: kind/tool/activity/error queries exclude minor sessions, matching the visible session list', () => {
+  const { upsertProject, replaceSession } = dbModule;
+  const project = upsertProject('/proj-analytics-gate');
+  const visible = { id: 's-agate-visible', project_id: project.id, source: SOURCE, file_path: '/proj-analytics-gate/visible.jsonl' };
+  const minor = { id: 's-agate-minor', project_id: project.id, source: SOURCE, file_path: '/proj-analytics-gate/minor.jsonl' };
+  replaceSession(visible, baseEvents(20)); // above threshold -> minor = 0
+  replaceSession(minor, tinyEvents());     // below threshold -> minor = 1
+  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(visible.id).minor, 0);
+  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(minor.id).minor, 1);
+
+  // Give the minor session a tool_use + tool_result so it WOULD show up in the
+  // aggregates if the minor filter were missing.
+  dbModule.db.prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
+    VALUES (?, 999, 'tool_use', '2026-01-01T00:00:00.000Z', 'Bash', NULL)`).run(minor.id);
+  dbModule.db.prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
+    VALUES (?, 1000, 'tool_result', '2026-01-01T00:00:01.000Z', NULL, 'Error: boom')`).run(minor.id);
+
+  const cutoff = '';
+  const toolDist = dbModule.db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
+    JOIN sessions s ON s.id = m.session_id
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
+    GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
+  const kindDist = dbModule.db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
+    JOIN sessions s ON s.id = m.session_id
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
+  const errors = dbModule.db.prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
+    JOIN sessions s ON s.id = m.session_id
+    WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
+    .all(project.id, cutoff);
+
+  assert.equal(toolDist.length, 0, 'the minor session\'s tool_use must not appear in the gated tool ranking');
+  assert.ok(!kindDist.some((r) => r.kind === 'tool_use' || r.kind === 'tool_result'),
+    'the minor session\'s messages must not appear in the gated kind distribution (only its own baseEvents kinds should)');
+  assert.equal(errors.length, 0, 'the minor session\'s tool_result error must not be counted in the gated error total');
+});
+
+test('analytics aggregates: /api/projects list session_count/message_count exclude minor sessions', () => {
+  const { upsertProject, replaceSession } = dbModule;
+  const project = upsertProject('/proj-analytics-list-gate');
+  const visible = { id: 's-alist-visible', project_id: project.id, source: SOURCE, file_path: '/proj-analytics-list-gate/visible.jsonl' };
+  const minor = { id: 's-alist-minor', project_id: project.id, source: SOURCE, file_path: '/proj-analytics-list-gate/minor.jsonl' };
+  replaceSession(visible, baseEvents(20));
+  replaceSession(minor, tinyEvents());
+
+  const row = dbModule.db.prepare(`
+    SELECT p.id, COUNT(s.id) AS session_count, COALESCE(SUM(s.message_count),0) AS message_count
+    FROM projects p LEFT JOIN sessions s ON s.project_id = p.id AND COALESCE(s.minor, 0) = 0
+    WHERE p.id = ? GROUP BY p.id`).get(project.id);
+
+  assert.equal(row.session_count, 1, 'only the non-minor session should be counted on the project card');
+  assert.equal(row.message_count, dbModule.db.prepare('SELECT message_count FROM sessions WHERE id = ?').get(visible.id).message_count,
+    'message_count should equal the visible session\'s own count, excluding the minor session\'s messages');
+});

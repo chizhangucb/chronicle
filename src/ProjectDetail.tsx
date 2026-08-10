@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
-import { useSessionSelect } from './SessionSelect.js';
+import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -108,6 +108,11 @@ export interface ProjectDetailProps {
   onOpenSession: (id: string) => void;
   onOpenProject: (id: number | string) => void;
   onLiveChange?: (live: { status: 'live'; sessionId: string } | null) => void;
+  // Undo payload from a session that was just deleted via the Overview
+  // danger-zone flow (which navigates here immediately) — seeds the shared
+  // multi-select undo toast (see src/SessionSelect.tsx) so a fat-finger
+  // single-session delete is recoverable here too.
+  pendingUndo?: DeletedEntry | null;
 }
 
 interface Stats {
@@ -123,7 +128,7 @@ interface Stats {
   ranking: [string, number][];
 }
 
-export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange }: ProjectDetailProps) {
+export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
   const [data, setData] = useState<ProjectDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assocPath, setAssocPath] = useState('');
@@ -242,7 +247,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const selectableSessions = useMemo(
     () => (data?.sessions ?? []).map((s) => ({ id: s.id, source: String(s.source), project_id: Number(id) })),
     [data, id]);
-  const sessionSelect = useSessionSelect(selectableSessions, refresh);
+  const sessionSelect = useSessionSelect(selectableSessions, refresh, pendingUndo);
 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data || !stats) return <div className="page center muted">Loading…</div>;

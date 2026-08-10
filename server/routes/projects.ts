@@ -34,7 +34,7 @@ export function mountProjects(app: Express): void {
       SELECT p.*, COUNT(s.id) AS session_count, COALESCE(SUM(s.message_count),0) AS message_count,
              MAX(s.ended_at) AS last_active,
              GROUP_CONCAT(DISTINCT s.source) AS sources
-      FROM projects p LEFT JOIN sessions s ON s.project_id = p.id
+      FROM projects p LEFT JOIN sessions s ON s.project_id = p.id AND COALESCE(s.minor, 0) = 0
       GROUP BY p.id ORDER BY last_active DESC`).all() as unknown as ProjectListRow[];
     res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path) })));
   });
@@ -67,18 +67,18 @@ export function mountProjects(app: Express): void {
     });
     const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
       JOIN sessions s ON s.id = m.session_id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
+      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
       GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
     const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
       JOIN sessions s ON s.id = m.session_id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? GROUP BY m.kind`).all(project.id, cutoff);
+      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
     const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count FROM messages m
       JOIN sessions s ON s.id = m.session_id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.ts IS NOT NULL
+      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL
       GROUP BY day ORDER BY day`).all(project.id, cutoff);
     const errors = (db.prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
       JOIN sessions s ON s.id = m.session_id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
+      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
       .all(project.id, cutoff) as unknown as { head: string }[])
       .reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
     res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors } });

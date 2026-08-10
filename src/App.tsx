@@ -8,6 +8,7 @@ import HomePage from './HomePage.jsx';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
+import type { DeletedEntry } from './SessionSelect.js';
 
 // The `/api/projects` list response: a Project row plus per-project aggregates
 // (session_count/message_count/last_active/sources — server/routes/projects.ts
@@ -57,6 +58,9 @@ export default function App() {
   const [liveInfo, setLiveInfo] = useState<LiveChangeInfo | null>(null);
   // Session mode rail config, registered by SessionView while it is mounted.
   const [rail, setRail] = useState<RailState | null>(null);
+  // An Overview single-session delete (SessionView's onBack) carries the undo
+  // payload here so ProjectDetail can surface the shared undo toast on landing.
+  const [pendingUndo, setPendingUndo] = useState<DeletedEntry | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('chronicle-sidebar') === 'collapsed');
 
   const refresh = useCallback(() => {
@@ -197,14 +201,18 @@ export default function App() {
             onBack={() => setView({ name: 'home' })}
             onLiveChange={setLiveInfo}
             onOpenProject={(pid: number | string) => setView({ name: 'project', id: pid })}
-            onOpenSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.id })} />
+            onOpenSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.id })}
+            pendingUndo={pendingUndo} />
         )}
         {view.name === 'session' && (
           <SessionView key={view.id} sessionId={view.id}
             onLiveChange={setLiveInfo}
             onRailChange={setRail}
             onSwitchSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.projectId })}
-            onBack={() => setView({ name: 'project', id: view.projectId })} />
+            onBack={(undo?: DeletedEntry) => {
+              setPendingUndo(undo ?? null);
+              setView({ name: 'project', id: view.projectId });
+            }} />
         )}
       </div>
 

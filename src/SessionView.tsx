@@ -9,6 +9,7 @@ import { SessionPicker } from './ProjectDetail.jsx';
 import MessageRow, { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
+import type { DeletedEntry } from './SessionSelect.tsx';
 
 // ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
 // Duplicated from server/db.ts + server/git.ts + server/causality.ts rather than
@@ -97,7 +98,9 @@ export interface RailState {
 
 export interface SessionViewProps {
   sessionId: string;
-  onBack: () => void;
+  // `undo`: set when navigating back after an Overview single-session delete,
+  // so the destination view (project/home) can surface the shared undo toast.
+  onBack: (undo?: DeletedEntry) => void;
   onLiveChange?: (info: LiveChangeInfo | null) => void;
   onRailChange?: (rail: RailState | null) => void;
   onSwitchSession?: (sessionId: string) => void;
@@ -320,7 +323,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       <div className="session-main">
       <div className="session-toolbar">
         <div className="crumbs">
-          <button className="crumb" title={t('Project home page')} onClick={onBack}>📁 {data.project.name}</button>
+          <button className="crumb" title={t('Project home page')} onClick={() => onBack()}>📁 {data.project.name}</button>
           <span className="crumb-sep">›</span>
           <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
             onSwitch={onSwitchSession} />
