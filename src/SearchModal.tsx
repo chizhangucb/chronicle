@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
-// ProjectDetail.jsx is owned by another conversion group and stays untyped in
-// this worktree; sessionDisplayName's param is therefore implicit `any` here —
-// reconciled once ProjectDetail.tsx lands post-merge.
 import { sessionDisplayName } from './ProjectDetail.jsx';
 
 // Global search palette (⌘K): All/Code/Chat scope, time + project
