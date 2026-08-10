@@ -1,0 +1,30 @@
+{
+  // Shared compiler options for the server + client type-check projects.
+  // TypeScript is DEV-ONLY here: it never emits. The server runs `.ts` directly
+  // via Node 24 native type-stripping, and Vite bundles the client. `tsc` is only
+  // the type gate (`npm run typecheck`).
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+
+    // Full strictness — do not weaken per-file (see CLAUDE.md § TypeScript).
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+
+    // Option A imports: explicit `.ts`/`.tsx` extensions in source, no emit.
+    "allowImportingTsExtensions": true,
+
+    // Erasable-syntax-only: reject `enum`/`namespace`/param-properties so every
+    // `.ts` file stays runnable under Node's strip-only loader.
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "target": "es2023"
+  }
+}
