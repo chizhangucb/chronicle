@@ -1,6 +1,5 @@
 import express from 'express';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { db, upsertProject, replaceSession, ftsAvailable } from './db.js';
 import { scanClaudeProjects, parseClaudeSession } from './parsers/claudeCode.js';
@@ -12,6 +11,7 @@ import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
+import { CHRONICLE_DIR, PER_FILE_SOURCES, backupDbBeforeDelete } from './routes/_shared.js';
 
 export const api = express();
 api.use(express.json());
@@ -169,8 +169,6 @@ api.get('/sessions/:id/resolve', (req, res) => {
   if (!s) return res.status(404).json({ error: 'Not found' });
   res.json(s);
 });
-
-const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 
 // ---- Projects & sessions ----
 
@@ -367,11 +365,6 @@ api.get('/sessions/:id/messages', (req, res) => {
     liveCandidate: isLiveCandidate(session.file_path, session, peers) });
 });
 
-// Delete the ORIGINAL log file on disk (explicit user request only, permanent —
-// the UI double-confirms). Restricted to sources where one file == one session;
-// shared stores (OpenCode/Cursor DBs) would lose other sessions.
-const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
-
 api.delete('/sessions/:id/source-file', (req, res) => {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
   if (!session) return res.status(404).json({ error: 'Not found' });
@@ -468,27 +461,6 @@ api.post('/projects/:id/unlink', (req, res) => {
     .run(target.id, project.id, source);
   res.json({ ok: true, projectId: target.id });
 });
-
-// Snapshot the whole DB before destructive deletes (project or session removal).
-// At most one snapshot per hour (a multi-select Remove loop = one backup, not N);
-// keeps the 2 newest. This is the recovery net for an accidental Remove-all —
-// restore = quit the app and copy the snapshot back over chronicle.db.
-function backupDbBeforeDelete() {
-  try {
-    const dir = path.join(CHRONICLE_DIR, 'backups', 'db');
-    fs.mkdirSync(dir, { recursive: true });
-    const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();
-    const newest = existing[existing.length - 1];
-    if (newest && Date.now() - fs.statSync(path.join(dir, newest)).mtime.getTime() < 60 * 60 * 1000) return;
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    db.exec('BEGIN'); db.exec('COMMIT'); // barrier: no open write txn while copying
-    fs.copyFileSync(path.join(CHRONICLE_DIR, 'chronicle.db'), path.join(dir, `chronicle-${stamp}.db`));
-    // Keep the newest two snapshots total (the one about to be written + one prior).
-    for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {
-      try { fs.unlinkSync(path.join(dir, f)); } catch {}
-    }
-  } catch {}
-}
 
 api.delete('/projects/:id', (req, res) => {
   backupDbBeforeDelete();
