@@ -67,5 +67,4 @@ npm run dist:mac   # electron-builder → arm64 + x64 DMGs in release/
 ## Related
 
 - [Quickstart](./quickstart.md) — your first time-travel in under five minutes.
-- [Importing sessions](./importing-sessions.md) — the import wizard and the six supported tools.
-- [Configuration](../reference/configuration.md) — the `~/.chronicle/` layout, environment variables, and `config.json`.
+- [Supported tools](../reference/supported-tools.md) — the four supported tools, log locations, and configuration.
