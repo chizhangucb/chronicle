@@ -117,6 +117,13 @@ body {
 .project-card:hover { border-color: var(--accent); }
 .project-card.selectable:hover { border-color: var(--accent); }
 .project-card.selected { border-color: var(--accent); background: rgba(122, 162, 247, 0.08); }
+/* Shared with the session-row multi-select (src/SessionSelect.tsx — mounted
+   in both the Home recent-sessions stream and the project session list). */
+.session-row.selectable { cursor: pointer; transition: border-color 0.15s; }
+.session-row.selectable:hover { border-color: var(--accent); }
+.session-row.selected { border-color: var(--accent); background: rgba(122, 162, 247, 0.08); }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: rgba(229, 104, 75, 0.12); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .project-name { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .sel-check { font-size: 15px; color: var(--muted); }

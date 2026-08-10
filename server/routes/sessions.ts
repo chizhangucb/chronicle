@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
+import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { analyzeCausality } from '../causality.ts';
@@ -8,7 +8,48 @@ import { PER_FILE_SOURCES, backupDbBeforeDelete } from './_shared.ts';
 
 type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
 
+interface MinorSessionRow {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  started_at: string | null;
+  project_name: string;
+}
+
 export function mountSessions(app: Express): void {
+  // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----
+
+  app.get('/sessions/minor', (_req: Request, res: Response) => {
+    const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
+        s.message_count, s.agent_active_ms, s.started_at, p.name AS project_name
+      FROM sessions s JOIN projects p ON p.id = s.project_id
+      WHERE s.minor = 1
+      ORDER BY COALESCE(s.started_at, '') DESC LIMIT 500`).all() as unknown as MinorSessionRow[];
+    res.json(rows);
+  });
+
+  // Promote a minor session back into the main lists (sticky across re-import — see db.ts replaceSession).
+  app.post('/sessions/:id/promote', (req: Request, res: Response) => {
+    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
+    if (!session) return res.status(404).json({ error: 'Not found' });
+    db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run((req.params.id as string));
+    res.json({ ok: true });
+  });
+
+  // Undo a session delete: forget the tombstone. The source log was never
+  // touched, so the caller re-triggers a sync afterward to bring it back.
+  app.post('/sessions/undo-delete', (req: Request, res: Response) => {
+    const { source, id } = req.body || {};
+    if (!source || !id) return res.status(400).json({ error: 'source and id required' });
+    removeTombstone(source, id);
+    res.json({ ok: true });
+  });
+
   // Tiny resolver for chronicle://session/<id> deep links.
   app.get('/sessions/:id/resolve', (req: Request, res: Response) => {
     const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string));
@@ -82,7 +123,11 @@ export function mountSessions(app: Express): void {
     backupDbBeforeDelete();
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
-    res.json({ ok: true, sourceDeleted });
+    // A deliberate delete tombstones the (source, id) pair so a subsequent
+    // import/sync/auto-sync of the same source log never resurrects it —
+    // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.
+    tombstoneSession(session.source, session.id);
+    res.json({ ok: true, sourceDeleted, source: session.source, projectId: session.project_id });
   });
 
   // ---- Live streaming (FR-LS): SSE tail of the session's log file ----

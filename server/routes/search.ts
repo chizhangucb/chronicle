@@ -74,7 +74,9 @@ export function mountSearch(app: Express): void {
     const kinds = SCOPE_KINDS[scope] || null;
 
     if (!q) {
-      const where = ['1=1'];
+      // Minor (noise-gated) sessions don't surface in "Recent Access" — they
+      // live in the global minor-sessions bucket until promoted or ignored.
+      const where = ['COALESCE(s.minor, 0) = 0'];
       const params: (string | number)[] = [];
       if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
       const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,

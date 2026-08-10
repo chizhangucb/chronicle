@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
+import { isMinorSession } from './noiseGate.ts';
 import type { Event, SessionInput, Project } from '../shared/types.ts';
 
 export type ProjectRow = Project;
@@ -26,6 +27,7 @@ export interface SessionRow {
   imported_at: string | null;
   agent_active_ms: number | null;
   engaged_ms: number | null;
+  minor: number;
 }
 
 // Full `messages` row shape.
@@ -88,6 +90,17 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+-- Tombstones: sessions deliberately removed from Chronicle (single delete or
+-- whole-project delete). Keyed on (source, session id) since ids are only
+-- unique within a source. Import/autosync paths (replaceSession) consult this
+-- BEFORE inserting so a tombstoned session is never resurrected by a
+-- subsequent scan of the same source file. Deleting undoes = removing the row.
+CREATE TABLE IF NOT EXISTS session_tombstones (
+  source TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  deleted_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (source, session_id)
+);
 `);
 
 // Idempotent migrations
@@ -100,6 +113,10 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN sidechain_count INTEGER DEFAULT 0
 try { db.exec('ALTER TABLE sessions ADD COLUMN imported_at TEXT'); } catch {} // last import time (incremental auto-sync)
 try { db.exec('ALTER TABLE sessions ADD COLUMN agent_active_ms INTEGER'); } catch {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN engaged_ms INTEGER'); } catch {}
+// Noise gate (Phase 5 PR 5a): sessions under the configured threshold are
+// gated out of the main lists into a global "minor sessions" bucket at
+// import time (see noiseGate.ts + replaceSession below). 0/1, default 0.
+try { db.exec('ALTER TABLE sessions ADD COLUMN minor INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN is_sidechain INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN agent_type TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN skill TEXT'); } catch {}
@@ -145,6 +162,30 @@ try {
   ftsAvailable = true;
 } catch {}
 
+// ---- Tombstones (Phase 5 PR 5a: delete + undo) ----
+
+export function isTombstoned(source: string, sessionId: string): boolean {
+  return !!db.prepare('SELECT 1 FROM session_tombstones WHERE source = ? AND session_id = ?').get(source, sessionId);
+}
+
+export function tombstoneSession(source: string, sessionId: string): void {
+  db.prepare(`INSERT INTO session_tombstones (source, session_id, deleted_at) VALUES (?, ?, datetime('now'))
+              ON CONFLICT(source, session_id) DO UPDATE SET deleted_at = excluded.deleted_at`).run(source, sessionId);
+}
+
+// Undo: forget the tombstone. The source log is untouched, so the caller just
+// needs to re-trigger an import/sync afterward to bring the session back.
+export function removeTombstone(source: string, sessionId: string): void {
+  db.prepare('DELETE FROM session_tombstones WHERE source = ? AND session_id = ?').run(source, sessionId);
+}
+
+// Whole-project delete: tombstone every session that belonged to it, so a
+// paused-then-resumed auto-sync doesn't resurrect them.
+export function tombstoneSessionsForProject(projectId: number | string): void {
+  const rows = db.prepare('SELECT id, source FROM sessions WHERE project_id = ?').all(projectId) as unknown as { id: string; source: string }[];
+  for (const r of rows) tombstoneSession(r.source, r.id);
+}
+
 export function upsertProject(physicalPath: string): ProjectRow {
   const name = path.basename(physicalPath) || physicalPath;
   db.prepare('INSERT INTO projects (path, name) VALUES (?, ?) ON CONFLICT(path) DO NOTHING').run(physicalPath, name);
@@ -152,10 +193,15 @@ export function upsertProject(physicalPath: string): ProjectRow {
 }
 
 export function replaceSession(session: SessionInput, events: Event[]): void {
+  // Tombstoned sessions must never be resurrected by a re-scan of the same
+  // source file — check BEFORE touching the DB, from every import path
+  // (manual import, per-project/per-session sync, auto-sync).
+  if (isTombstoned(session.source, session.id)) return;
   db.exec('BEGIN');
   try {
-    // Preserve a user-set display name across re-imports (delete + reinsert).
-    const prev = db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id) as { name: string | null } | undefined;
+    // Preserve a user-set display name, and a promoted-out-of-minor state,
+    // across re-imports (delete + reinsert).
+    const prev = db.prepare('SELECT name, minor FROM sessions WHERE id = ?').get(session.id) as { name: string | null; minor: number | null } | undefined;
     if (ftsAvailable) {
       db.prepare(`INSERT INTO messages_fts(messages_fts, rowid, text, tool_input)
                   SELECT 'delete', id, COALESCE(text,''), COALESCE(tool_input,'')
@@ -164,14 +210,19 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
     const sidechainCount = events.reduce((n, e) => n + (e.is_sidechain ? 1 : 0), 0);
+    const activeMs = agentActiveMs(events);
+    // Once a session is promoted out of (or was never in) the minor bucket,
+    // that stays sticky across re-imports — otherwise a re-sync would silently
+    // undo the user's "promote" action every time.
+    const minor = prev && prev.minor === 0 ? 0 : (isMinorSession(activeMs, events.length) ? 1 : 0);
     db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens, name, summary, usage,
-                                      sidechain_count, agent_active_ms, engaged_ms, imported_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                                      sidechain_count, agent_active_ms, engaged_ms, imported_at, minor)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
            session.started_at ?? null, session.ended_at ?? null, events.length, session.first_prompt ?? null,
            session.context_tokens ?? null, session.name ?? prev?.name ?? null,
            session.summary ?? null, session.usage ?? null,
-           sidechainCount, agentActiveMs(events), engagedMs(events), new Date().toISOString());
+           sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
                                                   is_sidechain, agent_type, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);

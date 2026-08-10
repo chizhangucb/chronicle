@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
+import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -107,6 +108,11 @@ export interface ProjectDetailProps {
   onOpenSession: (id: string) => void;
   onOpenProject: (id: number | string) => void;
   onLiveChange?: (live: { status: 'live'; sessionId: string } | null) => void;
+  // Undo payload from a session that was just deleted via the Overview
+  // danger-zone flow (which navigates here immediately) — seeds the shared
+  // multi-select undo toast (see src/SessionSelect.tsx) so a fat-finger
+  // single-session delete is recoverable here too.
+  pendingUndo?: DeletedEntry | null;
 }
 
 interface Stats {
@@ -122,7 +128,7 @@ interface Stats {
   ranking: [string, number][];
 }
 
-export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange }: ProjectDetailProps) {
+export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
   const [data, setData] = useState<ProjectDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assocPath, setAssocPath] = useState('');
@@ -235,6 +241,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     };
     return [...list].sort(by[sortKey]);
   }, [data, sortKey, sourceFilter]);
+
+  // Session-level multi-select delete — the same shared component/behavior as
+  // the Home recent-sessions stream (see src/SessionSelect.tsx).
+  const selectableSessions = useMemo(
+    () => (data?.sessions ?? []).map((s) => ({ id: s.id, source: String(s.source), project_id: Number(id) })),
+    [data, id]);
+  const sessionSelect = useSessionSelect(selectableSessions, refresh, pendingUndo);
 
   if (error) return <div className="page center error-banner">{error}</div>;
   if (!data || !stats) return <div className="page center muted">Loading…</div>;
@@ -351,32 +364,40 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             <option value="duration">{t('Duration')}</option>
             <option value="messages">{t('Messages')}</option>
           </select>
+          {sessionSelect.Bar}
         </div>
       </div>
       <div className="session-list">
-        {sortedSessions.slice(0, listLimit).map((s) => (
-          <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt">{sessionDisplayName(s)}</div>
-            {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
-              <div className="session-subprompt muted small">{s.first_prompt}</div>
-            )}
-            <div className="session-meta muted small">
-              {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
-              {!s.liveCandidate && s.ongoing && (
-                <span className="pill ongoing-pill" title={t('The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh')}>◔ {t('ongoing')}</span>
+        {sortedSessions.slice(0, listLimit).map((s) => {
+          const isSel = sessionSelect.isSelected(s.id);
+          return (
+            <div key={s.id} className={`card session-row ${sessionSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
+              onClick={() => (sessionSelect.selectMode ? sessionSelect.toggle(s.id) : onOpenSession(s.id))}>
+              <div className="session-prompt">
+                {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
+                {sessionDisplayName(s)}
+              </div>
+              {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
+                <div className="session-subprompt muted small">{s.first_prompt}</div>
               )}
-              <span className="pill src-pill">{s.source}</span>
-              <span>{s.message_count} messages</span>
-              {s.context_tokens && s.context_tokens > 0 ? (
-                <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
-              ) : s.char_count && s.char_count > 0 && (
-                <span title={t('Estimated content size (~4 characters per token) — re-import for real context usage')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
-              )}
-              {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
-              {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
+              <div className="session-meta muted small">
+                {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
+                {!s.liveCandidate && s.ongoing && (
+                  <span className="pill ongoing-pill" title={t('The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh')}>◔ {t('ongoing')}</span>
+                )}
+                <span className="pill src-pill">{s.source}</span>
+                <span>{s.message_count} messages</span>
+                {s.context_tokens && s.context_tokens > 0 ? (
+                  <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
+                ) : s.char_count && s.char_count > 0 && (
+                  <span title={t('Estimated content size (~4 characters per token) — re-import for real context usage')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
+                )}
+                {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
+                {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {sortedSessions.length > listLimit && (
           <button className="btn small window-btn" onClick={() => setListLimit((n) => n + SESSION_WINDOW)}>
             ↓ {(sortedSessions.length - listLimit).toLocaleString()} more sessions
@@ -384,7 +405,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         )}
         {!sortedSessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
       </div>
-
+      {sessionSelect.Toast}
     </div>
   );
 }
