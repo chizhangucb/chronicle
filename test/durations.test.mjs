@@ -3,7 +3,7 @@
 // human-prompt exclusion, etc.) fails the suite.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SYNTHETIC_USER_RE, isHumanPrompt, agentActiveMs, engagedMs } from '../server/durations.js';
+import { SYNTHETIC_USER_RE, isHumanPrompt, agentActiveMs, engagedMs } from '../server/durations.ts';
 
 const MIN = 60 * 1000;
 const T0 = '2026-01-01T00:00:00.000Z';

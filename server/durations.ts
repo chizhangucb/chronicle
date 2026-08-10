@@ -2,13 +2,15 @@
 // (design doc §1.3). The UI and contract views read the stored numbers; the
 // client-side fallback in SessionView mirrors these rules for live sessions.
 
+import type { Event } from '../shared/types.ts';
+
 // Not every role=user message is a human prompt: task notifications, system
 // reminders, command wrappers and interrupts all log with role=user. Their
 // preceding gap counts as ACTIVE (the agent/app was busy) — only a genuinely
 // typed prompt subtracts time. Mirrors SYNTHETIC_USER_RE in src/SessionView.jsx.
 export const SYNTHETIC_USER_RE = /^\s*(?:<task-notification|<launch-selected-element|<system-reminder|<command-name|<command-message|<local-command|\[Request interrupted)/;
 
-export function isHumanPrompt(e) {
+export function isHumanPrompt(e: Event): boolean {
   return e.kind === 'user' && !SYNTHETIC_USER_RE.test(e.text || '');
 }
 
@@ -21,9 +23,9 @@ const ENGAGED_GAP_CAP_MS = 90 * 60 * 1000;  // engaged time: 90-min cap
 //  2. gap ending in a tool_result matched to a prior tool_use → counted in
 //     FULL (real tool/build time, no cap);
 //  3. everything else → counted, capped at 10 min.
-export function agentActiveMs(events) {
+export function agentActiveMs(events: Event[]): number {
   const rows = withTimes(events);
-  const seenToolUse = new Set();
+  const seenToolUse = new Set<string>();
   let sum = 0;
   for (let i = 0; i < rows.length; i++) {
     const cur = rows[i];
@@ -42,7 +44,7 @@ export function agentActiveMs(events) {
 
 // "Engaged time": sum of ALL inter-message gaps, each capped at 90 min.
 // No human/synthetic distinction — approximates hands-on wall-clock time.
-export function engagedMs(events) {
+export function engagedMs(events: Event[]): number {
   const rows = withTimes(events);
   let sum = 0;
   for (let i = 1; i < rows.length; i++) {
@@ -52,9 +54,14 @@ export function engagedMs(events) {
   return sum;
 }
 
-function withTimes(events) {
+interface TimedEvent {
+  e: Event;
+  t: number;
+}
+
+function withTimes(events: Event[]): TimedEvent[] {
   return events
-    .map((e) => ({ e, t: e.ts ? new Date(e.ts).getTime() : NaN }))
+    .map((e): TimedEvent => ({ e, t: e.ts ? new Date(e.ts).getTime() : NaN }))
     .filter((r) => Number.isFinite(r.t))
     .sort((a, b) => a.t - b.t);
 }

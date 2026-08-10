@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from './i18n.js';
-import { KIND_LABEL } from './kinds.js';
+import { KIND_LABEL } from './kinds.ts';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
 // Original messages left, compressed preview right, token stats +

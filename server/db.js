@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { agentActiveMs, engagedMs } from './durations.js';
+import { agentActiveMs, engagedMs } from './durations.ts';
 
 const dataDir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 fs.mkdirSync(dataDir, { recursive: true });

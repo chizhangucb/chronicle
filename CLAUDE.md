@@ -22,6 +22,34 @@ npm run dist:linux # AppImage + .deb (untested on real Linux)
 No test runner is wired up; parsers are validated against fixtures in `test/fixtures/`
 plus real data end-to-end (see Verification below).
 
+## TypeScript
+
+Incremental migration to `.ts`/`.tsx`, keeping the **no-compile-step** architecture.
+TypeScript is DEV-ONLY (type gate); it never emits.
+
+- **Node runs `.ts` natively.** Node 24 strips types at load — no build step, no flag.
+  So the server executes `.ts` directly (`import './db.ts'` etc.). `tsc` is only the
+  type checker: **`npm run typecheck`** (= `tsc -b`) MUST exit 0.
+- **Erasable-syntax-only.** Node's strip-only loader REJECTS `enum`, `namespace`,
+  parameter properties (`constructor(private x)`), and other non-erasable TS at runtime
+  (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`). Enforced by `erasableSyntaxOnly: true`. Use
+  `as const` unions instead of enums; assign fields in the constructor body.
+- **Explicit `.ts`/`.tsx` import extensions (Option A), relative imports only.** Node does
+  NOT rewrite `./x.js` → `x.ts`, so once a file becomes `.ts` every importer's specifier
+  must point at `.ts`/`.tsx` (a `.js`/`.jsx` file importing `./foo.ts` is fine for Vite and
+  Node). tsconfig sets `allowImportingTsExtensions` + `noEmit`.
+- **`shared/types.ts` (repo root) is the cross-boundary contract** — the normalized event
+  model (`Kind`, `Event`, `Usage`, `Session`…), framework-free. Server imports it relatively
+  (`../shared/types.ts`); the client imports it via the **`@shared`** alias (in
+  `vite.config.js` `resolve.alias` AND `tsconfig.client.json` `paths`, kept in sync). Its
+  names/optionality track the real parser + `db.js` shapes — change them together.
+- **Full `strict: true`** (`noImplicitAny` + `strictNullChecks` on). Do NOT weaken strict or
+  silence errors with `any`/`@ts-ignore`/`@ts-expect-error`; type the real shape instead.
+- Two projects via references (`tsconfig.json` → `tsconfig.server.json` nodenext +
+  `tsconfig.client.json` bundler/jsx), sharing `tsconfig.base.json`. `typescript` is pinned
+  exact; client libs' `@types/*` are devDeps (Vite bundles the client). Pilot conversions:
+  `server/durations.ts`, `src/kinds.ts`.
+
 ## Architecture decisions (and why)
 
 - **Single process, single port.** The Express apps (`server/api.js`, `server/shares.js`,
