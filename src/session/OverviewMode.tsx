@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, type JSX } from 'react';
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
@@ -7,9 +7,26 @@ import {
   FRIENDLY_CALL, DONUT_COLORS, DELETABLE_SOURCES, isErrorResult, topDist,
   fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput,
 } from './stats.js';
+import type { PlaybackMessage } from './MessageRow.tsx';
+import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
+import type { ModelUsage } from '@shared/types.ts';
+
+// Cost & Usage math lives in ../models.js (still untyped JS — see the task
+// report for the shared-type gap this stands in for). These mirror its actual
+// return shapes so callers here stay honest rather than falling back to `any`.
+interface CostBreakdown { input: number; output: number; cacheWrite: number; cacheRead: number; }
+interface CacheWriteByTtl { cw5m: number; cw1h: number; }
+
+export interface OverviewModeProps {
+  data: SessionData;
+  messages: PlaybackMessage[];
+  liveStatus: LiveStatus;
+  onDeleted: () => void;
+  onRename: (name: string) => Promise<void>;
+}
 
 // Donut + legend card shared by the Tool / Skill / MCP distributions.
-function DistributionCard({ title, entries, emptyLabel }) {
+function DistributionCard({ title, entries, emptyLabel }: { title: string; entries: [string, number][]; emptyLabel: string }): JSX.Element {
   const total = entries.reduce((s, [, n]) => s + n, 0);
   let acc = 0;
   const gradient = entries.map(([, n], i) => {
@@ -39,7 +56,7 @@ function DistributionCard({ title, entries, emptyLabel }) {
 }
 
 // Session ID with one-click copy (shown on the session home page).
-function SessionIdChip({ id }) {
+function SessionIdChip({ id }: { id: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try { await navigator.clipboard.writeText(id); } catch {
@@ -61,7 +78,7 @@ function SessionIdChip({ id }) {
 }
 
 // Small "ⓘ" affordance with a hover/focus tooltip bubble, for stat explainers.
-function InfoTip({ text }) {
+function InfoTip({ text }: { text: string }): JSX.Element {
   return (
     <span className="info-tip" tabIndex={0} role="note" aria-label={text}>
       ⓘ<span className="info-bubble">{text}</span>
@@ -69,7 +86,33 @@ function InfoTip({ text }) {
   );
 }
 
-export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename }) {
+interface TimelineEntry {
+  seq: number;
+  ts: string | null | undefined;
+  label: string;
+  preview: string;
+}
+
+interface OverviewStats {
+  toolUses: PlaybackMessage[];
+  errors: number;
+  errorIds: Set<string>;
+  top: [string, number][];
+  timeline: TimelineEntry[];
+  skillTop: [string, number][];
+  mcpTop: [string, number][];
+}
+
+interface UsageRow {
+  model: string;
+  u: ModelUsage;
+  cost: number | null;
+  breakdown: CostBreakdown | null;
+  cw: CacheWriteByTtl;
+  cwCost: CacheWriteByTtl | null;
+}
+
+export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename }: OverviewModeProps): JSX.Element {
   const { session } = data;
 
   // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
@@ -82,26 +125,26 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
     if (savingName) return;
     setSavingName(true);
     try { await onRename?.(draft); setEditing(false); }
-    catch (e) { alert(String(e.message)); }
+    catch (e) { alert(String((e as Error).message)); }
     finally { setSavingName(false); }
   }
 
-  const stats = useMemo(() => {
+  const stats: OverviewStats = useMemo(() => {
     const toolUses = messages.filter((m) => m.kind === 'tool_use');
-    const errorIds = new Set(messages.filter(isErrorResult).map((m) => m.tool_use_id).filter(Boolean));
+    const errorIds = new Set(messages.filter(isErrorResult).map((m) => m.tool_use_id).filter((id): id is string => Boolean(id)));
     const errors = messages.filter(isErrorResult).length;
-    const dist = new Map();
+    const dist = new Map<string, number>();
     for (const m of toolUses) dist.set(m.tool_name || 'unknown', (dist.get(m.tool_name || 'unknown') || 0) + 1);
     const distSorted = [...dist.entries()].sort((a, b) => b[1] - a[1]);
     const top = distSorted.slice(0, 7);
     const otherCount = distSorted.slice(7).reduce((s, [, n]) => s + n, 0);
     if (otherCount) top.push(['other', otherCount]);
-    const timeline = messages
+    const timeline: TimelineEntry[] = messages
       .filter((m) => m.kind === 'user' || m.kind === 'tool_use')
       .slice(0, 12)
       .map((m) => ({
         seq: m.seq, ts: m.ts,
-        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name] || m.tool_name || 'Tool'),
+        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
     // Skill usage (Skill tool → tool_input.skill) and MCP usage (mcp__<server>__<tool>
@@ -111,12 +154,12 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       .map((m) => { try { return JSON.parse(m.tool_input || '{}').skill || 'skill'; } catch { return 'skill'; } }));
     const mcpTop = topDist(toolUses
       .filter((m) => (m.tool_name || '').startsWith('mcp__'))
-      .map((m) => m.tool_name.split('__')[1] || 'mcp'));
+      .map((m) => (m.tool_name as string).split('__')[1] || 'mcp'));
     return { toolUses, errors, errorIds, top, timeline, skillTop, mcpTop };
   }, [messages]);
 
   const durationMs = session.started_at && session.ended_at
-    ? new Date(session.ended_at) - new Date(session.started_at) : null;
+    ? new Date(session.ended_at).getTime() - new Date(session.started_at).getTime() : null;
   const dur = durationMs === null ? '—' : fmtDur(durationMs);
   // Stored at import since v0.2 (sidechains included); client fallback for
   // older imports and live-only sessions.
@@ -137,18 +180,18 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
   // Context-window usage bar: real usage vs the model's window (static table).
   const model = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].model) return messages[i].model;
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].model) return messages[i].model as string;
     return null;
   }, [messages]);
-  const ctxWindow = contextWindowFor(model);
-  const ctxPct = ctxWindow && session.context_tokens > 0
+  const ctxWindow: number | null = contextWindowFor(model);
+  const ctxPct = ctxWindow && session.context_tokens && session.context_tokens > 0
     ? (session.context_tokens / ctxWindow) * 100 : null;
   const ctxLevel = ctxPct === null ? null
     : ctxPct >= 90 ? 'crit' : ctxPct >= 75 ? 'high' : ctxPct >= 50 ? 'mid' : 'low';
 
   // Cost & Usage: per-model token totals from the parser + list-price cost estimate.
-  const usageRows = useMemo(() => {
-    let usage;
+  const usageRows: UsageRow[] = useMemo(() => {
+    let usage: Record<string, ModelUsage> | null;
     try { usage = session.usage ? JSON.parse(session.usage) : null; } catch { usage = null; }
     if (!usage) return [];
     return Object.entries(usage)
@@ -160,7 +203,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   }, [session.usage]);
   const totalCost = useMemo(() => {
     const priced = usageRows.filter((r) => r.cost != null);
-    return priced.length ? priced.reduce((s, r) => s + r.cost, 0) : null;
+    return priced.length ? priced.reduce((s, r) => s + (r.cost as number), 0) : null;
   }, [usageRows]);
 
   return (
@@ -199,7 +242,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="card stat"><div className="stat-num">{messages.length}</div><div className="muted small">{t('Messages')}</div></div>
         <div className="card stat"><div className="stat-num">{totalCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
         <div className="card stat"><div className={`stat-num ${stats.errors ? 'bad' : ''}`}>{stats.errors}</div><div className="muted small">{t('Errors')}</div></div>
-        {session.context_tokens > 0 && (
+        {session.context_tokens != null && session.context_tokens > 0 && (
           <div className="card stat" title={t('Context window size at the last message (real usage from the session log)')}>
             <div className="stat-num">{session.context_tokens >= 1e6 ? `${(session.context_tokens / 1e6).toFixed(1)}M` : `${Math.round(session.context_tokens / 1000)}k`}</div>
             <div className="muted small">{t('Context')}</div>
@@ -257,7 +300,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
             <strong>{t('Context Window')}</strong>
             <span className="muted small">{model}</span>
             <span className={`ctx-pct ${ctxLevel}`}>
-              {fmtCtx(session.context_tokens)} / {fmtCtx(ctxWindow)} · {Math.round(ctxPct)}%
+              {fmtCtx(session.context_tokens || 0)} / {fmtCtx(ctxWindow || 0)} · {Math.round(ctxPct)}%
             </span>
           </div>
           <div className="ctx-bar" title={t('Context window size at the last message (real usage from the session log)')}>
@@ -306,8 +349,8 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           <div className="ov-details">
             {stats.toolUses.slice(0, DETAIL_CAP).map((m) => (
               <div key={m.seq} className="ov-detail-row">
-                <span className={stats.errorIds.has(m.tool_use_id) ? 'bad' : 'ok'}>{stats.errorIds.has(m.tool_use_id) ? '✗' : '✓'}</span>
-                <span className="ov-tl-label">{FRIENDLY_CALL[m.tool_name] || m.tool_name || 'Tool'}</span>
+                <span className={m.tool_use_id && stats.errorIds.has(m.tool_use_id) ? 'bad' : 'ok'}>{m.tool_use_id && stats.errorIds.has(m.tool_use_id) ? '✗' : '✓'}</span>
+                <span className="ov-tl-label">{FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || 'Tool'}</span>
                 <span className="muted small ov-tl-preview">{summarizeToolInput(m.tool_name, m.tool_input).slice(0, 100) || '-'}</span>
               </div>
             ))}
@@ -325,23 +368,31 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   );
 }
 
+interface SourceFileZoneProps {
+  session: Session;
+  liveStatus: LiveStatus;
+  onDeleted: () => void;
+}
+
+type ConfirmKind = 'file' | 'everywhere' | 'chronicle';
+
 // Danger zone: delete the original log file, the Chronicle copy, or both.
 // Every action is a two-step inline confirm; deletion is permanent (no backup).
-function SourceFileZone({ session, liveStatus, onDeleted }) {
-  const [confirming, setConfirming] = useState(null); // null | 'file' | 'everywhere' | 'chronicle'
+function SourceFileZone({ session, liveStatus, onDeleted }: SourceFileZoneProps): JSX.Element {
+  const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [fileDeleted, setFileDeleted] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const deletable = DELETABLE_SOURCES.has(session.source);
   const live = liveStatus === 'live' || liveStatus === 'reconnecting';
 
-  const CONFIRM_TEXT = {
+  const CONFIRM_TEXT: Record<ConfirmKind, string> = {
     file: t('Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.'),
     everywhere: t('Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.'),
     chronicle: t('Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.'),
   };
 
-  async function run(action) {
+  async function run(action: ConfirmKind) {
     setBusy(true);
     setError(null);
     try {
@@ -353,7 +404,7 @@ function SourceFileZone({ session, liveStatus, onDeleted }) {
         await api.deleteSession(session.id, action === 'everywhere');
         onDeleted(); // session no longer exists — back to the project page
       }
-    } catch (e) { setError(String(e.message)); }
+    } catch (e) { setError(String((e as Error).message)); }
     finally { setBusy(false); }
   }
 
