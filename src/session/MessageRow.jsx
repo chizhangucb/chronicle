@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { t } from '../i18n.js';
-import { KIND_ICON, KIND_LABEL } from '../kinds.js';
+import { KIND_ICON, KIND_LABEL } from '../kinds.ts';
 import { summarizeToolInput } from './stats.js';
 
 // Labels/icons come from the shared canonical map (src/kinds.js) so Playback and

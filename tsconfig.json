@@ -1,0 +1,10 @@
+{
+  // Solution config: `tsc -b` (npm run typecheck) builds both projects. Editors
+  // pick this up too. No files of its own — the two referenced projects own the
+  // server and client trees respectively.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.server.json" },
+    { "path": "./tsconfig.client.json" }
+  ]
+}

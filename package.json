@@ -7,17 +7,23 @@
     "build": "vite build",
     "preview": "vite preview",
     "standalone": "npm run build && node server/standalone.js",
-    "test": "node --test 'test/**/*.test.mjs'"
+    "test": "node --test 'test/**/*.test.mjs'",
+    "typecheck": "tsc -b"
   },
   "keywords": [],
   "author": "Chi Zhang",
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.3",
     "diff": "^9.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "typescript": "5.9.3",
     "vite": "^8.1.3"
   },
   "dependencies": {
