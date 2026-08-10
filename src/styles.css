@@ -151,16 +151,19 @@ body {
 .warn-pill { color: var(--warn); }
 .ok-pill { color: var(--ok); }
 .src-pill { color: var(--brass); }
-/* Per-project identity pill: caller sets `--project-color` inline (see
-   src/colors.ts projectColor()); falls back to brass when unset. Border is
-   derived from the same hue at low alpha so pill and dot always agree. */
+/* Per-project identity pill: caller sets `--project-color` inline for the
+   first 5 projects (see src/colors.ts projectColorMap()); the 6th+ project
+   gets no `--project-color` and falls back to neutral ink (spec: "6th+
+   falls back to neutral ink") rather than brass, which is project #1's own
+   color. Border is derived from the same hue at low alpha so pill and dot
+   always agree. */
 .pill.proj {
-  color: var(--project-color, var(--brass-text));
-  border-color: color-mix(in srgb, var(--project-color, var(--brass)) 40%, transparent);
+  color: var(--project-color, var(--ink-2));
+  border-color: color-mix(in srgb, var(--project-color, var(--ink-3)) 40%, transparent);
 }
 .pdot {
   display: inline-block; width: 8px; height: 8px; border-radius: 2px;
-  margin-right: 7px; vertical-align: 0; background: var(--project-color, var(--brass));
+  margin-right: 7px; vertical-align: 0; background: var(--project-color, var(--ink-3));
 }
 .error-banner {
   background: rgba(217, 79, 61, 0.12); border: 1px solid var(--danger);
@@ -287,7 +290,7 @@ body {
    rather than relying on a flex-centering parent (the old hand-rolled
    backdrop>modal nesting no longer exists in the DOM). */
 .modal {
-  position: fixed; top: 50%; left: 50%; z-index: 51;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 51;
   background: var(--bg1); border: 1px solid var(--border); border-radius: 6px;
   width: 680px; max-width: 92vw; max-height: 82vh; overflow-y: auto; padding: 18px 20px;
   box-shadow: var(--overlay-shadow); outline: none;

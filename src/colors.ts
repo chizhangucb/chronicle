@@ -6,8 +6,7 @@ export const CATEGORICAL_COLORS = ['#c08a1e', '#2f9d82', '#5585d6', '#cd5f3c', '
 // a stable hue from the categorical palette, assigned in fixed order by
 // project id. The 6th+ project is omitted from the map — callers leave
 // `--project-color` unset for it, and `.pill.proj`/`.pdot` in styles.css
-// fall back to the neutral brass-text/brass default rather than repeating a
-// color.
+// fall back to neutral ink rather than repeating a color.
 export function projectColorMap(ids: (number | string)[]): Map<number | string, string> {
   const sorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
   const map = new Map<number | string, string>();

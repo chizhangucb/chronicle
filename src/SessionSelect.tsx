@@ -137,7 +137,7 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
   );
 
   const UndoToast = undoEntries ? (
-    <Toast.Root className="update-toast" open
+    <Toast.Root className="update-toast" open duration={UNDO_MS}
       onOpenChange={(o) => { if (!o) { if (undoTimer.current) clearTimeout(undoTimer.current); setUndoEntries(null); } }}>
       <div>
         <div className="update-toast-title">
