@@ -9,33 +9,16 @@ no LLM calls, no cloud, source logs and project repos are never written to.
 Built from [the PRD](docs/AI-session-manager-PRD.md). Full docs:
 **[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
 
-## Install (macOS)
+## Install
 
-**[Download from getchronicle.dev](https://getchronicle.dev)** — one button, auto-detects
-Apple Silicon vs Intel. Builds are **signed with an Apple Developer ID and notarized**, so
-they open with no Gatekeeper warning — no `--no-quarantine` needed.
-
-**Or install with Homebrew:**
-
-```bash
-brew tap chizhangucb/chronicle
-brew install --cask chronicle
-```
-
-After install, Chronicle **keeps itself up to date**: when a new signed release ships it
-downloads in the background and shows a one-click **Relaunch to update**.
-
-Windows / Linux installers: not built yet — run from source below.
+npm distribution is coming soon. In the meantime, run from source below.
 
 ## Run from source
 
 ```bash
 npm install
 npm run dev        # dev server → http://localhost:4173
-npm run desktop    # desktop app (Electron shell + tray, port 41730)
 npm run standalone # headless production server (API + UI)
-npm run dist:mac   # build macOS DMGs (arm64 + x64) into release/
-npm run reinstall:mac # rebuild (arm64), replace /Applications/Chronicle.app, clean release/
 ```
 
 Click **Import Sessions**, pick a source tool, and open a session.
@@ -70,7 +53,6 @@ The highlights:
 
 ### Live & platform
 - **Live streaming** — auto-tail in-progress sessions (JSONL reads + read-only SQLite polling → SSE) with auto-reconnect.
-- **Desktop shell** — Electron app with a system tray and **signed auto-update** (notarized builds, one-click relaunch).
 - **i18n** — English · 简体中文 · 日本語.
 - **Performance** — windowed rendering and timeline decimation keep 6,000-message sessions fast.
 - **Feedback** — in-app, via a hosted relay; logged locally first, no secrets in the app.
@@ -87,7 +69,6 @@ server/            Express API, mounted inside the Vite dev server (one process)
   live.js          JSONL tail + SQLite polling → SSE
   security.js      redaction rules, session scan
 src/               React UI (Vite) — plain React + one styles.css
-electron/          desktop shell (tray, single instance, auto-sync, update check)
 ```
 
 All data stays on this machine. Source logs and project repos are never written to.

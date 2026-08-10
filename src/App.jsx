@@ -201,13 +201,11 @@ export default function App() {
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
       )}
-      <UpdateBanner />
     </div>
   );
 }
 
-// Settings: auto-sync (server-side watchers + timer) and launch-at-login
-// (applied by the Electron shell; stored but inert in browser modes).
+// Settings: auto-sync (server-side watchers + timer).
 function SettingsModal({ onClose }) {
   const [settings, setSettings] = useState(null);
   useEffect(() => { api.settings().then(setSettings).catch(() => setSettings({})); }, []);
@@ -229,11 +227,6 @@ function SettingsModal({ onClose }) {
               <input type="checkbox" checked={settings.autoSync !== false} onChange={() => toggle('autoSync')} />
               <span>{t('Auto-sync sessions')}</span>
               <span className="muted small">{t('Keep imported projects up to date automatically (on launch, on wake, and when source logs change)')}</span>
-            </label>
-            <label className="settings-row">
-              <input type="checkbox" checked={settings.launchAtLogin === true} onChange={() => toggle('launchAtLogin')} />
-              <span>{t('Launch at login')}</span>
-              <span className="muted small">{t('Start Chronicle in the tray when you log in (desktop app only)')}</span>
             </label>
           </div>
         )}
@@ -294,30 +287,6 @@ function FeedbackModal({ onClose }) {
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Auto-update toast: shown only inside the Electron shell (window.chronicleUpdater
-// exists) once an update has downloaded. Clicking Relaunch installs + relaunches
-// via electron-updater's quitAndInstall (clean port handover — no stale process).
-function UpdateBanner() {
-  const [version, setVersion] = useState(null);
-  useEffect(() => {
-    const u = typeof window !== 'undefined' ? window.chronicleUpdater : null;
-    if (!u) return;
-    u.onDownloaded((info) => setVersion(info?.version || ''));
-  }, []);
-  if (version === null) return null;
-  return (
-    <div className="update-toast" role="status">
-      <div className="update-toast-body">
-        <div className="update-toast-title">{t('Updated to')} {version}</div>
-        <div className="update-toast-sub">{t('Relaunch to apply')}</div>
-      </div>
-      <button className="btn primary" onClick={() => window.chronicleUpdater?.relaunch()}>
-        {t('Relaunch')}
-      </button>
     </div>
   );
 }
