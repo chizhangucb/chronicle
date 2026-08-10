@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, type ProjectRow } from '../db.ts';
+import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions } from '../live.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
@@ -48,10 +48,13 @@ export function mountProjects(app: Express): void {
     // Optional time range (?days=7/30/365) — filters sessions and all analytics.
     const days = Number(req.query.days) || null;
     const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
+    // Minor (noise-gated) sessions are excluded from this main list — they
+    // live in the global "minor sessions" bucket (GET /api/sessions/minor)
+    // until promoted or ignored.
     const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
         (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
          FROM messages m WHERE m.session_id = sessions.id) AS char_count
-      FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
+      FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0 ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
     const liveIds = liveCandidatesForSessions(rawSessions);
     // "Ongoing" = the source log was written to in the last 10 minutes — the
     // session is likely still in progress (auto-sync keeps it fresh; stats read
@@ -118,6 +121,10 @@ export function mountProjects(app: Express): void {
 
   app.delete('/projects/:id', (req: Request, res: Response) => {
     backupDbBeforeDelete();
+    // Tombstone every session first (still readable while it exists) so a
+    // paused-then-resumed auto-sync can't resurrect them after the project
+    // itself is gone.
+    tombstoneSessionsForProject((req.params.id as string));
     db.prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run((req.params.id as string));
     db.prepare('DELETE FROM sessions WHERE project_id = ?').run((req.params.id as string));
     db.prepare('DELETE FROM projects WHERE id = ?').run((req.params.id as string));
