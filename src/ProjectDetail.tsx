@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
@@ -436,35 +437,34 @@ export function ProjectPicker({ current, onPick }: ProjectPickerProps) {
     || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <span className="session-picker">
-      <button className="crumb on" onClick={() => setOpen((o) => !o)}>
-        📁 {current?.name || t('Projects')} <span className="muted">▾</span>
-      </button>
-      {open && (
-        <>
-          <div className="menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="menu-pop picker-pop">
-            <input autoFocus className="search picker-search" placeholder={t('Search projects or sessions')}
-              value={q} onChange={(e) => setQ(e.target.value)} />
-            {projects === null && <div className="muted small pad8">{t('Loading…')}</div>}
-            {list.map((p) => (
-              <button key={p.id} className="menu-item picker-item"
-                onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
-                <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
-                <span className="picker-body">
-                  <span className="picker-title">{p.name}</span>
-                  <span className="muted small">
-                    {p.session_count} {t('sessions')}
-                    {p.last_active && ` · ${ago(p.last_active)}`}
-                  </span>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button className="crumb on">
+          📁 {current?.name || t('Projects')} <span className="muted">▾</span>
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
+          <input autoFocus className="search picker-search" placeholder={t('Search projects or sessions')}
+            value={q} onChange={(e) => setQ(e.target.value)} />
+          {projects === null && <div className="muted small pad8">{t('Loading…')}</div>}
+          {list.map((p) => (
+            <button key={p.id} className="menu-item picker-item"
+              onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
+              <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
+              <span className="picker-body">
+                <span className="picker-title">{p.name}</span>
+                <span className="muted small">
+                  {p.session_count} {t('sessions')}
+                  {p.last_active && ` · ${ago(p.last_active)}`}
                 </span>
-              </button>
-            ))}
-            {projects && !list.length && <div className="muted small pad8">{t('No projects match.')}</div>}
-          </div>
-        </>
-      )}
-    </span>
+              </span>
+            </button>
+          ))}
+          {projects && !list.length && <div className="muted small pad8">{t('No projects match.')}</div>}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -490,31 +490,30 @@ export function SessionPicker({ sessions, current, onPick, loading }: SessionPic
   const list = (sessions || []).filter((s) => !q || title(s).toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
 
   return (
-    <span className="session-picker">
-      <button className={`crumb ${current ? 'on' : ''}`} onClick={() => setOpen((o) => !o)}>
-        💬 {current ? title(current) : t('Select session')} <span className="muted">▾</span>
-      </button>
-      {open && (
-        <>
-          <div className="menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="menu-pop picker-pop">
-            <input autoFocus className="search picker-search" placeholder={t('Search Sessions')}
-              value={q} onChange={(e) => setQ(e.target.value)} />
-            {loading && <div className="muted small pad8">{t('Loading…')}</div>}
-            {list.map((s) => (
-              <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
-                <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
-                <span className="picker-body">
-                  <span className="picker-title">{title(s)}</span>
-                  <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
-                </span>
-              </button>
-            ))}
-            {!loading && !list.length && <div className="muted small pad8">{t('No sessions match.')}</div>}
-          </div>
-        </>
-      )}
-    </span>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button className={`crumb ${current ? 'on' : ''}`}>
+          💬 {current ? title(current) : t('Select session')} <span className="muted">▾</span>
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
+          <input autoFocus className="search picker-search" placeholder={t('Search Sessions')}
+            value={q} onChange={(e) => setQ(e.target.value)} />
+          {loading && <div className="muted small pad8">{t('Loading…')}</div>}
+          {list.map((s) => (
+            <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
+              <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
+              <span className="picker-body">
+                <span className="picker-title">{title(s)}</span>
+                <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
+              </span>
+            </button>
+          ))}
+          {!loading && !list.length && <div className="muted small pad8">{t('No sessions match.')}</div>}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -546,7 +545,7 @@ function TrendChart({ points, style }: { points: { day: string; count: number }[
           </linearGradient>
         </defs>
         <polygon points={area} fill="url(#trendFill)" />
-        <polyline points={line} fill="none" stroke="var(--accent2)" strokeWidth="2" />
+        <polyline points={line} fill="none" stroke="var(--ok)" strokeWidth="2" />
       </svg>
       <div className="trend-axis muted small">
         <span>{points[0].day.slice(5)}</span>
@@ -564,7 +563,7 @@ function donutGradient(entries: [string, number][], total: number): string {
     const to = (acc / Math.max(1, total)) * 360;
     return `${DONUT_COLORS[i % DONUT_COLORS.length]} ${from}deg ${to}deg`;
   }).join(', ');
-  return `conic-gradient(${stops || 'var(--bg3) 0deg 360deg'})`;
+  return `conic-gradient(${stops || 'var(--bg2) 0deg 360deg'})`;
 }
 
 function ago(ts: string): string {

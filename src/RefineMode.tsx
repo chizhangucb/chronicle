@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { t } from './i18n.js';
 import { KIND_LABEL } from './kinds.ts';
 import type { DisplayKind, Event } from '@shared/types.ts';
@@ -11,8 +12,8 @@ import type { DisplayKind, Event } from '@shared/types.ts';
 // Words come from the shared canonical map (src/kinds.ts) so Refine and Playback
 // never diverge; Refine renders them as uppercase tags. Colors are Refine-specific.
 const KIND_COLOR: Record<DisplayKind, string> = {
-  user: 'var(--warn)', assistant: 'var(--accent)', thinking: 'var(--muted)',
-  tool_use: '#a78bfa', tool_result: 'var(--accent2)', note: 'var(--accent2)',
+  user: 'var(--warn)', assistant: 'var(--brass)', thinking: 'var(--ink-2)',
+  tool_use: '#a78bfa', tool_result: 'var(--ok)', note: 'var(--ok)',
 };
 const KIND_ORDER: DisplayKind[] = ['user', 'assistant', 'thinking', 'tool_use', 'tool_result', 'note'];
 interface KindMeta {
@@ -72,7 +73,6 @@ export default function RefineMode({ messages, session, project }: RefineModePro
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [previewMode, setPreviewMode] = useState<'full' | 'changes' | 'hideDeleted'>('full');
-  const [exportOpen, setExportOpen] = useState(false);
   const undoStack = useRef<RefineItem[][]>([]);
   const redoStack = useRef<RefineItem[][]>([]);
   const [, bump] = useState(0); // re-render after undo/redo stack changes (button disabled state)
@@ -143,7 +143,6 @@ export default function RefineMode({ messages, session, project }: RefineModePro
     : items;
 
   function exportDoc(asPrompt: boolean) {
-    setExportOpen(false);
     const lines = kept.map((it) => {
       const label = KIND_LABEL[it.kind] || it.kind;
       return asPrompt ? it.text : `### ${label}\n\n${it.text}`;
@@ -219,7 +218,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
             </div>
           )}
           {items.map((it) => {
-            const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--muted)' };
+            const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--ink-2)' };
             const long = it.text.length > COLLAPSE_AT;
             const open = expanded.has(it.id);
             return (
@@ -268,7 +267,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
           </div>
           <div className="refine-right-body">
             {previewItems.map((it) => {
-              const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--muted)' };
+              const meta = KIND_META[it.kind] || { label: it.kind, color: 'var(--ink-2)' };
               return (
                 <div key={it.id} className={`preview-block ${it.kind} ${it.deleted ? 'deleted' : ''}`}>
                   <div className="preview-block-head">
@@ -318,16 +317,17 @@ export default function RefineMode({ messages, session, project }: RefineModePro
           <span className="bad">− {nDeleted}</span> <span>✎ {nEdited}</span> <span className="ok">＋ {nInserted}</span>
         </span>
         <span className="refine-export">
-          <button className="btn small primary" onClick={() => setExportOpen((o) => !o)}>{t('Export')} ▾</button>
-          {exportOpen && (
-            <>
-              <div className="menu-backdrop" onClick={() => setExportOpen(false)} />
-              <div className="menu-pop export-pop">
-                <button className="menu-item" onClick={() => exportDoc(false)}>📄 {t('Export Markdown')}</button>
-                <button className="menu-item" onClick={() => exportDoc(true)}>⌁ {t('Export as Prompt')}</button>
-              </div>
-            </>
-          )}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button className="btn small primary">{t('Export')} ▾</button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content className="menu-pop export-pop" side="top" align="end" sideOffset={6}>
+                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(false)}>📄 {t('Export Markdown')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(true)}>⌁ {t('Export as Prompt')}</DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </span>
       </div>
     </div>

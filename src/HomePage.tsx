@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { useSessionSelect } from './SessionSelect.js';
@@ -27,11 +28,9 @@ interface ProjectMenuProps {
 }
 
 function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
-  const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   async function run(action: 'sync' | 'details' | 'rename' | 'remove') {
-    setOpen(false);
     try {
       if (action === 'sync') {
         setSyncing(true);
@@ -58,23 +57,25 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
 
   return (
     <span className="project-menu" onClick={(e) => e.stopPropagation()}>
-      <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title={t('Project options')}
-        onClick={() => setOpen((o) => !o)}>{syncing ? '◌' : '⚙'}</button>
-      {open && (
-        <>
-          <div className="menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="menu-pop">
-            <button className="menu-item" onClick={() => run('sync')}>⟳ {t('Sync Update')}</button>
-            <button className="menu-item" onClick={() => run('details')}>ⓘ {t('View Details')}</button>
-            <button className="menu-item" onClick={() => run('rename')}>✎ {t('Rename')}</button>
-            <div className="menu-sep" />
-            <button className="menu-item danger" onClick={() => run('remove')}>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title={t('Project options')}>
+            {syncing ? '◌' : '⚙'}
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content className="menu-pop" align="end" sideOffset={6}>
+            <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
+            <DropdownMenu.Item className="menu-item" onSelect={() => run('details')}>ⓘ {t('View Details')}</DropdownMenu.Item>
+            <DropdownMenu.Item className="menu-item" onSelect={() => run('rename')}>✎ {t('Rename')}</DropdownMenu.Item>
+            <DropdownMenu.Separator className="menu-sep" />
+            <DropdownMenu.Item className="menu-item danger" onSelect={() => run('remove')}>
               🗑 {t('Remove from Chronicle')}
               <span className="muted small">{t("(won't delete source project)")}</span>
-            </button>
-          </div>
-        </>
-      )}
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </span>
   );
 }
