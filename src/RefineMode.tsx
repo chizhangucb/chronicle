@@ -1,46 +1,84 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { t } from './i18n.js';
 import { KIND_LABEL } from './kinds.ts';
+import type { DisplayKind, Event } from '@shared/types.ts';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
 // Original messages left, compressed preview right, token stats +
 // undo/redo/reset in a bottom status bar.
 // Keep `K` / Delete `D` / Edit `E` / Insert `I`, ⌘Z undo, ⇧⌘Z redo, ⌘S export.
 
-// Words come from the shared canonical map (src/kinds.js) so Refine and Playback
+// Words come from the shared canonical map (src/kinds.ts) so Refine and Playback
 // never diverge; Refine renders them as uppercase tags. Colors are Refine-specific.
-const KIND_COLOR = {
+const KIND_COLOR: Record<DisplayKind, string> = {
   user: 'var(--warn)', assistant: 'var(--accent)', thinking: 'var(--muted)',
   tool_use: '#a78bfa', tool_result: 'var(--accent2)', note: 'var(--accent2)',
 };
-const KIND_ORDER = ['user', 'assistant', 'thinking', 'tool_use', 'tool_result', 'note'];
-const KIND_META = Object.fromEntries(
-  KIND_ORDER.map((k) => [k, { label: t(KIND_LABEL[k]).toUpperCase(), color: KIND_COLOR[k] }])
-);
+const KIND_ORDER: DisplayKind[] = ['user', 'assistant', 'thinking', 'tool_use', 'tool_result', 'note'];
+interface KindMeta {
+  label: string;
+  color: string;
+}
+const KIND_META: Record<DisplayKind, KindMeta> = Object.fromEntries(
+  KIND_ORDER.map((k) => [k, { label: t(KIND_LABEL[k]).toUpperCase(), color: KIND_COLOR[k] }]),
+) as Record<DisplayKind, KindMeta>;
 
-const tokens = (text) => Math.round((text || '').length / 4);
-const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+const tokens = (text: string | null | undefined) => Math.round((text || '').length / 4);
+const fmtTok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 
-export default function RefineMode({ messages, session, project }) {
-  const initial = useMemo(() => messages.map((m) => ({
+// A session message, as passed in by SessionView (a parsed/stored Event plus
+// its assigned `seq`, always present on stored rows).
+export interface RefineSourceMessage extends Event {
+  seq: number;
+}
+
+export interface RefineSessionInfo {
+  source?: string | null;
+  started_at?: string | null;
+}
+
+export interface RefineProjectInfo {
+  name?: string | null;
+}
+
+export interface RefineModeProps {
+  messages: RefineSourceMessage[];
+  session?: RefineSessionInfo | null;
+  project?: RefineProjectInfo | null;
+}
+
+// A Refine working-set item: derived from a source message, or user-inserted
+// (`inserted: true`, kind 'note', no backing message).
+interface RefineItem {
+  id: string;
+  kind: DisplayKind;
+  ts?: string | null;
+  text: string;
+  deleted: boolean;
+  edited: boolean;
+  inserted?: boolean;
+}
+
+export default function RefineMode({ messages, session, project }: RefineModeProps) {
+  const initial = useMemo<RefineItem[]>(() => messages.map((m) => ({
     id: `m${m.seq}`, kind: m.kind, ts: m.ts,
     text: m.kind === 'tool_use' ? `[${m.tool_name}] ${previewInput(m.tool_input)}` : (m.text || ''),
     deleted: m.kind === 'tool_result' || m.kind === 'thinking', // noisy kinds start deleted
     edited: false,
   })), [messages]);
 
-  const [items, setItems] = useState(initial);
-  const [selected, setSelected] = useState(initial[0]?.id ?? null);
-  const [editingId, setEditingId] = useState(null);
-  const [expanded, setExpanded] = useState(new Set());
-  const [previewMode, setPreviewMode] = useState('full'); // full | changes | hideDeleted
+  const [items, setItems] = useState<RefineItem[]>(initial);
+  const [selected, setSelected] = useState<string | null>(initial[0]?.id ?? null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [previewMode, setPreviewMode] = useState<'full' | 'changes' | 'hideDeleted'>('full');
   const [exportOpen, setExportOpen] = useState(false);
-  const undoStack = useRef([]);
-  const redoStack = useRef([]);
+  const undoStack = useRef<RefineItem[][]>([]);
+  const redoStack = useRef<RefineItem[][]>([]);
   const [, bump] = useState(0); // re-render after undo/redo stack changes (button disabled state)
-  const leftRef = useRef(null);
+  const leftRef = useRef<HTMLDivElement>(null);
 
-  function apply(next) {
+  function apply(next: RefineItem[]) {
     undoStack.current.push(items);
     redoStack.current = [];
     setItems(next);
@@ -58,27 +96,27 @@ export default function RefineMode({ messages, session, project }) {
     apply(initial);
   }
 
-  function setDeleted(id, deleted) {
+  function setDeleted(id: string, deleted: boolean) {
     apply(items.map((it) => (it.id === id ? { ...it, deleted } : it)));
   }
-  function setAllDeleted(deleted) {
+  function setAllDeleted(deleted: boolean) {
     apply(items.map((it) => (it.deleted === deleted ? it : { ...it, deleted })));
   }
   // Bulk delete/keep every message of one kind (User, Assistant, Tool Call, …).
-  function setKindDeleted(kind, deleted) {
+  function setKindDeleted(kind: DisplayKind, deleted: boolean) {
     apply(items.map((it) => (it.kind === kind ? { ...it, deleted } : it)));
   }
-  function insertAt(idx) {
-    const newItem = { id: `ins${Date.now()}`, kind: 'note', text: '', deleted: false, edited: true, inserted: true };
+  function insertAt(idx: number) {
+    const newItem: RefineItem = { id: `ins${Date.now()}`, kind: 'note', text: '', deleted: false, edited: true, inserted: true };
     apply([...items.slice(0, idx), newItem, ...items.slice(idx)]);
     setSelected(newItem.id);
     setEditingId(newItem.id);
     if (previewMode === 'changes') setPreviewMode('full');
   }
-  function insertAfter(id) {
+  function insertAfter(id: string) {
     insertAt(items.findIndex((it) => it.id === id) + 1);
   }
-  function updateText(id, text) {
+  function updateText(id: string, text: string) {
     // Typing is not a separate undo step per keystroke; commit on blur via apply-once
     setItems((cur) => cur.map((it) => (it.id === id ? { ...it, text, edited: true } : it)));
   }
@@ -94,7 +132,7 @@ export default function RefineMode({ messages, session, project }) {
 
   // Per-kind counts drive the "delete by type" toggles (task 5).
   const kindCounts = useMemo(() => {
-    const c = {};
+    const c: Partial<Record<DisplayKind, number>> = {};
     for (const it of items) c[it.kind] = (c[it.kind] || 0) + 1;
     return c;
   }, [items]);
@@ -104,7 +142,7 @@ export default function RefineMode({ messages, session, project }) {
     : previewMode === 'changes' ? items.filter((it) => it.deleted || it.edited || it.inserted)
     : items;
 
-  function exportDoc(asPrompt) {
+  function exportDoc(asPrompt: boolean) {
     setExportOpen(false);
     const lines = kept.map((it) => {
       const label = KIND_LABEL[it.kind] || it.kind;
@@ -120,8 +158,8 @@ export default function RefineMode({ messages, session, project }) {
   }
 
   useEffect(() => {
-    function onKey(e) {
-      const typing = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    function onKey(e: KeyboardEvent) {
+      const typing = ['INPUT', 'TEXTAREA'].includes((document.activeElement as HTMLElement | null)?.tagName || '');
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault(); e.shiftKey ? redo() : undo(); return;
       }
@@ -131,12 +169,12 @@ export default function RefineMode({ messages, session, project }) {
       if (typing) return;
       const idx = items.findIndex((it) => it.id === selected);
       if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); moveSel(1); }
-      else if (e.key === 'ArrowUp' || e.key === 'k' && e.shiftKey) { e.preventDefault(); moveSel(-1); }
+      else if (e.key === 'ArrowUp' || (e.key === 'k' && e.shiftKey)) { e.preventDefault(); moveSel(-1); }
       else if (e.key.toLowerCase() === 'k' && !e.shiftKey) { if (selected) setDeleted(selected, false); moveSel(1); }
       else if (e.key.toLowerCase() === 'd') { if (selected) setDeleted(selected, true); moveSel(1); }
       else if (e.key.toLowerCase() === 'e') { if (selected) setEditingId(selected); }
       else if (e.key.toLowerCase() === 'i') { if (selected) insertAfter(selected); }
-      function moveSel(dir) {
+      function moveSel(dir: number) {
         const next = items[Math.min(items.length - 1, Math.max(0, idx + dir))];
         if (next) {
           setSelected(next.id);
@@ -148,7 +186,7 @@ export default function RefineMode({ messages, session, project }) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  function toggleExpand(id) {
+  function toggleExpand(id: string) {
     setExpanded((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
@@ -296,7 +334,7 @@ export default function RefineMode({ messages, session, project }) {
   );
 }
 
-function previewInput(inputJson) {
+function previewInput(inputJson: string | null | undefined): string {
   try {
     const input = JSON.parse(inputJson || '{}');
     return input.file_path || input.command || input.pattern || input.query || JSON.stringify(input).slice(0, 120);

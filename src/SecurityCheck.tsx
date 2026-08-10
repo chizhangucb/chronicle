@@ -2,26 +2,77 @@ import React, { useEffect, useState } from 'react';
 
 // One-Click Security Check (FR-SEC-4): preview detections highlighted next to
 // redacted output; manage custom rules; export a one-way redacted copy.
-export default function SecurityCheck({ sessionId, projectName, onClose }) {
-  const [scan, setScan] = useState(null);
-  const [rules, setRules] = useState([]);
-  const [error, setError] = useState(null);
+
+// A custom redaction/allow rule (server/security.js rule row).
+export interface SecurityRule {
+  id: number;
+  pattern: string;
+  replacement: string;
+  kind: 'redact' | 'allow';
+  enabled: boolean;
+  name?: string;
+}
+
+// One glob-pattern match within a scanned message's text or tool_input.
+export interface SecurityFinding {
+  field: 'text' | 'tool_input';
+  start: number;
+  end: number;
+  match: string;
+  name?: string;
+}
+
+// One scanned message, as returned by GET /api/sessions/:id/security-check.
+export interface SecurityCheckMessage {
+  seq: number;
+  kind: string;
+  tool_name?: string | null;
+  originalText?: string | null;
+  originalInput?: string | null;
+  redactedText?: string | null;
+  redactedInput?: string | null;
+  findings: SecurityFinding[];
+}
+
+export interface SecurityScanResult {
+  error?: string;
+  findingCount: number;
+  totals: Record<string, number>;
+  messages: SecurityCheckMessage[];
+}
+
+export interface SecurityCheckProps {
+  sessionId: string;
+  projectName: string;
+  onClose: () => void;
+}
+
+interface RuleForm {
+  pattern: string;
+  replacement: string;
+  kind: 'redact' | 'allow';
+}
+
+export default function SecurityCheck({ sessionId, projectName, onClose }: SecurityCheckProps) {
+  const [scan, setScan] = useState<SecurityScanResult | null>(null);
+  const [rules, setRules] = useState<SecurityRule[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
-  const [form, setForm] = useState({ pattern: '', replacement: '****', kind: 'redact' });
+  const [form, setForm] = useState<RuleForm>({ pattern: '', replacement: '****', kind: 'redact' });
 
   async function refresh() {
     try {
       const [s, r] = await Promise.all([
-        fetch(`/api/sessions/${encodeURIComponent(sessionId)}/security-check`).then((x) => x.json()),
-        fetch('/api/security/rules').then((x) => x.json()),
+        fetch(`/api/sessions/${encodeURIComponent(sessionId)}/security-check`).then((x) => x.json()) as Promise<SecurityScanResult>,
+        fetch('/api/security/rules').then((x) => x.json()) as Promise<SecurityRule[]>,
       ]);
       if (s.error) throw new Error(s.error);
       setScan(s); setRules(r);
-    } catch (e) { setError(String(e.message)); }
+    } catch (e) { setError(String((e as Error).message)); }
   }
   useEffect(() => { refresh(); }, [sessionId]);
 
-  async function submitRule(e) {
+  async function submitRule(e: React.FormEvent) {
     e.preventDefault();
     if (!form.pattern.trim()) return;
     await fetch('/api/security/rules', {
@@ -31,11 +82,11 @@ export default function SecurityCheck({ sessionId, projectName, onClose }) {
     setForm({ pattern: '', replacement: '****', kind: 'redact' });
     refresh();
   }
-  async function removeRule(id) {
+  async function removeRule(id: number) {
     await fetch(`/api/security/rules/${id}`, { method: 'DELETE' });
     refresh();
   }
-  async function toggle(rule) {
+  async function toggle(rule: SecurityRule) {
     await fetch(`/api/security/rules/${rule.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !rule.enabled }),
@@ -81,7 +132,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }) {
                     onChange={(e) => setForm({ ...form, pattern: e.target.value })} />
                   <input className="search" placeholder="Replacement" value={form.replacement}
                     onChange={(e) => setForm({ ...form, replacement: e.target.value })} />
-                  <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+                  <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as RuleForm['kind'] })}>
                     <option value="redact">Redact</option>
                     <option value="allow">Allow (keep)</option>
                   </select>
@@ -127,15 +178,19 @@ export default function SecurityCheck({ sessionId, projectName, onClose }) {
 
 const CLIP = 700;
 
-function clip(s) {
+function clip(s: string | null | undefined): string {
   if (!s) return '';
   return s.length > CLIP ? s.slice(0, CLIP) + ' …' : s;
 }
 
 // Render original text with <mark> around each finding (per field, clipped around first finding)
-function highlightFindings(text, input, findings) {
-  const out = [];
-  for (const [field, value] of [['tool_input', input], ['text', text]]) {
+function highlightFindings(
+  text: string | null | undefined,
+  input: string | null | undefined,
+  findings: SecurityFinding[],
+): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  for (const [field, value] of [['tool_input', input], ['text', text]] as const) {
     if (!value) continue;
     const fs = findings.filter((f) => f.field === field).sort((a, b) => a.start - b.start);
     if (!fs.length) { out.push(clip(value)); continue; }
