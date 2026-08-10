@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, upsertProject, replaceSession } from '../db.js';
+import { db, upsertProject, replaceSession } from '../db.ts';
 import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.js';
 import { scanCodexProjects, parseCodexSession } from '../parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.js';

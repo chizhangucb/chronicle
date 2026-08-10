@@ -3,6 +3,53 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
+import type { Event, SessionInput, Project } from '../shared/types.ts';
+
+export type ProjectRow = Project;
+
+// Full `sessions` row shape, as read back out of the DB (all columns, incl.
+// the ones added by the idempotent ALTER TABLE migrations below).
+export interface SessionRow {
+  id: string;
+  project_id: number;
+  source: string;
+  file_path: string;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  first_prompt: string | null;
+  context_tokens: number | null;
+  name: string | null;
+  summary: string | null;
+  usage: string | null;
+  sidechain_count: number;
+  imported_at: string | null;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+}
+
+// Full `messages` row shape.
+export interface MessageRow {
+  id: number;
+  session_id: string;
+  seq: number;
+  uuid: string | null;
+  ts: string | null;
+  kind: string;
+  text: string | null;
+  tool_name: string | null;
+  tool_input: string | null;
+  tool_use_id: string | null;
+  model: string | null;
+  is_sidechain: number;
+  agent_type: string | null;
+  skill: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_w5m_tokens: number | null;
+  cache_w1h_tokens: number | null;
+}
 
 const dataDir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -98,17 +145,17 @@ try {
   ftsAvailable = true;
 } catch {}
 
-export function upsertProject(physicalPath) {
+export function upsertProject(physicalPath: string): ProjectRow {
   const name = path.basename(physicalPath) || physicalPath;
   db.prepare('INSERT INTO projects (path, name) VALUES (?, ?) ON CONFLICT(path) DO NOTHING').run(physicalPath, name);
-  return db.prepare('SELECT * FROM projects WHERE path = ?').get(physicalPath);
+  return db.prepare('SELECT * FROM projects WHERE path = ?').get(physicalPath) as unknown as ProjectRow;
 }
 
-export function replaceSession(session, events) {
+export function replaceSession(session: SessionInput, events: Event[]): void {
   db.exec('BEGIN');
   try {
     // Preserve a user-set display name across re-imports (delete + reinsert).
-    const prev = db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id);
+    const prev = db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id) as { name: string | null } | undefined;
     if (ftsAvailable) {
       db.prepare(`INSERT INTO messages_fts(messages_fts, rowid, text, tool_input)
                   SELECT 'delete', id, COALESCE(text,''), COALESCE(tool_input,'')
@@ -121,7 +168,7 @@ export function replaceSession(session, events) {
                                       sidechain_count, agent_active_ms, engaged_ms, imported_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
-           session.started_at, session.ended_at, events.length, session.first_prompt,
+           session.started_at ?? null, session.ended_at ?? null, events.length, session.first_prompt ?? null,
            session.context_tokens ?? null, session.name ?? prev?.name ?? null,
            session.summary ?? null, session.usage ?? null,
            sidechainCount, agentActiveMs(events), engagedMs(events), new Date().toISOString());

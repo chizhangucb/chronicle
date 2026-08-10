@@ -1,4 +1,4 @@
-import { db } from '../db.js';
+import { db } from '../db.ts';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from '../security.ts';
 
 export function mountSecurity(app) {

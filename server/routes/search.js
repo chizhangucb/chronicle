@@ -1,4 +1,4 @@
-import { db, ftsAvailable } from '../db.js';
+import { db, ftsAvailable } from '../db.ts';
 
 // ---- Global search (home command palette) ----
 // Empty query → recent sessions ("Recent Access"). Non-empty → LIKE scan over

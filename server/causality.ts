@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { db } from './db.js';
+import { db } from './db.ts';
 
 // Context Causality (FR-CC): link the material the AI read (Reference Blocks)
 // to the code changes it made, with a heuristic confidence score.

@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { db, upsertProject, replaceSession } from './db.js';
+import { db, upsertProject, replaceSession } from './db.ts';
 import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.js';
 import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';

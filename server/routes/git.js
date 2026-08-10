@@ -1,4 +1,4 @@
-import { db } from '../db.js';
+import { db } from '../db.ts';
 import * as gitEngine from '../git.ts';
 
 export function mountGit(app) {

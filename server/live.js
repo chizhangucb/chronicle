@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { db } from './db.js';
+import { db } from './db.ts';
 import { parseClaudeLine } from './parsers/claudeCode.js';
 import { parseOpencodeSessions } from './parsers/opencode.js';
 import { parseCursorWorkspace, parseAgentTranscriptJsonl } from './parsers/cursor.js';

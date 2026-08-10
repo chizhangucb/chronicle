@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { db } from '../db.js';
+import { db } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.js';
 import { analyzeCausality } from '../causality.ts';

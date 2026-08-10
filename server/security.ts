@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db } from './db.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS security_rules (
