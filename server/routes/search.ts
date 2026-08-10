@@ -62,8 +62,12 @@ function snippetAround(text: string, q: string, radius = 60): string {
 
 export function mountSearch(app: Express): void {
   app.get('/search', (req: Request, res: Response) => {
-    const q = String(req.query.q || '').trim();
-    const scope = String(req.query.scope || 'all');
+    // Cast (not String()) to preserve the original runtime semantics exactly:
+    // a duplicated query param (?q=a&q=b) arrives as an array, and the original
+    // untyped JS let `(arr || '').trim()` throw (→ Express 500) rather than
+    // silently searching the array's joined string.
+    const q = ((req.query.q as string) || '').trim();
+    const scope = (req.query.scope as string) || 'all';
     const days = Number(req.query.days) || null;
     const projectId = req.query.project ? Number(req.query.project) : null;
     const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';

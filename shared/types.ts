@@ -99,7 +99,11 @@ export interface Project {
 export interface ParsedSession {
   id: string;
   source: SourceId;
-  file_path: string;
+  // Nullable because Cursor's makeSession() can (in its type signature) produce
+  // a session with neither an explicit file nor a workspace dir to derive one
+  // from — in practice every real call site supplies one or the other, but the
+  // type stays honest rather than asserting it away.
+  file_path: string | null;
   cwd: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -118,7 +122,11 @@ export interface SessionInput {
   id: string;
   project_id: number;
   source: SourceId;
-  file_path: string;
+  // Nullable because Cursor's makeSession() can (in its type signature) produce
+  // a session with neither an explicit file nor a workspace dir to derive one
+  // from — in practice every real call site supplies one or the other, but the
+  // type stays honest rather than asserting it away.
+  file_path: string | null;
   started_at?: string | null;
   ended_at?: string | null;
   first_prompt?: string | null;

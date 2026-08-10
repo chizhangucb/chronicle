@@ -155,7 +155,7 @@ function getGlobalSnapshot(userDir: string): Snapshot | null {
   if (!fs.existsSync(globalDb)) return null;
   const fingerprint = globalSnapshotFingerprint(globalDb);
   if (!fingerprint) return null;
-  const cache = globalThis.__chronicleCursorGlobal ??= { snap: null, fingerprint: null, userDir: null };
+  const cache = globalThis.__chronicleCursorGlobal ||= { snap: null, fingerprint: null, userDir: null };
   if (cache.snap && cache.fingerprint === fingerprint && cache.userDir === userDir) return cache.snap;
   cache.snap?.cleanup();
   const snap = openSnapshot(globalDb);
@@ -543,7 +543,7 @@ function makeSession(
   return {
     session: {
       id, source: 'cursor',
-      file_path: filePath || (wsDir ? path.join(wsDir, 'state.vscdb') : null) as unknown as string,
+      file_path: filePath || (wsDir ? path.join(wsDir, 'state.vscdb') : null),
       cwd: folder,
       started_at,
       ended_at,

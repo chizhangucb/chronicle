@@ -6,14 +6,7 @@
     "moduleResolution": "nodenext",
     "lib": ["es2023"],
     "types": ["node"],
-    // During the bottom-up server migration, converted .ts files still import
-    // not-yet-converted .js siblings (e.g. causality.ts/security.ts → db.js).
-    // allowJs lets tsc resolve/infer those from the plain JS source instead of
-    // erroring with "could not find a declaration file"; checkJs stays off so
-    // the (still-untyped) .js files aren't themselves held to strict mode.
-    "allowJs": true,
-    "checkJs": false,
     "tsBuildInfoFile": "./node_modules/.cache/tsc/server.tsbuildinfo"
   },
-  "include": ["server/**/*.ts", "server/**/*.js", "shared/**/*.ts", "test/**/*.ts", "test/**/*.mjs"]
+  "include": ["server/**/*.ts", "shared/**/*.ts", "test/**/*.ts"]
 }
