@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation, useRoute } from 'wouter';
 import { api, type Settings } from './api.js';
 import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
@@ -22,33 +23,22 @@ export interface ProjectListItem extends Project {
   git: { isRepo: boolean; commitCount?: number; branch?: string | null };
 }
 
-// view: {name:'home'} | {name:'project', id} | {name:'session', id, projectId}
-// Restore from sessionStorage so a full page reload (the language switch reloads
-// to re-translate module-scope strings) keeps you where you were, instead of
-// dropping to Home. sessionStorage → a fresh app launch still starts at Home.
-// `id`/`projectId` are `number | string` to match ProjectDetail/HomePage's
-// project-id callbacks (which stay loose since several api.ts calls accept
-// either); Project.id is always a number in practice.
-export type View =
-  | { name: 'home' }
-  | { name: 'project'; id: number | string }
-  | { name: 'session'; id: string; projectId: number | string };
+// Navigation is now driven by real URL routes (wouter): `/` (Home),
+// `/project/:id`, `/session/:id`. The URL itself is the persisted state, so a
+// reload (including the language switch's `location.reload()` in i18n.ts)
+// restores the current view for free — no sessionStorage hack needed.
 
 // Live-streaming pill state and session-mode rail config are owned by
 // SessionView (the producer, via `onLiveChange`/`onRailChange`) — reuse its
 // exported types here instead of duplicating them, so the two stay in sync.
 
 export default function App() {
-  const [view, setView] = useState<View>(() => {
-    try {
-      const s = sessionStorage.getItem('chronicle-view');
-      if (s) return JSON.parse(s) as View;
-    } catch {}
-    return { name: 'home' };
-  });
-  useEffect(() => {
-    try { sessionStorage.setItem('chronicle-view', JSON.stringify(view)); } catch {}
-  }, [view]);
+  const [, navigate] = useLocation();
+  const [atHome] = useRoute('/');
+  const [atProject, projectParams] = useRoute('/project/:id');
+  const [atSession, sessionParams] = useRoute('/session/:id');
+  const projectId = projectParams?.id;
+  const sessionId = sessionParams?.id;
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -66,7 +56,7 @@ export default function App() {
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
-  useEffect(() => { if (view.name === 'home') refresh(); }, [view.name, refresh]);
+  useEffect(() => { if (atHome) refresh(); }, [atHome, refresh]);
 
   // chronicle://session/<id> deep links: the Electron shell sets
   // location.hash to `session=<id>`; resolve the owning project and navigate.
@@ -77,13 +67,13 @@ export default function App() {
       location.hash = '';
       try {
         const s = await api.resolveSession(decodeURIComponent(m[1]));
-        setView({ name: 'session', id: s.id, projectId: s.project_id });
+        navigate(`/session/${encodeURIComponent(s.id)}`);
       } catch {}
     }
     onHash();
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [navigate]);
 
   // ⌘K / Ctrl+K opens the global search palette from anywhere.
   useEffect(() => {
@@ -121,19 +111,19 @@ export default function App() {
     });
   }
 
-  const inProjects = view.name === 'home' || view.name === 'project' || view.name === 'session';
+  const inProjects = atHome || atProject || atSession;
 
   return (
     <div className="app">
       <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-        <div className="sb-brand" title="Chronicle" onClick={() => setView({ name: 'home' })}>
+        <div className="sb-brand" title="Chronicle" onClick={() => navigate('/')}>
           <span className="brand-mark">◷</span>
           <span className="sb-label sb-brand-name">Chronicle</span>
         </div>
 
         <nav className="sb-top">
           <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
-            onClick={() => setView({ name: 'home' })}>
+            onClick={() => navigate('/')}>
             <span className="sb-icon">◷</span><span className="sb-label">{t('Projects')}</span>
             <span className={`sb-action ${syncingAll ? 'spin' : ''}`} role="button"
               title={t('Sync all projects — re-import the latest sessions from every source')}
@@ -175,7 +165,7 @@ export default function App() {
         <header className="topbar">
           <span className="brand-sub">{t('AI Session Time Machine')}</span>
           <div className="topbar-right">
-            {liveInfo && view.name === 'session' && (
+            {liveInfo && atSession && (
               <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
               </span>
@@ -191,27 +181,27 @@ export default function App() {
           </div>
         </header>
 
-        {view.name === 'home' && (
-          <HomePage projects={projects} onOpenProject={(id: number | string) => setView({ name: 'project', id })}
-            onOpenSession={(sid: string, pid: number) => setView({ name: 'session', id: sid, projectId: pid })}
+        {atHome && (
+          <HomePage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
+            onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
-        {view.name === 'project' && (
-          <ProjectDetail id={view.id}
-            onBack={() => setView({ name: 'home' })}
+        {atProject && projectId != null && (
+          <ProjectDetail id={projectId}
+            onBack={() => navigate('/')}
             onLiveChange={setLiveInfo}
-            onOpenProject={(pid: number | string) => setView({ name: 'project', id: pid })}
-            onOpenSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.id })}
+            onOpenProject={(pid: number | string) => navigate(`/project/${pid}`)}
+            onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             pendingUndo={pendingUndo} />
         )}
-        {view.name === 'session' && (
-          <SessionView key={view.id} sessionId={view.id}
+        {atSession && sessionId != null && (
+          <SessionView key={sessionId} sessionId={sessionId}
             onLiveChange={setLiveInfo}
             onRailChange={setRail}
-            onSwitchSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.projectId })}
-            onBack={(undo?: DeletedEntry) => {
+            onSwitchSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
+            onBack={(undo?: DeletedEntry, backProjectId?: number) => {
               setPendingUndo(undo ?? null);
-              setView({ name: 'project', id: view.projectId });
+              navigate(backProjectId != null ? `/project/${backProjectId}` : '/');
             }} />
         )}
       </div>
@@ -222,7 +212,7 @@ export default function App() {
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
-          onOpen={(sid: string, pid: number) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
+          onOpen={(sid: string) => { setSearchOpen(false); navigate(`/session/${encodeURIComponent(sid)}`); }} />
       )}
     </div>
   );
