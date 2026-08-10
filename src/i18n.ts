@@ -106,6 +106,21 @@ const zh = {
   'Removing…': '正在移除…',
   'Remove these from Chronicle? Source logs and folders are not touched.': '从 Chronicle 移除这些项目？不会改动源日志和文件夹。',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
+  // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
+  'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
+    '从 Chronicle 移除这些会话？不会改动源日志——之后可以撤销。',
+  'Session removed': '会话已移除',
+  'sessions removed': '个会话已移除',
+  'From Chronicle only — source logs untouched.': '仅从 Chronicle 中移除——源日志不受影响。',
+  'Recent Sessions': '最近会话',
+  'Minor sessions': '次要会话',
+  'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
+    '简短、活跃度低的会话不会出现在主列表中——可以提升以恢复，或忽略以永久移除。',
+  'Promote': '提升',
+  'Ignore': '忽略',
+  'Pause auto-sync': '暂停自动同步',
+  'Temporarily stop importing new sessions without turning auto-sync off — resume any time':
+    '暂时停止导入新会话，无需关闭自动同步——可随时恢复',
   // Session overview
   'Overview': '总览',
   'Session Statistics': '会话统计',
@@ -389,6 +404,21 @@ const ja = {
   'Removing…': '削除中…',
   'Remove these from Chronicle? Source logs and folders are not touched.': 'これらを Chronicle から削除しますか？元のログとフォルダーは変更されません。',
   'New display name (folder is not touched):': '新しい表示名（フォルダーは変更されません）：',
+  // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
+  'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
+    'これらのセッションを Chronicle から削除しますか？元のログは変更されません — 直後に元に戻せます。',
+  'Session removed': 'セッションを削除しました',
+  'sessions removed': '件のセッションを削除しました',
+  'From Chronicle only — source logs untouched.': 'Chronicle からのみ削除されました — 元のログは変更されません。',
+  'Recent Sessions': '最近のセッション',
+  'Minor sessions': 'マイナーセッション',
+  'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
+    '短くて活動の少ないセッションはメインリストに表示されません — 昇格で復元、または無視で完全に削除できます。',
+  'Promote': '昇格',
+  'Ignore': '無視',
+  'Pause auto-sync': '自動同期を一時停止',
+  'Temporarily stop importing new sessions without turning auto-sync off — resume any time':
+    '自動同期をオフにせずに新しいセッションの取り込みを一時停止 — いつでも再開できます',
   'Overview': '概要',
   'Session Statistics': 'セッション統計',
   'Total Duration': '合計時間',

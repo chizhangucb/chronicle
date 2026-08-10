@@ -189,6 +189,7 @@ export default function App() {
 
         {view.name === 'home' && (
           <HomePage projects={projects} onOpenProject={(id: number | string) => setView({ name: 'project', id })}
+            onOpenSession={(sid: string, pid: number) => setView({ name: 'session', id: sid, projectId: pid })}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {view.name === 'project' && (
@@ -237,9 +238,12 @@ export interface SettingsModalProps {
 function SettingsModal({ onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
-    api.settings().then(setSettings).catch(() => setSettings({ autoSync: true, launchAtLogin: false }));
+    api.settings().then(setSettings).catch(() => setSettings({
+      autoSync: true, autoSyncPaused: false, launchAtLogin: false,
+      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10,
+    }));
   }, []);
-  async function toggle(key: keyof Settings) {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'launchAtLogin') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
@@ -258,6 +262,12 @@ function SettingsModal({ onClose }: SettingsModalProps) {
               <input type="checkbox" checked={settings.autoSync !== false} onChange={() => toggle('autoSync')} />
               <span>{t('Auto-sync sessions')}</span>
               <span className="muted small">{t('Keep imported projects up to date automatically (on launch, on wake, and when source logs change)')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.autoSyncPaused === true} disabled={settings.autoSync === false}
+                onChange={() => toggle('autoSyncPaused')} />
+              <span>{t('Pause auto-sync')}</span>
+              <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
             </label>
           </div>
         )}

@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { useSessionSelect } from './SessionSelect.js';
+import { sessionDisplayName } from './ProjectDetail.js';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
+import type { SearchResultItem } from './api.js';
 
 // A project row as returned by GET /api/projects (server/routes/projects.ts
 // ProjectListRow): the projects table columns plus aggregate counts and the
@@ -79,11 +82,21 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
 export interface HomePageProps {
   projects: ProjectSummary[] | null;
   onOpenProject: (id: number | string) => void;
+  onOpenSession?: (id: string, projectId: number) => void;
   onImport: () => void;
   onRefresh: () => void;
 }
 
-export default function HomePage({ projects, onOpenProject, onImport, onRefresh }: HomePageProps) {
+export default function HomePage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: HomePageProps) {
+  // Recent-sessions stream: reuses GET /api/search's empty-query "recent"
+  // mode (already excludes minor/gated sessions — see server/routes/search.ts),
+  // mounting the SAME shared session multi-select delete component as the
+  // project session list (see src/SessionSelect.tsx).
+  const [recentSessions, setRecentSessions] = useState<SearchResultItem[] | null>(null);
+  const refreshRecent = () => api.search({}).then((r) => setRecentSessions(r.results)).catch(() => setRecentSessions([]));
+  useEffect(() => { refreshRecent(); }, []);
+  const selectableRecent = (recentSessions ?? []).map((s) => ({ id: s.id, source: s.source, project_id: s.project_id }));
+  const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); });
   // Multi-select delete: a "Select" mode turns the whole grid into checkboxes so
   // several projects can be removed from Chronicle at once. Uses an inline confirm
   // bar (not window.confirm, which is blocked in embedded/preview browsers).
@@ -188,6 +201,106 @@ export default function HomePage({ projects, onOpenProject, onImport, onRefresh 
           );
         })}
       </div>
+
+      {!!recentSessions?.length && (
+        <>
+          <div className="page-title-row" style={{ marginTop: 24 }}>
+            <h3 className="page-title">{t('Recent Sessions')}</h3>
+            <div className="page-title-actions">{recentSelect.Bar}</div>
+          </div>
+          <div className="session-list">
+            {recentSessions.map((s) => {
+              const isSel = recentSelect.isSelected(s.id);
+              return (
+                <div key={s.id} className={`card session-row ${recentSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
+                  onClick={() => (recentSelect.selectMode ? recentSelect.toggle(s.id) : onOpenSession?.(s.id, s.project_id))}>
+                  <div className="session-prompt">
+                    {recentSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
+                    {sessionDisplayName(s)}
+                  </div>
+                  <div className="session-meta muted small">
+                    <span className="pill src-pill">{s.source}</span>
+                    <span>{s.project_name}</span>
+                    {s.ts && <span>{new Date(s.ts).toLocaleString()}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {recentSelect.Toast}
+        </>
+      )}
+
+      <MinorSessionsBucket onRefresh={onRefresh} />
+    </div>
+  );
+}
+
+// ---- Global "minor sessions" bucket (noise gate — Phase 5 PR 5a) ----
+// Sub-threshold sessions (short/low-message) are gated out of every main
+// list at import time (server/db.ts replaceSession + server/noiseGate.ts).
+// This is the single global collapsed surface where they still live, with
+// promote (bring it back) / ignore (=tombstone, same as delete) actions.
+
+interface MinorSession {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  project_name: string;
+}
+
+function MinorSessionsBucket({ onRefresh }: { onRefresh: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<MinorSession[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => api.minorSessions().then(setItems).catch(() => setItems([]));
+  useEffect(() => { load(); }, []);
+
+  async function promote(id: string) {
+    setBusy(id);
+    try { await api.promoteSession(id); await load(); onRefresh(); } finally { setBusy(null); }
+  }
+  async function ignore(id: string) {
+    setBusy(id);
+    try { await api.deleteSession(id); await load(); onRefresh(); } finally { setBusy(null); }
+  }
+
+  if (!items || !items.length) return null;
+
+  return (
+    <div className="card" style={{ marginTop: 24 }}>
+      <div className="page-title-row" style={{ margin: 0 }}>
+        <button className="btn ghost" onClick={() => setOpen((o) => !o)}>
+          {open ? '▾' : '▸'} {t('Minor sessions')} <span className="muted">({items.length})</span>
+        </button>
+        <span className="muted small" style={{ marginLeft: 8 }}>
+          {t('Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.')}
+        </span>
+      </div>
+      {open && (
+        <div className="session-list" style={{ marginTop: 8 }}>
+          {items.map((s) => (
+            <div key={s.id} className="card session-row">
+              <div className="session-prompt">{sessionDisplayName(s)}</div>
+              <div className="session-meta muted small">
+                <span className="pill src-pill">{s.source}</span>
+                <span>{s.project_name}</span>
+                <span>{s.message_count} messages</span>
+              </div>
+              <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
+                <button className="btn tiny ghost" disabled={busy === s.id} onClick={() => promote(s.id)}>⬆ {t('Promote')}</button>
+                <button className="btn tiny ghost danger" disabled={busy === s.id} onClick={() => ignore(s.id)}>✕ {t('Ignore')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

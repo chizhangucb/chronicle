@@ -211,6 +211,23 @@ export interface SessionSyncResult {
 export interface DeleteSessionResult {
   ok: true;
   sourceDeleted: boolean;
+  source: string;
+  projectId: number;
+}
+
+// ---- Minor sessions bucket (noise gate) ----
+
+export interface MinorSession {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  started_at: string | null;
+  project_name: string;
 }
 
 export interface ResolveSessionResult {
@@ -250,7 +267,10 @@ export interface SearchResponse {
 
 export interface Settings {
   autoSync: boolean;
+  autoSyncPaused: boolean;
   launchAtLogin: boolean;
+  minorActiveMsThreshold: number;
+  minorMessageCountThreshold: number;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -290,6 +310,11 @@ export const api = {
     j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id: string, withSource?: boolean): Promise<DeleteSessionResult> =>
     j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
+  undoDeleteSession: (source: string, id: string): Promise<{ ok: true }> => j('/api/sessions/undo-delete', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, id }),
+  }),
+  minorSessions: (): Promise<MinorSession[]> => j('/api/sessions/minor'),
+  promoteSession: (id: string): Promise<{ ok: true }> => j(`/api/sessions/${encodeURIComponent(id)}/promote`, { method: 'POST' }),
   settings: (): Promise<Settings> => j('/api/settings'),
   patchSettings: (patch: SettingsPatch): Promise<Settings> => j('/api/settings', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
