@@ -3,6 +3,17 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## v0.2.1 — 2026-08-09
+
+Safety and maintenance follow-up to v0.2.0:
+
+- **Database snapshot before deletion** — Chronicle now snapshots
+  `~/.chronicle/chronicle.db` before any project or session deletion, keeping
+  the newest two snapshots, so an accidental delete is recoverable.
+- **Dependency security fixes** — resolved 18 of 21 Dependabot alerts across
+  the app and website (all transitive; no behavior changes). The remaining 3
+  are dev-server-only issues in Vite 5, pending a VitePress 2.x upgrade.
+
 ## v0.2.0 — 2026-08-09
 
 The substrate release: Chronicle becomes a metrics-grade session database while
