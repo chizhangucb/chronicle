@@ -4,7 +4,6 @@ import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail, { sessionDisplayName } from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import { t, lang, setLang } from './i18n.js';
-import SponsorModal from './SponsorModal.jsx';
 
 const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemini-cli': '✦' };
 
@@ -22,7 +21,6 @@ export default function App() {
   }, [view]);
   const [projects, setProjects] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [sponsorOpen, setSponsorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
@@ -130,9 +128,6 @@ export default function App() {
           <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
             <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
           </button>
-          <button className="sb-item util" title={t('Sponsor')} onClick={() => setSponsorOpen(true)}>
-            <span className="sb-icon">♥</span><span className="sb-label">{t('Sponsor')}</span>
-          </button>
           <a className="sb-item util" href="https://github.com/chizhangucb/chronicle/issues" target="_blank" rel="noreferrer" title={t('Feedback')}>
             <span className="sb-icon">⊞</span><span className="sb-label">{t('Feedback')}</span>
           </a>
@@ -188,7 +183,6 @@ export default function App() {
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
-      {sponsorOpen && <SponsorModal onClose={() => setSponsorOpen(false)} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
