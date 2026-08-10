@@ -100,7 +100,10 @@ export interface SessionViewProps {
   sessionId: string;
   // `undo`: set when navigating back after an Overview single-session delete,
   // so the destination view (project/home) can surface the shared undo toast.
-  onBack: (undo?: DeletedEntry) => void;
+  // `projectId`: the owning project (read from the fetched session data),
+  // so the caller can navigate to `/project/:id` without having to have
+  // threaded it in via route params (a `/session/:id` deep link has none).
+  onBack: (undo?: DeletedEntry, projectId?: number) => void;
   onLiveChange?: (info: LiveChangeInfo | null) => void;
   onRailChange?: (rail: RailState | null) => void;
   onSwitchSession?: (sessionId: string) => void;
@@ -323,7 +326,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       <div className="session-main">
       <div className="session-toolbar">
         <div className="crumbs">
-          <button className="crumb" title={t('Project home page')} onClick={() => onBack()}>📁 {data.project.name}</button>
+          <button className="crumb" title={t('Project home page')} onClick={() => onBack(undefined, data.project.id)}>📁 {data.project.name}</button>
           <span className="crumb-sep">›</span>
           <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
             onSwitch={onSwitchSession} />
@@ -388,7 +391,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       </>}
 
       {mode === 'overview' && (
-        <OverviewMode data={data} messages={messages} liveStatus={liveStatus} onDeleted={onBack} onRename={renameSession} />
+        <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
+          onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession} />
       )}
 
       {mode === 'refine' && (
