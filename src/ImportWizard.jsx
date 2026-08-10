@@ -7,8 +7,6 @@ const SOURCES = [
   { key: 'codex', label: 'Codex', hint: '~/.codex/sessions/', icon: '⬡' },
   { key: 'cursor', label: 'Cursor', hint: 'workspaceStorage + agent-transcripts (read-only)', icon: '▮' },
   { key: 'opencode', label: 'OpenCode', hint: 'opencode.db (read-only)', icon: '▣' },
-  { key: 'gemini-cli', label: 'Gemini CLI', hint: '~/.gemini/tmp/', icon: '✦' },
-  { key: 'copilot-chat', label: 'Copilot Chat', hint: 'VS Code chatSessions', icon: '⌘' },
 ];
 
 const STEPS = ['Select Source', 'Select Files', 'Importing', 'Complete'];

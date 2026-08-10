@@ -13,8 +13,6 @@ import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './p
 import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
-import { scanGeminiProjects, parseGeminiProject, GEMINI_TMP } from './parsers/gemini.js';
-import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 const CONFIG_PATH = path.join(CHRONICLE_DIR, 'config.json');
@@ -119,16 +117,6 @@ export async function runIncrementalSync() {
       checked++;
       if (staleStore(item.logDir)) importParsedList(await parseCursorWorkspace(item.logDir, undefined, item.physicalPath));
     }
-    for (const item of scanGeminiProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath) || !item.logDir) continue;
-      checked++;
-      if (staleStore(item.logDir)) importParsedList(await parseGeminiProject(item.logDir));
-    }
-    for (const item of scanCopilotProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath) || !item.logDir) continue;
-      checked++;
-      if (staleStore(item.logDir)) importParsedList(await parseCopilotWorkspace(item.logDir));
-    }
     st.lastResult = { ok: true, imported, checked, ms: Date.now() - started };
   } catch (err) {
     st.lastResult = { ok: false, error: String(err.message || err) };
@@ -157,8 +145,7 @@ export function startAutoSync() {
   // fs-watch the known source dirs (recursive works on macOS/Windows; a dir that
   // doesn't exist or can't be watched is skipped — the timer is the backstop).
   const cursorDirs = scanCursorProjects().map((i) => i.logDir).filter(Boolean);
-  const copilotDirs = scanCopilotProjects().map((i) => i.logDir).filter(Boolean);
-  const dirs = [CLAUDE_PROJECTS_DIR, CODEX_SESSIONS_DIR, path.dirname(OPENCODE_DB), GEMINI_TMP, ...cursorDirs, ...copilotDirs];
+  const dirs = [CLAUDE_PROJECTS_DIR, CODEX_SESSIONS_DIR, path.dirname(OPENCODE_DB), ...cursorDirs];
   for (const d of new Set(dirs)) {
     try {
       if (!fs.existsSync(d)) continue;

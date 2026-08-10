@@ -5,7 +5,7 @@ import ProjectDetail, { sessionDisplayName } from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import { t, lang, setLang } from './i18n.js';
 
-const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemini-cli': '✦' };
+const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮' };
 
 export default function App() {
   // view: {name:'home'} | {name:'project', id} | {name:'session', id, projectId}

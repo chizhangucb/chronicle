@@ -378,7 +378,7 @@ const FRIENDLY_CALL = {
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
 const DONUT_COLORS = ['#4f8ef7', '#34c98e', '#e5a54b', '#a78bfa', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
-const DELETABLE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+const DELETABLE_SOURCES = new Set(['claude-code', 'codex']);
 
 function isErrorResult(m) {
   return m.kind === 'tool_result'

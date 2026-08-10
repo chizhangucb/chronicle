@@ -7,11 +7,9 @@ import { scanClaudeProjects, parseClaudeSession } from './parsers/claudeCode.js'
 import { scanCodexProjects, parseCodexSession } from './parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
-import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
 import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
-import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
 
@@ -43,8 +41,6 @@ api.get('/scan', (req, res) => {
       codex: (d) => scanCodexProjects(d),
       opencode: (d) => scanOpencodeProjects(d),
       cursor: (d) => scanCursorProjects(d),
-      'gemini-cli': (d) => scanGeminiProjects(d),
-      'copilot-chat': (d) => scanCopilotProjects([d]),
     };
     if (!scanners[source]) return res.status(400).json({ error: `Unsupported source: ${source}` });
     if (!fs.existsSync(dir)) return res.status(400).json({ error: 'Directory not found' });
@@ -56,8 +52,6 @@ api.get('/scan', (req, res) => {
     codex: annotateScan(scanCodexProjects()),
     cursor: annotateScan(scanCursorProjects()),
     opencode: annotateScan(scanOpencodeProjects()),
-    'gemini-cli': annotateScan(scanGeminiProjects()),
-    'copilot-chat': annotateScan(scanCopilotProjects()),
   });
 });
 
@@ -83,14 +77,6 @@ async function gatherParsed({ source, logDir, files, directory, sessionIds, phys
   if (source === 'cursor') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
     return parseCursorWorkspace(logDir, undefined, physicalPath || null);
-  }
-  if (source === 'gemini-cli') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Gemini project directory not found');
-    return parseGeminiProject(logDir);
-  }
-  if (source === 'copilot-chat') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-    return parseCopilotWorkspace(logDir);
   }
   throw bad(`Unsupported source: ${source}`);
 }
@@ -135,8 +121,6 @@ api.post('/projects/:id/sync', async (req, res) => {
       codex: scanCodexProjects(),
       cursor: scanCursorProjects(),
       opencode: scanOpencodeProjects(),
-      'gemini-cli': scanGeminiProjects(),
-      'copilot-chat': scanCopilotProjects(),
     };
     const matches = Object.values(bySource).flat().filter((i) => i.physicalPath === project.path);
     if (!matches.length) return res.status(404).json({ error: 'No source logs found for this project path' });
@@ -265,8 +249,6 @@ api.post('/sessions/:id/sync', async (req, res) => {
       codex: scanCodexProjects(),
       cursor: scanCursorProjects(),
       opencode: scanOpencodeProjects(),
-      'gemini-cli': scanGeminiProjects(),
-      'copilot-chat': scanCopilotProjects(),
     };
     const matches = (bySource[session.source] || [])
       .filter((i) => i.physicalPath === project.path);
@@ -387,8 +369,8 @@ api.get('/sessions/:id/messages', (req, res) => {
 
 // Delete the ORIGINAL log file on disk (explicit user request only, permanent —
 // the UI double-confirms). Restricted to sources where one file == one session;
-// shared stores (OpenCode/Cursor DBs, Gemini logDirs) would lose other sessions.
-const PER_FILE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+// shared stores (OpenCode/Cursor DBs) would lose other sessions.
+const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
 
 api.delete('/sessions/:id/source-file', (req, res) => {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
