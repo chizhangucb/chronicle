@@ -2,7 +2,7 @@
 // model catalog (platform.claude.com, 2026-06) plus common non-Claude models
 // Chronicle can import. Pure lookup — never fetched at runtime, preserving the
 // offline guarantee. Ordered: more specific prefixes must come first.
-const CONTEXT_WINDOWS = [
+const CONTEXT_WINDOWS: [string, number][] = [
   // Claude — 1M-context generation
   ['claude-fable-5', 1_000_000],
   ['claude-mythos', 1_000_000],
@@ -25,7 +25,7 @@ const CONTEXT_WINDOWS = [
 ];
 
 // Longest-prefix-style lookup by substring; returns tokens or null if unknown.
-export function contextWindowFor(model) {
+export function contextWindowFor(model: string | null | undefined): number | null {
   if (!model) return null;
   const m = String(model).toLowerCase();
   for (const [prefix, window] of CONTEXT_WINDOWS) {
@@ -39,8 +39,16 @@ export function contextWindowFor(model) {
 // Code's /usage bills each tier, and a session can be entirely 1h-cached.
 // Used to reproduce /usage cost from raw token counts (logs carry tokens, not $).
 // Ordered: more specific prefixes first.
-const P = (input, output, cw5m, cw1h, cacheRead) => ({ input, output, cw5m, cw1h, cacheRead });
-const PRICING = [
+interface Price {
+  input: number;
+  output: number;
+  cw5m: number;
+  cw1h: number;
+  cacheRead: number;
+}
+const P = (input: number, output: number, cw5m: number, cw1h: number, cacheRead: number): Price =>
+  ({ input, output, cw5m, cw1h, cacheRead });
+const PRICING: [string, Price][] = [
   ['claude-fable-5', P(10, 50, 12.5, 20, 1)],
   ['claude-mythos', P(10, 50, 12.5, 20, 1)],
   ['claude-opus-4-1', P(15, 75, 18.75, 30, 1.5)], // Opus 4.1 (deprecated) — old tier
@@ -55,17 +63,43 @@ const PRICING = [
   ['gemini', P(1.25, 10, 1.25, 1.25, 0.3125)],
 ];
 
-export function pricingFor(model) {
+export function pricingFor(model: string | null | undefined): Price | null {
   if (!model) return null;
   const m = String(model).toLowerCase();
   for (const [prefix, price] of PRICING) if (m.includes(prefix)) return price;
   return null;
 }
 
+// A single model's aggregated token usage, as read from `sessions.usage`
+// (parsed JSON) or built up client-side. Diverges from shared `ModelUsage`
+// (`{input,output,cacheWrite5m,cacheWrite1h,cacheRead}`): this module must also
+// accept the LEGACY shape (`cacheWrite`, pre-TTL-split imports), which the
+// shared contract deliberately excludes since new imports never write it. Kept
+// as a local, honest type rather than force-fitting `@shared`'s `Usage`.
+export interface ModelUsageInput {
+  input?: number | null;
+  output?: number | null;
+  cacheWrite5m?: number | null;
+  cacheWrite1h?: number | null;
+  /** Legacy pre-TTL-split field; treated as a 5-minute-tier write. */
+  cacheWrite?: number | null;
+  cacheRead?: number | null;
+}
+
+export interface CostBreakdown {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
 // Per-category cost in USD for one model's aggregated token usage; null if the
 // model is unpriced. Handles both the new usage shape ({cacheWrite5m, cacheWrite1h})
 // and the legacy one ({cacheWrite}, treated as 5m). Static lookup — no fetch.
-export function costBreakdownOf(model, u) {
+export function costBreakdownOf(
+  model: string | null | undefined,
+  u: ModelUsageInput | null | undefined,
+): CostBreakdown | null {
   const p = pricingFor(model);
   if (!p || !u) return null;
   const cw5 = u.cacheWrite5m ?? u.cacheWrite ?? 0;
@@ -79,20 +113,28 @@ export function costBreakdownOf(model, u) {
 }
 
 // Combined cache-write token count across both tiers (for display).
-export function cacheWriteTokens(u) {
+export function cacheWriteTokens(u: ModelUsageInput): number {
   return (u.cacheWrite5m ?? 0) + (u.cacheWrite1h ?? 0) || (u.cacheWrite ?? 0);
+}
+
+export interface CacheWriteByTtl {
+  cw5m: number;
+  cw1h: number;
 }
 
 // Cache-write tokens split by TTL tier, for TTL-labeled display. Legacy logs
 // only carry {cacheWrite} — those were billed at the 5-minute rate, so treat
 // them as 5m. { cw5m, cw1h } in tokens.
-export function cacheWriteByTtl(u) {
+export function cacheWriteByTtl(u: ModelUsageInput | null | undefined): CacheWriteByTtl {
   if (!u) return { cw5m: 0, cw1h: 0 };
   return { cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0 };
 }
 
 // Per-TTL cache-write cost in USD for one model's usage; null if unpriced.
-export function cacheWriteCostByTtl(model, u) {
+export function cacheWriteCostByTtl(
+  model: string | null | undefined,
+  u: ModelUsageInput | null | undefined,
+): CacheWriteByTtl | null {
   const p = pricingFor(model);
   if (!p || !u) return null;
   const { cw5m, cw1h } = cacheWriteByTtl(u);
@@ -100,7 +142,7 @@ export function cacheWriteCostByTtl(model, u) {
 }
 
 // Total cost in USD for one model's aggregated token usage; null if unpriced.
-export function costOf(model, u) {
+export function costOf(model: string | null | undefined, u: ModelUsageInput | null | undefined): number | null {
   const b = costBreakdownOf(model, u);
   return b ? b.input + b.output + b.cacheWrite + b.cacheRead : null;
 }
