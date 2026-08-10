@@ -353,18 +353,11 @@ plus real data end-to-end (see Verification below).
   sessions (test fixtures contain fake keys). It is NOT currently installed.
 - Session import is `replaceSession` (delete + reinsert): re-import is idempotent, but
   live-only messages and share `content` frozen at creation are unaffected by design.
-- The repo moved from `/Users/chizhang/personal /ai-session-manager` (trailing space!)
-  to `/Users/chizhang/personal/ai-session-manager` on 2026-07-05. Old Claude Code
-  session JSONLs still live under the old munged dir
-  `~/.claude/projects/-Users-chizhang-personal--ai-session-manager/` — Chronicle's
-  imported sessions point there and stay valid. New sessions land in
-  `-Users-chizhang-personal-ai-session-manager` (memory was migrated there).
-- 2026-08-08: repo moved again to `/Users/chizhang/personal-projects/chronicle`
-  (parent `~/personal` renamed to `~/personal-projects`, repo `ai-session-manager`
-  renamed to `chronicle`). Claude Code transcript dir is now
-  `~/.claude/projects/-Users-chizhang-personal-projects-chronicle`; the old
-  `-Users-chizhang-personal-ai-session-manager` dir and all internal `cwd` paths
-  were migrated to the new path in the same pass.
+- The repo has moved twice in the maintainer's home dir (2026-07-05: out of a parent
+  dir with a trailing space; 2026-08-08: renamed `ai-session-manager` → `chronicle`
+  under a renamed parent). Each move changes the munged Claude Code transcript dir
+  under `~/.claude/projects/`; old session JSONLs were migrated to the current munged
+  path and all internal `cwd` paths updated, so imported sessions stay valid.
 - Update feed = electron-updater reading the PUBLIC `chizhangucb/homebrew-chronicle`
   tap releases (baked into `app-update.yml` from `build.publish` in `package.json`,
   NOT hardcoded in `electron/main.mjs`); the tap also hosts the cask DMGs.

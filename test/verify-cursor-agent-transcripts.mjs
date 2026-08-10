@@ -17,7 +17,7 @@ import {
 } from '../server/parsers/cursor.js';
 
 const fixtureRoot = fileURLToPath(new URL('./fixtures/cursor-user', import.meta.url));
-const projectPath = '/Users/chizhang/health-analyst';
+const projectPath = '/Users/dev/example-repo';
 
 function buildFixture() {
   spawnSync('node', ['test/make-cursor-fixture.mjs'], { stdio: 'inherit' });
@@ -43,7 +43,7 @@ function runFixtureChecks() {
     throw new Error('fixture agent transcript did not parse user prompt');
   }
 
-  const transcriptFile = path.join(fixtureRoot, 'projects', 'Users-chizhang-health-analyst', 'agent-transcripts', 'agent-session-1', 'agent-session-1.jsonl');
+  const transcriptFile = path.join(fixtureRoot, 'projects', 'Users-dev-example-repo', 'agent-transcripts', 'agent-session-1', 'agent-session-1.jsonl');
   const direct = parseAgentTranscriptJsonl(transcriptFile);
   if (direct.length < 2) throw new Error('direct transcript parse too short');
 

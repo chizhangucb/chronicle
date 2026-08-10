@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('./fixtures/cursor-user', import.meta.url));
 fs.rmSync(root, { recursive: true, force: true });
 const wsDir = path.join(root, 'workspaceStorage', 'abc123');
-const projectPath = '/Users/chizhang/health-analyst';
+const projectPath = '/Users/dev/example-repo';
 const agentId = 'agent-session-1';
 fs.mkdirSync(wsDir, { recursive: true });
 fs.mkdirSync(path.join(root, 'globalStorage'), { recursive: true });
@@ -72,7 +72,7 @@ g.prepare(`INSERT INTO composerHeaders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
 );
 g.close();
 
-const transcriptDir = path.join(root, 'projects', 'Users-chizhang-health-analyst', 'agent-transcripts', agentId);
+const transcriptDir = path.join(root, 'projects', 'Users-dev-example-repo', 'agent-transcripts', agentId);
 fs.mkdirSync(transcriptDir, { recursive: true });
 fs.writeFileSync(path.join(transcriptDir, `${agentId}.jsonl`), [
   JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<timestamp>Wednesday, Jul 1, 2026, 8:05 AM (UTC)</timestamp>\n<user_query>\nAdd agent transcript import\n</user_query>' }] } }),
