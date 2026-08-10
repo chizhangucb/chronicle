@@ -20,7 +20,7 @@ By default Chronicle makes **no** network calls to view or manage your sessions.
 1. **Update check and download.** In the packaged desktop app, `electron-updater` polls the GitHub release feed for the public `chizhangucb/homebrew-chronicle` tap and downloads new notarized builds in the background. This is the standard app-update path; it carries no session data.
 2. **Feedback (only when you submit it).** Submitting the feedback form POSTs to the hosted relay at `relay.getchronicle.dev`. The message is **always appended to `~/.chronicle/feedback.log` locally first**, so nothing depends on the network; if the relay is unreachable the UI falls back to a `mailto:` draft. The sender email field is optional — provide it and it becomes the reply-to address; leave it blank and nothing identifies you.
 
-Nothing else leaves the machine. In particular, **session content is never transmitted** for parsing, viewing, or analysis — and background [auto-sync](../guide/auto-sync.md) is purely local file reading, never a network call.
+Nothing else leaves the machine. In particular, **session content is never transmitted** for parsing, viewing, or analysis — and background auto-sync is purely local file reading, never a network call.
 
 ## Share links stay local
 
@@ -28,11 +28,11 @@ A share link is served by **your own running Chronicle**, not a hosted service. 
 
 ## Where your data lives
 
-Everything Chronicle persists is under `~/.chronicle/` (see [Configuration](./configuration.md) for the full layout): the SQLite database at `~/.chronicle/chronicle.db`, replay sandboxes, and `feedback.log`. It stays on your disk.
+Everything Chronicle persists is under `~/.chronicle/` (see [Supported tools & configuration](./supported-tools.md) for the full layout): the SQLite database at `~/.chronicle/chronicle.db`, replay sandboxes, and `feedback.log`. It stays on your disk.
 
 > **Redaction is one-way.** When Chronicle redacts secrets — for a share link, an exported Markdown transcript, or the security scan — it replaces the sensitive text; it does not keep a reversible mapping. The redacted artifact cannot be turned back into the original, and your stored originals are never modified in the process.
 
 ## Related
 
-- [Security & sharing](../guide/security-and-sharing.md) — the Security Check, custom redaction rules, and share management.
-- [Configuration](./configuration.md) — the `~/.chronicle/` layout and the environment variables behind these defaults.
+- [Supported tools & configuration](./supported-tools.md) — the `~/.chronicle/` layout and the environment variables behind these defaults.
+- [How it works](../architecture/how-it-works.md) — the security engine and share-link implementation.

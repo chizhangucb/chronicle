@@ -35,10 +35,10 @@ Chronicle time-travels through **Git commits**, so choose a session whose projec
 ## 3 · Import a session
 
 1. **Launch Chronicle** (or `npm run dev` → http://localhost:4173). You'll land on the Projects home — empty on first run.
-2. Click **+ Import Sessions**. Chronicle scans the standard log locations for all six supported tools and shows what it found. Pick a source — Claude Code is the richest if you have it.
+2. Click **+ Import Sessions**. Chronicle scans the standard log locations for all four supported tools and shows what it found. Pick a source — Claude Code is the richest if you have it.
 3. The wizard lists sessions with **NEW / Partial / Imported** badges (new ones are pre-selected). Hit **Start Import** — it's read-only, so your original logs are never touched.
 
-[Importing sessions](./importing-sessions.md) covers the full flow and all six tools.
+See [Supported tools](../reference/supported-tools.md) for the full tool matrix and log locations.
 
 ## 4 · Time-travel
 
@@ -47,18 +47,12 @@ Chronicle time-travels through **Git commits**, so choose a session whose projec
 3. **Click any message.** The middle pane rebuilds your file tree and file contents **as they were at that moment**, resolved to the nearest preceding commit. Changed files are green-dotted and auto-selected. Press `D` for the diff.
 4. **Drag along the TimberLine** (bottom) to scrub the whole session and watch the code evolve commit by commit.
 
-That's the "aha." [Time travel](./time-travel.md) explains everything you're looking at.
+That's the "aha" — the whole point of Chronicle.
 
 > **Local-first:** Every step ran entirely on your machine. Chronicle made no LLM calls and no cloud requests — it parsed local logs into a local SQLite database and reconstructed code from your own Git history. Nothing about viewing a session leaves your laptop.
-
-## Where to go next
-
-- Missing a source, or want to understand the badges? → [Importing sessions](./importing-sessions.md)
-- The full playback / diff / timeline reference → [Time travel](./time-travel.md)
-- What the Overview tab tells you (cost, active duration, context) → [Session insights](./session-insights.md)
 
 ## Related
 
 - [Installation](./installation.md) — run modes, requirements, and auto-update in depth.
-- [Importing sessions](./importing-sessions.md) — the import wizard, the six tools, and read-only guarantees.
-- [Time travel](./time-travel.md) — playback mode, snapshots, diff, and the TimberLine in depth.
+- [Supported tools](../reference/supported-tools.md) — the tool matrix, log locations, and configuration.
+- [How it works](../architecture/how-it-works.md) — the ingestion pipeline and Git snapshot engine in depth.

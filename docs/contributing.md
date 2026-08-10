@@ -2,7 +2,7 @@
 
 How to set up a development environment, the conventions the codebase follows, and how
 changes are verified. If you're new to the internals, read the
-[Architecture overview](architecture/overview.md) first.
+[How it works](architecture/how-it-works.md) first.
 
 ## Development setup
 
@@ -13,7 +13,7 @@ npm run dev        # Vite dev server + API in one process → http://localhost:4
 
 `npm run dev` is the fastest loop: the Express API is mounted inside the Vite dev server, so
 both the React UI and the server modules hot-reload in one process on one port. See the
-[Overview](architecture/overview.md) for why the three run modes (`dev`, `desktop`,
+[How it works](architecture/how-it-works.md) for why the three run modes (`dev`, `desktop`,
 `standalone`) all serve the same Express apps.
 
 To exercise the packaged experience:
@@ -25,7 +25,7 @@ npm run standalone # headless production server (UI + /api + /share)
 
 Chronicle writes all of its data under `~/.chronicle/` (override with `CHRONICLE_DATA_DIR`).
 Nothing you do in development touches your source logs or project repositories — Chronicle is
-strictly read-only on foreign data. See [Configuration](reference/configuration.md) for the
+strictly read-only on foreign data. See [Supported tools & configuration](reference/supported-tools.md) for the
 full directory layout and environment variables.
 
 ## Conventions
@@ -74,17 +74,16 @@ end-to-end check is to **import Chronicle's own Claude Code session and click ar
 time-travel, causality, and replay all work on Chronicle's own construction history.
 
 Features have been verified against this repo's own session, the `~/health-analyst` repo
-(234 commits), and fixture databases/JSON for Cursor, Codex, Gemini, Copilot, and
-OpenCode-live. Prefer that over mocks:
+(234 commits), and fixture databases/JSON for Cursor, Codex, and OpenCode-live. Prefer that over mocks:
 a real import exercises the whole pipeline (scan → parse → snapshot → render) at once.
 
 When you add a new source tool, follow the walkthrough in
-[Parsers & ingestion](architecture/parsers-and-ingestion.md#howto-add-a-new-source) and validate
+[How it works](architecture/how-it-works.md#howto-add-a-new-source) and validate
 it against a fixture plus a real session before opening a PR.
 
 ## Where things live
 
-The [Architecture](architecture/overview.md) section maps the codebase in detail. In short:
+The [Architecture](architecture/how-it-works.md) page maps the codebase in detail. In short:
 
 ```
 server/     Express API + parsers + Git engine + live/replay/security/shares
@@ -95,6 +94,4 @@ docs/       This documentation set
 
 ## Related
 
-- [Architecture overview](architecture/overview.md) — the system design and run modes
-- [Parsers & ingestion](architecture/parsers-and-ingestion.md) — adding a new source tool
-- [API reference](architecture/api-reference.md) — every route to build against
+- [How it works](architecture/how-it-works.md) — the system design, data model, ingestion, and every API route
