@@ -1,7 +1,0 @@
-{
-  "name": "chronicle-feedback-relay",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "description": "Serverless relay that forwards Chronicle feedback to email via Resend"
-}

@@ -369,22 +369,6 @@ body {
 }
 .ok-btn { color: var(--accent2); border-color: var(--accent2); }
 
-/* Feedback modal */
-.feedback-modal { width: 520px; }
-.feedback-label { font-weight: 600; }
-.feedback-box {
-  width: 100%; background: var(--bg); color: var(--text);
-  border: 1px solid var(--accent); border-radius: 8px; padding: 10px;
-  font: 13px/1.5 inherit; resize: vertical; margin-top: 4px;
-}
-.feedback-email {
-  width: 100%; background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
-  font: 13px/1.5 inherit; margin-top: 4px;
-}
-.feedback-email:focus { outline: none; border-color: var(--accent); }
-.feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-
 /* Sponsor modal */
 .sponsor-modal { width: 520px; }
 .sponsor-toggle {

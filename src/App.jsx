@@ -22,7 +22,6 @@ export default function App() {
   }, [view]);
   const [projects, setProjects] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [sponsorOpen, setSponsorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -134,9 +133,9 @@ export default function App() {
           <button className="sb-item util" title={t('Sponsor')} onClick={() => setSponsorOpen(true)}>
             <span className="sb-icon">♥</span><span className="sb-label">{t('Sponsor')}</span>
           </button>
-          <button className="sb-item util" title={t('Feedback')} onClick={() => setFeedbackOpen(true)}>
+          <a className="sb-item util" href="https://github.com/chizhangucb/chronicle/issues" target="_blank" rel="noreferrer" title={t('Feedback')}>
             <span className="sb-icon">⊞</span><span className="sb-label">{t('Feedback')}</span>
-          </button>
+          </a>
           <div className="sb-sep" />
           <button className="sb-item util collapse" title={collapsed ? t('Expand') : t('Collapse')}
             onClick={toggleCollapsed}>
@@ -188,7 +187,6 @@ export default function App() {
       {wizardOpen && (
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
-      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {sponsorOpen && <SponsorModal onClose={() => setSponsorOpen(false)} />}
       {searchOpen && (
@@ -224,62 +222,6 @@ function SettingsModal({ onClose }) {
             </label>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// Feedback modal: sends through the local server, which relays
-// to email and always keeps a local copy in ~/.chronicle/feedback.log.
-function FeedbackModal({ onClose }) {
-  const [text, setText] = useState('');
-  const [email, setEmail] = useState('');
-  const [state, setState] = useState('idle'); // idle | sending | sent | failed
-  const boxRef = useRef(null);
-  useEffect(() => { boxRef.current?.focus(); }, []);
-
-  async function send() {
-    if (!text.trim() || state === 'sending') return;
-    setState('sending');
-    try {
-      await api.sendFeedback(text.trim(), email.trim());
-      setState('sent');
-      setTimeout(onClose, 1200);
-    } catch {
-      setState('failed');
-      // Relay unreachable — fall back to the user's mail client, pre-filled. Their
-      // own From address is the reply path, so no need to embed the email here.
-      window.open(`mailto:feedback@getchronicle.dev?subject=${encodeURIComponent('Chronicle feedback')}&body=${encodeURIComponent(text.trim())}`);
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal feedback-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h3>{t('Feedback')}</h3>
-          <button className="btn ghost" onClick={onClose}>✕</button>
-        </div>
-        <p className="muted small">{t("Tell us about any issues you encountered or improvements you'd like to see.")}</p>
-        <label className="small feedback-label">{t('Description')}</label>
-        <textarea ref={boxRef} className="feedback-box" rows={5}
-          placeholder={t('Describe the issue or suggestion…')}
-          value={text} onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }} />
-        <label className="small feedback-label">{t('Your email (optional)')}</label>
-        <input className="feedback-email" type="email" autoComplete="email"
-          placeholder={t('name@example.com — so we can reply to you')}
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }} />
-        <div className="muted small">{t('Press ⌘+Enter to send')}</div>
-        {state === 'sent' && <div className="ok small">✓ {t('Thanks — feedback sent!')}</div>}
-        {state === 'failed' && <div className="error-banner small">{t('Email relay unreachable — opened your mail app instead (a local copy was saved).')}</div>}
-        <div className="feedback-actions">
-          <button className="btn" onClick={onClose}>{t('Cancel')}</button>
-          <button className="btn primary" disabled={!text.trim() || state === 'sending'} onClick={send}>
-            {state === 'sending' ? t('Sending…') : `⌁ ${t('Send')}`}
-          </button>
-        </div>
       </div>
     </div>
   );

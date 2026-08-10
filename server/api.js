@@ -186,54 +186,7 @@ api.get('/sessions/:id/resolve', (req, res) => {
   res.json(s);
 });
 
-// ---- Feedback ----
-// Sends feedback to email through the hosted relay (`feedback-relay/`, a Vercel
-// function that holds the Resend API key SERVER-SIDE), and always writes a local
-// copy to ~/.chronicle/feedback.log FIRST. No secret ships in the app — it just
-// POSTs to the public relay URL, so feedback works from every user's machine and
-// doesn't depend on the maintainer's laptop. The UI falls back to a mailto: draft
-// if the relay is unreachable. Override the URL with CHRONICLE_FEEDBACK_RELAY or
-// `feedbackRelay` in ~/.chronicle/config.json.
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-const DEFAULT_FEEDBACK_RELAY = 'https://relay.getchronicle.dev/api/feedback';
-
-function feedbackRelayUrl() {
-  let cfg = {};
-  try {
-    const p = path.join(CHRONICLE_DIR, 'config.json');
-    if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-  } catch {}
-  return process.env.CHRONICLE_FEEDBACK_RELAY || cfg.feedbackRelay || DEFAULT_FEEDBACK_RELAY;
-}
-
-api.post('/feedback', async (req, res) => {
-  const message = (req.body?.message || '').trim();
-  // Optional sender email so the maintainer knows who sent it and can reply. Kept
-  // in the local log too, so it's recoverable even if the relay/email fails.
-  const email = (req.body?.email || '').trim().slice(0, 200);
-  if (!message) return res.status(400).json({ error: 'Feedback is empty' });
-  const entry = { ts: new Date().toISOString(), platform: process.platform, email, message };
-  try {
-    fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
-    fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
-  } catch {}
-  // Embed the sender email in the message body too, so it's visible even on a relay
-  // that predates the `email` field (which only uses it for the Reply-To header).
-  const relayMessage = email ? `${message}\n\n↩ Reply to: ${email}` : message;
-  try {
-    const r = await fetch(feedbackRelayUrl(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: relayMessage, email, platform: process.platform }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const body = await r.json().catch(() => ({}));
-    if (!r.ok || !body.ok) throw new Error(body.error || `relay ${r.status}`);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
-  }
-});
 
 // ---- Projects & sessions ----
 
