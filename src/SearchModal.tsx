@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { sessionDisplayName } from './ProjectDetail.jsx';
+import Modal from './Modal.tsx';
 
 // Global search palette (⌘K): All/Code/Chat scope, time + project
 // filters, "Recent Access" when empty. Server does a LIKE scan grouped per session.
@@ -127,8 +128,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
   }, [active]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal search-modal" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}>
+    <Modal onClose={onClose} className="search-modal" title={t('Search session content…')} onKeyDown={onKey}>
         <div className="search-input-row">
           <span className="search-mag">🔍</span>
           <input ref={inputRef} className="search-input" placeholder={t('Search session content…')}
@@ -181,7 +181,6 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
         <div className="search-footer muted small">
           <span>↑ ↓ {t('Navigate')}</span><span>↵ {t('Select')}</span><span>Esc {t('Close')}</span>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

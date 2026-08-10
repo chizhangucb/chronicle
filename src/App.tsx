@@ -1,15 +1,24 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, useRoute } from 'wouter';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as Toast from '@radix-ui/react-toast';
 import { api, type Settings } from './api.js';
 import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomePage from './HomePage.jsx';
+import Modal from './Modal.tsx';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
 import type { DeletedEntry } from './SessionSelect.js';
+
+const LANGS: { key: Lang; label: string }[] = [
+  { key: 'en', label: 'EN' },
+  { key: 'zh', label: '中文' },
+  { key: 'ja', label: '日本語' },
+];
 
 // The `/api/projects` list response: a Project row plus per-project aggregates
 // (session_count/message_count/last_active/sources — server/routes/projects.ts
@@ -114,6 +123,7 @@ export default function App() {
   const inProjects = atHome || atProject || atSession;
 
   return (
+    <Toast.Provider swipeDirection="right">
     <div className="app">
       <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
         <div className="sb-brand" title="Chronicle" onClick={() => navigate('/')}>
@@ -132,6 +142,7 @@ export default function App() {
           {rail && (
             <>
               <div className="sb-sep" />
+              <div className="sb-sec-head eyebrow">{t('Session')}</div>
               {rail.modes.map((m) => (
                 <button key={m.key} className={`sb-item mode ${rail.active === m.key && !rail.securityOpen ? 'on' : ''}`}
                   title={m.title} onClick={() => rail.select(m.key)}>
@@ -172,12 +183,23 @@ export default function App() {
             )}
             <button className="btn ghost icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>🔍</button>
             <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
-            <select className="chip lang-select" title="Language / 语言" value={lang()}
-              onChange={(e) => setLang(toLang(e.target.value))}>
-              <option value="en">EN</option>
-              <option value="zh">中文</option>
-              <option value="ja">日本語</option>
-            </select>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="lang-select" title="Language / 语言">
+                  {LANGS.find((l) => l.key === lang())?.label ?? 'EN'}
+                  <span className="car">▾</span>
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="menu-pop" align="end" sideOffset={6}>
+                  {LANGS.map((l) => (
+                    <DropdownMenu.Item key={l.key} className="menu-item" onSelect={() => setLang(l.key)}>
+                      {l.label}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </div>
         </header>
 
@@ -215,13 +237,9 @@ export default function App() {
           onOpen={(sid: string) => { setSearchOpen(false); navigate(`/session/${encodeURIComponent(sid)}`); }} />
       )}
     </div>
+    <Toast.Viewport className="toast-viewport" />
+    </Toast.Provider>
   );
-}
-
-// Narrows the raw <select> value (always `string` at the DOM level) to the
-// `Lang` union instead of casting — falls back to 'en' for anything unknown.
-function toLang(v: string): Lang {
-  return v === 'zh' || v === 'ja' ? v : 'en';
 }
 
 // Settings: auto-sync (server-side watchers + timer). `Settings` is imported
@@ -248,8 +266,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     try { setSettings(await api.patchSettings({ [key]: next[key] })); } catch {}
   }
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} title={t('Settings')}>
         <div className="modal-head">
           <h3>{t('Settings')}</h3>
           <button className="btn ghost" onClick={onClose}>✕</button>
@@ -269,7 +286,6 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             </label>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

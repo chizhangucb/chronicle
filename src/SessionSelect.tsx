@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import * as Toast from '@radix-ui/react-toast';
 import { api } from './api.js';
 import { t } from './i18n.js';
 
@@ -135,17 +136,20 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     <button className="btn ghost" onClick={enterSelect}>☑ {t('Select')}</button>
   );
 
-  const Toast = undoEntries ? (
-    <div className="update-toast">
+  const UndoToast = undoEntries ? (
+    <Toast.Root className="update-toast" open
+      onOpenChange={(o) => { if (!o) { if (undoTimer.current) clearTimeout(undoTimer.current); setUndoEntries(null); } }}>
       <div>
         <div className="update-toast-title">
           {undoEntries.length === 1 ? t('Session removed') : `${undoEntries.length} ${t('sessions removed')}`}
         </div>
         <div className="update-toast-sub">{t('From Chronicle only — source logs untouched.')}</div>
       </div>
-      <button className="btn primary" onClick={undo}>{t('Undo')}</button>
-    </div>
+      <Toast.Action asChild altText={t('Undo')}>
+        <button className="btn primary" onClick={undo}>{t('Undo')}</button>
+      </Toast.Action>
+    </Toast.Root>
   ) : null;
 
-  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, Bar, Toast };
+  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, Bar, Toast: UndoToast };
 }

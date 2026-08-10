@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import Modal from './Modal.tsx';
 import type { ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
 
 // scan<Tool>Projects() results, as annotated by the server's `annotateScan`
@@ -272,8 +273,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
   const progressDone = jobs.filter((j) => j.status === 'done' || j.status === 'failed').length;
 
   return (
-    <div className="modal-backdrop" onClick={step === 3 ? undefined : onClose}>
-      <div className="modal wizard" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="wizard" title={t('Import Logs')} preventClose={step === 3}>
         <div className="modal-head">
           <h3>{t('Import Logs')}</h3>
           {step !== 3 && <button className="btn ghost" onClick={onClose}>✕</button>}
@@ -486,7 +486,6 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

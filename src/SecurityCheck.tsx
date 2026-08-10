@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Modal from './Modal.tsx';
 
 // One-Click Security Check (FR-SEC-4): preview detections highlighted next to
 // redacted output; manage custom rules; export a one-way redacted copy.
@@ -95,8 +96,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} className="wide" title={`Security Check — ${projectName}`}>
         <div className="modal-head">
           <h3>🛡 Security Check — {projectName}</h3>
           <button className="btn ghost" onClick={onClose}>✕</button>
@@ -171,8 +171,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

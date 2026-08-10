@@ -1,6 +1,7 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { api } from '../api.js';
 import { t } from '../i18n.js';
+import InfoTip from '../InfoTip.tsx';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
@@ -77,15 +78,6 @@ function SessionIdChip({ id }: { id: string }): JSX.Element {
       <button className={`btn tiny ${copied ? 'ok-btn' : ''}`} onClick={copy}>
         {copied ? `✓ ${t('Copied!')}` : `⧉ ${t('Copy')}`}
       </button>
-    </span>
-  );
-}
-
-// Small "ⓘ" affordance with a hover/focus tooltip bubble, for stat explainers.
-function InfoTip({ text }: { text: string }): JSX.Element {
-  return (
-    <span className="info-tip" tabIndex={0} role="note" aria-label={text}>
-      ⓘ<span className="info-bubble">{text}</span>
     </span>
   );
 }
