@@ -5,40 +5,16 @@ import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
-import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
+import { startAutoSync } from './autosync.js';
 import { PER_FILE_SOURCES, backupDbBeforeDelete } from './routes/_shared.js';
 import { mountImportSync } from './routes/import-sync.js';
+import { mountSettings } from './routes/settings.js';
 
 export const api = express();
 api.use(express.json());
 
 mountImportSync(api);
-
-// ---- Auto-sync & settings ----
-// Settings live in ~/.chronicle/config.json. launchAtLogin is applied by the
-// Electron shell via an optional hook on globalThis (the server layer stays
-// Electron-free); in browser/standalone modes the toggle is stored but inert.
-api.get('/settings', (req, res) => {
-  const cfg = readConfig();
-  res.json({ autoSync: cfg.autoSync !== false, launchAtLogin: cfg.launchAtLogin === true });
-});
-
-api.patch('/settings', (req, res) => {
-  const patch = {};
-  if (typeof req.body?.autoSync === 'boolean') patch.autoSync = req.body.autoSync;
-  if (typeof req.body?.launchAtLogin === 'boolean') patch.launchAtLogin = req.body.launchAtLogin;
-  const cfg = writeConfig(patch);
-  if ('autoSync' in patch) (patch.autoSync ? startAutoSync() : stopAutoSync());
-  if ('launchAtLogin' in patch) { try { globalThis.__chronicleOnSettings?.(cfg); } catch {} }
-  res.json({ autoSync: cfg.autoSync !== false, launchAtLogin: cfg.launchAtLogin === true });
-});
-
-api.get('/autosync/status', (req, res) => res.json(autoSyncStatus()));
-
-// Manual trigger (also called by Electron on powerMonitor resume).
-api.post('/autosync/run', async (req, res) => {
-  res.json(await runIncrementalSync());
-});
+mountSettings(api);
 
 // Tiny resolver for chronicle://session/<id> deep links.
 api.get('/sessions/:id/resolve', (req, res) => {
