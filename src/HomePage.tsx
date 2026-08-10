@@ -1,14 +1,33 @@
 import React, { useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import type { Project } from '@shared/types.ts';
+import type { RepoInfo } from './ProjectDetail.tsx';
 
-const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮' };
+// A project row as returned by GET /api/projects (server/routes/projects.ts
+// ProjectListRow): the projects table columns plus aggregate counts and the
+// embedded git repo info.
+export interface ProjectSummary extends Project {
+  session_count: number;
+  message_count: number;
+  last_active: string | null;
+  sources: string | null;
+  git: RepoInfo;
+}
 
-function ProjectMenu({ project, onOpenProject, onRefresh }) {
+const SOURCE_ICONS: Record<string, string> = { 'claude-code': '✳', codex: '⬡', cursor: '▮' };
+
+interface ProjectMenuProps {
+  project: ProjectSummary;
+  onOpenProject: (id: number | string) => void;
+  onRefresh: () => void;
+}
+
+function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  async function run(action) {
+  async function run(action: 'sync' | 'details' | 'rename' | 'remove') {
     setOpen(false);
     try {
       if (action === 'sync') {
@@ -28,7 +47,7 @@ function ProjectMenu({ project, onOpenProject, onRefresh }) {
         onRefresh();
       }
     } catch (e) {
-      alert(String(e.message));
+      alert(String((e as Error).message));
     } finally {
       setSyncing(false);
     }
@@ -57,17 +76,24 @@ function ProjectMenu({ project, onOpenProject, onRefresh }) {
   );
 }
 
-export default function HomePage({ projects, onOpenProject, onImport, onRefresh }) {
+export interface HomePageProps {
+  projects: ProjectSummary[] | null;
+  onOpenProject: (id: number | string) => void;
+  onImport: () => void;
+  onRefresh: () => void;
+}
+
+export default function HomePage({ projects, onOpenProject, onImport, onRefresh }: HomePageProps) {
   // Multi-select delete: a "Select" mode turns the whole grid into checkboxes so
   // several projects can be removed from Chronicle at once. Uses an inline confirm
   // bar (not window.confirm, which is blocked in embedded/preview browsers).
   const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState(() => new Set());
+  const [selected, setSelected] = useState<Set<number | string>>(() => new Set());
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
-  function toggle(id) {
+  function toggle(id: number | string) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
