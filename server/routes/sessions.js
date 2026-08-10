@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import { db } from '../db.js';
-import * as gitEngine from '../git.js';
+import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.js';
-import { analyzeCausality } from '../causality.js';
+import { analyzeCausality } from '../causality.ts';
 import { PER_FILE_SOURCES, backupDbBeforeDelete } from './_shared.js';
 
 export function mountSessions(app) {

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { db, upsertProject } from '../db.js';
-import * as gitEngine from '../git.js';
+import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions } from '../live.js';
 import { backupDbBeforeDelete } from './_shared.js';
 

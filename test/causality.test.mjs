@@ -24,7 +24,7 @@ before(async () => {
   const temp = await withTempDb();
   db = temp.dbModule.db;
   teardown = temp.teardown;
-  ({ analyzeCausality } = await import('../server/causality.js'));
+  ({ analyzeCausality } = await import('../server/causality.ts'));
 
   // messages.session_id has a FOREIGN KEY REFERENCES sessions(id), and
   // sessions.project_id REFERENCES projects(id) NOT NULL — node:sqlite

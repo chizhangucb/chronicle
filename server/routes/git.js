@@ -1,5 +1,5 @@
 import { db } from '../db.js';
-import * as gitEngine from '../git.js';
+import * as gitEngine from '../git.ts';
 
 export function mountGit(app) {
   // ---- Git snapshot engine ----

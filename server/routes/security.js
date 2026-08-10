@@ -1,5 +1,5 @@
 import { db } from '../db.js';
-import { scanSession, listRules, addRule, deleteRule, toggleRule } from '../security.js';
+import { scanSession, listRules, addRule, deleteRule, toggleRule } from '../security.ts';
 
 export function mountSecurity(app) {
   // ---- Security: scan, rules, redacted export ----
