@@ -17,6 +17,7 @@ import type { ParseResult } from '../shared/types.ts';
 
 export interface ChronicleConfig {
   autoSync?: boolean;
+  autoSyncPaused?: boolean;
   launchAtLogin?: boolean;
   [key: string]: unknown;
 }
@@ -73,6 +74,17 @@ export function autoSyncEnabled(): boolean {
   return readConfig().autoSync !== false; // default ON
 }
 
+// Pause: distinct from autoSync's on/off. Off tears down the watchers/timer
+// entirely (startAutoSync early-returns); paused keeps them registered (so
+// resuming needs no restart) but every sync attempt they trigger — the
+// debounced fs-watch handler AND the 30-min backstop timer, both of which
+// funnel through runIncrementalSync — no-ops. Manual actions (Sync Update
+// buttons, single-session sync) call importParsed directly, not
+// runIncrementalSync, so pause never blocks an explicit user sync.
+export function autoSyncPaused(): boolean {
+  return readConfig().autoSyncPaused === true; // default OFF
+}
+
 function state(): AutoSyncState {
   if (!globalThis.__chronicleAutoSync) {
     globalThis.__chronicleAutoSync = { watchers: [], timer: null, debounce: null, running: false, lastRun: null, lastResult: null };
@@ -99,6 +111,7 @@ function claudeMtime(file: string): number | null {
 export async function runIncrementalSync(): Promise<SyncResult> {
   const st = state();
   if (st.running) return { ok: true, skipped: 'already running' };
+  if (autoSyncPaused()) return { ok: true, skipped: 'paused' };
   st.running = true;
   const started = Date.now();
   let imported = 0, checked = 0;
