@@ -141,7 +141,9 @@ export interface ParseResult {
 // (e.g. Codex has no summary label), hence the optionals.
 export interface ScannedSession {
   id: string;
-  file: string;
+  // Per-file sources (Claude Code, Codex) always set this; DB-backed sources
+  // (OpenCode) have no per-session file, so it's null there.
+  file: string | null;
   label?: string | null;
   modifiedAt?: string | null;
   messageEstimate?: number;
@@ -155,7 +157,13 @@ export interface ScannedProject {
   physicalPath: string | null;
   sessionCount: number;
   messageEstimate: number;
-  sessions: ScannedSession[];
+  // Cursor's scan only returns aggregate counts per workspace, not a per-session
+  // list (the client guards with `Array.isArray(item.sessions)`), so this is
+  // optional — every other source's scanner sets it.
+  sessions?: ScannedSession[];
   // Codex groups by cwd across many files.
   files?: string[];
+  // OpenCode groups by directory (== physicalPath here); autosync/live re-parse
+  // by directory directly rather than re-deriving it from physicalPath.
+  directory?: string;
 }

@@ -9,10 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { db, upsertProject, replaceSession } from './db.ts';
-import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.js';
-import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.js';
-import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';
-import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
+import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.ts';
+import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.ts';
+import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.ts';
+import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
 
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 const CONFIG_PATH = path.join(CHRONICLE_DIR, 'config.json');

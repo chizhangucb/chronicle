@@ -15,7 +15,7 @@ import {
   scanClaudeProjects,
   parseClaudeLine,
   parseClaudeSession,
-} from '../../server/parsers/claudeCode.js';
+} from '../../server/parsers/claudeCode.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = path.join(__dirname, '..', 'fixtures', 'claude-code');

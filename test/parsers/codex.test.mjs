@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { scanCodexProjects, parseCodexSession } from '../../server/parsers/codex.js';
+import { scanCodexProjects, parseCodexSession } from '../../server/parsers/codex.ts';
 
 const FIXTURE_BASE = 'test/fixtures/codex-sessions';
 const FIXTURE_FILE = path.join(

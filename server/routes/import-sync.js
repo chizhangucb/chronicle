@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, upsertProject, replaceSession } from '../db.ts';
-import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.js';
-import { scanCodexProjects, parseCodexSession } from '../parsers/codex.js';
-import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.js';
-import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.js';
+import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts';
+import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
+import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';
+import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.ts';
 import { PER_FILE_SOURCES } from './_shared.js';
 
 export function mountImportSync(app) {

@@ -2,11 +2,60 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 
 export const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 
+interface Snapshot {
+  db: DatabaseSync;
+  cleanup: () => void;
+}
+
+interface SessionSummaryRow {
+  id: string;
+  dir: string;
+  title: string | null;
+  updated: number | null;
+  messages: number;
+}
+
+interface SessionRow {
+  id: string;
+  directory: string;
+  parent_id: string | null;
+  title: string | null;
+  time_created: number;
+  time_updated: number;
+}
+
+interface PartRow {
+  part_data: string;
+  ts: number;
+  msg_data: string;
+  msg_id: string;
+}
+
+interface OcMessage {
+  role?: string;
+  modelID?: string;
+  model?: { modelID?: string };
+}
+
+interface OcToolState {
+  input?: unknown;
+  output?: unknown;
+}
+
+interface OcPart {
+  type: string;
+  text?: string;
+  tool?: string;
+  callID?: string;
+  state?: OcToolState;
+}
+
 // Never touch OpenCode's live DB: copy db + WAL/SHM to a temp dir and read that.
-function openSnapshot(dbPath) {
+function openSnapshot(dbPath: string): Snapshot {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-oc-'));
   const copy = path.join(tmp, 'opencode.db');
   fs.copyFileSync(dbPath, copy);
@@ -16,40 +65,40 @@ function openSnapshot(dbPath) {
   return { db: new DatabaseSync(copy), cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }) };
 }
 
-export function scanOpencodeProjects(dbPath = OPENCODE_DB) {
+export function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
   if (!fs.existsSync(dbPath)) return [];
-  let snap;
+  let snap: Snapshot | undefined;
   try {
     snap = openSnapshot(dbPath);
-    let perSession;
+    let perSession: SessionSummaryRow[];
     try {
       perSession = snap.db.prepare(`
         SELECT s.id AS id, s.directory AS dir, s.title AS title, s.time_updated AS updated, COUNT(m.id) AS messages
         FROM session s LEFT JOIN message m ON m.session_id = s.id
-        WHERE s.parent_id IS NULL GROUP BY s.id`).all();
+        WHERE s.parent_id IS NULL GROUP BY s.id`).all() as unknown as SessionSummaryRow[];
     } catch {
       perSession = snap.db.prepare(`
         SELECT s.id AS id, s.directory AS dir, NULL AS title, NULL AS updated, COUNT(m.id) AS messages
         FROM session s LEFT JOIN message m ON m.session_id = s.id
-        WHERE s.parent_id IS NULL GROUP BY s.id`).all();
+        WHERE s.parent_id IS NULL GROUP BY s.id`).all() as unknown as SessionSummaryRow[];
     }
-    const byDir = new Map();
+    const byDir = new Map<string, ScannedSession[]>();
     for (const r of perSession) {
       if (!byDir.has(r.dir)) byDir.set(r.dir, []);
-      byDir.get(r.dir).push({
+      (byDir.get(r.dir) as ScannedSession[]).push({
         id: r.id, file: null, label: r.title || null,
         modifiedAt: r.updated ? new Date(r.updated).toISOString() : null,
         messageEstimate: r.messages,
       });
     }
-    return [...byDir.entries()].map(([dir, sessions]) => ({
+    return [...byDir.entries()].map(([dir, sessions]): ScannedProject => ({
       source: 'opencode',
       logDir: dbPath,
       directory: dir,
       name: path.basename(dir),
       physicalPath: dir,
       sessionCount: sessions.length,
-      messageEstimate: sessions.reduce((s, x) => s + x.messageEstimate, 0),
+      messageEstimate: sessions.reduce((s, x) => s + (x.messageEstimate ?? 0), 0),
       sessions: sessions.sort((a, b) => ((a.modifiedAt || '') < (b.modifiedAt || '') ? 1 : -1)),
     }));
   } catch {
@@ -61,22 +110,22 @@ export function scanOpencodeProjects(dbPath = OPENCODE_DB) {
 
 // Parse all top-level sessions for one project directory.
 // sessionIds (optional) restricts to a subset of session ids.
-export function parseOpencodeSessions(dbPath, directory, sessionIds) {
+export function parseOpencodeSessions(dbPath: string, directory: string | undefined, sessionIds?: string[]): ParseResult[] {
   const snap = openSnapshot(dbPath);
   try {
     let sessions = snap.db.prepare(
-      'SELECT * FROM session WHERE directory = ? AND parent_id IS NULL').all(directory);
+      'SELECT * FROM session WHERE directory = ? AND parent_id IS NULL').all(directory ?? null) as unknown as SessionRow[];
     if (sessionIds?.length) sessions = sessions.filter((s) => sessionIds.includes(s.id));
-    return sessions.map((s) => {
+    return sessions.map((s): ParseResult => {
       const parts = snap.db.prepare(`
         SELECT p.data AS part_data, p.time_created AS ts, m.data AS msg_data, m.id AS msg_id
         FROM part p JOIN message m ON m.id = p.message_id
         WHERE p.session_id = ?
-        ORDER BY m.time_created, m.id, p.time_created, p.id`).all(s.id);
-      const events = [];
-      let firstPrompt = null;
+        ORDER BY m.time_created, m.id, p.time_created, p.id`).all(s.id) as unknown as PartRow[];
+      const events: Event[] = [];
+      let firstPrompt: string | null = null;
       for (const row of parts) {
-        let part, msg;
+        let part: OcPart, msg: OcMessage;
         try { part = JSON.parse(row.part_data); msg = JSON.parse(row.msg_data); } catch { continue; }
         const ts = new Date(row.ts).toISOString();
         const model = msg.modelID || msg.model?.modelID || null;
