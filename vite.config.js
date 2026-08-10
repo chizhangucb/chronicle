@@ -9,7 +9,7 @@ function chronicleApi() {
     configureServer(server) {
       server.middlewares.use('/api', async (req, res, next) => {
         try {
-          const { api } = await server.ssrLoadModule('/server/api.js');
+          const { api } = await server.ssrLoadModule('/server/api.ts');
           api(req, res, next);
         } catch (err) { next(err); }
       });

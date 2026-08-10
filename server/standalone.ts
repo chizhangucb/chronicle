@@ -1,11 +1,12 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { api } from './api.js';
+import type { Server } from 'node:http';
+import { api } from './api.ts';
 
 // Standalone server for the desktop shell / production: serves the built UI
 // plus all endpoints without Vite. `npm run build` first.
-export function startServer(port = 41730) {
+export function startServer(port = 41730): Promise<Server> {
   const app = express();
   const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
   app.use('/api', api);
