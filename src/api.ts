@@ -237,7 +237,7 @@ export interface SearchResultItem {
   project_name: string;
   matchCount: number;
   snippet: string;
-  seq: number;
+  seq?: number;
   ts: string | null;
 }
 
