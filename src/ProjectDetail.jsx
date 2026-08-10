@@ -177,7 +177,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           </select>
         </span>
       </div>
-      {(project.path.startsWith('gemini-project:') || project.path.includes('#')) && (
+      {project.path.includes('#') && (
         <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
           onSubmit={associate}>
           <span>Needs association — this source doesn't report a real project path. Point it at the code folder:</span>

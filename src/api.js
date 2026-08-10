@@ -29,11 +29,6 @@ export const api = {
   syncSession: (id) => j(`/api/sessions/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
   deleteSessionSource: (id) => j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
   deleteSession: (id, withSource) => j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
-  sendFeedback: (message, email) => j('/api/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, email }),
-  }),
   settings: () => j('/api/settings'),
   patchSettings: (patch) => j('/api/settings', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),

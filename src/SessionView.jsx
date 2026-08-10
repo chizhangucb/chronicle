@@ -4,7 +4,6 @@ import { t } from './i18n.js';
 import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
-import ReplayMode from './ReplayMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from './models.js';
 import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
@@ -25,7 +24,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState(null); // {hash, date, subject} | null
   const [noRepo, setNoRepo] = useState(false);
-  const [mode, setMode] = useState('overview'); // 'overview' | 'playback' | 'refine' | 'replay'
+  const [mode, setMode] = useState('overview'); // 'overview' | 'playback' | 'refine'
   const [securityOpen, setSecurityOpen] = useState(false);
   const [causality, setCausality] = useState(null); // {changes, mentioned}
   const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
@@ -99,7 +98,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         { key: 'overview', icon: '📊', label: t('Overview'), title: 'Session Overview (⌘1)' },
         { key: 'playback', icon: '▶', label: t('Playback'), title: 'Playback Mode (⌘2)' },
         { key: 'refine', icon: '✂', label: t('Refine'), title: 'Refine Mode (⌘3)' },
-        { key: 'replay', icon: '⟳', label: t('Replay'), title: 'Replay Mode (⌘4)' },
       ],
       active: mode,
       securityOpen,
@@ -163,7 +161,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       if ((e.metaKey || e.ctrlKey) && e.key === '1') { e.preventDefault(); setMode('overview'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
-      if ((e.metaKey || e.ctrlKey) && e.key === '4') { e.preventDefault(); setMode('replay'); }
       // ⇧⌘U (⇧Ctrl+U) — Sync Update this session
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') { e.preventDefault(); syncRef.current?.(); }
       if (e.key === 'Escape') { setKeyword(''); searchRef.current?.blur(); }
@@ -295,8 +292,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         <RefineMode messages={messages} session={data.session} project={data.project} />
       )}
 
-      {mode === 'replay' && <ReplayMode sessionId={sessionId} />}
-
       {securityOpen && (
         <SecurityCheck sessionId={sessionId} projectName={data.project.name}
           onClose={() => setSecurityOpen(false)} />
@@ -383,7 +378,7 @@ const FRIENDLY_CALL = {
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
 const DONUT_COLORS = ['#4f8ef7', '#34c98e', '#e5a54b', '#a78bfa', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
-const DELETABLE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+const DELETABLE_SOURCES = new Set(['claude-code', 'codex']);
 
 function isErrorResult(m) {
   return m.kind === 'tool_result'

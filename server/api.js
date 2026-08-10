@@ -7,15 +7,11 @@ import { scanClaudeProjects, parseClaudeSession } from './parsers/claudeCode.js'
 import { scanCodexProjects, parseCodexSession } from './parsers/codex.js';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.js';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.js';
-import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
 import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
-import { createShare, listShares, revokeShare } from './shares.js';
-import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
-import * as replay from './replay.js';
 
 export const api = express();
 api.use(express.json());
@@ -45,8 +41,6 @@ api.get('/scan', (req, res) => {
       codex: (d) => scanCodexProjects(d),
       opencode: (d) => scanOpencodeProjects(d),
       cursor: (d) => scanCursorProjects(d),
-      'gemini-cli': (d) => scanGeminiProjects(d),
-      'copilot-chat': (d) => scanCopilotProjects([d]),
     };
     if (!scanners[source]) return res.status(400).json({ error: `Unsupported source: ${source}` });
     if (!fs.existsSync(dir)) return res.status(400).json({ error: 'Directory not found' });
@@ -58,8 +52,6 @@ api.get('/scan', (req, res) => {
     codex: annotateScan(scanCodexProjects()),
     cursor: annotateScan(scanCursorProjects()),
     opencode: annotateScan(scanOpencodeProjects()),
-    'gemini-cli': annotateScan(scanGeminiProjects()),
-    'copilot-chat': annotateScan(scanCopilotProjects()),
   });
 });
 
@@ -85,14 +77,6 @@ async function gatherParsed({ source, logDir, files, directory, sessionIds, phys
   if (source === 'cursor') {
     if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
     return parseCursorWorkspace(logDir, undefined, physicalPath || null);
-  }
-  if (source === 'gemini-cli') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Gemini project directory not found');
-    return parseGeminiProject(logDir);
-  }
-  if (source === 'copilot-chat') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-    return parseCopilotWorkspace(logDir);
   }
   throw bad(`Unsupported source: ${source}`);
 }
@@ -137,8 +121,6 @@ api.post('/projects/:id/sync', async (req, res) => {
       codex: scanCodexProjects(),
       cursor: scanCursorProjects(),
       opencode: scanOpencodeProjects(),
-      'gemini-cli': scanGeminiProjects(),
-      'copilot-chat': scanCopilotProjects(),
     };
     const matches = Object.values(bySource).flat().filter((i) => i.physicalPath === project.path);
     if (!matches.length) return res.status(404).json({ error: 'No source logs found for this project path' });
@@ -188,54 +170,7 @@ api.get('/sessions/:id/resolve', (req, res) => {
   res.json(s);
 });
 
-// ---- Feedback ----
-// Sends feedback to email through the hosted relay (`feedback-relay/`, a Vercel
-// function that holds the Resend API key SERVER-SIDE), and always writes a local
-// copy to ~/.chronicle/feedback.log FIRST. No secret ships in the app — it just
-// POSTs to the public relay URL, so feedback works from every user's machine and
-// doesn't depend on the maintainer's laptop. The UI falls back to a mailto: draft
-// if the relay is unreachable. Override the URL with CHRONICLE_FEEDBACK_RELAY or
-// `feedbackRelay` in ~/.chronicle/config.json.
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-const DEFAULT_FEEDBACK_RELAY = 'https://relay.getchronicle.dev/api/feedback';
-
-function feedbackRelayUrl() {
-  let cfg = {};
-  try {
-    const p = path.join(CHRONICLE_DIR, 'config.json');
-    if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-  } catch {}
-  return process.env.CHRONICLE_FEEDBACK_RELAY || cfg.feedbackRelay || DEFAULT_FEEDBACK_RELAY;
-}
-
-api.post('/feedback', async (req, res) => {
-  const message = (req.body?.message || '').trim();
-  // Optional sender email so the maintainer knows who sent it and can reply. Kept
-  // in the local log too, so it's recoverable even if the relay/email fails.
-  const email = (req.body?.email || '').trim().slice(0, 200);
-  if (!message) return res.status(400).json({ error: 'Feedback is empty' });
-  const entry = { ts: new Date().toISOString(), platform: process.platform, email, message };
-  try {
-    fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
-    fs.appendFileSync(path.join(CHRONICLE_DIR, 'feedback.log'), JSON.stringify(entry) + '\n');
-  } catch {}
-  // Embed the sender email in the message body too, so it's visible even on a relay
-  // that predates the `email` field (which only uses it for the Reply-To header).
-  const relayMessage = email ? `${message}\n\n↩ Reply to: ${email}` : message;
-  try {
-    const r = await fetch(feedbackRelayUrl(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: relayMessage, email, platform: process.platform }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const body = await r.json().catch(() => ({}));
-    if (!r.ok || !body.ok) throw new Error(body.error || `relay ${r.status}`);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(502).json({ error: `Email relay unreachable (${String(err.message || err)}) — feedback saved locally` });
-  }
-});
 
 // ---- Projects & sessions ----
 
@@ -314,8 +249,6 @@ api.post('/sessions/:id/sync', async (req, res) => {
       codex: scanCodexProjects(),
       cursor: scanCursorProjects(),
       opencode: scanOpencodeProjects(),
-      'gemini-cli': scanGeminiProjects(),
-      'copilot-chat': scanCopilotProjects(),
     };
     const matches = (bySource[session.source] || [])
       .filter((i) => i.physicalPath === project.path);
@@ -436,8 +369,8 @@ api.get('/sessions/:id/messages', (req, res) => {
 
 // Delete the ORIGINAL log file on disk (explicit user request only, permanent —
 // the UI double-confirms). Restricted to sources where one file == one session;
-// shared stores (OpenCode/Cursor DBs, Gemini logDirs) would lose other sessions.
-const PER_FILE_SOURCES = new Set(['claude-code', 'codex', 'copilot-chat']);
+// shared stores (OpenCode/Cursor DBs) would lose other sessions.
+const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
 
 api.delete('/sessions/:id/source-file', (req, res) => {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
@@ -493,29 +426,6 @@ api.get('/sessions/:id/live', (req, res) => {
   }
 });
 api.get('/live/status', (req, res) => res.json(liveStatus()));
-
-// ---- Replay Mode (FR-RP): deterministic sandbox re-execution ----
-
-api.get('/sessions/:id/replay-plan', (req, res) => {
-  try { res.json(replay.buildPlan(req.params.id)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/start', (req, res) => {
-  try { res.json(replay.startReplay(req.body.sessionId, req.body.workspace)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/step', (req, res) => {
-  try { res.json(replay.executeStep(req.body.sessionId, req.body.seq, { confirmCommand: !!req.body.confirmCommand })); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/replay/preview', (req, res) => {
-  try { res.json(replay.previewStep(req.query.sessionId, Number(req.query.seq))); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/open', (req, res) => {
-  try { replay.openWorkspace(req.body.sessionId); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
 
 // ---- Context Causality (FR-CC) ----
 
@@ -619,14 +529,6 @@ api.get('/sessions/:id/export-redacted', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${project.name}-redacted.md"`);
   res.send(lines.join('\n'));
 });
-
-// Share links (FR-SEC-8)
-api.post('/sessions/:id/share', (req, res) => {
-  try { res.json(createShare(req.params.id, req.body?.days ?? 7)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/shares', (req, res) => res.json(listShares()));
-api.delete('/shares/:id', (req, res) => { revokeShare(req.params.id); res.json(listShares()); });
 
 api.get('/security/rules', (req, res) => res.json(listRules()));
 api.post('/security/rules', (req, res) => {
