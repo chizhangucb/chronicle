@@ -235,6 +235,18 @@ TypeScript is DEV-ONLY (type gate); it never emits.
   Update when new models ship or prices change.
 - `src/kinds.js` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels
   architecture decision); imported by `SessionView` (Playback) and `RefineMode`.
+- **Design system (PR 5c, 2026-08-10):** `src/styles.css`'s `:root` is the token
+  contract every view is styled against — `--bg0/1/2`, `--border(-strong)`,
+  `--ink/-2/-3`, `--brass(-text)`, `--ok/--warn/--danger`, `--c1..--c5` (categorical,
+  fixed order, never cycled). A `:root[data-theme="light"]` twin is authored but
+  unwired (no toggle sets `data-theme` yet). `src/Modal.tsx` (Radix Dialog),
+  `src/InfoTip.tsx` (Radix Popover), and inline Radix `DropdownMenu`/`Popover`/`Toast`
+  usage (App.tsx's language switcher, `HomePage`'s `ProjectMenu`, `RefineMode`'s export
+  menu, `ProjectDetail`'s breadcrumb pickers, `SessionSelect`'s Undo toast) are the
+  shared interactive primitives — see the Radix Dialog sibling-portal gotcha below
+  before touching `.modal`/`.modal-backdrop` again. `src/colors.ts`
+  (`projectColorMap`) and `src/charts/ChartWrapper.tsx` (Recharts tooltip/axis/palette
+  wrapper) are primitives with **no call sites yet** — 5d wires them into real views.
 - `src/i18n.js` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the
   key itself); `setLang` reloads the page (App restores the `view` from
   `sessionStorage` so you stay put). Add a locale = add a dict here. **Because English
@@ -401,11 +413,26 @@ TypeScript is DEV-ONLY (type gate); it never emits.
   inline edit-in-place field instead (see `OverviewMode` in `SessionView.jsx`).
   `ProjectMenu`'s gear still uses `prompt`/`confirm`/`alert`; the Home multi-select flow
   is the confirm-free path (an inline confirm bar) — prefer that pattern for new UI.
-- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD** (`top: calc(100% + 8px)`, arrow on
-  top). The Overview stats row sits at the top of `.page`, which is `overflow-y: auto`
-  (and thus clips both axes) — an upward bubble got cut off at the viewport top and the
-  text was unreadable. It's 300px wide so long explainers stay short; every InfoTip shares
-  this one rule.
+- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD.** Since PR 5c, `InfoTip` is a shared
+  component (`src/InfoTip.tsx`) using Radix Popover with `side="bottom"` +
+  `avoidCollisions={false}` — the `avoidCollisions={false}` is load-bearing, not optional:
+  Radix's default collision-flip would otherwise flip it upward inside `.page`
+  (`overflow-y: auto`, clips both axes) and cut it off at the viewport top, same failure
+  as the original hand-rolled hover-CSS version. 250px wide so long explainers stay short.
+- **Radix `Dialog.Overlay` and `Dialog.Content` render as PORTALED SIBLINGS, not nested.**
+  Bit us in PR 5c: `.modal`'s old centering relied on being a flex child of
+  `.modal-backdrop` (`display:flex; align-items:center`), which silently stopped working
+  once the backdrop→modal DOM nesting was replaced by Radix's Portal (Overlay and Content
+  are both direct portal children, unrelated in the DOM). `.modal` now self-centers via its
+  own `position:fixed; top/left:50%; transform:translate(-50%,-50%)`. Second gotcha buried
+  in the first: that transform must be a STATIC property on `.modal`, not only present in
+  the entrance keyframe's `to` state — `animation-fill-mode` defaults to `none`, so once the
+  200ms `modal-in` animation finishes, an animated-only transform reverts to `transform:none`
+  and the modal snaps to the top-left of its centered anchor point. Caught only by clicking
+  through the built app, not by typecheck/tests/build — Radix Popover/DropdownMenu don't
+  have this problem (they self-position via `@floating-ui` internals), only Dialog does.
+  Radix `Toast.Root` also defaults to a 5s `duration` — pass `duration={N}` explicitly if
+  app logic (e.g. the undo window) assumes a different auto-dismiss time.
 - **`replaceSession` preserves the user-set `name`** across its delete+reinsert
   (reads `prev.name` first) — `summary`/`usage` are re-derived each import, but a
   Chronicle rename must survive re-sync. An OLD build sharing `~/.chronicle/chronicle.db`
