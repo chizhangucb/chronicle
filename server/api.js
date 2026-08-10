@@ -15,7 +15,6 @@ import { createShare, listShares, revokeShare } from './shares.js';
 import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
-import * as replay from './replay.js';
 
 export const api = express();
 api.use(express.json());
@@ -493,29 +492,6 @@ api.get('/sessions/:id/live', (req, res) => {
   }
 });
 api.get('/live/status', (req, res) => res.json(liveStatus()));
-
-// ---- Replay Mode (FR-RP): deterministic sandbox re-execution ----
-
-api.get('/sessions/:id/replay-plan', (req, res) => {
-  try { res.json(replay.buildPlan(req.params.id)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/start', (req, res) => {
-  try { res.json(replay.startReplay(req.body.sessionId, req.body.workspace)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/step', (req, res) => {
-  try { res.json(replay.executeStep(req.body.sessionId, req.body.seq, { confirmCommand: !!req.body.confirmCommand })); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/replay/preview', (req, res) => {
-  try { res.json(replay.previewStep(req.query.sessionId, Number(req.query.seq))); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.post('/replay/open', (req, res) => {
-  try { replay.openWorkspace(req.body.sessionId); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
 
 // ---- Context Causality (FR-CC) ----
 

@@ -564,31 +564,6 @@ mark { background: #b58a2a; color: #fff; border-radius: 2px; padding: 0 1px; }
 .mode-switch { display: flex; gap: 6px; }
 .chip.security { color: var(--warn); }
 
-/* Replay Mode toolbar — sandbox path, progress bar, actions */
-.replay-toolbar {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
-  padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--bg2);
-}
-.replay-sandbox { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
-.replay-sandbox-icon { font-size: 16px; opacity: 0.85; flex-shrink: 0; }
-.replay-sandbox-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
-.replay-sandbox-label {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
-  color: var(--muted); font-weight: 700;
-}
-.replay-sandbox-path {
-  font-family: var(--mono); font-size: 12px; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
-}
-.replay-seed { flex-shrink: 0; align-self: center; }
-.replay-progress { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.replay-progress-track {
-  width: 130px; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden;
-}
-.replay-progress-fill { display: block; height: 100%; background: var(--accent2); transition: width 0.2s ease; }
-.replay-progress-count { font-size: 12px; font-weight: 600; color: var(--accent2); white-space: nowrap; }
-.replay-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-
 /* Refine Mode */
 .refine { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .token-stats { font-size: 13px; font-weight: 600; color: var(--accent2); }
@@ -708,12 +683,6 @@ h4 { margin: 6px 0; }
 .update-toast-title { font-weight: 600; font-size: 14px; }
 .update-toast-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .update-toast .btn.primary { white-space: nowrap; }
-
-/* Replay */
-.refine-item.step-done { border-left-color: var(--accent2); }
-.refine-item.step-failed { border-left-color: var(--danger); }
-.btn.warn { border-color: var(--warn); color: var(--warn); }
-.refine-item.step-skipped { border-left-color: var(--warn); opacity: 0.7; }
 
 /* Context Causality */
 .ctx-btn { color: var(--accent2); border: 1px solid var(--border); border-radius: 999px; }
