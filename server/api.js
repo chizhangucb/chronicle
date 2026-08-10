@@ -11,7 +11,6 @@ import { scanGeminiProjects, parseGeminiProject } from './parsers/gemini.js';
 import { analyzeCausality } from './causality.js';
 import * as gitEngine from './git.js';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from './security.js';
-import { createShare, listShares, revokeShare } from './shares.js';
 import { scanCopilotProjects, parseCopilotWorkspace } from './parsers/copilot.js';
 import { attachLiveStream, isLiveCandidate, liveCandidatesForSessions, liveStatus } from './live.js';
 import { runIncrementalSync, autoSyncStatus, startAutoSync, stopAutoSync, autoSyncEnabled, readConfig, writeConfig } from './autosync.js';
@@ -595,14 +594,6 @@ api.get('/sessions/:id/export-redacted', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${project.name}-redacted.md"`);
   res.send(lines.join('\n'));
 });
-
-// Share links (FR-SEC-8)
-api.post('/sessions/:id/share', (req, res) => {
-  try { res.json(createShare(req.params.id, req.body?.days ?? 7)); }
-  catch (err) { res.status(500).json({ error: String(err.message || err) }); }
-});
-api.get('/shares', (req, res) => res.json(listShares()));
-api.delete('/shares/:id', (req, res) => { revokeShare(req.params.id); res.json(listShares()); });
 
 api.get('/security/rules', (req, res) => res.json(listRules()));
 api.post('/security/rules', (req, res) => {

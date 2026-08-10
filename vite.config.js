@@ -12,13 +12,6 @@ function chronicleApi() {
           api(req, res, next);
         } catch (err) { next(err); }
       });
-      // Public share pages (redacted, tokenized)
-      server.middlewares.use('/share', async (req, res, next) => {
-        try {
-          const { sharePage } = await server.ssrLoadModule('/server/shares.js');
-          sharePage(req, res, next);
-        } catch (err) { next(err); }
-      });
     },
   };
 }

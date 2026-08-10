@@ -4,7 +4,6 @@ import ImportWizard from './ImportWizard.jsx';
 import ProjectDetail, { sessionDisplayName } from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import { t, lang, setLang } from './i18n.js';
-import SecurityPage from './SecurityPage.jsx';
 import SponsorModal from './SponsorModal.jsx';
 
 const SOURCE_ICONS = { 'claude-code': '✳', codex: '⬡', cursor: '▮', 'gemini-cli': '✦' };
@@ -129,10 +128,6 @@ export default function App() {
         </nav>
 
         <nav className="sb-bottom">
-          <button className={`sb-item util ${view.name === 'security' ? 'on' : ''}`} title={t('Security')}
-            onClick={() => setView({ name: 'security' })}>
-            <span className="sb-icon">🛡</span><span className="sb-label">{t('Security')}</span>
-          </button>
           <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
             <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
           </button>
@@ -188,7 +183,6 @@ export default function App() {
             onSwitchSession={(sid) => setView({ name: 'session', id: sid, projectId: view.projectId })}
             onBack={() => setView({ name: 'project', id: view.projectId })} />
         )}
-        {view.name === 'security' && <SecurityPage />}
       </div>
 
       {wizardOpen && (
