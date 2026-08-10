@@ -1,23 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, type JSX, type ReactNode } from 'react';
 import { t } from '../i18n.js';
 import { KIND_ICON, KIND_LABEL } from '../kinds.ts';
 import { summarizeToolInput } from './stats.js';
+import type { DisplayKind, Event } from '@shared/types.ts';
 
-// Labels/icons come from the shared canonical map (src/kinds.js) so Playback and
+// A rendered playback row. `seq`/`kind` are always present on a fetched/live
+// message; `live` is stamped by SessionView on rows arriving over live SSE.
+export interface PlaybackMessage extends Event {
+  seq: number;
+  live?: boolean;
+}
+
+// Context Causality (FR-CC) source: what likely drove this message, surfaced
+// via the ⛓ button. Mirrors the (unexported) ChangeSource shape produced by
+// server/causality.ts — see the report for the suggested shared-type addition.
+export interface CausalitySource {
+  seq: number;
+  file: string | null;
+  pattern: string | null;
+  tool: string | null;
+  confidence: number;
+  reason: string | null;
+}
+
+export interface MessageCausality {
+  sources: CausalitySource[];
+}
+
+export interface MessageRowProps {
+  m: PlaybackMessage;
+  selected: boolean;
+  keyword: string;
+  onClick: () => void;
+  causality?: MessageCausality;
+  onJump: (seq: number) => void;
+}
+
+// Labels/icons come from the shared canonical map (src/kinds.ts) so Playback and
 // Refine stay consistent; only the per-view CSS class lives here.
-const KIND_CLS = { user: 'user', assistant: 'assistant', thinking: 'thinking', tool_use: 'tool', tool_result: 'tool-result' };
-const KIND_META = Object.fromEntries(
-  Object.keys(KIND_CLS).map((k) => [k, { icon: KIND_ICON[k], label: t(KIND_LABEL[k]), cls: KIND_CLS[k] }])
+const KIND_CLS: Record<DisplayKind, string> = {
+  user: 'user', assistant: 'assistant', thinking: 'thinking', tool_use: 'tool', tool_result: 'tool-result', note: 'note',
+};
+interface KindMeta { icon: string; label: string; cls: string; }
+const KIND_META: Record<string, KindMeta> = Object.fromEntries(
+  (Object.keys(KIND_CLS) as DisplayKind[]).map((k) => [k, { icon: KIND_ICON[k], label: t(KIND_LABEL[k]), cls: KIND_CLS[k] }]),
 );
 
-export default function MessageRow({ m, selected, keyword, onClick, causality, onJump }) {
+export default function MessageRow({ m, selected, keyword, onClick, causality, onJump }: MessageRowProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const meta = KIND_META[m.kind] || { icon: '•', label: m.kind, cls: '' };
+  const meta: KindMeta = KIND_META[m.kind] || { icon: '•', label: m.kind, cls: '' };
   let body = m.text || '';
-  let title = null;
+  let title: string | null = null;
   if (m.kind === 'tool_use') {
-    title = m.tool_name;
+    title = m.tool_name ?? null;
     body = summarizeToolInput(m.tool_name, m.tool_input);
   }
   const limit = m.kind === 'user' || m.kind === 'assistant' ? 1200 : 300;
@@ -29,7 +65,7 @@ export default function MessageRow({ m, selected, keyword, onClick, causality, o
       <div className="msg-head">
         <span className="msg-kind">{meta.icon} {title || meta.label}</span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {causality?.sources.length > 0 && (
+          {causality && causality.sources.length > 0 && (
             <button className="btn tiny ghost ctx-btn" title="Context Causality — what drove this change?"
               onClick={(e) => { e.stopPropagation(); setCtxOpen(!ctxOpen); }}>
               ⛓ {causality.sources.length}
@@ -61,12 +97,12 @@ export default function MessageRow({ m, selected, keyword, onClick, causality, o
   );
 }
 
-function highlight(text, keyword) {
+function highlight(text: string, keyword: string): ReactNode {
   if (!keyword) return text;
-  const parts = [];
+  const parts: ReactNode[] = [];
   let i = 0;
   const lower = text.toLowerCase();
-  let idx;
+  let idx: number;
   while ((idx = lower.indexOf(keyword, i)) !== -1 && parts.length < 200) {
     parts.push(text.slice(i, idx));
     parts.push(<mark key={idx}>{text.slice(idx, idx + keyword.length)}</mark>);

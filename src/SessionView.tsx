@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import Timeline from './Timeline.jsx';
@@ -6,42 +6,142 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { SessionPicker } from './ProjectDetail.jsx';
-import MessageRow from './session/MessageRow.jsx';
-import OverviewMode from './session/OverviewMode.jsx';
+import MessageRow, { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
+import OverviewMode from './session/OverviewMode.tsx';
+import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 
-const FILTER_CHIPS = [
+// ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
+// Duplicated from server/db.ts + server/git.ts + server/causality.ts rather than
+// imported: tsconfig.client.json's program only includes src/**  + shared/**, so
+// it cannot see server/**. See the task report for the suggested shared-type
+// addition (a client-usable Session/Project/CausalityResult contract).
+
+// Full `sessions` row shape (mirrors server/db.ts SessionRow). `source` is a
+// plain `string` (not the narrower `SourceId` union) to match the canonical
+// api.ts `Session`/server/db.ts `SessionRow` — the DB column is untyped TEXT.
+export interface Session {
+  id: string;
+  project_id: number;
+  source: string;
+  file_path: string;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  first_prompt: string | null;
+  context_tokens: number | null;
+  name: string | null;
+  summary: string | null;
+  usage: string | null;
+  sidechain_count: number;
+  imported_at: string | null;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+}
+
+// Full `projects` row shape (mirrors server/db.ts ProjectRow / shared Project).
+export interface ProjectInfo {
+  id: number;
+  path: string;
+  name: string;
+  created_at?: string;
+}
+
+// Mirrors server/git.ts Commit / RepoInfo.
+export interface CommitInfo {
+  hash: string;
+  date: string;
+  subject: string;
+  beforeHistory?: boolean;
+}
+export interface RepoInfo {
+  isRepo: boolean;
+  commitCount?: number;
+  branch?: string | null;
+}
+
+// Mirrors server/causality.ts's (unexported) ChangeRecord/CausalityResult.
+export interface CausalityChange {
+  seq: number;
+  ts: string | null;
+  file: string;
+  tool: string | null;
+  sources: MessageCausality['sources'];
+}
+export interface CausalityData {
+  changes: CausalityChange[];
+  readCount: number;
+  mentioned: Record<number, (string | null)[]>;
+}
+
+export interface SessionData {
+  session: Session;
+  project: ProjectInfo;
+  messages: PlaybackMessage[];
+  commits: CommitInfo[];
+  git: RepoInfo | null;
+  liveCandidate: boolean;
+}
+
+export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
+export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
+
+export type SessionMode = 'overview' | 'playback' | 'refine';
+
+export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
+export interface RailState {
+  modes: RailModeDef[];
+  active: SessionMode;
+  securityOpen: boolean;
+  select: (k: SessionMode | 'security-check') => void;
+}
+
+export interface SessionViewProps {
+  sessionId: string;
+  onBack: () => void;
+  onLiveChange?: (info: LiveChangeInfo | null) => void;
+  onRailChange?: (rail: RailState | null) => void;
+  onSwitchSession?: (sessionId: string) => void;
+}
+
+interface FilterChip {
+  key: string;
+  label: string;
+  kinds: PlaybackMessage['kind'][];
+}
+
+const FILTER_CHIPS: FilterChip[] = [
   { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
   { key: 'tool', label: t('Tool'), kinds: ['tool_use', 'tool_result'] },
   { key: 'thinking', label: t('Thinking'), kinds: ['thinking'] },
 ];
 
-export default function SessionView({ sessionId, onBack, onLiveChange, onRailChange, onSwitchSession }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [selectedSeq, setSelectedSeq] = useState(null);
-  const [chips, setChips] = useState(new Set());
+export default function SessionView({ sessionId, onBack, onLiveChange, onRailChange, onSwitchSession }: SessionViewProps): JSX.Element {
+  const [data, setData] = useState<SessionData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
+  const [chips, setChips] = useState<Set<string>>(new Set());
   const [keyword, setKeyword] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [commit, setCommit] = useState(null); // {hash, date, subject} | null
+  const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
-  const [mode, setMode] = useState('overview'); // 'overview' | 'playback' | 'refine'
+  const [mode, setMode] = useState<SessionMode>('overview');
   const [securityOpen, setSecurityOpen] = useState(false);
-  const [causality, setCausality] = useState(null); // {changes, mentioned}
-  const [liveStatus, setLiveStatus] = useState('off'); // off | live | stopped | reconnecting
+  const [causality, setCausality] = useState<CausalityData | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
   const [newCount, setNewCount] = useState(0);
   const [syncingSession, setSyncingSession] = useState(false);
-  const esRef = useRef(null);
+  const esRef = useRef<EventSource | null>(null);
   const atBottomRef = useRef(true);
-  const listRef = useRef(null);
-  const searchRef = useRef(null);
-  const syncRef = useRef(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
 
   useEffect(() => {
-    api.sessionMessages(sessionId).then((d) => {
+    api.sessionMessages(sessionId).then((d: SessionData) => {
       setData(d);
       const firstUser = d.messages.find((m) => m.kind === 'user');
       setSelectedSeq(firstUser ? firstUser.seq : d.messages[0]?.seq ?? null);
-    }).catch((e) => setError(String(e.message)));
+    }).catch((e: Error) => setError(String(e.message)));
   }, [sessionId]);
 
   // FR-CC: background causality analysis (local heuristic, no LLM)
@@ -54,7 +154,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   useEffect(() => {
     if (!data?.liveCandidate) return;
     let retries = 0;
-    let es;
+    let es: EventSource;
     function connect() {
       es = new EventSource(`/api/sessions/${encodeURIComponent(sessionId)}/live`);
       esRef.current = es;
@@ -63,7 +163,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         if (msg.type === 'status') setLiveStatus(msg.status === 'live' ? 'live' : 'stopped');
         if (msg.type === 'messages') {
           retries = 0;
-          setData((cur) => ({ ...cur, messages: [...cur.messages, ...msg.events.map((e, i) => ({ ...e, live: true }))] }));
+          setData((cur) => (cur ? { ...cur, messages: [...cur.messages, ...msg.events.map((e: PlaybackMessage) => ({ ...e, live: true }))] } : cur));
           const pane = listRef.current;
           if (pane && atBottomRef.current) {
             requestAnimationFrame(() => { pane.scrollTop = pane.scrollHeight; });
@@ -108,8 +208,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
   // FR-FLT-3: 300ms debounce on keyword
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(keyword.trim().toLowerCase()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebounced(keyword.trim().toLowerCase()), 300);
+    return () => clearTimeout(timer);
   }, [keyword]);
 
   // Sidechain (subagent) rows are imported since v0.2 but EXCLUDED from the
@@ -118,7 +218,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const messages = useMemo(() => (data?.messages ?? []).filter((m) => !m.is_sidechain), [data]);
   const activeKinds = useMemo(() => {
     if (!chips.size) return null; // no filter → all
-    const set = new Set();
+    const set = new Set<string>();
     FILTER_CHIPS.filter((c) => chips.has(c.key)).forEach((c) => c.kinds.forEach((k) => set.add(k)));
     return set;
   }, [chips]);
@@ -146,17 +246,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   useEffect(() => {
     if (!data || !selected?.ts) return;
     let stale = false;
-    api.gitAt(data.project.id, selected.ts).then((r) => {
+    api.gitAt(data.project.id, selected.ts).then((r: { noRepo?: boolean; commit?: CommitInfo | null }) => {
       if (stale) return;
       if (r.noRepo) { setNoRepo(true); setCommit(null); }
-      else { setNoRepo(false); setCommit(r.commit); }
+      else { setNoRepo(false); setCommit(r.commit ?? null); }
     }).catch(() => {});
     return () => { stale = true; };
   }, [data, selectedSeq]);
 
   // Cmd/Ctrl+F focuses search; Esc clears
   useEffect(() => {
-    function onKey(e) {
+    function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); searchRef.current?.focus(); }
       if ((e.metaKey || e.ctrlKey) && e.key === '1') { e.preventDefault(); setMode('overview'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
@@ -169,7 +269,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  function selectMessage(seq, scroll = false) {
+  function selectMessage(seq: number, scroll = false): void {
     setSelectedSeq(seq);
     if (scroll) {
       requestAnimationFrame(() => {
@@ -179,12 +279,12 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   }
 
   // Timeline seek: pick nearest visible message to a timestamp
-  function seekTs(tsMillis) {
+  function seekTs(tsMillis: number): void {
     const pool = visible.length ? visible : messages;
-    let best = null, bestD = Infinity;
+    let best: PlaybackMessage | null = null, bestD = Infinity;
     for (const m of pool) {
       if (!m.ts) continue;
-      const d = Math.abs(new Date(m.ts) - tsMillis);
+      const d = Math.abs(new Date(m.ts).getTime() - tsMillis);
       if (d < bestD) { bestD = d; best = m; }
     }
     if (best) selectMessage(best.seq, true);
@@ -192,20 +292,20 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
   // Rename this session (optimistically patches the shared session object so the
   // breadcrumb, picker and overview title all update at once).
-  async function renameSession(name) {
+  async function renameSession(name: string): Promise<void> {
     const r = await api.renameSession(sessionId, name);
     setData((cur) => (cur ? { ...cur, session: { ...cur.session, name: r.name } } : cur));
   }
 
   // Per-session Sync Update: re-import just this session, then reload its messages.
-  async function syncThisSession() {
+  async function syncThisSession(): Promise<void> {
     if (syncingSession) return;
     setSyncingSession(true);
     try {
       await api.syncSession(sessionId);
       setData(await api.sessionMessages(sessionId));
     } catch (e) {
-      alert(String(e.message));
+      alert(String((e as Error).message));
     } finally {
       setSyncingSession(false);
     }
@@ -256,7 +356,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             }}>
             {newCount > 0 && (
               <button className="btn primary new-msgs" onClick={() => {
-                listRef.current.scrollTop = listRef.current.scrollHeight;
+                if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
                 setNewCount(0);
               }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
             )}
@@ -301,15 +401,23 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   );
 }
 
+interface SessionSwitcherProps {
+  projectId: number;
+  current: Session & { message_count: number; first_prompt: string | null };
+  onSwitch?: (sessionId: string) => void;
+}
+
 // Breadcrumb session dropdown: lazily loads the project's session list.
-function SessionSwitcher({ projectId, current, onSwitch }) {
-  const [sessions, setSessions] = useState(null);
+function SessionSwitcher({ projectId, current, onSwitch }: SessionSwitcherProps): JSX.Element {
+  // GET /api/projects/:id returns the ProjectSessionSummary shape (per-session
+  // summary rows), not full Session rows — use api.ts's canonical type instead
+  // of forcing the local `Session` shape.
+  const [sessions, setSessions] = useState<ProjectSessionSummary[] | null>(null);
   useEffect(() => {
-    api.project(projectId).then((d) => setSessions(d.sessions)).catch(() => setSessions([]));
+    api.project(projectId).then((d: ProjectDetail) => setSessions(d.sessions)).catch(() => setSessions([]));
   }, [projectId]);
   return (
     <SessionPicker sessions={sessions || []} loading={sessions === null} current={current}
-      onPick={(sid) => { if (sid !== current.id) onSwitch?.(sid); }} />
+      onPick={(sid: string) => { if (sid !== current.id) onSwitch?.(sid); }} />
   );
 }
-

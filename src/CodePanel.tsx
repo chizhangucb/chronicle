@@ -1,21 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { diffLines } from 'diff';
-import { api } from './api.js';
+import { diffLines, type Change } from 'diff';
+import { api, type GitTreeResult, type GitFileResult } from './api.js';
+
+// A commit as returned by server/git.ts (commitAt/commitsBetween) — the
+// message-to-snapshot mapping SessionView passes down as `commit`.
+export interface Commit {
+  hash: string;
+  date: string;
+  subject: string;
+  beforeHistory?: boolean;
+}
+
+// The successful (non-`noRepo`) halves of api.ts's GitTreeResult/GitFileResult
+// unions — what this component actually stores once a `noRepo` response has
+// been narrowed away below.
+interface GitTree {
+  files: string[];
+  changed: string[];
+}
+
+interface GitFile {
+  content: string | null;
+  previous: string | null;
+  prevCommit: string | null;
+  changedInCommit: boolean;
+}
+
+export interface CodePanelProps {
+  projectId: number;
+  commit: Commit | null;
+  noRepo?: boolean;
+}
 
 // Code Snapshot Panel (FR-TT-3/4): file tree at the snapshot commit,
 // file content, diff toggle (toolbar + `D`), changed-file highlighting.
-export default function CodePanel({ projectId, commit, noRepo }) {
-  const [tree, setTree] = useState({ files: [], changed: [] });
-  const [selectedPath, setSelectedPath] = useState(null);
-  const [file, setFile] = useState(null); // {content, previous, prevCommit}
+export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps) {
+  const [tree, setTree] = useState<GitTree>({ files: [], changed: [] });
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [file, setFile] = useState<GitFile | null>(null);
   const [diffMode, setDiffMode] = useState(false);
   const [treeFilter, setTreeFilter] = useState('');
 
   useEffect(() => {
     if (!commit) return;
     let stale = false;
-    api.gitTree(projectId, commit.hash).then((t) => {
+    api.gitTree(projectId, commit.hash).then((t: GitTreeResult) => {
       if (stale) return;
+      if ('noRepo' in t) return; // no repo at this commit — the `noRepo` prop already drives the empty state
       setTree(t);
       // Auto-select the first file changed in this commit, else keep selection
       setSelectedPath((cur) => {
@@ -30,15 +61,19 @@ export default function CodePanel({ projectId, commit, noRepo }) {
   useEffect(() => {
     if (!commit || !selectedPath) { setFile(null); return; }
     let stale = false;
-    api.gitFile(projectId, commit.hash, selectedPath).then((f) => { if (!stale) setFile(f); }).catch(() => setFile(null));
+    api.gitFile(projectId, commit.hash, selectedPath).then((f: GitFileResult) => {
+      if (stale) return;
+      if ('noRepo' in f) { setFile(null); return; }
+      setFile(f);
+    }).catch(() => setFile(null));
     return () => { stale = true; };
   }, [projectId, commit?.hash, selectedPath]);
 
   // `D` toggles diff view (when not typing in an input)
   useEffect(() => {
-    function onKey(e) {
+    function onKey(e: KeyboardEvent) {
       if (e.key.toLowerCase() === 'd' && !e.metaKey && !e.ctrlKey &&
-          !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+          !['INPUT', 'TEXTAREA'].includes((document.activeElement as HTMLElement | null)?.tagName || '')) {
         setDiffMode((d) => !d);
       }
     }
@@ -101,7 +136,12 @@ export default function CodePanel({ projectId, commit, noRepo }) {
   );
 }
 
-function DiffView({ current, previous }) {
+interface DiffViewProps {
+  current: string | null;
+  previous: string | null;
+}
+
+function DiffView({ current, previous }: DiffViewProps) {
   const parts = useMemo(() => diffLines(previous ?? '', current ?? ''), [current, previous]);
   const unchanged = parts.every((p) => !p.added && !p.removed);
   if (unchanged) return <div className="muted center pad8">No changes to this file at this snapshot (vs. its previous version).</div>;
@@ -117,7 +157,7 @@ function DiffView({ current, previous }) {
 }
 
 // Show full added/removed hunks; trim long unchanged runs to 3 lines of context.
-function compressContext(part, idx, total) {
+function compressContext(part: Change, idx: number, total: number): string {
   if (part.added || part.removed) return part.value;
   const lines = part.value.split('\n');
   if (lines.length <= 8) return part.value;

@@ -576,18 +576,21 @@ const ja = {
   'Keep all of this type': 'このタイプをすべて保持',
 };
 
-const DICTS = { zh, ja };
+const DICTS: Record<string, Record<string, string>> = { zh, ja };
 
-export function lang() {
-  return localStorage.getItem('chronicle-lang') || 'en';
+// Supported UI languages; 'en' has no dict entry (English IS the key).
+export type Lang = 'en' | 'zh' | 'ja';
+
+export function lang(): Lang {
+  return (localStorage.getItem('chronicle-lang') as Lang | null) || 'en';
 }
 
-export function t(s) {
+export function t(s: string): string {
   const d = DICTS[lang()];
   return d ? (d[s] ?? s) : s;
 }
 
-export function setLang(next) {
+export function setLang(next: Lang): void {
   if (next === lang()) return;
   localStorage.setItem('chronicle-lang', next);
   location.reload();

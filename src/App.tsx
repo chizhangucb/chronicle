@@ -1,34 +1,62 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { api } from './api.js';
-import ImportWizard from './ImportWizard.jsx';
+import { api, type Settings } from './api.js';
+import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
-import SearchModal from './SearchModal.jsx';
+import SearchModal from './SearchModal.tsx';
 import HomePage from './HomePage.jsx';
-import { t, lang, setLang } from './i18n.js';
+import { t, lang, setLang, type Lang } from './i18n.js';
+import type { Project } from '@shared/types.ts';
+import type { LiveChangeInfo, RailState } from './SessionView.jsx';
+
+// The `/api/projects` list response: a Project row plus per-project aggregates
+// (session_count/message_count/last_active/sources — server/routes/projects.ts
+// ProjectListRow) and the live `git` pill info (server/git.ts RepoInfo), computed
+// fresh on every call (no caching).
+export interface ProjectListItem extends Project {
+  session_count: number;
+  message_count: number;
+  last_active: string | null;
+  sources: string | null;
+  git: { isRepo: boolean; commitCount?: number; branch?: string | null };
+}
+
+// view: {name:'home'} | {name:'project', id} | {name:'session', id, projectId}
+// Restore from sessionStorage so a full page reload (the language switch reloads
+// to re-translate module-scope strings) keeps you where you were, instead of
+// dropping to Home. sessionStorage → a fresh app launch still starts at Home.
+// `id`/`projectId` are `number | string` to match ProjectDetail/HomePage's
+// project-id callbacks (which stay loose since several api.ts calls accept
+// either); Project.id is always a number in practice.
+export type View =
+  | { name: 'home' }
+  | { name: 'project'; id: number | string }
+  | { name: 'session'; id: string; projectId: number | string };
+
+// Live-streaming pill state and session-mode rail config are owned by
+// SessionView (the producer, via `onLiveChange`/`onRailChange`) — reuse its
+// exported types here instead of duplicating them, so the two stay in sync.
 
 export default function App() {
-  // view: {name:'home'} | {name:'project', id} | {name:'session', id, projectId}
-  // Restore from sessionStorage so a full page reload (the language switch reloads
-  // to re-translate module-scope strings) keeps you where you were, instead of
-  // dropping to Home. sessionStorage → a fresh app launch still starts at Home.
-  const [view, setView] = useState(() => {
-    try { const s = sessionStorage.getItem('chronicle-view'); if (s) return JSON.parse(s); } catch {}
+  const [view, setView] = useState<View>(() => {
+    try {
+      const s = sessionStorage.getItem('chronicle-view');
+      if (s) return JSON.parse(s) as View;
+    } catch {}
     return { name: 'home' };
   });
   useEffect(() => {
     try { sessionStorage.setItem('chronicle-view', JSON.stringify(view)); } catch {}
   }, [view]);
-  const [projects, setProjects] = useState(null);
+  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
-  const [liveInfo, setLiveInfo] = useState(null);
-  // Session mode rail config, registered by SessionView while it is mounted:
-  // { modes: [{key, icon, label, title}], active, select(key), securityOpen }
-  const [rail, setRail] = useState(null);
+  const [liveInfo, setLiveInfo] = useState<LiveChangeInfo | null>(null);
+  // Session mode rail config, registered by SessionView while it is mounted.
+  const [rail, setRail] = useState<RailState | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('chronicle-sidebar') === 'collapsed');
 
   const refresh = useCallback(() => {
@@ -55,7 +83,7 @@ export default function App() {
 
   // ⌘K / Ctrl+K opens the global search palette from anywhere.
   useEffect(() => {
-    function onKey(e) {
+    function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setSearchOpen((o) => !o);
@@ -66,12 +94,12 @@ export default function App() {
   }, []);
 
   const [syncingAll, setSyncingAll] = useState(false);
-  async function syncAll(e) {
+  async function syncAll(e: React.MouseEvent) {
     e.stopPropagation();
     if (syncingAll) return;
     setSyncingAll(true);
     try {
-      const list = await api.projects();
+      const list: ProjectListItem[] = await api.projects();
       for (const p of list) {
         // Tolerate projects with no matching source logs (moved/deleted).
         try { await api.syncProject(p.id); } catch {}
@@ -151,7 +179,7 @@ export default function App() {
             <button className="btn ghost icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>🔍</button>
             <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
             <select className="chip lang-select" title="Language / 语言" value={lang()}
-              onChange={(e) => setLang(e.target.value)}>
+              onChange={(e) => setLang(toLang(e.target.value))}>
               <option value="en">EN</option>
               <option value="zh">中文</option>
               <option value="ja">日本語</option>
@@ -160,21 +188,21 @@ export default function App() {
         </header>
 
         {view.name === 'home' && (
-          <HomePage projects={projects} onOpenProject={(id) => setView({ name: 'project', id })}
+          <HomePage projects={projects} onOpenProject={(id: number | string) => setView({ name: 'project', id })}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {view.name === 'project' && (
           <ProjectDetail id={view.id}
             onBack={() => setView({ name: 'home' })}
             onLiveChange={setLiveInfo}
-            onOpenProject={(pid) => setView({ name: 'project', id: pid })}
-            onOpenSession={(sid) => setView({ name: 'session', id: sid, projectId: view.id })} />
+            onOpenProject={(pid: number | string) => setView({ name: 'project', id: pid })}
+            onOpenSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.id })} />
         )}
         {view.name === 'session' && (
           <SessionView key={view.id} sessionId={view.id}
             onLiveChange={setLiveInfo}
             onRailChange={setRail}
-            onSwitchSession={(sid) => setView({ name: 'session', id: sid, projectId: view.projectId })}
+            onSwitchSession={(sid: string) => setView({ name: 'session', id: sid, projectId: view.projectId })}
             onBack={() => setView({ name: 'project', id: view.projectId })} />
         )}
       </div>
@@ -185,18 +213,35 @@ export default function App() {
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
-          onOpen={(sid, pid) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
+          onOpen={(sid: string, pid: number) => { setSearchOpen(false); setView({ name: 'session', id: sid, projectId: pid }); }} />
       )}
     </div>
   );
 }
 
-// Settings: auto-sync (server-side watchers + timer).
-function SettingsModal({ onClose }) {
-  const [settings, setSettings] = useState(null);
-  useEffect(() => { api.settings().then(setSettings).catch(() => setSettings({})); }, []);
-  async function toggle(key) {
-    const next = { ...settings, [key]: !settings[key] };
+// Narrows the raw <select> value (always `string` at the DOM level) to the
+// `Lang` union instead of casting — falls back to 'en' for anything unknown.
+function toLang(v: string): Lang {
+  return v === 'zh' || v === 'ja' ? v : 'en';
+}
+
+// Settings: auto-sync (server-side watchers + timer). `Settings` is imported
+// from api.ts (the canonical type, derived from server/routes/settings.ts,
+// which always returns both fields with concrete booleans — no index
+// signature needed here).
+
+export interface SettingsModalProps {
+  onClose: () => void;
+}
+
+function SettingsModal({ onClose }: SettingsModalProps) {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    api.settings().then(setSettings).catch(() => setSettings({ autoSync: true, launchAtLogin: false }));
+  }, []);
+  async function toggle(key: keyof Settings) {
+    if (!settings) return;
+    const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
     try { setSettings(await api.patchSettings({ [key]: next[key] })); } catch {}
   }
@@ -220,4 +265,3 @@ function SettingsModal({ onClose }) {
     </div>
   );
 }
-

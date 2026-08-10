@@ -1,25 +1,65 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
+// ProjectDetail.jsx is owned by another conversion group and stays untyped in
+// this worktree; sessionDisplayName's param is therefore implicit `any` here —
+// reconciled once ProjectDetail.tsx lands post-merge.
 import { sessionDisplayName } from './ProjectDetail.jsx';
 
 // Global search palette (⌘K): All/Code/Chat scope, time + project
 // filters, "Recent Access" when empty. Server does a LIKE scan grouped per session.
-const SEARCH_SCOPES = [
+
+interface SearchScope {
+  key: 'all' | 'code' | 'chat';
+  label: string;
+  icon: string;
+}
+const SEARCH_SCOPES: SearchScope[] = [
   { key: 'all', label: 'All', icon: '≡' },
   { key: 'code', label: 'Code', icon: '</>' },
   { key: 'chat', label: 'Chat', icon: '💬' },
 ];
-const SEARCH_RANGES = [
+
+interface SearchRange {
+  key: string;
+  label: string;
+}
+const SEARCH_RANGES: SearchRange[] = [
   { key: '', label: 'All Time' },
   { key: '7', label: '7 Days' },
   { key: '30', label: '30 Days' },
   { key: '365', label: '1 Year' },
 ];
 
-function relTime(ts) {
+// A project as listed by GET /api/projects, for the project filter select.
+interface SearchProject {
+  id: number;
+  name: string;
+}
+
+// One result row (server/routes/search.ts SessionResult, plus the "Recent
+// Access" shape when the query is empty — same fields, matchCount forced 0).
+interface SearchResult {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  project_name: string;
+  matchCount: number;
+  snippet: string;
+  ts: string | null;
+}
+
+interface SearchData {
+  recent: boolean;
+  results: SearchResult[];
+}
+
+function relTime(ts: string | null | undefined): string {
   if (!ts) return '';
-  const s = Math.max(0, (Date.now() - new Date(ts)) / 1000);
+  const s = Math.max(0, (Date.now() - Number(new Date(ts))) / 1000);
   if (s < 60) return t('just now');
   const m = Math.floor(s / 60);
   if (m < 60) return `${m} ${t(m === 1 ? 'minute ago' : 'minutes ago')}`;
@@ -29,10 +69,10 @@ function relTime(ts) {
   return d === 1 ? t('1 day ago') : `${d} ${t('days ago')}`;
 }
 
-function searchHighlight(text, q) {
+function searchHighlight(text: string, q: string): React.ReactNode {
   if (!text || !q) return text;
   const lower = text.toLowerCase(), needle = q.toLowerCase();
-  const parts = [];
+  const parts: React.ReactNode[] = [];
   let i = 0, idx;
   while ((idx = lower.indexOf(needle, i)) !== -1 && parts.length < 40) {
     parts.push(text.slice(i, idx));
@@ -43,18 +83,23 @@ function searchHighlight(text, q) {
   return parts;
 }
 
-export default function SearchModal({ onClose, onOpen }) {
+export interface SearchModalProps {
+  onClose: () => void;
+  onOpen: (sessionId: string, projectId: number) => void;
+}
+
+export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [scope, setScope] = useState('all');
+  const [scope, setScope] = useState<SearchScope['key']>('all');
   const [days, setDays] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [projects, setProjects] = useState([]);
-  const [data, setData] = useState({ recent: true, results: [] });
+  const [projects, setProjects] = useState<SearchProject[]>([]);
+  const [data, setData] = useState<SearchData>({ recent: true, results: [] });
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); api.projects().then(setProjects).catch(() => {}); }, []);
   useEffect(() => { const id = setTimeout(() => setDebounced(q.trim()), 220); return () => clearTimeout(id); }, [q]);
@@ -62,19 +107,19 @@ export default function SearchModal({ onClose, onOpen }) {
   useEffect(() => {
     let stale = false;
     setLoading(true);
-    const params = { q: debounced, scope };
+    const params: Record<string, string> = { q: debounced, scope };
     if (days) params.days = days;
     if (projectId) params.project = projectId;
-    api.search(params).then((d) => { if (!stale) { setData(d); setActive(0); } })
+    api.search(params).then((d: SearchData) => { if (!stale) { setData(d); setActive(0); } })
       .catch(() => { if (!stale) setData({ recent: !debounced, results: [] }); })
       .finally(() => { if (!stale) setLoading(false); });
     return () => { stale = true; };
   }, [debounced, scope, days, projectId]);
 
   const results = data.results || [];
-  function open(r) { if (r) onOpen(r.id, r.project_id); }
+  function open(r: SearchResult | undefined) { if (r) onOpen(r.id, r.project_id); }
 
-  function onKey(e) {
+  function onKey(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(results.length - 1, a + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
     else if (e.key === 'Enter') { e.preventDefault(); open(results[active]); }
