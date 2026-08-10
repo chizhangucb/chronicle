@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { db, upsertProject } from '../db.ts';
 import * as gitEngine from '../git.ts';
-import { liveCandidatesForSessions } from '../live.js';
+import { liveCandidatesForSessions } from '../live.ts';
 import { backupDbBeforeDelete } from './_shared.js';
 
 export function mountProjects(app) {

@@ -6,7 +6,7 @@ import { mountSessions }   from './routes/sessions.js';
 import { mountSearch }     from './routes/search.js';
 import { mountSecurity }   from './routes/security.js';
 import { mountGit }        from './routes/git.js';
-import { startAutoSync }   from './autosync.js';
+import { startAutoSync }   from './autosync.ts';
 
 export const api = express();
 api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH

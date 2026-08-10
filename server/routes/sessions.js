@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { db } from '../db.ts';
 import * as gitEngine from '../git.ts';
-import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.js';
+import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { analyzeCausality } from '../causality.ts';
 import { PER_FILE_SOURCES, backupDbBeforeDelete } from './_shared.js';
 

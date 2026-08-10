@@ -13,40 +13,79 @@ import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './p
 import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.ts';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
+import type { ParseResult } from '../shared/types.ts';
+
+export interface ChronicleConfig {
+  autoSync?: boolean;
+  launchAtLogin?: boolean;
+  [key: string]: unknown;
+}
+
+export type ConfigPatch = Partial<ChronicleConfig>;
+
+export interface SyncResultOk {
+  ok: true;
+  imported: number;
+  checked: number;
+  ms: number;
+}
+export interface SyncResultSkipped {
+  ok: true;
+  skipped: string;
+}
+export interface SyncResultError {
+  ok: false;
+  error: string;
+}
+export type SyncResult = SyncResultOk | SyncResultSkipped | SyncResultError;
+
+interface AutoSyncState {
+  watchers: fs.FSWatcher[];
+  timer: NodeJS.Timeout | null;
+  debounce: NodeJS.Timeout | null;
+  running: boolean;
+  lastRun: string | null;
+  lastResult: SyncResult | null;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __chronicleAutoSync: AutoSyncState | undefined;
+}
 
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 const CONFIG_PATH = path.join(CHRONICLE_DIR, 'config.json');
 const DEBOUNCE_MS = 30 * 1000;       // a streaming JSONL isn't re-imported per line
 const BACKSTOP_MS = 30 * 60 * 1000;  // catches missed fs events (macOS drops them across sleep)
 
-export function readConfig() {
+export function readConfig(): ChronicleConfig {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
 }
 
-export function writeConfig(patch) {
+export function writeConfig(patch: ConfigPatch): ChronicleConfig {
   const cfg = { ...readConfig(), ...patch };
   fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
   return cfg;
 }
 
-export function autoSyncEnabled() {
+export function autoSyncEnabled(): boolean {
   return readConfig().autoSync !== false; // default ON
 }
 
-function state() {
+function state(): AutoSyncState {
   if (!globalThis.__chronicleAutoSync) {
     globalThis.__chronicleAutoSync = { watchers: [], timer: null, debounce: null, running: false, lastRun: null, lastResult: null };
   }
   return globalThis.__chronicleAutoSync;
 }
 
-function mtimeOf(file) {
+function mtimeOf(file: string): number | null {
   try { return fs.statSync(file).mtime.getTime(); } catch { return null; }
 }
 
 // A Claude Code session's effective mtime includes its subagents dir.
-function claudeMtime(file) {
+function claudeMtime(file: string): number | null {
   let m = mtimeOf(file) ?? 0;
   const sub = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents');
   try {
@@ -57,19 +96,19 @@ function claudeMtime(file) {
 
 // One incremental pass over every source. Imports sessions that are NEW in an
 // already-imported project, or whose source file changed since their import.
-export async function runIncrementalSync() {
+export async function runIncrementalSync(): Promise<SyncResult> {
   const st = state();
   if (st.running) return { ok: true, skipped: 'already running' };
   st.running = true;
   const started = Date.now();
   let imported = 0, checked = 0;
   try {
-    const projectPaths = new Set(db.prepare('SELECT path FROM projects').all().map((p) => p.path));
-    const bySession = new Map(db.prepare('SELECT id, file_path, imported_at FROM sessions').all().map((s) => [s.id, s]));
-    const byFile = new Map(db.prepare('SELECT file_path, MAX(imported_at) AS at FROM sessions GROUP BY file_path').all().map((r) => [r.file_path, r.at]));
-    const importedAtMs = (iso) => (iso ? new Date(iso + (iso.endsWith('Z') || iso.includes('+') ? '' : 'Z')).getTime() : 0);
+    const projectPaths = new Set((db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[]).map((p) => p.path));
+    const bySession = new Map((db.prepare('SELECT id, file_path, imported_at FROM sessions').all() as unknown as { id: string; file_path: string; imported_at: string | null }[]).map((s) => [s.id, s]));
+    const byFile = new Map((db.prepare('SELECT file_path, MAX(imported_at) AS at FROM sessions GROUP BY file_path').all() as unknown as { file_path: string; at: string | null }[]).map((r) => [r.file_path, r.at]));
+    const importedAtMs = (iso: string | null | undefined): number => (iso ? new Date(iso + (iso.endsWith('Z') || iso.includes('+') ? '' : 'Z')).getTime() : 0);
 
-    const importParsedList = (parsed) => {
+    const importParsedList = (parsed: ParseResult[]): void => {
       for (const { session, events } of parsed) {
         if (!events.length || !session.cwd) continue;
         if (!projectPaths.has(session.cwd)) continue; // auto-sync never creates new projects
@@ -82,17 +121,17 @@ export async function runIncrementalSync() {
     // Per-file sources: cheap mtime pre-filter, parse only stale/new files.
     for (const item of scanClaudeProjects()) {
       if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
-      for (const s of item.sessions) {
+      for (const s of item.sessions ?? []) {
         checked++;
         const prev = bySession.get(s.id);
-        const m = claudeMtime(s.file);
+        const m = claudeMtime(s.file as string);
         if (prev && m && m <= importedAtMs(prev.imported_at)) continue;
-        importParsedList([await parseClaudeSession(s.file)]);
+        importParsedList([await parseClaudeSession(s.file as string)]);
       }
     }
     for (const item of scanCodexProjects()) {
       if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
-      for (const f of item.files) {
+      for (const f of item.files ?? []) {
         checked++;
         const at = byFile.get(f);
         const m = mtimeOf(f);
@@ -102,7 +141,7 @@ export async function runIncrementalSync() {
     }
     // DB-backed / dir-backed sources: re-parse the whole store when its file is
     // newer than the last import from it.
-    const staleStore = (storePath) => {
+    const staleStore = (storePath: string): boolean => {
       const at = [...byFile.entries()].filter(([f]) => f === storePath || f.startsWith(storePath)).map(([, v]) => v).sort().pop();
       const m = mtimeOf(storePath);
       return !at || !m || m > importedAtMs(at);
@@ -119,26 +158,26 @@ export async function runIncrementalSync() {
     }
     st.lastResult = { ok: true, imported, checked, ms: Date.now() - started };
   } catch (err) {
-    st.lastResult = { ok: false, error: String(err.message || err) };
+    st.lastResult = { ok: false, error: String((err as Error).message || err) };
   } finally {
     st.lastRun = new Date().toISOString();
     st.running = false;
   }
-  return st.lastResult;
+  return st.lastResult as SyncResult;
 }
 
-export function autoSyncStatus() {
+export function autoSyncStatus(): { enabled: boolean; running: boolean; lastRun: string | null; lastResult: SyncResult | null } {
   const st = state();
   return { enabled: autoSyncEnabled(), running: st.running, lastRun: st.lastRun, lastResult: st.lastResult };
 }
 
-function scheduleDebounced() {
+function scheduleDebounced(): void {
   const st = state();
-  clearTimeout(st.debounce);
+  clearTimeout(st.debounce ?? undefined);
   st.debounce = setTimeout(() => { runIncrementalSync(); }, DEBOUNCE_MS);
 }
 
-export function startAutoSync() {
+export function startAutoSync(): void {
   const st = state();
   stopAutoSync();
   if (!autoSyncEnabled()) return;
@@ -159,9 +198,9 @@ export function startAutoSync() {
   setTimeout(() => { runIncrementalSync(); }, 3000);
 }
 
-export function stopAutoSync() {
+export function stopAutoSync(): void {
   const st = state();
   for (const w of st.watchers.splice(0)) { try { w.close(); } catch {} }
-  clearInterval(st.timer); st.timer = null;
-  clearTimeout(st.debounce); st.debounce = null;
+  clearInterval(st.timer ?? undefined); st.timer = null;
+  clearTimeout(st.debounce ?? undefined); st.debounce = null;
 }

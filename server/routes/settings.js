@@ -1,4 +1,4 @@
-import { readConfig, writeConfig, startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync } from '../autosync.js';
+import { readConfig, writeConfig, startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync } from '../autosync.ts';
 
 export function mountSettings(app) {
   // ---- Auto-sync & settings ----
