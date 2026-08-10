@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { t } from './i18n.js';
-import { costOf } from './models.js';
+import { costOf, type ModelUsageInput } from './models.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -64,7 +64,9 @@ export interface ProjectDetailData {
 const SESSION_WINDOW = 100;
 function sessionCost(s: ProjectSession): number {
   try {
-    const usage = s.usage ? JSON.parse(s.usage) : null;
+    // `usage` is JSON-stringified per-model token totals (see @shared/types.ts
+    // Usage) — cast the parse result to its declared shape at this boundary.
+    const usage = s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
     if (!usage) return 0;
     return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u) ?? 0), 0);
   } catch { return 0; }
@@ -137,7 +139,10 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (def?.today) { const d = new Date(); d.setHours(0, 0, 0, 0); return (Date.now() - d.getTime()) / 86400000; }
     return def?.days ?? null;
   }, [range]);
-  const refresh = () => api.project(id, days).then(setData).catch((e: Error) => setError(String(e.message)));
+  // `days` is `number | null` (null = no range limit); api.project's `days`
+  // param is `number | string | undefined` — null and undefined mean the same
+  // thing here (omit the query param), so convert honestly at the call site.
+  const refresh = () => api.project(id, days ?? undefined).then(setData).catch((e: Error) => setError(String(e.message)));
   useEffect(() => { refresh(); }, [id, range]);
 
   // Project-level LIVE pill: light up when any session log is being written right now.

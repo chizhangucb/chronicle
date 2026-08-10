@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { diffLines, type Change } from 'diff';
-import { api } from './api.js';
+import { api, type GitTreeResult, type GitFileResult } from './api.js';
 
 // A commit as returned by server/git.ts (commitAt/commitsBetween) — the
 // message-to-snapshot mapping SessionView passes down as `commit`.
@@ -11,13 +11,14 @@ export interface Commit {
   beforeHistory?: boolean;
 }
 
-// GET /api/git/tree response (server/git.ts treeAt + changedFiles).
+// The successful (non-`noRepo`) halves of api.ts's GitTreeResult/GitFileResult
+// unions — what this component actually stores once a `noRepo` response has
+// been narrowed away below.
 interface GitTree {
   files: string[];
   changed: string[];
 }
 
-// GET /api/git/file response (server/git.ts fileAt / FileAtResult).
 interface GitFile {
   content: string | null;
   previous: string | null;
@@ -43,8 +44,9 @@ export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps)
   useEffect(() => {
     if (!commit) return;
     let stale = false;
-    api.gitTree(projectId, commit.hash).then((t: GitTree) => {
+    api.gitTree(projectId, commit.hash).then((t: GitTreeResult) => {
       if (stale) return;
+      if ('noRepo' in t) return; // no repo at this commit — the `noRepo` prop already drives the empty state
       setTree(t);
       // Auto-select the first file changed in this commit, else keep selection
       setSelectedPath((cur) => {
@@ -59,7 +61,11 @@ export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps)
   useEffect(() => {
     if (!commit || !selectedPath) { setFile(null); return; }
     let stale = false;
-    api.gitFile(projectId, commit.hash, selectedPath).then((f: GitFile) => { if (!stale) setFile(f); }).catch(() => setFile(null));
+    api.gitFile(projectId, commit.hash, selectedPath).then((f: GitFileResult) => {
+      if (stale) return;
+      if ('noRepo' in f) { setFile(null); return; }
+      setFile(f);
+    }).catch(() => setFile(null));
     return () => { stale = true; };
   }, [projectId, commit?.hash, selectedPath]);
 

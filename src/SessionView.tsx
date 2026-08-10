@@ -8,7 +8,7 @@ import SecurityCheck from './SecurityCheck.jsx';
 import { SessionPicker } from './ProjectDetail.jsx';
 import MessageRow, { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
-import type { SourceId } from '@shared/types.ts';
+import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 
 // ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
 // Duplicated from server/db.ts + server/git.ts + server/causality.ts rather than
@@ -16,11 +16,13 @@ import type { SourceId } from '@shared/types.ts';
 // it cannot see server/**. See the task report for the suggested shared-type
 // addition (a client-usable Session/Project/CausalityResult contract).
 
-// Full `sessions` row shape (mirrors server/db.ts SessionRow).
+// Full `sessions` row shape (mirrors server/db.ts SessionRow). `source` is a
+// plain `string` (not the narrower `SourceId` union) to match the canonical
+// api.ts `Session`/server/db.ts `SessionRow` — the DB column is untyped TEXT.
 export interface Session {
   id: string;
   project_id: number;
-  source: SourceId;
+  source: string;
   file_path: string;
   started_at: string | null;
   ended_at: string | null;
@@ -407,9 +409,12 @@ interface SessionSwitcherProps {
 
 // Breadcrumb session dropdown: lazily loads the project's session list.
 function SessionSwitcher({ projectId, current, onSwitch }: SessionSwitcherProps): JSX.Element {
-  const [sessions, setSessions] = useState<Session[] | null>(null);
+  // GET /api/projects/:id returns the ProjectSessionSummary shape (per-session
+  // summary rows), not full Session rows — use api.ts's canonical type instead
+  // of forcing the local `Session` shape.
+  const [sessions, setSessions] = useState<ProjectSessionSummary[] | null>(null);
   useEffect(() => {
-    api.project(projectId).then((d: { sessions: Session[] }) => setSessions(d.sessions)).catch(() => setSessions([]));
+    api.project(projectId).then((d: ProjectDetail) => setSessions(d.sessions)).catch(() => setSessions([]));
   }, [projectId]);
   return (
     <SessionPicker sessions={sessions || []} loading={sessions === null} current={current}

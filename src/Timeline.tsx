@@ -3,11 +3,14 @@ import type { Kind } from '@shared/types.ts';
 
 // A timeline dot/tick — the minimal fields the ruler reads off a normalized
 // event. `seq` is always present by the time messages reach this component
-// (assigned at insert/live-SSE time).
+// (assigned at insert/live-SSE time). `ts` is optional to match
+// @shared/types.ts Event.ts (`ts?: string | null`) — some events genuinely
+// have no timestamp, and PlaybackMessage (the type actually passed in) leaves
+// the key absent rather than always setting it to `null`.
 export interface TimelineMessage {
   seq: number;
   kind: Kind;
-  ts: string | null;
+  ts?: string | null;
 }
 
 // A git commit tick — mirrors server/git.ts `Commit`, trimmed to what the

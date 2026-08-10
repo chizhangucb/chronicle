@@ -3,7 +3,7 @@
 // (see server/routes/*.ts); shared entities (Project, scan shapes) come from
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
-import type { Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
 
 async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, opts);
@@ -143,13 +143,13 @@ export interface Message {
   seq: number;
   uuid: string | null;
   ts: string | null;
-  kind: string;
+  kind: Kind;
   text: string | null;
   tool_name: string | null;
   tool_input: string | null;
   tool_use_id: string | null;
   model: string | null;
-  is_sidechain: number;
+  is_sidechain: 0 | 1;
   agent_type: string | null;
   skill: string | null;
   input_tokens: number | null;
