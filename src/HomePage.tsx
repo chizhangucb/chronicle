@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { useSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
+import { useSyncStatus } from './useSyncStatus.js';
+import { formatRelativeTime } from './relativeTime.js';
+import { projectColorMap } from './colors.js';
+import { costOf, type ModelUsageInput } from './models.js';
+import { fmtDur } from './session/stats.js';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 import type { SearchResultItem } from './api.js';
@@ -19,8 +24,6 @@ export interface ProjectSummary extends Project {
   git: RepoInfo;
 }
 
-const SOURCE_ICONS: Record<string, string> = { 'claude-code': '✳', codex: '⬡', cursor: '▮' };
-
 interface ProjectMenuProps {
   project: ProjectSummary;
   onOpenProject: (id: number | string) => void;
@@ -29,6 +32,16 @@ interface ProjectMenuProps {
 
 function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
   const [syncing, setSyncing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  // Remove is gated by an INLINE two-step confirm inside the dropdown, not
+  // `window.confirm` — window.confirm/alert/prompt silently no-op in
+  // embedded/preview browser contexts (see CLAUDE.md), which is exactly why
+  // Home's old project multi-select delete and OverviewMode's rename both use
+  // an inline affordance instead. `open` is controlled so the confirm state
+  // resets whenever the dropdown closes (click-away, Escape, etc.), not just
+  // on an explicit Cancel click.
+  const [open, setOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function run(action: 'sync' | 'details' | 'rename' | 'remove') {
     try {
@@ -44,7 +57,7 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
         await api.renameProject(project.id, name);
         onRefresh();
       } else if (action === 'remove') {
-        if (!confirm(`${t('Remove')} "${project.name}" ${t('from Chronicle? Your source logs and project folder are not touched.')}`)) return;
+        setRemoving(true);
         await api.deleteProject(project.id);
         onRefresh();
       }
@@ -52,12 +65,13 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
       alert(String((e as Error).message));
     } finally {
       setSyncing(false);
+      setRemoving(false);
     }
   }
 
   return (
     <span className="project-menu" onClick={(e) => e.stopPropagation()}>
-      <DropdownMenu.Root>
+      <DropdownMenu.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) setConfirmRemove(false); }}>
         <DropdownMenu.Trigger asChild>
           <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title={t('Project options')}>
             {syncing ? '◌' : '⚙'}
@@ -65,14 +79,32 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content className="menu-pop" align="end" sideOffset={6}>
-            <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
-            <DropdownMenu.Item className="menu-item" onSelect={() => run('details')}>ⓘ {t('View Details')}</DropdownMenu.Item>
-            <DropdownMenu.Item className="menu-item" onSelect={() => run('rename')}>✎ {t('Rename')}</DropdownMenu.Item>
-            <DropdownMenu.Separator className="menu-sep" />
-            <DropdownMenu.Item className="menu-item danger" onSelect={() => run('remove')}>
-              🗑 {t('Remove from Chronicle')}
-              <span className="muted small">{t("(won't delete source project)")}</span>
-            </DropdownMenu.Item>
+            {confirmRemove ? (
+              <div className="menu-confirm">
+                <span className="muted small">
+                  {t('Remove')} "{project.name}" {t('from Chronicle? Your source logs and project folder are not touched.')}
+                </span>
+                <div className="menu-confirm-actions">
+                  <button className="btn tiny ghost" disabled={removing} onClick={() => setConfirmRemove(false)}>
+                    {t('Cancel')}
+                  </button>
+                  <button className="btn tiny danger-btn" disabled={removing} onClick={() => run('remove')}>
+                    {removing ? t('Removing…') : `🗑 ${t('Remove')}`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => run('details')}>ⓘ {t('View Details')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => run('rename')}>✎ {t('Rename')}</DropdownMenu.Item>
+                <DropdownMenu.Separator className="menu-sep" />
+                <DropdownMenu.Item className="menu-item danger" onSelect={(e) => { e.preventDefault(); setConfirmRemove(true); }}>
+                  🗑 {t('Remove from Chronicle')}
+                  <span className="muted small">{t("(won't delete source project)")}</span>
+                </DropdownMenu.Item>
+              </>
+            )}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
@@ -88,46 +120,154 @@ export interface HomePageProps {
   onRefresh: () => void;
 }
 
+// ---- Ledger row helpers (local, trivial — not shared/tested) ----
+
+// Per-row cost: aggregates the row's `usage` blob (per-model token totals,
+// only populated on the empty-query "recent" branch of GET /api/search — see
+// server/routes/search.ts) the same way OverviewMode/ProjectDetail's
+// sessionCost() already do, just reading it off a search-result row instead
+// of the full session object.
+function rowCost(s: SearchResultItem): number | null {
+  if (!s.usage) return null;
+  try {
+    const usage = JSON.parse(s.usage) as Record<string, ModelUsageInput> | null;
+    if (!usage) return null;
+    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u)).filter((c): c is number => c != null);
+    return costs.length ? costs.reduce((a, b) => a + b, 0) : null;
+  } catch { return null; }
+}
+
+function costLabel(s: SearchResultItem): string {
+  const c = rowCost(s);
+  return c == null ? '—' : `$${c.toFixed(2)}`;
+}
+
+function activeLabel(s: SearchResultItem): string {
+  return fmtDur(s.agent_active_ms);
+}
+
+// `message_count` is only populated on the empty-query "recent" branch of
+// /api/search — the FTS/LIKE match branch doesn't select it, so it's
+// `undefined` there. Render '—' (matching the Cost/Active placeholder) rather
+// than a false "0" for search-mode rows.
+function msgsLabel(s: SearchResultItem): string {
+  return s.message_count != null ? String(s.message_count) : '—';
+}
+
+// 'now'/'{n}h ago' etc. (via the shared formatRelativeTime) for today's rows;
+// a plain HH:MM local-time render for older ones, where relative time is
+// less useful than a clock time.
+function whenLabel(s: SearchResultItem, isToday: boolean): string {
+  if (!s.ts) return '';
+  if (isToday) return formatRelativeTime(s.ts);
+  const d = new Date(s.ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+interface DayGroup {
+  label: string;
+  isToday: boolean;
+  // `cost` is null (not 0) when none of the group's rows carry priced usage
+  // data — e.g. every row came from the FTS/LIKE search branch of
+  // /api/search, which doesn't select `usage` at all. A real $0.00 (priced
+  // usage that happens to sum to zero) is distinguished from "we don't know"
+  // by checking `rowCost` per row rather than defaulting to 0.
+  sum: { count: number; cost: number | null } | null;
+  rows: SearchResultItem[];
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+// 'Today' / 'Yesterday' / 'Ddd · Mon D' for older days. `diffDays` is passed
+// in (not recomputed) so the isToday flag on DayGroup stays derived from the
+// same calculation as the label — comparing against the (locale-translated)
+// label string itself would silently break for zh/ja.
+function dayLabel(d: Date, diffDays: number): string {
+  if (diffDays === 0) return t('Today');
+  if (diffDays === 1) return t('Yesterday');
+  const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+  const month = d.toLocaleDateString(undefined, { month: 'short' });
+  return `${weekday} · ${month} ${d.getDate()}`;
+}
+
+// Groups already-sorted-by-recency search rows by local calendar day,
+// preserving the incoming order (server sorts by ts DESC on both the
+// empty-query and FTS branches of /api/search).
+function groupByDay(sessions: SearchResultItem[]): DayGroup[] {
+  const order: string[] = [];
+  const byKey = new Map<string, { date: Date; rows: SearchResultItem[] }>();
+  for (const s of sessions) {
+    const raw = s.ts ? new Date(s.ts) : null;
+    const date = raw && !Number.isNaN(raw.getTime()) ? raw : new Date(0);
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    let entry = byKey.get(key);
+    if (!entry) {
+      entry = { date, rows: [] };
+      byKey.set(key, entry);
+      order.push(key);
+    }
+    entry.rows.push(s);
+  }
+  const today = startOfDay(new Date());
+  return order.map((key) => {
+    const { date, rows } = byKey.get(key) as { date: Date; rows: SearchResultItem[] };
+    const diffDays = Math.round((today - startOfDay(date)) / 86400000);
+    const pricedCosts = rows.map(rowCost).filter((c): c is number => c != null);
+    const cost = pricedCosts.length ? pricedCosts.reduce((a, b) => a + b, 0) : null;
+    return { label: dayLabel(date, diffDays), isToday: diffDays === 0, sum: { count: rows.length, cost }, rows };
+  });
+}
+
 export default function HomePage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: HomePageProps) {
   // Recent-sessions stream: reuses GET /api/search's empty-query "recent"
   // mode (already excludes minor/gated sessions — see server/routes/search.ts),
   // mounting the SAME shared session multi-select delete component as the
-  // project session list (see src/SessionSelect.tsx).
+  // project session list (see src/SessionSelect.tsx). A non-empty `query`
+  // switches to the same endpoint's FTS/LIKE match mode (⌘K's SearchModal
+  // hits the identical endpoint).
   const [recentSessions, setRecentSessions] = useState<SearchResultItem[] | null>(null);
-  const refreshRecent = () => api.search({}).then((r) => setRecentSessions(r.results)).catch(() => setRecentSessions([]));
+  // Monotonic request-id guard: the debounce alone only collapses RAPID
+  // keystrokes into one fetch — it does nothing once two fetches are already
+  // in flight (e.g. "abc" fires, then "abcd" fires before "abc"'s response
+  // lands; or a query fires, then the box is cleared before it lands). Each
+  // fetch captures the id current AT FIRE TIME and only applies its result if
+  // that id is still the latest by the time it resolves, so an out-of-order
+  // response can never clobber a newer one.
+  const requestId = useRef(0);
+  const refreshRecent = () => {
+    const id = ++requestId.current;
+    api.search({}).then((r) => { if (id === requestId.current) setRecentSessions(r.results); })
+      .catch(() => { if (id === requestId.current) setRecentSessions([]); });
+  };
   useEffect(() => { refreshRecent(); }, []);
+
+  const [query, setQuery] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
+  function handleQueryChange(next: string) {
+    setQuery(next);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      const trimmed = next.trim();
+      if (!trimmed) { refreshRecent(); return; }
+      const id = ++requestId.current;
+      api.search({ q: trimmed }).then((r) => { if (id === requestId.current) setRecentSessions(r.results); })
+        .catch(() => { if (id === requestId.current) setRecentSessions([]); });
+    }, 200);
+  }
+
   const selectableRecent = (recentSessions ?? []).map((s) => ({ id: s.id, source: s.source, project_id: s.project_id }));
   const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); });
-  // Multi-select delete: a "Select" mode turns the whole grid into checkboxes so
-  // several projects can be removed from Chronicle at once. Uses an inline confirm
-  // bar (not window.confirm, which is blocked in embedded/preview browsers).
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<number | string>>(() => new Set());
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
-  function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
-  function toggle(id: number | string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-    setConfirming(false);
-  }
-  async function deleteSelected() {
-    if (deleting || !selected.size) return;
-    setDeleting(true);
-    try {
-      for (const id of selected) {
-        try { await api.deleteProject(id); } catch {}
-      }
-      onRefresh();
-      exitSelect();
-    } finally {
-      setDeleting(false);
-    }
-  }
+  // Passive (button-free) sync-status indicator (5d-0) + stable per-project
+  // identity color (5c), reused for both the rail rows and the ledger's
+  // project pills.
+  const sync = useSyncStatus();
+  const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
+  const groups = useMemo(() => groupByDay(recentSessions ?? []), [recentSessions]);
 
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) {
@@ -142,97 +282,75 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
     );
   }
 
-  const allSelected = selected.size === projects.length && projects.length > 0;
-
   return (
-    <div className="page">
-      <div className="page-title-row">
-        <h2 className="page-title">{t('Projects')} <span className="muted">({projects.length})</span></h2>
-        <div className="page-title-actions">
-          {!selectMode ? (
-            <button className="btn ghost" onClick={() => setSelectMode(true)}>☑ {t('Select')}</button>
-          ) : confirming ? (
-            <>
-              <span className="muted small">{t('Remove these from Chronicle? Source logs and folders are not touched.')}</span>
-              <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
-              <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
-                {deleting ? t('Removing…') : `🗑 ${t('Remove')} ${selected.size}`}
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="muted small">{selected.size} {t('selected')}</span>
-              <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(projects.map((p) => p.id)))}>
-                {allSelected ? t('Clear') : t('Select all')}
-              </button>
-              <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
-              <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
-                🗑 {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
-              </button>
-            </>
-          )}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '18px 26px 0' }}>
+        <div className="home-search">
+          ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+            onChange={(e) => handleQueryChange(e.target.value)} />
+          <span className="kbd">⌘K</span>
         </div>
       </div>
-      <div className="project-grid">
-        {projects.map((p) => {
-          const isSel = selected.has(p.id);
-          return (
-            <div key={p.id} className={`card project-card ${selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
-              onClick={() => (selectMode ? toggle(p.id) : onOpenProject(p.id))}>
-              <div className="project-card-head">
-                <span className="project-name">
-                  {selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
-                  {p.name}
-                </span>
-                <span className="project-card-actions">
-                  {p.git?.isRepo && <span className="pill git-pill" title={`${p.git.commitCount} commits`}>⎇ {p.git.branch}</span>}
-                  {!selectMode && <ProjectMenu project={p} onOpenProject={onOpenProject} onRefresh={onRefresh} />}
-                </span>
-              </div>
-              <div className="project-path muted">{p.path}</div>
-              <div className="project-stats">
-                <span>{p.session_count} sessions</span>
-                <span>{p.message_count} messages</span>
-                {(p.sources || '').split(',').filter(Boolean).map((s) => (
-                  <span key={s} className="pill src-pill">{SOURCE_ICONS[s] || '•'} {s}</span>
-                ))}
-              </div>
-              {p.last_active && <div className="muted small">Last active {new Date(p.last_active).toLocaleString()}</div>}
+      <div className="home-body">
+        <main className="home-stream">
+          <div className="page-title-row">
+            <h1 className="page-title">{t('Recent sessions')}</h1>
+            <div className="page-title-actions">
+              <span className="muted">{recentSessions?.length ?? 0} {t('sessions')} · {projects?.length ?? 0} {t('projects')}</span>
+              {recentSelect.Bar}
             </div>
-          );
-        })}
-      </div>
-
-      {!!recentSessions?.length && (
-        <>
-          <div className="page-title-row" style={{ marginTop: 24 }}>
-            <h3 className="page-title">{t('Recent Sessions')}</h3>
-            <div className="page-title-actions">{recentSelect.Bar}</div>
           </div>
-          <div className="session-list">
-            {recentSessions.map((s) => {
-              const isSel = recentSelect.isSelected(s.id);
-              return (
-                <div key={s.id} className={`card session-row ${recentSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
+          <div className="colhead">
+            <span>{t('Session')}</span><span>{t('Project')}</span><span>{t('Cost')}</span>
+            <span>{t('Active')}</span><span>{t('Msgs')}</span><span>{t('When')}</span>
+          </div>
+          {groups.map((g) => (
+            <section className="day" key={g.label}>
+              <div className="day-head"><span className="d">{g.label}</span>
+                {g.sum && (
+                  <span className="sum">
+                    {g.sum.count} {t('sessions')}{g.sum.cost != null && ` · $${g.sum.cost.toFixed(2)}`}
+                  </span>
+                )}</div>
+              {g.rows.map((s) => (
+                <div key={s.id} className={`row ${recentSelect.selectMode ? 'selectable' : ''} ${recentSelect.isSelected(s.id) ? 'selected' : ''}`}
                   onClick={() => (recentSelect.selectMode ? recentSelect.toggle(s.id) : onOpenSession?.(s.id, s.project_id))}>
-                  <div className="session-prompt">
-                    {recentSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
-                    {sessionDisplayName(s)}
-                  </div>
-                  <div className="session-meta muted small">
-                    <span className="pill src-pill">{s.source}</span>
-                    <span>{s.project_name}</span>
-                    {s.ts && <span>{new Date(s.ts).toLocaleString()}</span>}
-                  </div>
+                  <div className="title"><div className="t">{sessionDisplayName(s)}</div>
+                    <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
+                  <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
+                  <div className="m"><b>{costLabel(s)}</b></div>
+                  <div className="m">{activeLabel(s)}</div>
+                  <div className="m"><b>{msgsLabel(s)}</b></div>
+                  <div className="m">{whenLabel(s, g.isToday)}</div>
                 </div>
-              );
-            })}
+              ))}
+            </section>
+          ))}
+          <MinorSessionsBucket onRefresh={onRefresh} />
+        </main>
+        <aside className="home-rail">
+          <div className="rail-head">
+            <span className="eyebrow">{t('Projects')}</span>
+            <span className={`sync ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}>{sync.text}</span>
           </div>
-          {recentSelect.Toast}
-        </>
-      )}
-
-      <MinorSessionsBucket onRefresh={onRefresh} />
+          {(projects ?? []).map((p) => (
+            <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
+              <div className="n">
+                <span><span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="c num">{p.session_count}</span>
+                  <ProjectMenu project={p} onOpenProject={onOpenProject} onRefresh={onRefresh} />
+                </span>
+              </div>
+              <div className="meta">
+                {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
+                {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+      {recentSelect.Toast}
     </div>
   );
 }

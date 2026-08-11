@@ -19,6 +19,8 @@ interface RecentRow {
   started_at: string | null;
   ended_at: string | null;
   message_count: number;
+  usage: string | null;
+  agent_active_ms: number | null;
   project_name: string;
 }
 
@@ -80,7 +82,7 @@ export function mountSearch(app: Express): void {
       const params: (string | number)[] = [];
       if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
       const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
-          s.started_at, s.ended_at, s.message_count, p.name AS project_name
+          s.started_at, s.ended_at, s.message_count, s.usage, s.agent_active_ms, p.name AS project_name
         FROM sessions s JOIN projects p ON p.id = s.project_id
         WHERE ${where.join(' AND ')}
         ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 12`).all(...params) as unknown as RecentRow[];
