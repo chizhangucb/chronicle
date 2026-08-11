@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chronicle — A time machine for your AI coding sessions</title>
-<meta name="description" content="Local-first session manager for AI coding assistants. Import logs from Claude Code, Codex, Cursor, OpenCode, Gemini CLI & Copilot, then rewind to the exact code at any message. Signed & notarized. Download for macOS.">
+<meta name="description" content="Local-first session manager for AI coding assistants. Import logs from Claude Code, Codex, Cursor & OpenCode, then rewind to the exact code at any message. Run it with npx chronicle-cli — 100% local, zero network calls.">
 <link rel="canonical" href="https://getchronicle.dev/">
 <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f8fc" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://getchronicle.dev/">
 <meta property="og:title" content="Chronicle — A time machine for your AI coding sessions">
-<meta property="og:description" content="Rewind to the exact code state at any message across six AI coding tools. 100% local. Signed & notarized.">
+<meta property="og:description" content="Rewind to the exact code state at any message across four AI coding tools. 100% local, zero network calls. npx chronicle-cli.">
 <meta property="og:image" content="https://getchronicle.dev/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f8ef7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7'/%3E%3Cpath d='M3 4v4h4'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E">
@@ -148,19 +148,13 @@
 
   /* ---------- CTA ---------- */
   .cta-wrap{margin-top:34px;display:flex;flex-direction:column;align-items:center;gap:16px}
-  .btn-download{
-    display:inline-flex;align-items:center;gap:13px;
-    background:linear-gradient(180deg,var(--accent),var(--accent-press));
-    color:#fff;font-weight:650;font-size:16.5px;padding:15px 28px;border-radius:13px;
-    box-shadow:0 1px 0 rgba(255,255,255,.18) inset,var(--btn-shadow);
-    transition:transform .16s ease,box-shadow .16s ease;cursor:pointer;
-  }
-  .btn-download:hover{transform:translateY(-2px);box-shadow:0 1px 0 rgba(255,255,255,.22) inset,var(--btn-shadow-h)}
-  .btn-download:active{transform:translateY(0)}
-  .btn-download:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-  .btn-download svg{width:19px;height:19px;flex:none}
-  .btn-download .arch{opacity:.75;font-weight:500;font-size:13.5px;font-family:var(--mono);letter-spacing:-.01em}
-  .btn-download .arch::before{content:"·";margin-right:9px;opacity:.6}
+  .code-copy{display:inline-flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 9px 9px 15px;font-family:var(--mono);font-size:14px}
+  .code-copy code{color:var(--code)}
+  .code-copy .cbtn{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 11px;border-radius:7px;cursor:pointer;transition:color .15s,border-color .15s}
+  .code-copy .cbtn:hover{color:var(--accent);border-color:var(--border2)}
+  .code-copy .cbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .code-copy .cbtn svg{width:13px;height:13px}
+  .code-copy .cbtn.done{color:var(--accent2);border-color:var(--accent2)}
 
   .trust{display:inline-flex;align-items:center;gap:8px;color:var(--accent2);font-size:13.5px;font-weight:600}
   .trust svg{width:15px;height:15px}
@@ -225,15 +219,6 @@
   .snap-badge{margin-top:auto;font-family:var(--mono);font-size:10px;color:var(--faint);display:flex;align-items:center;gap:6px}
   .snap-badge .g{width:6px;height:6px;border-radius:50%;background:var(--accent2)}
 
-  /* ---------- release timeline divider ---------- */
-  .relline{margin:60px 0 4px;position:relative}
-  .relline .track{height:1px;background:linear-gradient(90deg,transparent,var(--border2) 12%,var(--border2) 88%,transparent)}
-  .relline .ticks{display:flex;justify-content:space-between;margin-top:-5px;padding:0 4px}
-  .relline .rt{display:flex;flex-direction:column;align-items:center;gap:9px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
-  .relline .rt i{width:9px;height:9px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2)}
-  .relline .rt.now{color:var(--accent)}
-  .relline .rt.now i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
-
   /* ---------- features ---------- */
   .features{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:44px 0}
   .feat{background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:18px;display:flex;gap:14px;align-items:flex-start;transition:border-color .18s,transform .18s}
@@ -243,53 +228,6 @@
   .feat .ic svg{width:19px;height:19px}
   .feat h3{margin:2px 0 5px;font-size:15px;font-weight:650}
   .feat p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
-
-  /* ---------- platforms ---------- */
-  .platforms{margin:56px 0 8px}
-  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
-  .sec-head h2{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
-  .sec-head .all{font-family:var(--mono);font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;transition:color .15s}
-  .sec-head .all:hover{color:var(--accent)}
-  .sec-head .all svg{width:13px;height:13px}
-  .ptable{border:1px solid var(--border);border-radius:13px;overflow:hidden;background:var(--bg2)}
-  .prow{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--border)}
-  .prow:first-child{border-top:none}
-  .prow.os{background:var(--bg3);grid-template-columns:34px 1fr;padding:9px 18px}
-  .prow.os .oslabel{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:9px}
-  .prow.os .oslabel svg{width:15px;height:15px;color:var(--faint)}
-  .prow .glyph{color:var(--faint);display:grid;place-items:center}
-  .prow .glyph svg{width:17px;height:17px}
-  .prow .name{font-weight:550;font-size:14px}
-  .prow .name .arch{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:8px}
-  .prow .size{font-family:var(--mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .prow .dl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--accent);border:1px solid var(--accent);background:var(--accent-soft);padding:6px 13px;border-radius:9px;transition:background .15s}
-  .prow .dl:hover{background:var(--accent);color:#fff}
-  .prow .dl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .prow .dl svg{width:14px;height:14px}
-  .prow.soon .name,.prow.soon .glyph{opacity:.55}
-  .prow .soon-tag{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px dashed var(--border2);padding:5px 12px;border-radius:9px}
-
-  /* ---------- brew ---------- */
-  .brew{margin:44px 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:18px 20px}
-  .brew .lbl{font-size:14px;color:var(--muted)}
-  .brew .lbl b{color:var(--text);font-weight:650}
-  .code-copy{display:inline-flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 9px 9px 15px;font-family:var(--mono);font-size:13px}
-  .code-copy code{color:var(--code)}
-  .code-copy .cbtn{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 11px;border-radius:7px;cursor:pointer;transition:color .15s,border-color .15s}
-  .code-copy .cbtn:hover{color:var(--accent);border-color:var(--border2)}
-  .code-copy .cbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .code-copy .cbtn svg{width:13px;height:13px}
-  .code-copy .cbtn.done{color:var(--accent2);border-color:var(--accent2)}
-
-  /* ---------- sponsor ---------- */
-  .sponsor{margin:44px 0}
-  .sponsor-lead{font-size:14px;color:var(--muted);margin:0 0 16px;max-width:620px}
-  .sponsor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .sponsor-card{display:block;background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:16px 18px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s,box-shadow .15s}
-  .sponsor-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-shot)}
-  .sponsor-card .sc-title{font-weight:650;font-size:14px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .sponsor-card .sc-title .arr{color:var(--accent);font-weight:700}
-  .sponsor-card .sc-sub{font-size:12.5px;color:var(--muted);line-height:1.45}
 
   /* ---------- footer ---------- */
   footer{border-top:1px solid var(--border);margin-top:24px;padding:28px 0 60px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:13px}
@@ -308,11 +246,6 @@
     .app{grid-template-columns:1fr}
     .app .rail,.app .snap{display:none}
     .features{grid-template-columns:1fr}
-    .prow{grid-template-columns:28px 1fr;row-gap:8px}
-    .prow .size{grid-column:2}
-    .prow .dl,.prow .soon-tag{grid-column:2;justify-self:start}
-    .brew{flex-direction:column;align-items:flex-start}
-    .sponsor-grid{grid-template-columns:1fr}
   }
   @media (max-width:600px){
     .navlink.hide-sm{display:none}
@@ -337,7 +270,7 @@
     </a>
     <nav class="topnav">
       <a class="navlink" href="/docs">Docs</a>
-      <a class="navlink hide-sm" href="#sponsor">Sponsor</a>
+      <a class="navlink hide-sm" href="https://www.npmjs.com/package/chronicle-cli">npm</a>
       <a class="navlink hide-sm" href="https://github.com/chizhangucb/chronicle/releases">Releases</a>
       <a class="navlink gh" id="ghLink" href="https://github.com/chizhangucb/chronicle" aria-label="Chronicle on GitHub">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.57.1.79-.25.79-.56v-1.96c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
@@ -347,7 +280,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
-      <a class="nav-cta" id="navDownload" href="#platforms">Download</a>
+      <a class="nav-cta" id="navDownload" href="#install">Get started</a>
     </nav>
   </div>
 </header>
@@ -356,22 +289,25 @@
 
   <!-- ============ HERO ============ -->
   <header class="hero">
-    <div class="eyebrow">Local-first · Signed &amp; notarized</div>
+    <div class="eyebrow">Local-first · Zero network calls</div>
     <h1 class="wordmark">Chronicle</h1>
     <p class="tagline">A time machine for your AI coding sessions.</p>
-    <p class="subtag">Import logs from six AI coding tools, then click any message to rewind to the exact code state at that moment — reconstructed from your Git history. Nothing leaves your machine.</p>
+    <p class="subtag">Import logs from Claude Code, Codex, Cursor &amp; OpenCode, then click any message to rewind to the exact code state at that moment — reconstructed from your Git history. Nothing leaves your machine.</p>
 
-    <div class="cta-wrap">
-      <a class="btn-download" id="mainBtn" href="#platforms">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        <span id="btnLabel">Download for macOS</span><span class="arch" id="btnArch">Apple Silicon</span>
-      </a>
+    <div class="cta-wrap" id="install">
+      <div class="code-copy">
+        <code id="npxcmd">npx chronicle-cli</code>
+        <button class="cbtn" id="copybtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>
+          <span>Copy</span>
+        </button>
+      </div>
       <div class="trust">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
-        Signed &amp; notarized — opens with no Gatekeeper warning
+        Requires Node.js 24+ — no account, no cloud, no LLM calls
       </div>
       <div class="meta-line">
-        Latest <b id="ver">v0.1.7</b><span class="sep">·</span><span id="reldate">Updated Jul 1, 2026</span><span class="sep">·</span><a href="#platforms" class="link-quiet">Windows &amp; Linux</a><span class="sep">·</span><a href="/docs" class="link-quiet">Docs</a>
+        <b>npx chronicle-cli</b> starts a local server and opens your browser<span class="sep">·</span><a href="/docs/guide/installation" class="link-quiet">Installation</a><span class="sep">·</span><a href="/docs" class="link-quiet">Docs</a>
       </div>
     </div>
   </header>
@@ -388,13 +324,13 @@
       <div class="app" id="shotMock">
         <nav class="rail">
           <div class="rail-h">Projects</div>
-          <div class="r-item on"><span class="rd"></span>ai-session-manager</div>
+          <div class="r-item on"><span class="rd"></span>chronicle</div>
           <div class="r-item"><span class="rd"></span>health-analyst</div>
           <div class="r-item dim"><span class="rd"></span>coin-identifier</div>
           <div class="spacer"></div>
-          <div class="r-item pin"><span class="pd">◇</span>MCP Hub</div>
-          <div class="r-item pin"><span class="pd">✦</span>Skills</div>
-          <div class="r-item pin"><span class="pd">⛨</span>Security</div>
+          <div class="r-item pin"><span class="pd">◇</span>Insights</div>
+          <div class="r-item pin"><span class="pd">⛨</span>Security Check</div>
+          <div class="r-item pin"><span class="pd">⚙</span>Settings</div>
         </nav>
         <div class="center">
           <div class="scrub">
@@ -425,18 +361,6 @@
     </div>
   </section>
 
-  <!-- ============ RELEASE TIMELINE DIVIDER ============ -->
-  <div class="relline" aria-hidden="true">
-    <div class="track"></div>
-    <div class="ticks" id="relTicks">
-      <span class="rt"><i></i>v0.1.1</span>
-      <span class="rt"><i></i>v0.1.3</span>
-      <span class="rt"><i></i>v0.1.5</span>
-      <span class="rt"><i></i>v0.1.6</span>
-      <span class="rt now"><i></i>v0.1.7</span>
-    </div>
-  </div>
-
   <!-- ============ FEATURES ============ -->
   <section class="features">
     <div class="feat">
@@ -445,87 +369,15 @@
     </div>
     <div class="feat">
       <div class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
-      <div><h3>Six tools, one timeline</h3><p>Claude Code, Codex, Cursor, OpenCode, Gemini CLI &amp; Copilot Chat — normalized into a single history.</p></div>
+      <div><h3>Four tools, one timeline</h3><p>Claude Code, Codex, Cursor &amp; OpenCode — normalized into a single history.</p></div>
     </div>
     <div class="feat">
       <div class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-      <div><h3>100% local, no cloud</h3><p>No LLM calls, no telemetry. Source logs and repos are opened read-only and never written to.</p></div>
+      <div><h3>100% local, no cloud</h3><p>No LLM calls, no telemetry, zero outbound network calls. Source logs and repos are opened read-only and never written to.</p></div>
     </div>
     <div class="feat">
       <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6M15 3v6"/><path d="M6 9h12v3a6 6 0 0 1-12 0z"/><path d="M12 18v3"/></svg></div>
-      <div><h3>MCP &amp; Skills hubs built in</h3><p>Aggregate MCP servers, manage Skills, and scan sessions for leaked secrets with local redaction.</p></div>
-    </div>
-  </section>
-
-  <!-- ============ ALL PLATFORMS ============ -->
-  <section class="platforms" id="platforms">
-    <div class="sec-head">
-      <h2>All platforms</h2>
-      <a class="all" href="https://github.com/chizhangucb/chronicle/releases">View all releases
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a>
-    </div>
-    <div class="ptable" id="ptable">
-      <!-- rows rendered by JS from the latest release; this is the fallback static content -->
-      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c-1 .1-2.2.8-2.9 1.6-.6.7-1.2 1.9-1 3 .1 0 2.2-.1 3-1.5.6-.9.9-1.9.9-3.1zM19 17.5c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.4 3.1-4.1 3.1-1.5 0-1.9-1-3.9-1s-2.5 1-3.9 1c-1.7 0-3-1.6-4-3-2.7-4-3-8.6-1.3-11.1 1.2-1.7 3-2.7 4.7-2.7 1.8 0 2.9 1 4.4 1 1.4 0 2.3-1 4.4-1 1.5 0 3.2.8 4.3 2.3-3.8 2-3.2 7.4.9 8.7z"/></svg>macOS</span></div>
-      <div class="prow">
-        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
-        <span class="name">Apple Silicon<span class="arch">.dmg</span></span>
-        <span class="size">101 MB</span>
-        <a class="dl" href="https://github.com/chizhangucb/homebrew-chronicle/releases/download/v0.1.7/Chronicle-0.1.7-arm64.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>Download</a>
-      </div>
-      <div class="prow">
-        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
-        <span class="name">Intel<span class="arch">.dmg</span></span>
-        <span class="size">105 MB</span>
-        <a class="dl" href="https://github.com/chizhangucb/homebrew-chronicle/releases/download/v0.1.7/Chronicle-0.1.7-x64.dmg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>Download</a>
-      </div>
-      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>Windows</span></div>
-      <div class="prow soon">
-        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
-        <span class="name">x64 installer<span class="arch">.exe / .msi</span></span>
-        <span></span>
-        <span class="soon-tag">Coming soon</span>
-      </div>
-      <div class="prow os"><span></span><span class="oslabel"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 0 0-4 4c0 1.5.5 2.3.5 3.5 0 1.3-1.5 2.5-2.5 4.5-.8 1.6-.5 3 .5 3.5.3 1 .2 2 2 2 1.3 0 1.8-.7 3.5-.7s2.2.7 3.5.7c1.8 0 1.7-1 2-2 1-.5 1.3-1.9.5-3.5-1-2-2.5-3.2-2.5-4.5 0-1.2.5-2 .5-3.5a4 4 0 0 0-4-4z"/></svg>Linux</span></div>
-      <div class="prow soon">
-        <span class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span>
-        <span class="name">AppImage · deb · rpm</span>
-        <span></span>
-        <span class="soon-tag">Coming soon</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ HOMEBREW ============ -->
-  <section class="brew">
-    <div class="lbl">Prefer the terminal? <b>Install with Homebrew.</b></div>
-    <div class="code-copy">
-      <code id="brewcmd">brew install --cask chronicle</code>
-      <button class="cbtn" id="copybtn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>
-        <span>Copy</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- ============ SPONSOR ============ -->
-  <!-- Keep these URLs in sync with src/sponsor.js and .github/FUNDING.yml -->
-  <section class="sponsor" id="sponsor">
-    <div class="sec-head"><h2>Support Chronicle</h2></div>
-    <p class="sponsor-lead">Chronicle is free and 100% open-source. If it saves you time, you can sponsor its development — one-time or monthly. Payments are handled by each provider; nothing ever touches Chronicle.</p>
-    <div class="sponsor-grid">
-      <a class="sponsor-card" href="https://github.com/sponsors/chizhangucb" target="_blank" rel="noopener">
-        <div class="sc-title"><span>GitHub Sponsors</span><span class="arr">→</span></div>
-        <div class="sc-sub">Card · one-time or monthly · 0% fee</div>
-      </a>
-      <a class="sponsor-card" href="https://chronicle.lemonsqueezy.com/buy/one-time" target="_blank" rel="noopener">
-        <div class="sc-title"><span>Card · PayPal · Venmo</span><span class="arr">→</span></div>
-        <div class="sc-sub">via Lemon Squeezy · also Alipay &amp; WeChat (one-time)</div>
-      </a>
-      <a class="sponsor-card" href="https://afdian.com/a/chronicle" target="_blank" rel="noopener">
-        <div class="sc-title"><span>Alipay / WeChat · 支付宝 / 微信</span><span class="arr">→</span></div>
-        <div class="sc-sub">via 爱发电 Afdian · one-time (投喂) or monthly (包月)</div>
-      </a>
+      <div><h3>Insights across every session</h3><p>Spend, tokens, and agent-active time — sliceable by model, tool, or first-class Subagents — plus a one-click Security Check for leaked secrets.</p></div>
     </div>
   </section>
 
@@ -534,7 +386,7 @@
     <div class="fl">
       <span class="fmono">Chronicle · MIT</span>
       <a href="/docs">Docs</a>
-      <a href="#sponsor">Sponsor</a>
+      <a href="https://www.npmjs.com/package/chronicle-cli">npm</a>
       <a href="https://github.com/chizhangucb/chronicle">GitHub</a>
       <a href="https://github.com/chizhangucb/chronicle/releases">Releases</a>
     </div>
@@ -547,22 +399,6 @@
 <script>
 (function(){
   "use strict";
-  var REPO_API = "https://api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest";
-  var REPO = "https://github.com/chizhangucb/homebrew-chronicle"; // releases + DMG assets live on the tap
-  var SOURCE = "https://github.com/chizhangucb/chronicle";        // source code + run-from-source
-  var CACHE_KEY = "chronicle_release_v1";
-
-  // ---- fallback used if the GitHub API is unreachable ----
-  var FALLBACK = {
-    version:"v0.1.7", date:"July 1, 2026",
-    platforms:{
-      mac:[
-        {label:"Apple Silicon", ext:".dmg", size:"101 MB", url:REPO+"/releases/download/v0.1.7/Chronicle-0.1.7-arm64.dmg", key:"mac-arm64"},
-        {label:"Intel", ext:".dmg", size:"105 MB", url:REPO+"/releases/download/v0.1.7/Chronicle-0.1.7-x64.dmg", key:"mac-x64"}
-      ],
-      win:[], linux:[]
-    }
-  };
 
   // ---------- theme ----------
   var root = document.documentElement;
@@ -596,131 +432,11 @@
   shotImg.onerror = function(){ shotImg.style.display="none"; }; // missing image → keep the built-in mock
   shotImg.src = "assets/chronicle-shot.png";
 
-  // ---------- byte formatting ----------
-  function mb(bytes){ return (bytes/1048576).toFixed(bytes >= 100*1048576 ? 0 : 1).replace(/\.0$/,"") + " MB"; }
-
-  // ---------- bucket a release's assets by platform ----------
-  function classify(assets){
-    var out = {mac:[], win:[], linux:[]};
-    assets.forEach(function(a){
-      var n = a.name;
-      if(/\.blockmap$/i.test(n) || /\.ya?ml$/i.test(n) || /\.zip$/i.test(n)) return; // skip updater/zip artifacts
-      if(/-arm64\.dmg$/i.test(n)) out.mac.push({label:"Apple Silicon", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-arm64"});
-      else if(/-(x64|x86_64|intel)\.dmg$/i.test(n)) out.mac.push({label:"Intel", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-x64"});
-      else if(/\.dmg$/i.test(n)) out.mac.push({label:"Universal", ext:".dmg", size:mb(a.size), url:a.browser_download_url, key:"mac-uni"});
-      else if(/\.(exe|msi)$/i.test(n)) out.win.push({label:/\.msi$/i.test(n)?"MSI installer":"Installer", ext:n.replace(/.*(\.[a-z]+)$/i,"$1"), size:mb(a.size), url:a.browser_download_url, key:"win-x64"});
-      else if(/\.appimage$/i.test(n)) out.linux.push({label:"AppImage", ext:".AppImage", size:mb(a.size), url:a.browser_download_url, key:"linux-appimage"});
-      else if(/\.deb$/i.test(n)) out.linux.push({label:"Debian / Ubuntu", ext:".deb", size:mb(a.size), url:a.browser_download_url, key:"linux-deb"});
-      else if(/\.rpm$/i.test(n)) out.linux.push({label:"Fedora / RHEL", ext:".rpm", size:mb(a.size), url:a.browser_download_url, key:"linux-rpm"});
-    });
-    // Apple Silicon first
-    out.mac.sort(function(a,b){ return (a.key==="mac-arm64"?0:1) - (b.key==="mac-arm64"?0:1); });
-    return out;
-  }
-
-  var ICON_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-3.5-3.5M12 14l3.5-3.5"/><path d="M5 18h14"/></svg>';
-  var ICON_FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>';
-  var OS_ICON = {
-    mac:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c-1 .1-2.2.8-2.9 1.6-.6.7-1.2 1.9-1 3 .1 0 2.2-.1 3-1.5.6-.9.9-1.9.9-3.1zM19 17.5c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.4 3.1-4.1 3.1-1.5 0-1.9-1-3.9-1s-2.5 1-3.9 1c-1.7 0-3-1.6-4-3-2.7-4-3-8.6-1.3-11.1 1.2-1.7 3-2.7 4.7-2.7 1.8 0 2.9 1 4.4 1 1.4 0 2.3-1 4.4-1 1.5 0 3.2.8 4.3 2.3-3.8 2-3.2 7.4.9 8.7z"/></svg>',
-    win:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>',
-    linux:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a4 4 0 0 0-4 4c0 1.5.5 2.3.5 3.5 0 1.3-1.5 2.5-2.5 4.5-.8 1.6-.5 3 .5 3.5.3 1 .2 2 2 2 1.3 0 1.8-.7 3.5-.7s2.2.7 3.5.7c1.8 0 1.7-1 2-2 1-.5 1.3-1.9.5-3.5-1-2-2.5-3.2-2.5-4.5 0-1.2.5-2 .5-3.5a4 4 0 0 0-4-4z"/></svg>'
-  };
-  var OS_NAME = {mac:"macOS", win:"Windows", linux:"Linux"};
-  var SOON = {win:'x64 installer<span class="arch">.exe / .msi</span>', linux:"AppImage · deb · rpm"};
-
-  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
-
-  function renderTable(platforms){
-    var html = "";
-    ["mac","win","linux"].forEach(function(os){
-      html += '<div class="prow os"><span></span><span class="oslabel">'+OS_ICON[os]+OS_NAME[os]+'</span></div>';
-      var rows = platforms[os];
-      if(rows && rows.length){
-        rows.forEach(function(r){
-          html += '<div class="prow" data-key="'+esc(r.key)+'">'
-            + '<span class="glyph">'+ICON_FILE+'</span>'
-            + '<span class="name">'+esc(r.label)+'<span class="arch">'+esc(r.ext)+'</span></span>'
-            + '<span class="size">'+esc(r.size)+'</span>'
-            + '<a class="dl" href="'+esc(r.url)+'">'+ICON_DL+'Download</a>'
-            + '</div>';
-        });
-      } else {
-        html += '<div class="prow soon"><span class="glyph">'+ICON_FILE+'</span>'
-          + '<span class="name">'+(SOON[os]||"")+'</span><span></span>'
-          + '<span class="soon-tag">Coming soon</span></div>';
-      }
-    });
-    document.getElementById("ptable").innerHTML = html;
-  }
-
-  // ---------- hero button: OS/arch auto-detect ----------
-  function setHeroButton(platforms){
-    var ua = navigator.userAgent || "";
-    var btn = document.getElementById("mainBtn");
-    var label = document.getElementById("btnLabel");
-    var arch = document.getElementById("btnArch");
-    var isWin = /Windows|Win64|Win32/.test(ua);
-    var isLinux = /Linux|X11/.test(ua) && !/Android/.test(ua);
-    var isMac = /Mac|Macintosh|Mac OS X/.test(ua) || (navigator.platform||"").indexOf("Mac")===0;
-
-    function point(os, txt, sub){
-      var rows = platforms[os];
-      if(rows && rows.length){
-        label.textContent = txt; arch.style.display=""; arch.textContent = sub || rows[0].label;
-        btn.setAttribute("href", rows[0].url);
-      } else {
-        label.textContent = "Build for " + OS_NAME[os]; arch.style.display=""; arch.textContent = "coming soon — from source";
-        btn.setAttribute("href", SOURCE + "#run-from-source");
-      }
-    }
-    if(isMac) point("mac", "Download for macOS", "Apple Silicon");
-    else if(isWin) point("win", "Download for Windows");
-    else if(isLinux) point("linux", "Download for Linux");
-    else { label.textContent = "Download Chronicle"; arch.style.display="none"; btn.setAttribute("href", "#platforms"); }
-
-    // nav "Download" mirrors the detected hero target
-    var navDl = document.getElementById("navDownload");
-    if(navDl) navDl.setAttribute("href", btn.getAttribute("href") || "#platforms");
-  }
-
-  // ---------- meta line ----------
-  function setMeta(rel){
-    document.getElementById("ver").textContent = rel.version;
-    document.getElementById("reldate").textContent = "Updated " + rel.date;
-  }
-
-  function apply(rel){ setMeta(rel); renderTable(rel.platforms); setHeroButton(rel.platforms); }
-
-  // ---------- fetch latest release (cache in sessionStorage) ----------
-  function fmtDate(iso){
-    try{ var d = new Date(iso); return d.toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}); }
-    catch(e){ return ""; }
-  }
-  function load(){
-    try{
-      var cached = sessionStorage.getItem(CACHE_KEY);
-      if(cached){ apply(JSON.parse(cached)); return; }
-    }catch(e){}
-    // render fallback immediately so there is never a blank state, then refine from the API
-    apply(FALLBACK);
-    fetch(REPO_API, {headers:{"Accept":"application/vnd.github+json"}})
-      .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
-      .then(function(j){
-        if(!j || !j.assets) return;
-        var rel = { version:j.tag_name, date:fmtDate(j.published_at), platforms:classify(j.assets) };
-        if(!rel.platforms.mac.length && !rel.platforms.win.length && !rel.platforms.linux.length) return; // keep fallback
-        try{ sessionStorage.setItem(CACHE_KEY, JSON.stringify(rel)); }catch(e){}
-        apply(rel);
-      })
-      .catch(function(){ /* fallback already rendered */ });
-  }
-  load();
-
-  // ---------- copy Homebrew command ----------
+  // ---------- copy the npx install command ----------
   var copybtn = document.getElementById("copybtn");
   var toast = document.getElementById("toast");
   copybtn.addEventListener("click", function(){
-    var cmd = document.getElementById("brewcmd").textContent;
+    var cmd = document.getElementById("npxcmd").textContent;
     function done(){
       copybtn.classList.add("done");
       copybtn.querySelector("span").textContent = "Copied";
