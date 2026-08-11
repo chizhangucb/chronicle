@@ -113,7 +113,6 @@ const zh = {
   'Session removed': '会话已移除',
   'sessions removed': '个会话已移除',
   'From Chronicle only — source logs untouched.': '仅从 Chronicle 中移除——源日志不受影响。',
-  'Recent Sessions': '最近会话',
   'Minor sessions': '次要会话',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '简短、活跃度低的会话不会出现在主列表中——可以提升以恢复，或忽略以永久移除。',
@@ -309,6 +308,15 @@ const zh = {
   'Toggle whole message types in or out': '整类消息一键保留或删除',
   'Delete all of this type': '删除该类型全部',
   'Keep all of this type': '保留该类型全部',
+  // Home ledger (Phase 5 PR 5d-1)
+  'Recent sessions': '最近会话',
+  'Filter sessions… (title, project, content)': '筛选会话…（标题、项目、内容）',
+  'needs association': '需要关联',
+  'Yesterday': '昨天',
+  'Project': '项目',
+  'Active': '活跃',
+  'Msgs': '消息数',
+  'When': '时间',
 };
 
 const ja = {
@@ -421,7 +429,6 @@ const ja = {
   'Session removed': 'セッションを削除しました',
   'sessions removed': '件のセッションを削除しました',
   'From Chronicle only — source logs untouched.': 'Chronicle からのみ削除されました — 元のログは変更されません。',
-  'Recent Sessions': '最近のセッション',
   'Minor sessions': 'マイナーセッション',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '短くて活動の少ないセッションはメインリストに表示されません — 昇格で復元、または無視で完全に削除できます。',
@@ -624,6 +631,15 @@ const ja = {
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
   'Delete all of this type': 'このタイプをすべて削除',
   'Keep all of this type': 'このタイプをすべて保持',
+  // Home ledger (Phase 5 PR 5d-1)
+  'Recent sessions': '最近のセッション',
+  'Filter sessions… (title, project, content)': 'セッションを絞り込み…（タイトル・プロジェクト・内容）',
+  'needs association': '関連付けが必要',
+  'Yesterday': '昨日',
+  'Project': 'プロジェクト',
+  'Active': 'アクティブ',
+  'Msgs': 'メッセージ数',
+  'When': '日時',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };
