@@ -6,9 +6,11 @@ import { api } from './api.ts';
 
 // Standalone server for the desktop shell / production: serves the built UI
 // plus all endpoints without Vite. `npm run build` first.
-export function startServer(port = 41730): Promise<Server> {
+// `distDir` lets callers whose compiled server doesn't sit next to the client
+// build (e.g. the published dist-server/ tree) point at the real client dist/.
+export function startServer(port = 41730, distDir?: string): Promise<Server> {
   const app = express();
-  const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+  const dist = distDir ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
   app.use('/api', api);
   app.use(express.static(dist));
   app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));

@@ -3,6 +3,12 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## 1.0.0
+
+- **Install via npm.** Chronicle is now `npx chronicle-cli` (requires Node 24+). The Electron desktop app and Homebrew/DMG install are retired.
+- Tabbed **Insights** (Overview / Explore / Content), first-class **Subagents**, and per-project Explore/Content/Sessions tabs.
+- Full TypeScript, invisible sync with tombstones + noise gate, stable URL routes.
+
 ## v0.2.1 — 2026-08-09
 
 Safety and maintenance follow-up to v0.2.0:
