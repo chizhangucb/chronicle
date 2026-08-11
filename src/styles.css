@@ -449,7 +449,6 @@ body {
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }
-.analytics-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .stat { min-width: 110px; text-align: center; }
 .stat-num { font-size: 26px; font-weight: 700; color: var(--brass); }
 
@@ -576,24 +575,12 @@ body {
 .ov-title { margin: 0 0 2px; }
 .ov-block { display: flex; flex-direction: column; gap: 6px; }
 .ov-block-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-.ov-cols { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.4fr); gap: 14px; }
-.ov-tl-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-.ov-tl-row:last-child { border-bottom: none; }
-.ov-tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brass); flex-shrink: 0; align-self: center; }
-.ov-tl-label { font-weight: 600; white-space: nowrap; }
-.ov-tl-preview { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .ov-donut-wrap { display: flex; gap: 18px; align-items: center; }
 .ov-donut {
   width: 130px; height: 130px; border-radius: 50%; flex-shrink: 0;
   -webkit-mask: radial-gradient(circle, transparent 38px, #000 39px);
   mask: radial-gradient(circle, transparent 38px, #000 39px);
 }
-.ov-legend-row { display: flex; align-items: center; gap: 8px; padding: 1px 0; font-size: 13px; }
-.ov-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.ov-legend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
-.ov-details { max-height: 340px; overflow-y: auto; }
-.ov-detail-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-.ov-detail-row:last-child { border-bottom: none; }
 .ov-danger { border-color: rgba(217, 79, 61, 0.35); }
 .ctx-block { margin: 14px 0 4px; }
 .ctx-head { display: flex; align-items: baseline; gap: 10px; }
@@ -869,21 +856,6 @@ h4 { margin: 6px 0; }
 .policy-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); }
 .window-btn { align-self: center; border-radius: 999px; margin: 4px 0; }
 
-/* ---- Cost & Usage (session overview) ---- */
-.cost-block { margin: 14px 0 4px; }
-.cost-total { font-size: 20px; font-weight: 700; color: var(--ok); font-family: var(--mono); }
-.cost-models { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
-.cost-model-row { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--bg2); }
-.cost-model-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.cost-model-head .mono-path { color: var(--ink); }
-.cost-model-cost { font-family: var(--mono); font-weight: 600; color: var(--ok); }
-.cost-tokens { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 5px; }
-.cost-tokens span { font-family: var(--mono); }
-.cost-tokens em { font-style: normal; color: var(--ink-2); margin-right: 3px; }
-.ttl-tag { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.3px;
-  padding: 1px 4px; border-radius: 4px; background: var(--bg0); border: 1px solid var(--border);
-  color: var(--ink-2); vertical-align: middle; }
-
 /* ---- Session overview: name + rename ---- */
 .ov-name-row { display: flex; align-items: center; gap: 8px; }
 .ov-name-row .ov-title { margin: 0; }
@@ -903,11 +875,6 @@ h4 { margin: 6px 0; }
 .session-sync:hover:not(:disabled) { color: var(--brass); background: var(--bg2); }
 .session-sync:disabled { cursor: default; }
 .icon-btn { padding: 5px 10px; }
-
-/* Dollar breakdown line under the token line */
-.cost-dollars { margin-top: 2px; }
-.cost-dollars span { color: var(--ok); }
-.cost-dollars em { color: var(--ink-2); }
 
 /* ---- Global search palette (⌘K) ---- */
 .search-modal {
@@ -962,6 +929,30 @@ h4 { margin: 6px 0; }
 .ongoing-pill { color: var(--warn, #fbbf24); border-color: var(--warn, #fbbf24); }
 .settings-row { display: grid; grid-template-columns: auto auto 1fr; gap: 8px 10px; align-items: baseline; padding: 10px 4px; cursor: pointer; }
 .settings-row .small { grid-column: 2 / 4; }
+
+/* ---- Session Overview: dense KPI row + Recharts chart grid (5d-2) ----
+   `.kpis`/`.kpi`/`.tbl`/`.cost-row` are the 5c primitives (defined above,
+   this is their first real call site); `.grid`/`.hbar`/`.two`/`.trow`/`.ttl`/
+   `.comp-bar`/`.comp-legend`/`.dot` are new here, matching the approved
+   mockup (records/design/2026-08-10-chronicle-phase5/overview.html). */
+.grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.hbar { display: grid; grid-template-columns: 92px 1fr 44px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
+.hbar .n { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.hbar .fill { height: 100%; border-radius: 3px; }
+.hbar .v { text-align: right; color: var(--ink-2); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
+.trow:last-child { border: 0; }
+.trow .k { color: var(--brass-text); white-space: nowrap; width: 52px; flex-shrink: 0; }
+.trow .t { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-row { display: flex; justify-content: space-between; font: 12px var(--mono); padding: 4px 0; color: var(--ink-2); }
+.cost-row b { color: var(--ink); font-weight: 500; }
+.ttl { font: 9px var(--mono); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; color: var(--ink-3); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.comp-bar { display: flex; gap: 2px; height: 14px; border-radius: 3px; overflow: hidden; }
+.comp-bar span { height: 100%; }
+.comp-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 10.5px var(--mono); color: var(--ink-2); margin-top: 8px; }
 
 /* ---- 5d-1: Home right rail + always-visible search ---- */
 .home-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
