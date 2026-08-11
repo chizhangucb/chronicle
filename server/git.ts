@@ -26,10 +26,16 @@ export interface FileAtResult {
 }
 
 // All operations are read-only against the project's git repo.
+// stdio ignores stderr: `repoInfo` probes every project dir on each
+// /api/projects call, and git prints `fatal: not a git repository` to stderr
+// for non-repo folders. execFileSync inherits stderr by default, so that would
+// spam the launcher console — we already treat any failure as "no git info",
+// so the message is pure noise. stdout stays piped (it's the return value).
 function git(repo: string, args: string[], opts: Record<string, unknown> = {}): string {
   return execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'ignore'],
     ...opts,
   }) as unknown as string;
 }

@@ -5,6 +5,19 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// --- Silence ONLY the node:sqlite experimental warning. ---
+// The server opens the DB via node:sqlite (DatabaseSync), which emits a single
+// `ExperimentalWarning: SQLite is an experimental feature…` to stderr on first
+// import. In the foreground npx run that line is just noise (the desktop shell
+// used to hide it). Filter that one warning surgically; every other warning
+// still prints. NODE_NO_WARNINGS would blanket-silence, so we don't use it.
+const emitWarning = process.emitWarning.bind(process);
+process.emitWarning = (warning, ...rest) => {
+  const type = rest[0] && typeof rest[0] === 'object' ? rest[0].type : rest[0];
+  if (type === 'ExperimentalWarning' && String(warning).includes('SQLite')) return;
+  return emitWarning(warning, ...rest);
+};
+
 // --- Preflight: the published server ships as compiled JS (dist-server/),  ---
 // --- built at publish time — Node 24+ is still required for node:sqlite.   ---
 const major = Number(process.versions.node.split('.')[0]);

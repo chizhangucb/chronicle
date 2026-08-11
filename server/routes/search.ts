@@ -2,8 +2,9 @@ import type { Express, Request, Response } from 'express';
 import { db, ftsAvailable } from '../db.ts';
 
 // ---- Global search (home command palette) ----
-// Empty query → recent sessions ("Recent Access"). Non-empty → LIKE scan over
-// message text/tool input, grouped per session with a highlighted snippet.
+// Empty query → recent sessions ("Recent Access"). Non-empty → FTS5 MATCH over
+// message text/tool input (LIKE fallback when the FTS virtual table is
+// unavailable), grouped per session with a highlighted snippet.
 const SCOPE_KINDS: Record<string, string[]> = {
   code: ['tool_use', 'tool_result'],
   chat: ['user', 'assistant', 'thinking'],
