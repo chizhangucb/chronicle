@@ -51,6 +51,16 @@ before(async () => {
       // message count (the old cross-join bug).
       { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 't2', ts: '2026-08-01T10:26:00.000Z' },
       { kind: 'tool_result', tool_use_id: 't2', text: 'Error: boom', ts: '2026-08-01T10:26:03.000Z' },
+      // Locks the tool_input calibration-char-source fix (5e-1 code review):
+      // real tool_use rows carry their content in tool_input, NOT text (text
+      // is null/absent here, matching production JSONL) — before the fix,
+      // the calibrated char measure summed LENGTH(text) only, so this row
+      // contributed 0 chars and its calibrated tokens came out 0 regardless
+      // of scope/date range. Paired with a NON-erroring tool_result so this
+      // doesn't perturb the errors-by-source/tool assertions elsewhere.
+      { kind: 'tool_use', tool_name: 'Read', tool_use_id: 't3',
+        tool_input: JSON.stringify({ cmd: 'ls -la /some/long/path' }), ts: '2026-08-01T10:27:00.000Z' },
+      { kind: 'tool_result', tool_use_id: 't3', text: 'read ok', ts: '2026-08-01T10:27:03.000Z' },
     ]),
   );
   replaceSession(
@@ -148,4 +158,23 @@ test('computeExplore: calibrated groups (tool/skill) leave segments empty even w
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.ok(bash);
   assert.deepEqual(bash.segments, []);
+});
+
+// Regression test for the tool_input calibration-char-source bug (5e-1 code
+// review, fixed in server/explore.ts): tool_use rows carry their content in
+// tool_input, not text — the 't3' fixture row above has text null/absent and
+// a non-empty tool_input. Before the fix, the char-length query summed
+// LENGTH(text) only, so every tool_use row contributed 0 chars,
+// calibrateByBucket's totalChars was 0, and EVERY calibrated tool/skill row
+// came out 0 tokens regardless of scope/date range — the prior test only
+// checked the 'Bash' row EXISTS (and that its tokensByModel keys are real
+// model names), never that its token VALUES were nonzero, so the bug slipped
+// through review. This asserts the 'Read' row (t3) has real positive tokens.
+test('computeExplore: calibrated tool tokens are nonzero (tool_input counts as char source, not just text)', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  assert.equal(r.calibrated, true);
+  const read = r.rows.find((x) => x.key === 'Read');
+  assert.ok(read);
+  const totalTokens = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.ok(totalTokens > 0, `expected 'Read' row tokens > 0, got ${totalTokens}`);
 });

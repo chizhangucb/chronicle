@@ -157,8 +157,15 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // share (modelSplitRows), preserving each model's own input:output ratio.
   // This gives a real blended $ via costOf while staying keyed by model.
   if (calibrated) {
+    // Char measure includes tool_input, not just text: tool_use rows (the
+    // 'tool' group, and skill-tagged tool_use rows for 'skill') store their
+    // content in tool_input — text is NULL for kind='tool_use' — so summing
+    // text alone always yielded 0 chars for those groups, and every
+    // calibrated tool/skill row came out $0/0 tokens regardless of scope or
+    // date range (5e-1 code review caught this against real data). Skill
+    // rows are also tool_use rows, so this fix covers both CALIBRATED_GROUPS.
     const charRows = db.prepare(`
-      SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
+      SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
       FROM messages m ${base} ${g.where} GROUP BY gk
     `).all(...bind()) as unknown as { gk: string|number; chars: number }[];
     const billed = db.prepare(`
