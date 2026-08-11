@@ -76,7 +76,7 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   names/optionality track the real parser + `db.ts` shapes — change them together.
 - **Full `strict: true`** (`noImplicitAny` + `strictNullChecks` on). Do NOT weaken strict or
   silence errors with `any`/`@ts-ignore`/`@ts-expect-error`; type the real shape instead.
-- Three projects via references (`tsconfig.json` → `tsconfig.server.json` nodenext +
+- Two projects via references (`tsconfig.json` → `tsconfig.server.json` nodenext +
   `tsconfig.client.json` bundler/jsx), sharing `tsconfig.base.json`; `tsconfig.publish.json`
   is the separate publish-time server compile. `typescript` is pinned exact; client libs'
   `@types/*` are devDeps (Vite bundles the client).
