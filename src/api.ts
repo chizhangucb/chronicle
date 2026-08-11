@@ -119,6 +119,7 @@ export interface ProjectDetail {
     kindDist: KindCount[];
     activity: DayCount[];
     errors: number;
+    commits: number;
   };
 }
 

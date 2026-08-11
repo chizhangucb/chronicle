@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
+import {
+  Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
+import { CATEGORICAL_COLORS } from './colors.js';
+import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -53,6 +59,7 @@ export interface ProjectAnalytics {
   kindDist: KindDistRow[];
   activity: ActivityRow[];
   errors: number;
+  commits: number;
 }
 
 export interface ProjectDetailData {
@@ -64,14 +71,18 @@ export interface ProjectDetailData {
 
 // Session-list scale UX (v0.2): sort + source filter + windowed rendering.
 const SESSION_WINDOW = 100;
-function sessionCost(s: ProjectSession): number {
+// `usage` is JSON-stringified per-model token totals (see @shared/types.ts
+// Usage) — parsed once here and reused by every KPI/ranking that sums cost
+// or tokens across the session list (Step 3/6 of the 5d-3 brief).
+function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null {
   try {
-    // `usage` is JSON-stringified per-model token totals (see @shared/types.ts
-    // Usage) — cast the parse result to its declared shape at this boundary.
-    const usage = s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
-    if (!usage) return 0;
-    return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u) ?? 0), 0);
-  } catch { return 0; }
+    return s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
+  } catch { return null; }
+}
+function sessionCost(s: ProjectSession): number {
+  const usage = sessionUsage(s);
+  if (!usage) return 0;
+  return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u) ?? 0), 0);
 }
 function sessionDurationMs(s: ProjectSession): number {
   return s.agent_active_ms ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
@@ -81,7 +92,6 @@ const FRIENDLY_CALL: Record<string, string> = {
   Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
-const DONUT_COLORS = ['#a78bfa', '#4f8ef7', '#34c98e', '#e5a54b', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
 
 interface RangeDef {
   key: string;
@@ -89,12 +99,15 @@ interface RangeDef {
   label: string;
   today?: boolean;
 }
+// Order matches the `.rangebar` segmented control's left-to-right layout
+// (Today → 7d → 30d → 1yr → All); the underlying days/refetch logic is
+// unchanged from the old <select> version, only the display order.
 const RANGES: RangeDef[] = [
   { key: 'today', days: null, label: 'Today', today: true },
-  { key: 'all', days: null, label: 'All time' },
   { key: '7', days: 7, label: '7 Days' },
   { key: '30', days: 30, label: '30 Days' },
   { key: '365', days: 365, label: '1 Year' },
+  { key: 'all', days: null, label: 'All time' },
 ];
 
 // Display name for a session: user-set name → tool summary → first prompt → id.
@@ -117,16 +130,22 @@ export interface ProjectDetailProps {
 }
 
 interface Stats {
-  totalMs: number;
   toolCalls: number;
   messages: number;
+  userPrompts: number;
   errors: number;
   errorRate: number;
-  avgMs: number;
   activeDays: number;
-  trend: { day: string; count: number }[];
+  activeMs: number;
+  totalCost: number;
+  totalIn: number;
+  totalOut: number;
+  totalTokens: number;
+  modelCount: number;
+  trend: { day: string; count: number; cost: number }[];
   sources: [string, number][];
   ranking: [string, number][];
+  costByModel: [string, number][];
 }
 
 export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
@@ -137,7 +156,6 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const [sortKey, setSortKey] = useState('recent');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [listLimit, setListLimit] = useState(SESSION_WINDOW);
-  const [trendStyle, setTrendStyle] = useState<'line' | 'bar'>('line'); // line | bar
 
   // "Today" = fractional days since local midnight, computed once per range change
   // (a stable value avoids a Date.now()-driven refetch loop).
@@ -184,26 +202,48 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const stats: Stats | null = useMemo(() => {
     if (!data) return null;
     const { sessions, analytics } = data;
-    const durations = sessions.filter((s) => s.started_at && s.ended_at)
-      .map((s) => +new Date(s.ended_at as string) - +new Date(s.started_at as string));
-    const totalMs = durations.reduce((a, b) => a + b, 0);
     const toolCalls = analytics.kindDist.find((k) => k.kind === 'tool_use')?.count || 0;
     const messages = analytics.kindDist.reduce((s, k) => s + k.count, 0);
     const userPrompts = analytics.kindDist.find((k) => k.kind === 'user')?.count || 0;
-    // Trend: sessions started per day, gaps filled so the line is continuous.
+    // Agent active total: same per-session fallback as the "duration" sort
+    // (agent_active_ms when present, else wall-clock start→end).
+    const activeMs = sessions.reduce((sum, s) => sum + sessionDurationMs(s), 0);
+    // Cost/tokens: sum per-model usage across every session in range (Step 3 —
+    // client-side aggregation, same source data the session list already
+    // parses via sessionUsage/sessionCost).
+    let totalCost = 0, totalIn = 0, totalOut = 0;
+    const byModel = new Map<string, number>();
+    const modelsSeen = new Set<string>();
+    for (const s of sessions) {
+      const usage = sessionUsage(s);
+      if (!usage) continue;
+      for (const [m, u] of Object.entries(usage)) {
+        modelsSeen.add(m);
+        totalIn += u.input || 0;
+        totalOut += u.output || 0;
+        const cost = costOf(m, u) ?? 0;
+        totalCost += cost;
+        byModel.set(m, (byModel.get(m) || 0) + cost);
+      }
+    }
+    const costByModel = [...byModel.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    // Trend: sessions + cost per day, gaps filled so the chart line/bars are
+    // continuous across the whole range.
     const byDay = new Map<string, number>();
+    const costByDay = new Map<string, number>();
     for (const s of sessions) {
       if (!s.started_at) continue;
       const day = s.started_at.slice(0, 10);
       byDay.set(day, (byDay.get(day) || 0) + 1);
+      costByDay.set(day, (costByDay.get(day) || 0) + sessionCost(s));
     }
     const dayKeys = [...byDay.keys()].sort();
-    const trend: { day: string; count: number }[] = [];
+    const trend: { day: string; count: number; cost: number }[] = [];
     if (dayKeys.length) {
       const start = days ? new Date(Date.now() - days * 86400000) : new Date(dayKeys[0]);
       for (let d = new Date(start); d <= new Date(); d.setDate(d.getDate() + 1)) {
         const key = d.toISOString().slice(0, 10);
-        trend.push({ day: key, count: byDay.get(key) || 0 });
+        trend.push({ day: key, count: byDay.get(key) || 0, cost: costByDay.get(key) || 0 });
       }
     }
     // Source donut
@@ -220,12 +260,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (userPrompts) ranked.set('User Prompt', userPrompts);
     const ranking = [...ranked.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
     return {
-      totalMs, toolCalls, messages,
+      toolCalls, messages, userPrompts,
       errors: analytics.errors || 0,
       errorRate: toolCalls ? ((analytics.errors || 0) / toolCalls) * 100 : 0,
-      avgMs: durations.length ? totalMs / durations.length : 0,
       activeDays: new Set(sessions.filter((s) => s.started_at).map((s) => (s.started_at as string).slice(0, 10))).size,
-      trend, sources, ranking,
+      activeMs, totalCost, totalIn, totalOut, totalTokens: totalIn + totalOut, modelCount: modelsSeen.size,
+      trend, sources, ranking, costByModel,
     };
   }, [data, days]);
 
@@ -255,6 +295,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const { project, sessions, git } = data;
   const liveSession = sessions.find((s) => s.liveCandidate);
   const maxRank = Math.max(1, ...stats.ranking.map(([, n]) => n));
+  const maxCostByModel = Math.max(0.01, ...stats.costByModel.map(([, n]) => n));
 
   return (
     <div className="page">
@@ -277,11 +318,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             <button key={src} className="btn tiny ghost" title={`Unlink ${src} into its own project`}
               onClick={() => unlink(src)}>⛓✕ {src}</button>
           ))}
-        <span style={{ marginLeft: 'auto' }}>
-          <select className="chip range-select" value={range} onChange={(e) => setRange(e.target.value)} title={t('Time range')}>
-            {RANGES.map((r) => <option key={r.key} value={r.key}>📅 {t(r.label)}</option>)}
-          </select>
-        </span>
+        <div className="rangebar" style={{ marginLeft: 'auto' }} title={t('Time range')}>
+          {RANGES.map((r) => (
+            <button key={r.key} className={range === r.key ? 'on' : ''} onClick={() => setRange(r.key)}>{t(r.label)}</button>
+          ))}
+        </div>
       </div>
       {project.path.includes('#') && (
         <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
@@ -293,57 +334,133 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         </form>
       )}
 
-      <div className="stat-grid">
-        <div className="card stat"><div className="stat-num">{sessions.length}</div><div className="muted small">{t('Sessions')}</div></div>
-        <div className="card stat"><div className="stat-num">{fmtDur(stats.totalMs)}</div><div className="muted small">{t('Total Duration')}</div></div>
-        <div className="card stat"><div className="stat-num">{stats.activeDays}</div><div className="muted small">{t('Active Days')}</div></div>
-        <div className="card stat"><div className={`stat-num ${stats.errorRate > 10 ? 'bad' : ''}`}>{stats.errorRate.toFixed(1)}%</div><div className="muted small">{t('Error Rate')}</div></div>
-        <div className="card stat"><div className="stat-num">{fmtDur(stats.avgMs)}</div><div className="muted small">{t('Avg Duration')}</div></div>
-        <div className="card stat"><div className="stat-num">{stats.toolCalls}</div><div className="muted small">{t('Tool Calls')}</div></div>
-        <div className="card stat"><div className="stat-num">{stats.messages}</div><div className="muted small">{t('Messages')}</div></div>
-        <div className="card stat"><div className={`stat-num ${stats.errors ? 'bad' : ''}`}>{stats.errors}</div><div className="muted small">{t('Errors')}</div></div>
+      <div className="kpis">
+        <div className="kpi">
+          <div className="l">{t('Sessions')}</div>
+          <div className="v">{sessions.length}</div>
+          <div className="s">{stats.activeDays} {t('Active Days')}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Cost')}</div>
+          <div className="v">${stats.totalCost.toFixed(2)}</div>
+          <div className="s">{stats.modelCount} {t('models')}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Tokens')}</div>
+          <div className="v">{fmtTok(stats.totalTokens)}</div>
+          <div className="s">{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Agent Active')}</div>
+          <div className="v">{fmtDur(stats.activeMs)}</div>
+          <div className="s">{sessions.length} {t('sessions')}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Messages')}</div>
+          <div className="v">{stats.messages}</div>
+          <div className="s">{stats.userPrompts} {t('prompts')}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Tool Calls')}</div>
+          <div className="v">{stats.toolCalls}</div>
+        </div>
+        <div className={`kpi ${stats.errors ? 'warn' : ''}`}>
+          <div className="l">{t('Errors')}</div>
+          <div className="v">{stats.errors}</div>
+          <div className="s">{stats.errorRate.toFixed(1)}% {t('Error Rate')}</div>
+        </div>
+        <div className="kpi">
+          <div className="l">{t('Commits')}</div>
+          <div className="v">{data.analytics.commits}</div>
+          {git.isRepo && git.branch && <div className="s">⎇ {git.branch}</div>}
+        </div>
       </div>
 
       <div className="card trend-card">
-        <div className="trend-head">
-          <strong>{t('Activity Trend')}</strong>
-          <span className="filter-chips">
-            <button className={`chip ${trendStyle === 'line' ? 'on' : ''}`} onClick={() => setTrendStyle('line')}>∿ {t('Line')}</button>
-            <button className={`chip ${trendStyle === 'bar' ? 'on' : ''}`} onClick={() => setTrendStyle('bar')}>▮ {t('Bar')}</button>
-          </span>
-        </div>
-        <TrendChart points={stats.trend} style={trendStyle} />
-        <div className="muted small trend-legend">— {t('Sessions')}</div>
+        <strong>{t('Daily cost & sessions')}</strong>
+        {stats.trend.length ? (
+          <ResponsiveContainer width="100%" height={180}>
+            <ComposedChart data={stats.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid {...GRID_PROPS} />
+              <XAxis dataKey="day" {...AXIS_PROPS} tickFormatter={(d: string) => d.slice(5)} />
+              <YAxis yAxisId="cost" {...AXIS_PROPS} tickFormatter={(v: number) => `$${v}`} />
+              <YAxis yAxisId="sessions" orientation="right" {...AXIS_PROPS} allowDecimals={false} />
+              {/* Bar (cost, $) and Line (session count) share one tooltip but different
+                  units — ChartTooltip's formatValue gets a single value with no series
+                  context, so this heuristic formats non-integer values (cost) as `$`
+                  and integers (a session count is always whole) as a plain number.
+                  hideTotal suppresses the shared "Total" row: summing a $ value and a
+                  session count (e.g. $3.50 + 2 sessions = "$5.50") is meaningless —
+                  each per-row value is still correct and shown, just not their sum.
+                  Recharts' <Tooltip> content callback is typed as the library's own
+                  (non-generic) `TooltipContentProps<ValueType, NameType>`; our chart
+                  data is always numeric, so the cast to ChartTooltip's narrower
+                  `<V extends number>` prop type reflects the real runtime shape. */}
+              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} hideTotal formatValue={(v: number) => (Number.isInteger(v) ? String(v) : `$${v.toFixed(2)}`)} />} />
+              <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'var(--mono)' }} />
+              <Bar yAxisId="cost" dataKey="cost" name={t('Cost')} fill={CATEGORICAL_COLORS[0]} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="sessions" type="monotone" dataKey="count" name={t('Sessions')} stroke={CATEGORICAL_COLORS[1]} strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="muted small pad8">{t('No activity in this time range.')}</div>
+        )}
       </div>
 
       <div className="pd-charts">
         <div className="card">
-          <strong>{t('Tool Distribution')}</strong>
-          <div className="ov-donut-wrap" style={{ marginTop: 10 }}>
-            <div className="ov-donut" style={{ background: donutGradient(stats.sources, sessions.length) }} />
-            <div>
-              {stats.sources.map(([src, n], i) => (
-                <div key={src} className="donut-legend-row">
-                  <span className="donut-dot" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
-                  <span>{src}</span>
-                  <span className="muted">{Math.round((n / Math.max(1, sessions.length)) * 100)}%</span>
-                </div>
-              ))}
-              <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {sessions.length} {t('sessions')}</div>
+          <strong>{t('Source mix')}</strong>
+          {stats.sources.length ? (
+            <div className="donut-wrap" style={{ marginTop: 10 }}>
+              <PieChart width={140} height={140}>
+                <Pie data={stats.sources.map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name"
+                  innerRadius={38} outerRadius={64} paddingAngle={stats.sources.length > 1 ? 2 : 0} stroke="none">
+                  {stats.sources.map((_, i) => <Cell key={i} fill={CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />)}
+                </Pie>
+                {/* No hideTotal here: a Pie hover always yields a single-slice payload
+                    (one row), so ChartTooltip's `rows.length > 1` Total guard already
+                    never fires — there's no mixed-unit sum to suppress. */}
+                <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} />} />
+              </PieChart>
+              <div>
+                {stats.sources.map(([src, n], i) => (
+                  <div key={src} className="donut-legend-row">
+                    <span className="donut-dot" style={{ background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} />
+                    <span>{src}</span>
+                    <span className="muted">{Math.round((n / Math.max(1, sessions.length)) * 100)}%</span>
+                  </div>
+                ))}
+                <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {sessions.length} {t('sessions')}</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="muted small pad8">{t('No activity in this time range.')}</div>
+          )}
         </div>
         <div className="card">
           <strong>{t('Call Ranking')}</strong>
           <div style={{ marginTop: 10 }}>
-            {stats.ranking.map(([label, n]) => (
-              <div key={label} className="bar-row">
-                <span className="bar-label rank-label">{label}</span>
-                <div className="bar"><div className="bar-fill" style={{ width: `${(n / maxRank) * 100}%` }} /></div>
-                <span className="small muted">{n}</span>
+            {stats.ranking.map(([label, n], i) => (
+              <div key={label} className="hbar">
+                <span className="n">{label}</span>
+                <div className="track"><div className="fill" style={{ width: `${(n / maxRank) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+                <span className="v num">{n}</span>
               </div>
             ))}
             {!stats.ranking.length && <div className="muted small">{t('No tool calls recorded.')}</div>}
+          </div>
+        </div>
+        <div className="card">
+          <strong>{t('Cost by model')}</strong>
+          <div style={{ marginTop: 10 }}>
+            {stats.costByModel.map(([model, cost], i) => (
+              <div key={model} className="hbar">
+                <span className="n">{model}</span>
+                <div className="track"><div className="fill" style={{ width: `${(cost / maxCostByModel) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+                <span className="v num">${cost.toFixed(2)}</span>
+              </div>
+            ))}
+            {!stats.costByModel.length && <div className="muted small">{t('No cost data recorded.')}</div>}
           </div>
         </div>
       </div>
@@ -515,55 +632,6 @@ export function SessionPicker({ sessions, current, onPick, loading }: SessionPic
       </Popover.Portal>
     </Popover.Root>
   );
-}
-
-function TrendChart({ points, style }: { points: { day: string; count: number }[]; style: 'line' | 'bar' }) {
-  const max = Math.max(1, ...points.map((p) => p.count));
-  if (!points.length) return <div className="muted small pad8">{t('No activity in this time range.')}</div>;
-  if (style === 'bar') {
-    return (
-      <div className="spark trend-spark">
-        {points.map((p) => (
-          <div key={p.day} className="spark-bar" title={`${p.day}: ${p.count}`}
-            style={{ height: `${Math.max(4, (p.count / max) * 100)}%` }} />
-        ))}
-      </div>
-    );
-  }
-  const W = 640, H = 150, PAD = 6;
-  const x = (i: number) => PAD + (i / Math.max(1, points.length - 1)) * (W - PAD * 2);
-  const y = (v: number) => H - PAD - (v / max) * (H - PAD * 2);
-  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.count).toFixed(1)}`).join(' ');
-  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`;
-  return (
-    <div className="trend-wrap">
-      <svg viewBox={`0 0 ${W} ${H}`} className="trend-svg" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(52, 201, 142, 0.35)" />
-            <stop offset="100%" stopColor="rgba(52, 201, 142, 0)" />
-          </linearGradient>
-        </defs>
-        <polygon points={area} fill="url(#trendFill)" />
-        <polyline points={line} fill="none" stroke="var(--ok)" strokeWidth="2" />
-      </svg>
-      <div className="trend-axis muted small">
-        <span>{points[0].day.slice(5)}</span>
-        <span>{points[Math.floor(points.length / 2)].day.slice(5)}</span>
-        <span>{points[points.length - 1].day.slice(5)}</span>
-      </div>
-    </div>
-  );
-}
-
-function donutGradient(entries: [string, number][], total: number): string {
-  let acc = 0;
-  const stops = entries.map(([, n], i) => {
-    const from = (acc / Math.max(1, total)) * 360; acc += n;
-    const to = (acc / Math.max(1, total)) * 360;
-    return `${DONUT_COLORS[i % DONUT_COLORS.length]} ${from}deg ${to}deg`;
-  }).join(', ');
-  return `conic-gradient(${stops || 'var(--bg2) 0deg 360deg'})`;
 }
 
 function ago(ts: string): string {
