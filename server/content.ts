@@ -49,6 +49,12 @@ export interface ContentResult {
   subagents: { key: string; runs: number; tokens: number }[]; // both exact
   callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
   calibratedTotalTokens: number;
+  // Explicit contract marker so the UI can badge calibrated cells: composition,
+  // toolResultsByTool, and skills[].tokens are calibrated (text-length→billed
+  // estimate, see calibrate.ts); subagents[].tokens are exact (per-message
+  // sidechain token columns). Always true today — every ContentResult mixes
+  // at least one calibrated field.
+  calibrated: boolean;
 }
 
 export function computeContent(scope: Scope, days: number | null): ContentResult {
@@ -92,7 +98,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
 
   const callouts = computeCallouts(scope, cutoff, sc);
 
-  return { composition, toolResultsByTool, skills, subagents, callouts, calibratedTotalTokens: billed };
+  return { composition, toolResultsByTool, skills, subagents, callouts, calibratedTotalTokens: billed, calibrated: true };
 }
 
 function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }): ContentResult['callouts'] {
@@ -100,7 +106,7 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
   // Context-pressure: token-weighted share of sessions whose context_tokens > 70% of the model's window.
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage
      FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { ctx: number|null; usage: string|null }[];
-  let pressureTokens = 0, totalTokens = 0, subTokens = 0;
+  let pressureTokens = 0, totalTokens = 0;
   for (const s of sessions) {
     const usage = s.usage ? JSON.parse(s.usage) as Record<string, { input?: number; output?: number }> : {};
     const models = Object.keys(usage);

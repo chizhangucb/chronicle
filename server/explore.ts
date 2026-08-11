@@ -44,6 +44,25 @@ function groupExpr(g: ExploreGroup): { col: string; where: string } {
     case 'skill': return { col: 'm.skill', where: 'AND m.skill IS NOT NULL' };
     case 'subagent': return { col: 'm.agent_type', where: 'AND m.is_sidechain=1 AND m.agent_type IS NOT NULL' };
     case 'hour': return { col: "CAST(strftime('%H', m.ts) AS INTEGER)", where: 'AND m.ts IS NOT NULL' };
+    default: throw new Error(`explore.ts groupExpr: unknown group "${g as string}"`);
+  }
+}
+
+// The same group value groupExpr resolves, but sourced from the erroring
+// tool_result's PAIRED tool_use row (u) instead of `m` — used only by the
+// errors query below. tool_use rows carry tool_name/skill/agent_type; model
+// is usually null on a tool_use (it's not an assistant turn), so error rows
+// simply don't attribute to any model-group row, which is correct.
+function errorGroupCol(g: ExploreGroup): string {
+  switch (g) {
+    case 'project': return 'p.name';
+    case 'source': return 's.source';
+    case 'model': return 'u.model';
+    case 'tool': return 'u.tool_name';
+    case 'skill': return 'u.skill';
+    case 'subagent': return 'u.agent_type';
+    case 'hour': return "CAST(strftime('%H', r.ts) AS INTEGER)";
+    default: throw new Error(`explore.ts errorGroupCol: unknown group "${g as string}"`);
   }
 }
 
@@ -58,6 +77,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // Per (groupValue, model) exact token + request aggregates. For calibrated
   // groups the token columns are meaningless on those message kinds, so tokens
   // are overwritten below via calibrateByBucket; requests/errors stay exact.
+  // NOTE on `requests`: COUNT(*) counts whichever message kind each group's
+  // g.where filters `m` down to — assistant turns for model, tool_use rows
+  // for tool, sidechain assistant turns for subagent, but ALL message kinds
+  // for project/source/hour (g.where is '' there). That's intentional: each
+  // group's natural request unit differs (a "request" under model/subagent
+  // is an LLM turn, under tool is a tool call, under project/source/hour it's
+  // any logged event) — not a bug to unify.
   const g = groupExpr(q.group);
   const cellRows = db.prepare(`
     SELECT ${g.col} AS gk, COALESCE(m.model,'') AS model,
@@ -87,14 +113,28 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   `).all(...bind()) as unknown as { gk: string|number; sessions: number }[];
   for (const s of sessRows) { const r = rowMap.get(String(s.gk)); if (r) r.sessions = s.sessions; }
 
-  // Errors per group value (tool_result heads matched against ERROR_RE).
+  // Errors: each erroring tool_result is counted EXACTLY ONCE, attributed via
+  // its PAIRED tool_use (tool_use_id join) — not a cross-join against every
+  // tool_result co-resident in the session (that over-counted multiplicatively
+  // for project/source/hour, where g.where is '' and `m` ranges over every
+  // message in the session, and misattributed for tool/skill/subagent since
+  // an arbitrary same-session tool_result isn't the one that actually errored
+  // for that group value).
+  const errCol = errorGroupCol(q.group);
   const errRows = db.prepare(`
-    SELECT ${g.col} AS gk, substr(m2.text,1,200) AS head
-    FROM messages m
-    JOIN messages m2 ON m2.session_id = m.session_id AND m2.kind='tool_result' AND m2.text IS NOT NULL
-    ${base} ${g.where}
-  `).all(...bind()) as unknown as { gk: string|number; head: string }[];
-  for (const e of errRows) { if (ERROR_RE.test(e.head)) { const r = rowMap.get(String(e.gk)); if (r) r.errors++; } }
+    SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
+    FROM messages r
+    JOIN messages u ON u.session_id = r.session_id AND u.tool_use_id = r.tool_use_id AND u.kind = 'tool_use'
+    JOIN sessions s ON s.id = r.session_id
+    JOIN projects p ON p.id = s.project_id
+    WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
+      AND COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}
+  `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
+  for (const e of errRows) {
+    if (e.gk == null || !ERROR_RE.test(e.head)) continue;
+    const r = rowMap.get(String(e.gk));
+    if (r) r.errors++;
+  }
 
   // Active ms per group value (session agent_active_ms attributed to each group
   // value present in the session — an approximation for message-level groups;
@@ -109,7 +149,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
 
   let rows = [...rowMap.values()];
 
-  // Calibrated token override for tool/skill groups.
+  // Calibrated token override for tool/skill groups. A single ''-keyed cell
+  // (the original shape) makes client Spend pricing (costOf) return null —
+  // pricingFor('') is falsy so `if (!model) return null` short-circuits in
+  // src/models.ts — so instead distribute each row's calibrated token total
+  // across the scope's REAL assistant-turn models by their billed token
+  // share (modelSplitRows), preserving each model's own input:output ratio.
+  // This gives a real blended $ via costOf while staying keyed by model.
   if (calibrated) {
     const charRows = db.prepare(`
       SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
@@ -121,7 +167,33 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     `).get(...bind()) as unknown as { billed: number };
     const cal = calibrateByBucket(charRows.map((c) => ({ key: String(c.gk), chars: c.chars })), billed.billed);
     const byKey = new Map(cal.map((c) => [c.key, c.tokens]));
-    for (const r of rows) r.tokensByModel = { '': { input: byKey.get(r.key) ?? 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 } };
+
+    const modelSplitRows = db.prepare(`
+      SELECT m.model AS model, COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output
+      FROM messages m ${base} AND m.kind='assistant' AND m.model IS NOT NULL
+      GROUP BY m.model
+    `).all(...bind()) as unknown as { model: string; input: number; output: number }[];
+    const billedAll = modelSplitRows.reduce((n, r) => n + r.input + r.output, 0);
+
+    for (const r of rows) {
+      const T = byKey.get(r.key) ?? 0;
+      if (billedAll <= 0) {
+        // Nothing billed in scope at all — spend 0 is acceptable; fall back
+        // to the single empty-model cell rather than dividing by zero.
+        r.tokensByModel = { '': { input: T, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 } };
+        continue;
+      }
+      const tokensByModel: Record<string, ModelUsageCell> = {};
+      for (const ms of modelSplitRows) {
+        const msTotal = ms.input + ms.output;
+        if (msTotal <= 0) continue;
+        const modelTokens = Math.round(T * (msTotal / billedAll));
+        const input = Math.round(modelTokens * (ms.input / msTotal));
+        const output = modelTokens - input;
+        tokensByModel[ms.model] = { input, output, cacheRead: 0, cw5m: 0, cw1h: 0 };
+      }
+      r.tokensByModel = tokensByModel;
+    }
   }
 
   // Rank by a rough magnitude (tokens for token/spend metrics, else requests)
@@ -151,7 +223,12 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   }
 
   // Subgroup segments (stacked bars) — tokens per (group, subgroup) cell.
-  if (q.subgroup) {
+  // Skipped for calibrated (tool/skill) groups: subgroup values live on the
+  // same tool_use/skill rows whose raw m.input_tokens/output_tokens are ~0
+  // (the real tokens are calibrated post-hoc above, not summed per-row), so a
+  // raw SUM here would render a near-zero, misleading stack. Leave segments
+  // [] — the UI renders a single full-width bar when segments is empty.
+  if (q.subgroup && !calibrated) {
     const sg = groupExpr(q.subgroup);
     const segRows = db.prepare(`
       SELECT ${g.col} AS gk, ${sg.col} AS sk,

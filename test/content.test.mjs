@@ -50,3 +50,9 @@ test('computeContent: callouts return numbers, never throw on sparse data', () =
   assert.equal(typeof r.callouts.subagentHeavyShare, 'number');
   assert.equal(typeof r.callouts.cacheWarmthMinutes, 'number');
 });
+// Locks Finding 3 (5e-0 review): ContentResult carries an explicit
+// `calibrated` marker so the UI can badge calibrated cells.
+test('computeContent: result carries an explicit calibrated:true contract marker', () => {
+  const r = content.computeContent({ type: 'all' }, null);
+  assert.equal(r.calibrated, true);
+});

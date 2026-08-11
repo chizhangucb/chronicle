@@ -353,6 +353,9 @@ export interface ContentResult {
   subagents: { key: string; runs: number; tokens: number }[];
   callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
   calibratedTotalTokens: number;
+  // composition, toolResultsByTool, and skills[].tokens are calibrated
+  // (text-length→billed); subagents[].tokens are exact.
+  calibrated: boolean;
 }
 
 export interface ExploreQueryParams {

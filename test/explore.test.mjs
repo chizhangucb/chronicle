@@ -44,6 +44,13 @@ before(async () => {
       { kind: 'tool_result', tool_use_id: 't1', text: 'ok output text', ts: '2026-08-01T10:24:03.000Z' },
       { kind: 'assistant', model: 'claude-sonnet-5', is_sidechain: 1, agent_type: 'general-purpose',
         input_tokens: 200, output_tokens: 80, text: 'subagent work here', ts: '2026-08-01T10:25:00.000Z' },
+      // Second Bash call that errors — for the errors-metric fix (Finding 1,
+      // 5e-0 review round). Paired via tool_use_id 't2', same tool_name as
+      // the ok one above, so the 'Bash' row must show errors===1 (only this
+      // one), not 2 (double-counting the ok result) or the session's full
+      // message count (the old cross-join bug).
+      { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 't2', ts: '2026-08-01T10:26:00.000Z' },
+      { kind: 'tool_result', tool_use_id: 't2', text: 'Error: boom', ts: '2026-08-01T10:26:03.000Z' },
     ]),
   );
   replaceSession(
@@ -96,4 +103,49 @@ test('computeExplore: topN caps rows and folds the rest into an "Other" row', ()
   const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'model', rollup: 'total', topN: 1 });
   assert.ok(r.rows.length <= 2);
   assert.ok(r.rows.some((x) => x.key === 'Other') || r.rows.length === 1);
+});
+
+// Locks Finding 1 (5e-0 review): errors must be counted ONCE per erroring
+// tool_result, attributed via tool_use_id pairing — not cross-joined against
+// every tool_result co-resident in the session.
+test('computeExplore: errors for group=tool count only the erroring tool_result, not the ok one', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'tool', rollup: 'total', topN: 10 });
+  const bash = r.rows.find((x) => x.key === 'Bash');
+  assert.ok(bash);
+  assert.equal(bash.errors, 1);
+});
+
+// Locks the multiplicative-over-count regression specifically: for
+// group=source, g.where is '' so `m`/`r` range over every message kind in
+// the session — the old cross-join counted errors once per co-resident
+// message (17 in this fixture's s1), not once per erroring tool_result.
+test('computeExplore: errors for group=source are NOT multiplied by session message count', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'source', rollup: 'total', topN: 10 });
+  const cc = r.rows.find((x) => x.key === 'claude-code');
+  assert.ok(cc);
+  assert.equal(cc.errors, 1);
+});
+
+// Locks Finding 2 (5e-0 review): calibrated tool/skill rows must blend
+// tokens across the scope's REAL models (costOf(model) can price them), not
+// collapse into a single ''-keyed cell (costOf('') is null per src/models.ts
+// pricingFor's falsy-model guard).
+test('computeExplore: calibrated tool rows blend tokens across REAL models, never a "" key', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  assert.equal(r.calibrated, true);
+  const bash = r.rows.find((x) => x.key === 'Bash');
+  assert.ok(bash);
+  const modelKeys = Object.keys(bash.tokensByModel);
+  assert.ok(modelKeys.length > 0);
+  assert.ok(!modelKeys.includes(''));
+  assert.ok(modelKeys.includes('claude-sonnet-5') || modelKeys.includes('claude-haiku-4-5'));
+});
+
+// Locks Finding 5 (5e-0 review): calibrated groups skip subgroup segments
+// entirely (raw per-row token sums would be near-zero and misleading).
+test('computeExplore: calibrated groups (tool/skill) leave segments empty even when subgroup is requested', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', subgroup: 'project', rollup: 'total', topN: 10 });
+  const bash = r.rows.find((x) => x.key === 'Bash');
+  assert.ok(bash);
+  assert.deepEqual(bash.segments, []);
 });
