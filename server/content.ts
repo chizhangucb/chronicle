@@ -121,7 +121,8 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
      FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { ctx: number|null; usage: string|null }[];
   let pressureTokens = 0, totalTokens = 0;
   for (const s of sessions) {
-    const usage = s.usage ? JSON.parse(s.usage) as Record<string, { input?: number; output?: number }> : {};
+    let usage: Record<string, { input?: number; output?: number }> = {};
+    if (s.usage) { try { usage = JSON.parse(s.usage) as Record<string, { input?: number; output?: number }>; } catch { usage = {}; } }
     const models = Object.keys(usage);
     const tok = models.reduce((n, mdl) => n + (usage[mdl].input ?? 0) + (usage[mdl].output ?? 0), 0);
     totalTokens += tok;

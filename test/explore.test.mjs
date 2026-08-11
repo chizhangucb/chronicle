@@ -232,3 +232,20 @@ test('computeExplore: calibrated tool tokens are nonzero (tool_input counts as c
   const totalTokens = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   assert.ok(totalTokens > 0, `expected 'Read' row tokens > 0, got ${totalTokens}`);
 });
+
+// Locks the calibrated tool/skill BASE to sessions.usage, not per-message
+// (review Finding 1). The calibration base (billedAll) is Σ in-scope
+// sessions.usage(input+output) = 1960 ((1200+700)+(40+20)); the per-message
+// assistant sum diverges at 2080 (s1 800/380 incl. sidechain + s2 600/300).
+// Only the 'Read' tool_use row carries chars (t3's tool_input; both Bash rows
+// have neither text nor tool_input → 0 chars), so calibrateByBucket routes the
+// FULL base to 'Read'. Its blended token total therefore equals the base
+// exactly: 1960 under usage, but would be 2080 if the base were still
+// per-message — a genuine RED-under-old-code lock on a headline Spend path.
+test('computeExplore: calibrated tool base comes from sessions.usage, not per-message', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const read = r.rows.find((x) => x.key === 'Read');
+  assert.ok(read);
+  const total = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.equal(total, 1960); // usage billedAll; would be 2080 under per-message
+});

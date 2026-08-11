@@ -203,8 +203,11 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // but absent from usage get an empty tokensByModel; rows present in usage but
   // not per-message (a model that only appears in usage) are created so token/
   // spend metrics are complete. topN/Other folding below is unaffected (it sums
-  // tokensByModel generically).
-  if (EXACT_USAGE_GROUPS.includes(q.group)) {
+  // tokensByModel generically). GATED to token/spend metrics only: those are
+  // the only metrics that read tokensByModel, and running the override for
+  // requests/sessions/errors/active would materialize spurious zero-count rows
+  // for usage-only models (no per-message rows), skewing those metrics.
+  if (EXACT_USAGE_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend')) {
     const usageRows = loadSessionUsage(cutoff, sc);
     const acc = new Map<string, Record<string, ModelUsageCell>>();
     for (const u of usageRows) {
