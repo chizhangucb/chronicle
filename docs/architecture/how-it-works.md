@@ -331,7 +331,7 @@ The four parsers wired in today:
 | Claude Code | `claude-code` | `~/.claude/projects/` | JSONL |
 | Codex | `codex` | `~/.codex/sessions/` | JSONL |
 | Cursor | `cursor` | VS Code `workspaceStorage` (`CHRONICLE_CURSOR_DIR`) | SQLite (WAL) |
-| OpenCode | `opencode` | `~/.local/share/opencode/opencode.db` (`OPENCODE_DB`) | SQLite (WAL) |
+| OpenCode | `opencode` | `~/.local/share/opencode/opencode.db` | SQLite (WAL) |
 
 `GET /api/scan` fans out to all four scanners and annotates which sessions are already
 imported; `POST /api/import` routes the chosen source to the right parse function, then hands
