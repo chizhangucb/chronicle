@@ -278,3 +278,22 @@ test('duplicate tool_use rows for one tool_use_id do not double-count errors', (
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.equal(bash?.errors, 1, 'one erroring result paired to a duplicated tool_use must count once, not twice');
 });
+
+test('tool group Detail tokens are calibrated even under a non-token metric', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'tool', rollup: 'total', topN: 10 });
+  const anyTokens = r.rows.some((row) => Object.values(row.tokensByModel).some((c) => c.input + c.output > 0));
+  assert.ok(anyTokens, 'tool rows must carry calibrated tokensByModel under the requests metric');
+  assert.equal(r.calibrated, false, 'the ≈ badge flag stays false when the displayed metric is not token-based');
+});
+
+test('model group Detail tokens come from usage even under a non-token metric', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'model', rollup: 'total', topN: 10 });
+  const sonnet = r.rows.find((row) => row.key === 'claude-sonnet-5');
+  const tok = Object.values(sonnet?.tokensByModel ?? {}).reduce((n, c) => n + c.input + c.output, 0);
+  // usage totals across s1(1200/700)+s2(...)+sDup(500/200)+... — assert it
+  // matches the tokens-metric result exactly (usage override, not per-message).
+  const rt = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const sonnetT = rt.rows.find((row) => row.key === 'claude-sonnet-5');
+  const tokT = Object.values(sonnetT?.tokensByModel ?? {}).reduce((n, c) => n + c.input + c.output, 0);
+  assert.equal(tok, tokT, 'model tokensByModel must equal the usage-sourced value regardless of metric');
+});

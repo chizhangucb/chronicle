@@ -121,7 +121,12 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   const base = `JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}`;
   const bind = (extra: (string|number)[] = []) => [cutoff, ...sc.params, ...extra];
-  const calibrated = CALIBRATED_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend');
+  // Token MAGNITUDE for tool/skill is always calibrated (deterministic, metric-
+  // independent) so the Detail table's Tokens/$ columns are correct under every
+  // metric. The `calibrated` flag below only drives the ≈ badge, so it stays
+  // tied to the displayed metric — no ≈ noise when viewing errors/requests.
+  const tokensAreCalibrated = CALIBRATED_GROUPS.includes(q.group);
+  const calibrated = tokensAreCalibrated && (q.metric === 'tokens' || q.metric === 'spend');
 
   // Per (groupValue, model) exact token + request aggregates. For calibrated
   // groups the token columns are meaningless on those message kinds, so tokens
@@ -210,7 +215,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // the only metrics that read tokensByModel, and running the override for
   // requests/sessions/errors/active would materialize spurious zero-count rows
   // for usage-only models (no per-message rows), skewing those metrics.
-  if (EXACT_USAGE_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend')) {
+  if (EXACT_USAGE_GROUPS.includes(q.group)) {
     const usageRows = loadSessionUsage(cutoff, sc, q.scope);
     const acc = new Map<string, Record<string, ModelUsageCell>>();
     for (const u of usageRows) {
@@ -222,8 +227,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       }
     }
     for (const row of rowMap.values()) row.tokensByModel = acc.get(row.key) ?? {};
-    for (const [k, byModel] of acc) {
-      if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+    // Only materialize usage-only rows (a model billed but with no per-message
+    // rows) when the displayed metric actually reads token magnitude — else
+    // they'd show as spurious zero-request/zero-session rows under other metrics.
+    if (q.metric === 'tokens' || q.metric === 'spend') {
+      for (const [k, byModel] of acc) {
+        if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+      }
     }
   }
 
@@ -236,7 +246,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // across the scope's REAL assistant-turn models by their billed token
   // share (modelSplitRows), preserving each model's own input:output ratio.
   // This gives a real blended $ via costOf while staying keyed by model.
-  if (calibrated) {
+  if (tokensAreCalibrated) {
     // Char measure includes tool_input, not just text: tool_use rows (the
     // 'tool' group, and skill-tagged tool_use rows for 'skill') store their
     // content in tool_input — text is NULL for kind='tool_use' — so summing
@@ -322,7 +332,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // (the real tokens are calibrated post-hoc above, not summed per-row), so a
   // raw SUM here would render a near-zero, misleading stack. Leave segments
   // [] — the UI renders a single full-width bar when segments is empty.
-  if (q.subgroup && !calibrated) {
+  if (q.subgroup && !tokensAreCalibrated) {
     const sg = groupExpr(q.subgroup);
     const segRows = db.prepare(`
       SELECT ${g.col} AS gk, ${sg.col} AS sk,
