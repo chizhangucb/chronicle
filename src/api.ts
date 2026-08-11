@@ -328,6 +328,40 @@ export interface InsightsResult {
   projects: { id: number; name: string }[];
 }
 
+// ---- Explore / Content (Task 5e-0 backend engine) ----
+// These interfaces mirror server/explore.ts and server/content.ts VERBATIM —
+// keep them in sync if the server types change.
+
+export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface ExploreRow {
+  key: string; label: string;
+  tokensByModel: Record<string, ModelUsageCell>;
+  requests: number; sessions: number; errors: number; activeMs: number;
+  segments: { key: string; label: string; tokens: number }[];
+}
+export interface ExploreResult {
+  metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | null;
+  calibrated: boolean; rows: ExploreRow[];
+}
+
+export interface ContentResult {
+  composition: { key: string; tokens: number }[];
+  toolResultsByTool: { key: string; tokens: number }[];
+  skills: { key: string; count: number; tokens: number }[];
+  subagents: { key: string; runs: number; tokens: number }[];
+  callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
+  calibratedTotalTokens: number;
+}
+
+export interface ExploreQueryParams {
+  scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
+  metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'; topN?: number;
+}
+
 // ---- Git ----
 
 export type GitAtResult = { commit: Commit | null } | { noRepo: true };
@@ -381,4 +415,18 @@ export const api = {
   gitFile: (project: number | string, commit: string, path: string): Promise<GitFileResult> =>
     j(`/api/git/file?project=${project}&commit=${commit}&path=${encodeURIComponent(path)}`),
   insights: (days?: number): Promise<InsightsResult> => j('/api/insights' + (days ? `?days=${days}` : '')),
+  explore: (q: ExploreQueryParams): Promise<ExploreResult> => {
+    const p = new URLSearchParams({ scope: q.scope, metric: q.metric, group: q.group });
+    if (q.id != null) p.set('id', String(q.id));
+    if (q.days) p.set('days', String(q.days));
+    if (q.subgroup) p.set('subgroup', q.subgroup);
+    if (q.topN) p.set('topN', String(q.topN));
+    return j('/api/explore?' + p.toString());
+  },
+  content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> => {
+    const p = new URLSearchParams({ scope });
+    if (id != null) p.set('id', String(id));
+    if (days) p.set('days', String(days));
+    return j('/api/content?' + p.toString());
+  },
 };

@@ -7,6 +7,8 @@ import { mountSearch }     from './routes/search.ts';
 import { mountSecurity }   from './routes/security.ts';
 import { mountGit }        from './routes/git.ts';
 import { mountInsights }   from './routes/insights.ts';
+import { mountExplore }    from './routes/explore.ts';
+import { mountContent }    from './routes/content.ts';
 import { startAutoSync }   from './autosync.ts';
 
 export const api = express();
@@ -20,6 +22,8 @@ mountSearch(api);
 mountSecurity(api);
 mountGit(api);
 mountInsights(api);
+mountExplore(api);
+mountContent(api);
 
 // Auto-sync starts with the server in every run mode (dev / standalone /
 // Electron); watchers + timer live on globalThis so SSR reloads don't orphan
