@@ -1,6 +1,6 @@
-// Tray auto-sync (design doc Phase 2): keep the DB fresh without manual syncs.
-// Triggers: server start, a 30-min backstop timer, a debounced (~30 s) fs-watch
-// on the known source log dirs, and (from Electron) system wake. Incremental:
+// Invisible auto-sync: keep the DB fresh without manual syncs.
+// Triggers: server start, a 30-min backstop timer, and a debounced (~30 s)
+// fs-watch on the known source log dirs. Incremental:
 // only sessions whose source file mtime is newer than their last import are
 // re-parsed; `replaceSession` is idempotent, so partial in-progress imports are
 // simply superseded by the next pass. State lives on globalThis so Vite SSR
@@ -18,7 +18,6 @@ import type { ParseResult } from '../shared/types.ts';
 export interface ChronicleConfig {
   autoSync?: boolean;
   autoSyncPaused?: boolean;
-  launchAtLogin?: boolean;
   [key: string]: unknown;
 }
 

@@ -275,7 +275,6 @@ export interface SearchResponse {
 export interface Settings {
   autoSync: boolean;
   autoSyncPaused: boolean;
-  launchAtLogin: boolean;
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
 }

@@ -3,6 +3,15 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## 1.0.1
+
+- **Quieter startup.** The foreground `npx` launcher no longer prints the
+  `node:sqlite` experimental warning or `fatal: not a git repository` lines from
+  probing non-git project folders — both were harmless noise the desktop shell
+  used to hide.
+- Housekeeping: removed the inert `launchAtLogin` setting and scrubbed leftover
+  desktop-shell references from code comments.
+
 ## 1.0.0
 
 - **Install via npm.** Chronicle is now `npx chronicle-cli` (requires Node 24+). The Electron desktop app and Homebrew/DMG install are retired.

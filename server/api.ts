@@ -25,7 +25,7 @@ mountInsights(api);
 mountExplore(api);
 mountContent(api);
 
-// Auto-sync starts with the server in every run mode (dev / standalone /
-// Electron); watchers + timer live on globalThis so SSR reloads don't orphan
-// them. No-op when the user disabled auto-sync in settings.
+// Auto-sync starts with the server in every run mode (dev / standalone);
+// watchers + timer live on globalThis so SSR reloads don't orphan them.
+// No-op when the user disabled auto-sync in settings.
 startAutoSync();

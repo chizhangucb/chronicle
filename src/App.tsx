@@ -74,8 +74,8 @@ export default function App() {
   }, []);
   useEffect(() => { if (atHome) refresh(); }, [atHome, refresh]);
 
-  // chronicle://session/<id> deep links: the Electron shell sets
-  // location.hash to `session=<id>`; resolve the owning project and navigate.
+  // Deep link: a `#session=<id>` hash resolves the owning project and
+  // navigates to that session (used by external openers linking into the app).
   useEffect(() => {
     async function onHash() {
       const m = /^#session=(.+)$/.exec(location.hash);
@@ -246,11 +246,11 @@ function SettingsModal({ onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
-      autoSync: true, autoSyncPaused: false, launchAtLogin: false,
+      autoSync: true, autoSyncPaused: false,
       minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10,
     }));
   }, []);
-  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'launchAtLogin') {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);

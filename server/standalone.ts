@@ -20,7 +20,7 @@ export function startServer(port = 41730, distDir?: string): Promise<Server> {
   });
 }
 
-// `node server/standalone.js` runs it directly (no Electron)
+// Run directly (`node server/standalone.ts`) when invoked as the entry module.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 41730);
   startServer(port).then(() => console.log(`Chronicle standalone on http://localhost:${port}`));
