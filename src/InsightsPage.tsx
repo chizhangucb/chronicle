@@ -56,11 +56,17 @@ function sessionCost(json: string | null): number {
   for (const [model, u] of Object.entries(parseUsage(json))) total += costOf(model, u) ?? 0;
   return total;
 }
+// "Tokens" = input + output only (matches ProjectDetail.tsx's `totalTokens`
+// and OverviewMode.tsx's `costAgg.totalTokens`) — cache read/write are a
+// separate billing tier, shown via the cache-hit-rate stats and the "Token
+// usage by model" table's own cacheRead/cw5m/cw1h columns, so narrowing this
+// doesn't hide any information. Deduped at the 5d Wave-2 integration pass:
+// Insights previously included cache tokens here, which made its "Tokens" KPI
+// mean something different from the same-named KPI on the other two views.
 function sessionTokens(json: string | null): number {
   let total = 0;
   for (const u of Object.values(parseUsage(json))) {
-    total += (u.input || 0) + (u.output || 0) + (u.cacheRead || 0)
-      + (u.cacheWrite5m || 0) + (u.cacheWrite1h || 0) + (u.cacheWrite || 0);
+    total += (u.input || 0) + (u.output || 0);
   }
   return total;
 }
@@ -231,7 +237,7 @@ export default function InsightsPage(): JSX.Element {
   }
 
   return (
-    <div className="page">
+    <div className="page insights-page">
       <div className="head"><h1>{t('Insights')}</h1><span className="sub">{t('all projects · all sources')}</span></div>
       <div className="ctlrow">
         <div className="rangebar">

@@ -536,14 +536,17 @@ body {
 
 /* ---- Segmented range control (5d-3 primitive) — replaces the old
    <select class="range-select"> with a button group; same chip-on styling
-   language as .filter-chips/.chip elsewhere in the app. ---- */
-.rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-.rangebar button {
+   language as .filter-chips/.chip elsewhere in the app. Scoped to
+   `.project-detail` (Project analytics' root class) because Insights (below)
+   independently authored its own `.rangebar` with a different active-state
+   color; deduped at the 5d Wave-2 integration pass — see styles.css history. ---- */
+.project-detail .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.project-detail .rangebar button {
   background: none; border: none; border-radius: 6px; padding: 5px 10px;
   font: 12px var(--mono); color: var(--ink-2); cursor: pointer; white-space: nowrap;
 }
-.rangebar button:hover { color: var(--ink); }
-.rangebar button.on { background: rgba(192, 138, 30, 0.18); color: var(--brass-text); }
+.project-detail .rangebar button:hover { color: var(--ink); }
+.project-detail .rangebar button.on { background: rgba(192, 138, 30, 0.18); color: var(--brass-text); }
 
 /* ---- Recharts donut wrapper (5d-3 primitive) — pie + legend side by side;
    distinct from .ov-donut-wrap (the older hand-rolled conic-gradient donut
@@ -552,13 +555,15 @@ body {
 
 /* ---- Horizontal bar ranking (5d primitive — mirrors .bar-row/.bar/.bar-fill
    but with a fixed-order categorical color per row and a tabular-num value;
-   used by both Project analytics (Call Ranking, Cost by model) and Session
-   Overview (Tool mix)). ---- */
-.hbar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-.hbar .n { width: 130px; font-size: 12px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-.hbar .track { flex: 1; height: 8px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
-.hbar .fill { height: 100%; border-radius: 4px; }
-.hbar .v { width: 56px; text-align: right; flex-shrink: 0; color: var(--ink-2); font-size: 12px; }
+   used by Project analytics (Call Ranking, Cost by model)). Scoped to
+   `.project-detail` — Session Overview and Insights each independently
+   authored their own `.hbar` geometry (grid-based, different column widths);
+   deduped at the 5d Wave-2 integration pass. ---- */
+.project-detail .hbar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.project-detail .hbar .n { width: 130px; font-size: 12px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.project-detail .hbar .track { flex: 1; height: 8px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
+.project-detail .hbar .fill { height: 100%; border-radius: 4px; }
+.project-detail .hbar .v { width: 56px; text-align: right; flex-shrink: 0; color: var(--ink-2); font-size: 12px; }
 
 /* Session ID chip */
 .ov-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -938,15 +943,23 @@ h4 { margin: 6px 0; }
 .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
 .head h1 { font: 600 19px var(--mono); margin: 0; }
 .head .sub { font: 11.5px var(--mono); color: var(--ink-3); }
-.rangebar {
+/* Scoped to `.insights-page` (Insights' root class) — Project analytics
+   independently authored its own `.rangebar`/`.hbar` (brass-tint active state,
+   flex/130px-label geometry) above; deduped at the 5d Wave-2 integration
+   pass. Insights' `.hbar .track` is `display:flex; gap:2px` (unlike the other
+   two views) so it CAN render multiple `.seg` children side by side with a
+   visible gap; every current call site (Global tool mix, Error rate by
+   project, Spend by model, Sources) renders exactly one `.seg` per bar today,
+   but the multi-segment layout is load-bearing for future rows. */
+.insights-page .rangebar {
   display: flex; gap: 2px; margin: 12px 0 14px; background: var(--bg1);
   border: 1px solid var(--border); border-radius: 4px; padding: 2px; width: max-content;
 }
-.rangebar button {
+.insights-page .rangebar button {
   font: 11.5px var(--mono); background: none; border: 0; border-radius: 3px;
   color: var(--ink-3); padding: 4px 12px; cursor: pointer;
 }
-.rangebar button.on { background: var(--bg2); color: var(--brass-text); }
+.insights-page .rangebar button.on { background: var(--bg2); color: var(--brass-text); }
 .ctlrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 14px; flex-wrap: wrap; }
 .ctlrow .rangebar { margin: 0; }
 .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -955,11 +968,11 @@ h4 { margin: 6px 0; }
 .legend .dot, .tbl .dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px;
 }
-.hbar { display: grid; grid-template-columns: 110px 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
-.hbar .n { color: var(--ink-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; display: flex; gap: 2px; }
-.hbar .seg { height: 100%; }
-.hbar .v { text-align: right; color: var(--ink-2); }
+.insights-page .hbar { display: grid; grid-template-columns: 110px 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
+.insights-page .hbar .n { color: var(--ink-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insights-page .hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; display: flex; gap: 2px; }
+.insights-page .hbar .seg { height: 100%; }
+.insights-page .hbar .v { text-align: right; color: var(--ink-2); }
 
 /* Hour-of-day heatmap (7 rows x 24 columns) */
 .heat { display: grid; grid-template-columns: 34px repeat(24, 1fr); gap: 2px; font: 9.5px var(--mono); color: var(--ink-3); max-width: 680px; }
@@ -1008,11 +1021,14 @@ h4 { margin: 6px 0; }
    `.comp-bar`/`.comp-legend`/`.dot` are new here, matching the approved
    mockup (records/design/2026-08-10-chronicle-phase5/overview.html). */
 .grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-.hbar { display: grid; grid-template-columns: 92px 1fr 44px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
-.hbar .n { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
-.hbar .fill { height: 100%; border-radius: 3px; }
-.hbar .v { text-align: right; color: var(--ink-2); }
+/* Scoped to `.overview-page` (Session Overview's existing root class) —
+   Project analytics and Insights each independently authored their own
+   `.hbar` geometry above; deduped at the 5d Wave-2 integration pass. */
+.overview-page .hbar { display: grid; grid-template-columns: 92px 1fr 44px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
+.overview-page .hbar .n { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-page .hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.overview-page .hbar .fill { height: 100%; border-radius: 3px; }
+.overview-page .hbar .v { text-align: right; color: var(--ink-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
 .trow:last-child { border: 0; }
