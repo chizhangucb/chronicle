@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+-- Supports the tool_result<->tool_use pairing self-join used by explore.ts
+-- (errRows) and content.ts (toolChars): ON u.session_id=r.session_id AND
+-- u.tool_use_id=r.tool_use_id AND u.kind='tool_use'. Without this, SQLite
+-- can only SEARCH the tool_use side by session_id (idx_messages_session),
+-- then linear-scan every message in the session to find the matching
+-- tool_use_id -- quadratic within large sessions. Measured on the
+-- maintainer's ~395MB/101k-row real DB: this index alone cut /api/explore
+-- and /api/content from ~24-37s to ~1-1.5s (see task-perf-report.md for the
+-- full before/after table).
+CREATE INDEX IF NOT EXISTS idx_messages_tooluse ON messages(session_id, tool_use_id);
 -- Tombstones: sessions deliberately removed from Chronicle (single delete or
 -- whole-project delete). Keyed on (source, session id) since ids are only
 -- unique within a source. Import/autosync paths (replaceSession) consult this
