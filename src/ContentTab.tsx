@@ -3,6 +3,7 @@ import { api, type ContentResult } from './api.ts';
 import { t } from './i18n.ts';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { shakespeareMultiple } from './insights/stats.ts';
+import InfoTip from './InfoTip.tsx';
 import type { Scope } from './ExploreTab.tsx';
 
 // Mounted by both InsightsPage (5e-2, scope {type:'all'}) and ProjectDetail
@@ -59,19 +60,12 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
     return { rows, total, max };
   }, [result]);
 
-  // Skills & subagents: two independently-normalized groups sharing one card
-  // (skills bars relative to the top skill, subagents bars relative to the
-  // top subagent — matching content.html's two separate color-index resets),
-  // % share relative to the combined skills+subagents token pool (the note
-  // just says "% = share of tokens", not scoped further).
-  const skillsSubagents = useMemo(() => {
-    if (!result) return { skillsMax: 1e-9, subagentsMax: 1e-9, combinedTotal: 1 };
-    const skillsMax = Math.max(1e-9, ...result.skills.map((s) => s.tokens));
-    const subagentsMax = Math.max(1e-9, ...result.subagents.map((s) => s.tokens));
-    const combinedTotal = result.skills.reduce((n, s) => n + s.tokens, 0)
-      + result.subagents.reduce((n, s) => n + s.tokens, 0) || 1;
-    return { skillsMax, subagentsMax, combinedTotal };
-  }, [result]);
+  // Skills & subagents: skills are now a true fraction of `billed` (share of
+  // ALL content) and subagents are exact-per-message, so both are expressed as
+  // a share of the REAL total (calibratedTotalTokens) — a subpool denominator
+  // would mix two incommensurable pools. Each row's bar WIDTH == its displayed
+  // %, so bar and label agree. Guard divide-by-zero.
+  const skillsTotal = useMemo(() => (result && result.calibratedTotalTokens > 0 ? result.calibratedTotalTokens : 0), [result]);
 
   if (!result) return <div className="muted pad8">{t('Loading…')}</div>;
 
@@ -113,7 +107,15 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
 
       <div className="grid2">
         <div className="card">
-          <h3>{t('Tool results by tool')}</h3>
+          <h3>
+            {t('Tool results by tool')}
+            {result.calibrated && (
+              <>
+                {' ≈'}
+                <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+              </>
+            )}
+          </h3>
           {toolResultsTop.rows.map((r, i) => {
             const share = toolResultsTop.total ? (r.tokens / toolResultsTop.total) * 100 : 0;
             const width = (r.tokens / toolResultsTop.max) * 100;
@@ -129,10 +131,18 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
           {!toolResultsTop.rows.length && <div className="muted small">{t('No sessions in range.')}</div>}
         </div>
         <div className="card">
-          <h3>{t('Skills & subagents')}</h3>
+          <h3>
+            {t('Skills & subagents')}
+            {result.calibrated && (
+              <>
+                {' ≈'}
+                <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+              </>
+            )}
+          </h3>
           {result.skills.map((s, i) => {
-            const width = (s.tokens / skillsSubagents.skillsMax) * 100;
-            const share = (s.tokens / skillsSubagents.combinedTotal) * 100;
+            const share = skillsTotal ? (s.tokens / skillsTotal) * 100 : 0;
+            const width = share;
             return (
               <div className="rank" key={`skill-${s.key}`}>
                 <span className="n">{s.key}</span>
@@ -143,8 +153,8 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
             );
           })}
           {result.subagents.map((s, i) => {
-            const width = (s.tokens / skillsSubagents.subagentsMax) * 100;
-            const share = (s.tokens / skillsSubagents.combinedTotal) * 100;
+            const share = skillsTotal ? (s.tokens / skillsTotal) * 100 : 0;
+            const width = share;
             return (
               <div className="rank" key={`subagent-${s.key}`}>
                 <span className="n">{s.key}</span>

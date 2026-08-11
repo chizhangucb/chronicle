@@ -27,6 +27,11 @@ before(async () => {
       { kind: 'tool_use', tool_name: 'Read', tool_use_id: 't1', ts: '2026-08-01T10:24:00.000Z' },
       { kind: 'tool_result', tool_use_id: 't1', text: 'x'.repeat(500), ts: '2026-08-01T10:24:03.000Z' },
       { kind: 'assistant', model: 'claude-sonnet-5', is_sidechain: 1, agent_type: 'general-purpose', input_tokens: 300, output_tokens: 90, ts: '2026-08-01T10:25:00.000Z' },
+      // A small skill slice — a genuine FRACTION of all content (~30 chars of
+      // ~780). Under the old bug (calibrateByBucket over ONLY skill buckets) its
+      // lone bucket summed to the FULL billed total (1500); the fix normalizes
+      // by all-content chars so it lands at its true share (~57).
+      { kind: 'assistant', model: 'claude-sonnet-5', skill: 'code-review', text: 'short skill invocation body', ts: '2026-08-01T10:26:00.000Z' },
     ]),
   );
 });
@@ -71,4 +76,27 @@ test('computeContent: calibratedTotalTokens === Σ sessions.usage(input+output),
   // composition shares still track that calibrated total (±rounding across buckets).
   const sum = r.composition.reduce((n, c) => n + c.tokens, 0);
   assert.ok(Math.abs(sum - 1500) <= 2, `composition sum ${sum} should be ~1500`);
+});
+
+// FINDING 1 (reconcile): toolResultsByTool must be the TRUE fraction of billed —
+// normalized by ALL-content chars, not by its own bucket sum. The old code
+// (calibrateByBucket over only tool-result buckets) summed to the ENTIRE billed
+// total, implying tool-results = 100% of usage. RED→GREEN: the two assertions
+// below FAIL under the pre-fix code (Σ == billed == calibratedTotalTokens).
+test('computeContent: Σ toolResultsByTool ≤ composition tool_result bucket AND < calibratedTotalTokens (not inflated to full billed)', () => {
+  const r = content.computeContent({ type: 'all' }, null);
+  const toolSum = r.toolResultsByTool.reduce((n, x) => n + x.tokens, 0);
+  const compToolResult = r.composition.find((c) => c.key === 'tool_result')?.tokens ?? 0;
+  assert.ok(toolSum > 0, 'expect some tool-result tokens attributed');
+  assert.ok(toolSum <= compToolResult, `Σ toolResultsByTool ${toolSum} must be ≤ composition tool_result bucket ${compToolResult}`);
+  assert.ok(toolSum < r.calibratedTotalTokens, `Σ toolResultsByTool ${toolSum} must be < calibratedTotalTokens ${r.calibratedTotalTokens} (old code inflated it to the full billed total)`);
+});
+
+// FINDING 1 (reconcile): a small skill slice must render as its true fraction of
+// billed, NOT ~100%. RED→GREEN: fails under the pre-fix code (skillSum == 1500).
+test('computeContent: Σ skills tokens < calibratedTotalTokens when skills are a content subset', () => {
+  const r = content.computeContent({ type: 'all' }, null);
+  const skillSum = r.skills.reduce((n, s) => n + s.tokens, 0);
+  assert.ok(skillSum > 0, 'expect the code-review skill fixture to attribute some tokens');
+  assert.ok(skillSum < r.calibratedTotalTokens, `Σ skills ${skillSum} must be < calibratedTotalTokens ${r.calibratedTotalTokens} (old code inflated it to full billed)`);
 });

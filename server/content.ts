@@ -87,6 +87,16 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   const kindBuckets = KINDS.map((k) => ({ key: k, chars: kindChars.find((c) => c.k === k)?.chars ?? 0 }));
   const composition = calibrateByBucket(kindBuckets, billed);
 
+  // ALL-content char total = Σ over ALL message kinds (the same denominator
+  // composition effectively uses). Tool-results and skills are normalized
+  // against THIS, so each represents its TRUE fraction of `billed` — not its
+  // share of a self-selected subpool (the old calibrateByBucket(...) over only
+  // tool-result / skill buckets summed to the ENTIRE billed total, implying
+  // tool-results ≈ 100% of usage). Σ toolResultsByTool now stays ≤ the
+  // composition tool_result bucket (unpaired results simply aren't attributed).
+  const allContentChars = kindBuckets.reduce((n, b) => n + b.chars, 0);
+  const shareTokens = (chars: number) => (allContentChars > 0 ? Math.round((chars / allContentChars) * billed) : 0);
+
   // Tool results by tool (join result→use on tool_use_id).
   const toolChars = db.prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
@@ -94,14 +104,13 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
     JOIN sessions s ON s.id = r.session_id
     WHERE r.kind='tool_result' AND COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql} AND u.tool_name IS NOT NULL
     GROUP BY u.tool_name`).all(...bind()) as unknown as { k: string; chars: number }[];
-  const toolResultsByTool = calibrateByBucket(toolChars.map((t) => ({ key: t.k, chars: t.chars })), billed)
+  const toolResultsByTool = toolChars.map((t) => ({ key: t.k, tokens: shareTokens(t.chars) }))
     .filter((t) => t.tokens > 0).sort((a, b) => b.tokens - a.tokens);
 
-  // Skills: count exact, tokens calibrated by skill-tagged char length.
+  // Skills: count exact, tokens = true fraction of billed (share of ALL content).
   const skillRows = db.prepare(`SELECT m.skill AS k, COUNT(*) AS count, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
      FROM messages m ${base} AND m.skill IS NOT NULL GROUP BY m.skill`).all(...bind()) as unknown as { k: string; count: number; chars: number }[];
-  const skillTokens = new Map(calibrateByBucket(skillRows.map((r) => ({ key: r.k, chars: r.chars })), billed).map((r) => [r.key, r.tokens]));
-  const skills = skillRows.map((r) => ({ key: r.k, count: r.count, tokens: skillTokens.get(r.k) ?? 0 })).sort((a, b) => b.count - a.count);
+  const skills = skillRows.map((r) => ({ key: r.k, count: r.count, tokens: shareTokens(r.chars) })).sort((a, b) => b.count - a.count);
 
   // Subagents: runs (distinct session×agent_type) + EXACT tokens from sidechain per-message columns.
   const subRows = db.prepare(`SELECT m.agent_type AS k, COUNT(DISTINCT m.session_id) AS runs,
