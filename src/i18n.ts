@@ -405,6 +405,10 @@ const zh = {
   'Filter sessions… (title, project, content)': '筛选会话…（标题、项目、内容）',
   'needs association': '需要关联',
   'Yesterday': '昨天',
+  // Subagents (Task 5e-3: Overview card + drill-in)
+  'Subagents': '子智能体',
+  'back to session': '返回会话',
+  'parent': '主会话',
 };
 
 const ja = {
@@ -816,6 +820,10 @@ const ja = {
   'Filter sessions… (title, project, content)': 'セッションを絞り込み…（タイトル・プロジェクト・内容）',
   'needs association': '関連付けが必要',
   'Yesterday': '昨日',
+  // Subagents (Task 5e-3: Overview card + drill-in)
+  'Subagents': 'サブエージェント',
+  'back to session': 'セッションに戻る',
+  'parent': '親セッション',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };

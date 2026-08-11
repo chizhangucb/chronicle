@@ -86,7 +86,7 @@ export interface SessionData {
 export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
 export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
-export type SessionMode = 'overview' | 'playback' | 'refine';
+export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent';
 
 export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
@@ -131,6 +131,10 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
+  // Which subagent's transcript the 'subagent' drill-in mode is showing (set by
+  // OverviewMode's Subagents card; null when not drilled in). NOT part of the
+  // sidebar rail's `modes` — it's a drill-in reached only via the Overview card.
+  const [subagentRun, setSubagentRun] = useState<string | null>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [causality, setCausality] = useState<CausalityData | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
@@ -222,6 +226,12 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // default playback/refine/overview lists; durations and Cost & Usage include
   // them via the server-stored numbers.
   const messages = useMemo(() => (data?.messages ?? []).filter((m) => !m.is_sidechain), [data]);
+  // 'subagent' drill-in: that agent type's sidechain transcript, read from the
+  // UNFILTERED session messages (sidechains are excluded from `messages` above).
+  const subagentMessages = useMemo(
+    () => (data?.messages ?? []).filter((m) => m.is_sidechain && m.agent_type === subagentRun),
+    [data, subagentRun],
+  );
   const activeKinds = useMemo(() => {
     if (!chips.size) return null; // no filter → all
     const set = new Set<string>();
@@ -392,8 +402,29 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
       {mode === 'overview' && (
         <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
-          onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession} />
+          onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession}
+          onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }} />
       )}
+
+      {mode === 'subagent' && subagentRun && <>
+        <div className="subagent-head">
+          <button className="btn ghost small" onClick={() => { setSubagentRun(null); setMode('overview'); }}>
+            ← {t('back to session')}
+          </button>
+          <span className="subagent-subtitle">{t('parent')} ↳ {subagentRun}</span>
+        </div>
+        <div className="panes">
+          <div className="conv-pane subagent-conv">
+            {subagentMessages.map((m) => (
+              <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
+                keyword="" onClick={() => selectMessage(m.seq)}
+                causality={causality?.changes.find((c) => c.seq === m.seq)}
+                onJump={(seq) => selectMessage(seq, true)} />
+            ))}
+            {!subagentMessages.length && <div className="muted center pad8">{t('No messages match the current filter.')}</div>}
+          </div>
+        </div>
+      </>}
 
       {mode === 'refine' && (
         <RefineMode messages={messages} session={data.session} project={data.project} />
