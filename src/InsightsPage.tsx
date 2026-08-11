@@ -110,11 +110,28 @@ export default function InsightsPage(): JSX.Element {
   }, [result]);
 
   // ---- Spend over time · stacked by project (client-side, per the days= range) ----
-  const topProjects = useMemo(() => [...(result?.projects ?? [])].sort((a, b) => a.id - b.id).slice(0, 5), [result]);
-  const otherProjectIds = useMemo(
-    () => new Set([...(result?.projects ?? [])].sort((a, b) => a.id - b.id).slice(5).map((p) => p.id)),
-    [result],
+  // Which 5 projects get an individual bar is chosen by TOTAL SPEND in range
+  // (descending), matching how "Spend by model"/"Sources" below already rank
+  // by value — NOT by project id, so a newer high-spend project doesn't get
+  // silently folded into "Other" behind older low-spend ones. Color
+  // ASSIGNMENT (`projectColors` below) stays id-sorted via `projectColorMap`
+  // on purpose, so a project's color stays stable across views regardless of
+  // which projects happen to rank in the top 5 here.
+  const projectSpend = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const s of result?.sessions ?? []) {
+      const cost = sessionCost(s.usage);
+      if (!cost) continue;
+      m.set(s.project_id, (m.get(s.project_id) ?? 0) + cost);
+    }
+    return m;
+  }, [result]);
+  const projectsBySpend = useMemo(
+    () => [...(result?.projects ?? [])].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
+    [result, projectSpend],
   );
+  const topProjects = useMemo(() => projectsBySpend.slice(0, 5), [projectsBySpend]);
+  const otherProjectIds = useMemo(() => new Set(projectsBySpend.slice(5).map((p) => p.id)), [projectsBySpend]);
   const spendChartData = useMemo(() => {
     if (!result) return [];
     const byDay = new Map<string, Record<string, number>>();

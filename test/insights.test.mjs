@@ -122,3 +122,25 @@ test('computeInsights: errorsByProject buckets tool_result heads per project and
   const total = r.errorsByProject.reduce((n, p) => n + p.error_count, 0);
   assert.equal(total, r.errors);
 });
+
+// Working Rhythm's "Favorite model" reads modelDistFixed, NOT modelDist,
+// specifically so it stays in step with the card's other fixed-window stats
+// (Active days/streaks/Peak hour, backed by dailyActivity/hourlyActivity —
+// already covered above). This mirrors that same "fixed window, ignores
+// days=" contract for the model distribution.
+test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', () => {
+  const { db } = dbModule;
+  db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
+  const r7 = insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (~Aug 1, well over 7d old) from the days-scoped aggregates
+  const rAll = insightsModule.computeInsights(null);
+  assert.equal(r7.sessions.length, 0, 'sanity: days=7 excludes both fixture sessions from the days-scoped session list');
+  // The fixed-window aggregate must be IDENTICAL regardless of days=, same
+  // contract as dailyActivity/hourlyActivity.
+  assert.deepEqual(r7.modelDistFixed, rAll.modelDistFixed);
+  // It must still see s1's assistant messages (well within the fixed 30d
+  // trailing window) even though days=7 zeroed out the session list above —
+  // proof this is reading message ts against the fixed cutoff, not `cutoff`.
+  const sonnet = r7.modelDistFixed.find((m) => m.model === 'claude-sonnet-5');
+  assert.ok(sonnet, 'modelDistFixed should see s1 activity even when days= excludes s1 from `sessions`');
+  assert.equal(sonnet.count, 6); // s1's 6 assistant events (odd indices of its 12-event rhythm), all tagged claude-sonnet-5
+});

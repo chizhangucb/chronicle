@@ -309,6 +309,10 @@ export interface InsightsResult {
   toolDist: NameCount[];
   kindDist: KindCount[];
   modelDist: { model: string; count: number }[];
+  // Fixed 30-day-trailing model distribution (mirrors server/insights.ts) —
+  // Working Rhythm's "Favorite model" reads this, not `modelDist`, so it
+  // stays in step with its fixed-window card-mates.
+  modelDistFixed: { model: string; count: number }[];
   errors: number;
   errorsByProject: { project_id: number; head_count: number; error_count: number }[];
   commits: number;

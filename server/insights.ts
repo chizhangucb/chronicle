@@ -34,6 +34,13 @@ export interface InsightsResult {
   toolDist: { name: string; count: number }[];
   kindDist: { kind: string; count: number }[];
   modelDist: { model: string; count: number }[];
+  // Fixed 30-day-trailing model distribution — same window as
+  // hourlyActivity (see HOURLY_WINDOW_DAYS below), NOT the `days=` cutoff.
+  // Working Rhythm's "Favorite model" stat reads this instead of `modelDist`
+  // so it stays in step with its card-mates (Active days/streaks/Peak hour),
+  // which all use the same fixed window and must not move when the page's
+  // range control changes.
+  modelDistFixed: { model: string; count: number }[];
   errors: number;
   errorsByProject: { project_id: number; head_count: number; error_count: number }[];
   commits: number;
@@ -115,6 +122,14 @@ export function computeInsights(days: number | null): InsightsResult {
     GROUP BY dow, hour
   `).all(hourlyCutoff) as unknown as { dow: number; hour: number; count: number }[];
 
+  const modelDistFixed = db.prepare(`
+    SELECT m.model AS model, COUNT(*) AS count FROM messages m
+    JOIN sessions s ON s.id = m.session_id
+    WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+      AND m.kind = 'assistant' AND m.model IS NOT NULL
+    GROUP BY m.model ORDER BY count DESC
+  `).all(hourlyCutoff) as unknown as { model: string; count: number }[];
+
   const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 
   let commits = 0;
@@ -122,5 +137,5 @@ export function computeInsights(days: number | null): InsightsResult {
     commits += commitCountSince(p.path, cutoff || null);
   }
 
-  return { sessions, toolDist, kindDist, modelDist, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects };
+  return { sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects };
 }
