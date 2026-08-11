@@ -464,6 +464,8 @@ const zh = {
     '上方：技能调用 · 下方：子智能体运行。% 表示词元占比。',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     '校准后词元数 {range}：{total} —— 约为莎士比亚全集的 {n} 倍。',
+  // Project tabs + session→Content link (Task 5e-4)
+  'See what filled the context →': '查看上下文都花在哪里 →',
 };
 
 const ja = {
@@ -934,6 +936,8 @@ const ja = {
     '上段：スキル呼び出し · 下段：サブエージェント実行。% はトークンの占有割合です。',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     'キャリブレーション済みトークン数 {range}：{total} —— シェイクスピア全集の約 {n} 倍。',
+  // Project tabs + session→Content link (Task 5e-4)
+  'See what filled the context →': 'コンテキストの内訳を見る →',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };

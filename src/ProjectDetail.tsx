@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useRoute } from 'wouter';
 import * as Popover from '@radix-ui/react-popover';
 import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
@@ -10,6 +11,8 @@ import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS } from './colors.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
+import ExploreTab from './ExploreTab.tsx';
+import ContentTab from './ContentTab.tsx';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -148,6 +151,13 @@ interface Stats {
   costByModel: [string, number][];
 }
 
+// Project sub-tabs (Task 5e-4). Explore/Content are deep-linkable routes
+// (`/project/:id/explore` · `/project/:id/content`, wired in App.tsx);
+// Overview/Sessions have no dedicated route (both live under the bare
+// `/project/:id`) and are tracked as local component state instead, so a
+// project switch or a reload always lands on Overview — same as today.
+type ProjectTab = 'overview' | 'explore' | 'content' | 'sessions';
+
 export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
   const [data, setData] = useState<ProjectDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +166,18 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const [sortKey, setSortKey] = useState('recent');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [listLimit, setListLimit] = useState(SESSION_WINDOW);
+
+  const [, navigate] = useLocation();
+  const [atExploreRoute] = useRoute('/project/:id/explore');
+  const [atContentRoute] = useRoute('/project/:id/content');
+  const [localTab, setLocalTab] = useState<'overview' | 'sessions'>('overview');
+  const tab: ProjectTab = atExploreRoute ? 'explore' : atContentRoute ? 'content' : localTab;
+  function selectTab(next: ProjectTab) {
+    if (next === 'explore') { navigate(`/project/${id}/explore`); return; }
+    if (next === 'content') { navigate(`/project/${id}/content`); return; }
+    if (tab === 'explore' || tab === 'content') navigate(`/project/${id}`);
+    setLocalTab(next);
+  }
 
   // "Today" = fractional days since local midnight, computed once per range change
   // (a stable value avoids a Date.now()-driven refetch loop).
@@ -324,6 +346,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           ))}
         </div>
       </div>
+
       {project.path.includes('#') && (
         <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
           onSubmit={associate}>
@@ -334,7 +357,20 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         </form>
       )}
 
-      <div className="kpis">
+      {/* ---- 5e-4: project sub-tabs — reuses .tabs/.tab from 5e-1, not redefined ---- */}
+      <div className="ctlrow">
+        <div className="tabs project-tabs">
+          <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>{t('Overview')}</button>
+          <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => selectTab('explore')}>{t('Explore')}</button>
+          <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>{t('Content')}</button>
+          <button type="button" className={`tab ${tab === 'sessions' ? 'on' : ''}`} onClick={() => selectTab('sessions')}>{t('Sessions')}</button>
+        </div>
+      </div>
+
+      {tab === 'explore' && <ExploreTab scope={{ type: 'project', id }} days={days} />}
+      {tab === 'content' && <ContentTab scope={{ type: 'project', id }} days={days} />}
+
+      {tab === 'overview' && <><div className="kpis">
         <div className="kpi">
           <div className="l">{t('Sessions')}</div>
           <div className="v">{sessions.length}</div>
@@ -463,7 +499,8 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             {!stats.costByModel.length && <div className="muted small">{t('No cost data recorded.')}</div>}
           </div>
         </div>
-      </div>
+      </div></>}
+      {(tab === 'overview' || tab === 'sessions') && <>
       <div className="session-head">
         <h3 className="page-title">{t('Sessions')}</h3>
         {liveSession && (
@@ -523,6 +560,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         )}
         {!sortedSessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
       </div>
+      </>}
       {sessionSelect.Toast}
     </div>
   );
