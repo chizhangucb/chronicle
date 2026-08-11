@@ -522,10 +522,36 @@ body {
 .trend-axis { display: flex; justify-content: space-between; margin-top: 2px; }
 .trend-spark { height: 150px; }
 .trend-legend { margin-top: 6px; color: var(--brass); }
-.pd-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.pd-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0; }
 .donut-legend-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; }
 .donut-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .rank-label { width: 110px; text-align: right; font-size: 12px; }
+
+/* ---- Segmented range control (5d-3 primitive) — replaces the old
+   <select class="range-select"> with a button group; same chip-on styling
+   language as .filter-chips/.chip elsewhere in the app. ---- */
+.rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.rangebar button {
+  background: none; border: none; border-radius: 6px; padding: 5px 10px;
+  font: 12px var(--mono); color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.rangebar button:hover { color: var(--ink); }
+.rangebar button.on { background: rgba(192, 138, 30, 0.18); color: var(--brass-text); }
+
+/* ---- Recharts donut wrapper (5d-3 primitive) — pie + legend side by side;
+   distinct from .ov-donut-wrap (the older hand-rolled conic-gradient donut
+   still used by Session Overview until it migrates to Recharts too). ---- */
+.donut-wrap { display: flex; gap: 18px; align-items: center; }
+
+/* ---- Horizontal bar ranking (5d primitive — mirrors .bar-row/.bar/.bar-fill
+   but with a fixed-order categorical color per row and a tabular-num value;
+   used by both Project analytics (Call Ranking, Cost by model) and Session
+   Overview (Tool mix)). ---- */
+.hbar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.hbar .n { width: 130px; font-size: 12px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.hbar .track { flex: 1; height: 8px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
+.hbar .fill { height: 100%; border-radius: 4px; }
+.hbar .v { width: 56px; text-align: right; flex-shrink: 0; color: var(--ink-2); font-size: 12px; }
 
 /* Session ID chip */
 .ov-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
