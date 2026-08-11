@@ -1,31 +1,62 @@
 # Chronicle — project notes for Claude
 
-Local-first AI coding session manager ("time machine"): imports logs from 6 AI tools,
-maps every message to a Git code snapshot, plus security redaction, live streaming,
-replay, tray auto-sync, SQL contract views, and an Electron shell. (v0.2.0 removed
-the MCP Hub, Skills Hub, and guard hook.) Spec: `docs/AI-session-manager-PRD.md`.
-Feature inventory with FR-numbers: `README.md`.
+Local-first AI coding session manager ("time machine"): imports logs from 4 AI tools
+(Claude Code, Codex, Cursor, OpenCode), maps every message to a Git code snapshot, plus
+security redaction, live streaming, a tabbed **Insights** analytics home
+(Overview/Explore/Content) with first-class **Subagents**, and invisible incremental
+auto-sync. Ships as a local web app via **`npx chronicle-cli`** (Node 24+) — no desktop
+shell, no cloud, zero outbound network calls. (v0.2.0 removed the MCP Hub, Skills Hub, and
+guard hook; the v1.0 re-ramp removed the Electron desktop shell, replay, share links, the
+feedback relay, and the Copilot/Gemini parsers.) Layered docs (guide / reference /
+architecture): `docs/`, published at getchronicle.dev/docs. Feature summary: `README.md`.
 
 ## Commands
 
 ```bash
 npm run dev        # Vite dev server + API in one process → http://localhost:4173
-npm run desktop    # production build + Electron shell (port 41730, tray)
-npm run standalone # headless production server (UI + /api + /share + /mcp)
+npm run standalone # headless production server (npm run build + node server/standalone.ts; UI + /api)
 npm run build      # vite build → dist/
-npm run dist:mac   # electron-builder → unsigned arm64 + x64 DMGs in release/
-npm run reinstall:mac # quit app, rebuild (arm64 only), replace /Applications/Chronicle.app, clean release/, relaunch
-npm run dist:win   # NSIS .exe (cross-built from macOS; untested on real Windows)
-npm run dist:linux # AppImage + .deb (untested on real Linux)
+npm run typecheck  # tsc -b  (type gate — MUST exit 0)
+npm test           # node --test 'test/**/*.test.mjs'
 ```
 
-No test runner is wired up; parsers are validated against fixtures in `test/fixtures/`
-plus real data end-to-end (see Verification below).
+`npx chronicle-cli` runs the published build (see **npm / npx** below). CI
+(`.github/workflows/ci.yml`) gates `main` + every PR on typecheck + test + build, on Node 24.
+Parsers are validated against fixtures in `test/fixtures/` plus real data end-to-end (see
+Verification below).
+
+## npm / npx
+
+- Published as the unscoped, public package **`chronicle-cli`** (`npx chronicle-cli`; bin
+  aliases `chronicle` + `chronicle-cli` → `bin/chronicle.mjs`). Data at
+  `~/.chronicle/chronicle.db` (override: `CHRONICLE_DATA_DIR`).
+- **`bin/chronicle.mjs` is a Node-built-ins-only launcher** (no deps): Node ≥24 preflight,
+  `--port <n>` / `--no-open` flags, a bounded free-port scan from 41730, opens the default
+  browser (best-effort, never fatal), then `import()`s the COMPILED server
+  (`dist-server/server/standalone.js` → `startServer(port, distDir)`, passing the client
+  `dist/` path explicitly) and runs in the foreground until Ctrl-C.
+- **Node ≥24 floor + WHY.** Two reasons: (1) `node:sqlite` (DatabaseSync) needs Node 24;
+  (2) dev runs `.ts` natively via Node's type-stripping, but **Node REFUSES to strip-type
+  `.ts` files under `node_modules`** — so the published tarball cannot ship raw `.ts`. At
+  publish the server is COMPILED to `dist-server/` by **`tsc -p tsconfig.publish.json`**
+  (`rewriteRelativeImportExtensions` rewrites `./x.ts` → `./x.js`; emits runnable ESM).
+  Wired into **`prepack`** = `rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json`.
+- **`files` allowlist** = `["bin","dist","dist-server"]` — only the launcher, the Vite
+  client build (`dist/`), and the compiled server (`dist-server/`) ship. Source `.ts`,
+  tests, docs, and `superpowers/` stay out of the tarball.
+- **`prepublishOnly`** = `npm run typecheck && npm test` — the publish gate (also
+  re-run in CI).
+- **Publish + smoke:** `npm publish` (unscoped → public by default), verify
+  `npm view chronicle-cli version`. Then the LOAD-BEARING **clean-dir npx smoke**:
+  `cd $(mktemp -d) && npx chronicle-cli --no-open --port <n>`, curl `/` → `200`, import one
+  session via the UI, confirm it renders. `express` is the only runtime `dependency`
+  (client libs are devDeps — Vite bundles them into `dist/`).
 
 ## TypeScript
 
-Incremental migration to `.ts`/`.tsx`, keeping the **no-compile-step** architecture.
-TypeScript is DEV-ONLY (type gate); it never emits.
+Incremental migration to `.ts`/`.tsx`, keeping the **no-compile-step** architecture for
+DEV. TypeScript is a DEV type gate; it never emits in dev (publish is the one exception —
+see npm / npx above, where `tsconfig.publish.json` compiles the server for the tarball).
 
 - **Node runs `.ts` natively.** Node 24 strips types at load — no build step, no flag.
   So the server executes `.ts` directly (`import './db.ts'` etc.). `tsc` is only the
@@ -42,100 +73,64 @@ TypeScript is DEV-ONLY (type gate); it never emits.
   model (`Kind`, `Event`, `Usage`, `Session`…), framework-free. Server imports it relatively
   (`../shared/types.ts`); the client imports it via the **`@shared`** alias (in
   `vite.config.js` `resolve.alias` AND `tsconfig.client.json` `paths`, kept in sync). Its
-  names/optionality track the real parser + `db.js` shapes — change them together.
+  names/optionality track the real parser + `db.ts` shapes — change them together.
 - **Full `strict: true`** (`noImplicitAny` + `strictNullChecks` on). Do NOT weaken strict or
   silence errors with `any`/`@ts-ignore`/`@ts-expect-error`; type the real shape instead.
 - Two projects via references (`tsconfig.json` → `tsconfig.server.json` nodenext +
-  `tsconfig.client.json` bundler/jsx), sharing `tsconfig.base.json`. `typescript` is pinned
-  exact; client libs' `@types/*` are devDeps (Vite bundles the client). Pilot conversions:
-  `server/durations.ts`, `src/kinds.ts`.
+  `tsconfig.client.json` bundler/jsx), sharing `tsconfig.base.json`; `tsconfig.publish.json`
+  is the separate publish-time server compile. `typescript` is pinned exact; client libs'
+  `@types/*` are devDeps (Vite bundles the client).
 
 ## Architecture decisions (and why)
 
-- **Single process, single port.** The Express apps (`server/api.js`, `server/shares.js`,
-  `server/mcp/hub.js`) are mounted INTO the Vite dev server via a plugin in
-  `vite.config.js` using per-request `ssrLoadModule` (gives API hot-reload). The same
-  apps are served without Vite by `server/standalone.js` (used by Electron). Keep new
-  endpoints in these express apps and they work in all three run modes for free.
+- **Single process, single port.** The Express app (`server/api.ts`, assembled from
+  `server/routes/*`) is mounted INTO the Vite dev server via a plugin in `vite.config.js`
+  using per-request `ssrLoadModule` (gives API hot-reload). The same app is served without
+  Vite by `server/standalone.ts` (mounts `/api` + serves the static client `dist/`), which
+  is what `npx chronicle-cli` launches. Keep new endpoints in these express routes and they
+  work in all run modes for free.
 - **`node:sqlite` (DatabaseSync), not better-sqlite3** — zero native compile. DB at
   `~/.chronicle/chronicle.db` (override: `CHRONICLE_DATA_DIR`). Schema is created
   idempotently in module scope; migrations are `try { ALTER TABLE … } catch {}` lines.
-- **Git snapshot engine shells out to `git`** (`server/git.js`) — read-only:
+- **Git snapshot engine shells out to `git`** (`server/git.ts`) — read-only:
   `rev-list --before` (commit at timestamp), `ls-tree`, `show`, `diff-tree`. No libgit.
 - **Normalized event model** — every parser flattens tool-native logs into rows of
   kind `user | assistant | thinking | tool_use | tool_result` with `ts`, `tool_name`,
   `tool_input` (JSON string), `tool_use_id` (pairs calls↔results). Add new sources as
-  `server/parsers/<tool>.js` exporting `scan<Tool>Projects()` + a parse function, then
-  wire into `/api/scan` + `/api/import` in `api.js` and `SOURCES` in `ImportWizard.jsx`.
-- **Logical projects** key on the physical `cwd` recorded in logs; sources that don't
-  record one (Gemini) get virtual paths (`gemini-project:<hash>`) and a
-  "Needs association" banner that merges on path match.
+  `server/parsers/<tool>.ts` exporting `scan<Tool>Projects()` + a parse function, then
+  wire into the scan/import routes in `server/routes/import-sync.ts` and `SOURCES` in
+  `src/ImportWizard.tsx`. Four sources today: claudeCode, codex, cursor, opencode.
+- **Logical projects** key on the physical `cwd` recorded in logs; a "Needs association"
+  banner merges sessions on path match.
 - **Read-only on foreign data, always**: SQLite sources (Cursor, OpenCode) are copied
   to temp **including `-wal`/`-shm`** before opening; original logs are never written.
 - **Everything heavy is heuristic + local** (causality confidence tiers, redaction
-  regexes) — no LLM calls anywhere, preserving the offline guarantee.
-- **Desktop = Electron** (`electron/main.mjs`), not Tauri — no Rust toolchain on this
-  machine. The server layer has zero Electron imports, so a Tauri swap stays possible.
-  Window close hides to tray (MCP Hub keepalive); quit only via tray menu.
+  regexes, Insights calibration) — no LLM calls, no outbound network anywhere, preserving
+  the offline guarantee.
 - **Repo is flat** (Chi's global preference): app code at root, PRD in `docs/`.
-- **Global sidebar owns navigation; SessionView registers its modes into it.**
-  There is one collapsible left sidebar (in `App.jsx`): Projects +
-  sync-all on top, MCP Hub/Skills/Security/Feedback/Collapse pinned at bottom.
+- **Navigation is real URL routes (wouter).** `/` (Home), `/project/:id`, `/session/:id`.
+  The URL IS the persisted state, so any reload (including the language switch's
+  `location.reload()`) restores the current view for free — no `sessionStorage` hack.
+  There is one collapsible left sidebar (in `App.tsx`, collapse state in `localStorage`);
   SessionView doesn't render its own rail — it publishes `{modes, active, select,
-  securityOpen}` up via the `onRailChange` prop while mounted; App renders those as
-  sidebar items. SessionView is keyed by session id so the breadcrumb session
-  switcher remounts it cleanly.
-- **Top-bar actions (Search + Import) are global, not Home-only.** The `.topbar-right`
-  🔍 Search and "+ Import Sessions" buttons render in EVERY view alongside the language
-  switcher (they used to be gated on `view.name === 'home'`); import/search work from
+  securityOpen}` up via the `onRailChange` prop while mounted, and App renders those as
+  sidebar items. SessionView is keyed by session id so the breadcrumb session switcher
+  remounts it cleanly.
+- **Top-bar Search + Import are global, not Home-only.** The `.topbar-right` 🔍 Search
+  (⌘K palette) and "+ Import Sessions" render in EVERY view; import/search work from
   anywhere and refresh projects. Only the LIVE pill stays session-scoped.
 - **Home multi-select delete uses an inline confirm, never `window.confirm`.** `HomePage`
   has a "Select" mode: cards become checkboxes (`selectMode`/`selected` Set), with
   Select-all/Clear/Cancel + a danger "Remove (N)". Deletion is a two-step INLINE confirm
-  bar in the title row (`confirming` state) — NOT `window.confirm`, which is blocked in
-  embedded/preview browsers (same gotcha as the rename). It loops `api.deleteProject` (same
-  "Remove from Chronicle", source logs untouched) then refreshes. The per-card gear
-  `ProjectMenu` is hidden while in select mode.
+  bar (`confirming` state) — NOT `window.confirm`, which is blocked in embedded/preview
+  browsers. It loops `api.deleteProject` (source logs untouched) then refreshes.
 - **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
   repo move keep the old path in early JSONL records; scanner and parser use the last
   seen cwd (where the repo and its Git history live now) and collapse subdirectory
   cwds up to a seen ancestor (`reduceCwd`). The scanner sniffs both the head and tail
   64 KB of each file for this.
-- **Packaging keeps the runtime dependency set minimal.** Vite bundles all client
-  libs into `dist/`, so `react`/`react-dom`/`diff` live in devDependencies — only
-  `express` is a runtime dep that electron-builder ships. Electron locales are
-  stripped to en + zh_CN; arch selection lives in CLI flags (not build config) so
-  `dist:mac` builds both arches while `reinstall:mac` builds only arm64. The
-  ~100 MB DMG floor is the Electron framework itself; a ~26 MB footprint
-  would require the Tauri swap.
-- **Feedback is the one deliberate outbound network feature** (besides the update
-  check and GitHub skill imports): `POST /api/feedback` forwards to a **hosted
-  relay** (`feedback-relay/`, a Vercel function holding the Resend key server-side),
-  always appends to `~/.chronicle/feedback.log` first, and the UI falls back to a
-  `mailto:` link when the relay fails. **No secret ships in the app** — it posts to
-  the public relay URL (`DEFAULT_FEEDBACK_RELAY` in `api.js`; override via
-  `CHRONICLE_FEEDBACK_RELAY` or `feedbackRelay` in `~/.chronicle/config.json`), so
-  feedback works from every user's machine, not just the maintainer's. This is a
-  SECOND deployable, so the repo now has a `feedback-relay/` subdir (Vercel project
-  `feedback-relay`, key + `FEEDBACK_TO`/`FEEDBACK_FROM` set as env vars there).
-  **getchronicle.dev migration (2026-07-09):** relay lives at the branded
-  `relay.getchronicle.dev` (Vercel custom domain; `DEFAULT_FEEDBACK_RELAY` in `api.js`).
-  Flow: app → relay → Resend sends **to `feedback@getchronicle.dev`** → **Porkbun
-  email forwarding** → the maintainer's personal inbox. The personal gmail lives ONLY
-  in Porkbun's forwarding rule — never in code, the bundle, Resend, or Vercel (git
-  author is also the GitHub noreply). `getchronicle.dev` is a Resend **Pro** domain
-  (free plan caps at 1 domain; it already had `healthverse.dev`), DKIM+SPF verified.
-  Actual sender is set via the Vercel env `FEEDBACK_FROM` (kept out of the public
-  repo); the code default stays `feedback@getchronicle.dev`. The legacy
-  `*.vercel.app` relay URL still works for already-shipped apps (the URL change only
-  affects new builds). **Sender identity (v0.1.7):** the feedback modal has an
-  optional email field; the local server embeds it in the message body (`↩ Reply to:
-  …`, so it's visible even on an older relay) AND passes `email` so the relay sets the
-  email's `Reply-To` (+ a "from <email>" subject). The relay does NOT also append its
-  own body line — that would duplicate the local embed. Deploy the relay from `main`
-  after merge (see the multi-worktree gotcha).
 - **Session display name = `name` (Chronicle override) → `summary` (parsed) →
-  `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.jsx` is the single
+  `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.tsx` is the single
   source of that precedence; reuse it everywhere (rows, pickers, overview title).
   The parser reads Claude Code's `{"type":"custom-title","customTitle":…}` lines
   (the `/rename` title, LAST one wins) into `sessions.summary`; there are NO
@@ -144,235 +139,179 @@ TypeScript is DEV-ONLY (type gate); it never emits.
 - **Cost is computed locally, never billed data.** Logs carry tokens, not dollars,
   so the parser aggregates per-model token totals (`sessions.usage` JSON:
   `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}`) and
-  `src/models.js` multiplies by a static per-model price table. 5-minute and
+  `src/models.ts` multiplies by a static per-model price table. 5-minute and
   1-hour cache writes are billed at different rates — keep them split. The table
   must track the current Anthropic pricing page (Opus 4.8 tier is $5/$25, NOT the
   old Opus 4.1 $15/$75 — getting this wrong 3× inflates every number). The Overview
-  Cost & Usage block DISPLAYS the two tiers separately too (tokens + $), each with a
-  `5m`/`1h` `.ttl-tag`: `cacheWriteByTtl()` / `cacheWriteCostByTtl()` in `models.js`
-  split them (legacy `{cacheWrite}` logs are treated as 5m). The `1h` row only renders
-  when 1h writes exist; a session can be entirely 1h-cached (v0.1.8 test session was).
-- **Global search is LIKE-based, not FTS.** `/api/search` scans `messages.text` +
-  `tool_input` with `LIKE`, grouped per session (top ~40) with a snippet; empty
-  query returns recent sessions ("Recent Access"). Fine at this scale (~15k rows);
-  revisit with FTS5 only if it gets slow.
-- **Chat-type labels have ONE source of truth: `src/kinds.js`.** `KIND_LABEL`/`KIND_ICON`
+  Cost & Usage block DISPLAYS the two tiers separately (tokens + $), each with a
+  `5m`/`1h` `.ttl-tag`: `cacheWriteByTtl()` / `cacheWriteCostByTtl()` in `models.ts`
+  split them (legacy `{cacheWrite}` logs are treated as 5m). **The price table lives ONLY
+  in `src/models.ts` (client-pure); it is NEVER duplicated server-side** — the Explore
+  engine returns metric-agnostic per-model token cells and the client prices Spend via
+  `costOf`.
+- **Global search is FTS5 with a LIKE fallback.** `/api/search` (`server/routes/search.ts`)
+  runs an FTS5 `MATCH` (phrase query, prefix on the last term) over `messages.text` +
+  `tool_input` when the `messages_fts` external-content virtual table is available, and
+  falls back to `LIKE` otherwise; results are grouped per session (top ~400 rows) with a
+  snippet. Empty query returns recent sessions ("Recent Access").
+- **Chat-type labels have ONE source of truth: `src/kinds.ts`.** `KIND_LABEL`/`KIND_ICON`
   (role-accurate: User / Assistant / Thinking / Tool Call / Tool Result / Inserted) are
   imported by Playback (`SessionView` `KIND_META`), Refine (`RefineMode`, uppercased for
-  its tag look), and the Refine export. They used to drift (Playback said "You"/"AI",
-  Refine said "USER"/"ASSISTANT"); put new label wording here, never inline.
+  its tag look), and the Refine export. Put new label wording here, never inline.
 - **"Agent Active" (labeled thus, was "Active Duration") = agent working time, excluding
-  only real human turns.** `activeDurationMs()` in `SessionView` sums every inter-message
-  gap EXCEPT the gap leading into a genuine human prompt. The catch: **not every `user`-role
-  message is a human prompt** — `<task-notification>` (a background build finishing),
-  `<launch-selected-element>` (UI element pick), `<system-reminder>`, `<command-name>`/
-  `<local-command…>`, and `[Request interrupted…]` all log with role=user. `isHumanPrompt()`
-  filters those via `SYNTHETIC_USER_RE`, so their preceding gap counts as ACTIVE (the agent
-  was busy, e.g. building; or you were interacting with the app) — only a typed prompt
-  subtracts time. All assistant-thinking + tool-execution gaps count in FULL, no cap.
-  History: v0.1.7 used an `IDLE_GAP_MS` 5-min cutoff (dropped long tool runs); v0.1.9
-  switched to human-gap exclusion but counted EVERY role=user as human, which charged
-  background-build waits to your idle time (a real session read 33m Active / 59m Total, ~10m
-  of it a notarize-build wait); the classifier fix reclaimed that (→43m). Shown with an
-  `InfoTip` (ⓘ) explainer; if you reword it, its key IS the full English sentence — update
-  the zh + ja dicts too. `src/kinds.js` still labels the message kinds; the STAT-CARD label
-  is `t('Agent Active')`.
-- **Language switch keeps your place.** `setLang` still `location.reload()`s — many `t()`
-  calls run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
-  re-translate. To stop landing back on Home, `App` persists the current `view` in
-  `sessionStorage` and restores it on mount.
-- **The public site is ONE Vercel deployable serving two things.** `website/` (a THIRD
-  deployable, after the app and `feedback-relay/`) serves the static **download landing
-  page** (`website/index.html`) at `/` AND a **VitePress docs site** at `/docs`, combined
-  into one `dist/` at build time (`website/scripts/assemble.mjs`) and deployed to
-  **getchronicle.dev** via the **`chronicle-web`** Vercel project. The docs render the
-  canonical `docs/` Markdown (VitePress `base: '/docs/'`, `srcDir: 'docs'`); `docs/` stays
-  the single source of truth. **Edit `docs/`, never `website/docs/`** (generated at build).
-- **`docs/` is the layered developer documentation** (guide / reference / architecture,
-  ~28 pages + `index.md`/`contributing.md` + a generated `changelog.md`), published at
-  getchronicle.dev/docs. **Quickstart is the first page** (leads with download + install + a
-  `<Walkthrough/>` demo). `superpowers/` (brainstorming specs/plans) and the PRD are EXCLUDED
-  from the public site. The feature inventory in `README.md` is now a short categorized summary
-  linking to the docs.
-- **The docs are trilingual (EN · 简体中文 · 日本語), matching the product UI.** VitePress i18n
-  via `locales` in `website/.vitepress/config.mjs`: English is the root (`/docs`, content
-  `docs/*`), Chinese is `docs/zh/**` (`/docs/zh`), Japanese is `docs/ja/**` (`/docs/ja`) — each
-  with translated nav/sidebar labels + UI strings and a language switcher. **English is the
-  source of truth; `docs/zh` + `docs/ja` are committed translations that DRIFT until
-  re-translated** when an English page changes (re-translate `docs/<lang>/<same-path>.md`;
-  keep code/paths/links/product names verbatim). Every page exists in all three locales so
-  relative links resolve within a locale (VitePress fails the build on any dead link).
+  only real human turns.** `activeDurationMs()` sums every inter-message gap EXCEPT the gap
+  leading into a genuine human prompt. The catch: **not every `user`-role message is a human
+  prompt** — `<task-notification>` (a background build finishing), `<launch-selected-element>`
+  (UI element pick), `<system-reminder>`, `<command-name>`/`<local-command…>`, and
+  `[Request interrupted…]` all log with role=user. `isHumanPrompt()` filters those via
+  `SYNTHETIC_USER_RE`, so their preceding gap counts as ACTIVE (the agent was busy) — only a
+  typed prompt subtracts time. The canonical stored durations live in `server/durations.ts`
+  (Agent Active with a 10-min cap + tool_result exemption; Engaged with a 90-min cap),
+  computed at import. Shown with an `InfoTip` (ⓘ) explainer; its key IS the full English
+  sentence.
+- **Language switch keeps your place.** `setLang` `location.reload()`s — many `t()` calls
+  run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
+  re-translate. The URL route (not `sessionStorage`) restores your view on reload.
+- **Invisible sync.** Background incremental import keeps sessions fresh with no manual
+  re-import: `server/autosync.ts` watches the source log dirs (mtime > `imported_at`,
+  30-min backstop, debounce; state on `globalThis`) and re-imports changed sessions.
+  **Noise gate** (`server/noiseGate.ts`): a session is "minor" when its agent-active time
+  is under the threshold (default 5 min) OR it has fewer than N messages (default 10), both
+  tunable via `~/.chronicle/config.json`. `isMinorSession()` is applied uniformly at
+  INSERT time in `db.ts` `replaceSession`, so it covers manual import, per-project/-session
+  sync, AND auto-sync alike; minor sessions land in a single "minor sessions" bucket
+  (promote / ignore actions) instead of cluttering the main lists. **Tombstones**: deletes
+  are recorded so a re-sync doesn't resurrect a removed session. Sync can be paused.
+
+### Insights / Explore / Content engine (server/scope.ts · explore.ts · content.ts · calibrate.ts · insights.ts)
+
+- **Scope + minor gate are ONE primitive.** `server/scope.ts` turns a
+  `Scope = {type: 'all'|'project'|'session', id?}` into a SQL `WHERE` fragment + bind
+  params (`s` is the sessions alias every engine query uses); a missing id degrades to
+  `'all'` rather than emitting a broken `= NULL`. `minorGate(scope)` returns
+  `AND COALESCE(s.minor,0)=0` for `'all'`/`'project'` but **`''` for a directly-opened
+  session** — session scope already restricts to one session, so the minor exclusion (meant
+  for aggregates) would wrongly blank the pane. Both are ANDed onto every engine query.
+- **Token MAGNITUDE comes from authoritative `sessions.usage`, not per-message columns.**
+  Per-message token columns capture only ~0.73 of billed usage (~27% is never stored
+  per-row, ~70% of what is stored sits on tool_use rows), so they can't reconcile. Explore's
+  `EXACT_USAGE_GROUPS` (`model`/`project`/`source`) source `tokensByModel` from the parsed
+  `sessions.usage` per-model billed cells (= Overview / Insights / Claude `/usage`);
+  requests/sessions/errors/activeMs stay per-message (their natural units). `hour`/`subagent`
+  are inherently message-level and stay per-message by design.
+- **Calibration is ONE shared primitive** (`server/calibrate.ts` `calibrateByBucket`).
+  Chronicle bills tokens per assistant turn, not per tool-call/kind, so "tokens
+  attributable to X" is estimated as X's share of message TEXT LENGTH scaled to the real
+  billed total. `tool`/`skill` × tokens in Explore and the whole Content composition are
+  calibrated; any result built from it sets **`calibrated: true`** so the UI badges it.
+- **Tool-results pair to their tool_use via `MIN(id)`.** Content's tool-results-by-tool and
+  Explore's per-group error attribution join a `tool_result` to exactly ONE `tool_use` with
+  `u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id=r.session_id AND
+  u2.tool_use_id=r.tool_use_id AND u2.kind='tool_use')` — the earliest matching row, so each
+  erroring result is counted ONCE, not multiplicatively cross-joined against every
+  co-resident tool_result.
+- **Index the pairing join.** `idx_messages_tooluse ON messages(session_id, tool_use_id)`
+  (in `db.ts`) makes that correlated subquery non-quadratic; without it SQLite can only
+  search the tool_use side by `session_id`. Measured on the maintainer's ~395 MB / 101k-row
+  real DB, this index alone cut `/api/explore` materially. (`idx_messages_session` on
+  `(session_id, seq)` + `idx_sessions_project` are the other two.)
+- **Subagents are first-class sidechain rows.** Subagent (sidechain) turns import with
+  `agent_type`/`skill` attribution and per-message token usage; Content's subagent token
+  share is **EXACT** from those per-message sidechain columns (skill share is calibrated).
+  The session view surfaces them in an Overview **Subagents** card + a per-subagent drill-in
+  (`SessionMode` includes `'subagent'`, reached only via that card, not the sidebar rail).
+- **Insights hub** (`server/insights.ts`) mirrors the per-project analytics shapes
+  (`server/routes/projects.ts`) but across ALL projects — same `COALESCE(minor,0)=0` gate,
+  same `days=` cutoff, same `ERROR_RE` heuristic. `dailyActivity`/`hourlyActivity` are
+  DELIBERATELY exempt from `days=` (Working Rhythm always shows a fixed trailing 182-day
+  calendar + trailing 30-day hour-of-day heatmap).
 
 ## Key files
 
-- `server/db.js` — schema (projects/sessions/messages) + `replaceSession` transaction
-- `server/api.js` — ALL REST routes; also starts the auto-sync watchers on load
-- `server/git.js` — snapshot engine; `commitsBetween` pads ±10 min for timeline ticks
-- `server/parsers/` — claudeCode, codex, cursor, opencode, gemini, copilot
-- `server/live.js` — JSONL tail (`Watcher`) + SQLite poll (`SqlitePollWatcher`) → SSE
-- `server/replay.js` — replay plan/sandbox/step execution (`~/.chronicle/replay/<id>/`)
-- `server/causality.js` — read→change linking, confidence 0.95/0.55/0.5/0.45/0.2
-- `server/security.js` — redaction rules, `scanSession`, `preToolUseCheck`, interceptions
-- `server/shares.js` — share tokens + the public `/share/:token` HTML page
-- `server/autosync.js` — incremental tray auto-sync (mtime > imported_at; watchers,
-  30-min backstop, debounce; state on globalThis); settings in ~/.chronicle/config.json
-- `server/durations.js` — canonical Agent Active (10-min cap, tool_result exemption)
-  + Engaged (90-min cap), stored on sessions at import
-- `src/App.jsx` — global sidebar (collapse state in localStorage, sync-all loop,
-  feedback modal), view routing, LIVE pill, always-on top-bar Search/Import, project-card
-  gear menus, and the `HomePage` multi-select delete flow
-- `src/SessionView.jsx` — the core session view; registers modes
-  (overview/playback/refine/replay + security check, ⌘1–⌘4) into the sidebar via
-  `onRailChange`; owns filtering, windowing, live SSE, causality panels, the
-  breadcrumb session switcher, the `⇧⌘U` per-session sync shortcut, and the Overview
-  stats page (Total + Active Duration with an `InfoTip`, context-window bar,
-  copyable session ID, deletion danger zone)
-- `src/ProjectDetail.jsx` — project analytics home (8 stat cards, line/bar trend,
-  source donut, call ranking; time range via `/api/projects/:id?days=N`)
-- `src/models.js` — static per-model tables (never fetched): context windows +
+- `bin/chronicle.mjs` — `npx chronicle-cli` launcher (Node built-ins only; see npm / npx).
+- `tsconfig.publish.json` — publish-time server compile → `dist-server/` (`prepack`).
+- `server/db.ts` — schema (projects/sessions/messages) + indexes + FTS5 + `replaceSession`
+  transaction (applies the noise gate, preserves `name`).
+- `server/api.ts` — assembles the Express app from `server/routes/*` (projects, sessions,
+  import-sync, search, git, security, settings, insights, explore, content); starts the
+  auto-sync watchers on load.
+- `server/git.ts` — snapshot engine; `commitsBetween` pads ±10 min for timeline ticks.
+- `server/parsers/` — claudeCode, codex, cursor, opencode → normalized event model.
+- `server/live.ts` — JSONL tail (`Watcher`) + SQLite poll (`SqlitePollWatcher`) → SSE.
+- `server/causality.ts` — read→change linking, confidence 0.95/0.55/0.5/0.45/0.2.
+- `server/security.ts` — redaction rules, `scanSession`, interceptions.
+- `server/autosync.ts` — incremental auto-sync (mtime > imported_at; watchers, 30-min
+  backstop, debounce; state on globalThis); settings in `~/.chronicle/config.json`.
+- `server/noiseGate.ts` — `isMinorSession()` (minor bucket) + thresholds.
+- `server/durations.ts` — canonical Agent Active (10-min cap, tool_result exemption)
+  + Engaged (90-min cap), stored on sessions at import.
+- `server/scope.ts` · `explore.ts` · `content.ts` · `calibrate.ts` · `insights.ts` — the
+  Insights engine (see the Insights/Explore/Content section above).
+- `src/App.tsx` — global sidebar (collapse in localStorage), URL routing (wouter), LIVE
+  pill, always-on top-bar Search/Import, `HomePage` multi-select delete flow.
+- `src/SessionView.tsx` — the core session view; registers modes (overview/playback/refine
+  + Security Check, ⌘1–⌘3) into the sidebar via `onRailChange`; owns filtering, windowing,
+  live SSE, causality panels, the breadcrumb session switcher, the `⇧⌘U` per-session sync
+  shortcut, the Subagents drill-in, and the Overview stats page.
+- `src/InsightsPage.tsx` · `src/ExploreTab.tsx` · `src/ContentTab.tsx` — the tabbed Insights
+  hub (Overview / Explore / Content) that consumes the `/api/insights|explore|content`
+  engine routes.
+- `src/ProjectDetail.tsx` — project analytics home with Overview/Explore/Content/Sessions
+  tabs; also exports `sessionDisplayName()`, `ProjectPicker`, `SessionPicker`. The `days`
+  for "Today" is fractional-days-since-local-midnight, memoized on `range`.
+- `src/models.ts` — static per-model tables (never fetched): context windows +
   list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`,
-  `cacheWriteByTtl`, `cacheWriteCostByTtl` — the last two split 5m/1h for display).
-  Update when new models ship or prices change.
-- `src/kinds.js` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels
-  architecture decision); imported by `SessionView` (Playback) and `RefineMode`.
-- **Design system (PR 5c, 2026-08-10):** `src/styles.css`'s `:root` is the token
-  contract every view is styled against — `--bg0/1/2`, `--border(-strong)`,
-  `--ink/-2/-3`, `--brass(-text)`, `--ok/--warn/--danger`, `--c1..--c5` (categorical,
-  fixed order, never cycled). A `:root[data-theme="light"]` twin is authored but
-  unwired (no toggle sets `data-theme` yet). `src/Modal.tsx` (Radix Dialog),
-  `src/InfoTip.tsx` (Radix Popover), and inline Radix `DropdownMenu`/`Popover`/`Toast`
-  usage (App.tsx's language switcher, `HomePage`'s `ProjectMenu`, `RefineMode`'s export
-  menu, `ProjectDetail`'s breadcrumb pickers, `SessionSelect`'s Undo toast) are the
-  shared interactive primitives — see the Radix Dialog sibling-portal gotcha below
-  before touching `.modal`/`.modal-backdrop` again. `src/colors.ts`
-  (`projectColorMap`) and `src/charts/ChartWrapper.tsx` (Recharts tooltip/axis/palette
-  wrapper) are primitives with **no call sites yet** — 5d wires them into real views.
-- `src/i18n.js` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the
-  key itself); `setLang` reloads the page (App restores the `view` from
-  `sessionStorage` so you stay put). Add a locale = add a dict here. **Because English
-  IS the key, a long explainer's key must BE the full English sentence, not a short
-  label** — using a label key (`'Active Duration explainer'`) renders that literal
-  string for English users (bit us once).
-- `src/ProjectDetail.jsx` — also exports `sessionDisplayName()`, `ProjectPicker`,
-  `SessionPicker`; the `days` for "Today" is fractional-days-since-local-midnight,
-  memoized on `range` (recomputing per render would loop `Date.now()` refetches).
-- `server/api.js` search/rename/sync routes: `GET /api/search`, `PATCH
-  /api/sessions/:id` (rename), `POST /api/sessions/:id/sync` (single-session).
-- `packaging/homebrew/` — the cask + tap README published to the PUBLIC
-  `chizhangucb/homebrew-chronicle` tap, which hosts the cask DMGs; the update feed
-  and README DMG link point at the tap. (The `chronicle` repo is also public now.)
-- `website/` — the **getchronicle.dev site** (THIRD deployable, after the app and
-  `feedback-relay/`), ONE Vercel project (`chronicle-web`) serving two halves:
-  - `/` — the static **download landing** (`website/index.html`, inline CSS/JS, light+dark).
-    Fetches the latest release from the GitHub API at load (falls back to a hardcoded release
-    + a built-in HTML mock if the API/screenshot is missing), so **new releases surface with
-    no page change**. DMG links → the tap; source links → the repo.
-  - `/docs` — the **VitePress docs** built from `docs/`. `website/.vitepress/config.mjs`
-    (`base: '/docs/'`, `srcDir: 'docs'`, `locales` for en/zh/ja + nav/sidebar per locale),
-    `website/.vitepress/theme/` (custom theme registering the `<Walkthrough/>` component),
-    `website/scripts/build-content.mjs` (copies `../docs` → `website/docs`, excludes
-    `superpowers/` + PRD, rewrites outside-`docs/` links to GitHub, **and generates
-    `changelog.md` from repo-root `CHANGELOG.md`**), `website/scripts/translate-changelog.mjs`
-    (build-time zh/ja changelog auto-translation via OpenRouter — keeps committed blocks,
-    LLM-fills missing versions, English fallback on any failure), `website/scripts/assemble.mjs`
-    (combines the VitePress build under `dist/docs` with the landing at `dist/` root).
-    `website/README.md` is the deploy runbook. **`.github/workflows/deploy-docs.yml`**
-    auto-deploys the site on any push to `main` touching `docs/**`/`CHANGELOG.md`/`website/**`
-    (secrets: `VERCEL_TOKEN`, `OPENROUTER_API_KEY`; org/project IDs inlined).
-  Deploy: normally automatic via the workflow; manual fallback `cd website && npm run
-  deploy[:preview]` (from `main` after merge). Preview the landing alone:
-  `python3 -m http.server 4321 --directory website` (launch config `website`); the docs dev
-  server is launch config `docs-dev` (`npm run docs:dev`, base `/docs/`).
-- `docs/` — the layered developer docs (guide / reference / architecture, ~28 pages +
-  `index.md`/`contributing.md` + a generated `changelog.md`); the single source of truth the
-  website renders, in three locales: English at `docs/*`, `docs/zh/**` (简体中文), `docs/ja/**`
-  (日本語). **Quickstart is the first page.** All internal links relative; VitePress validates
-  them at build (a dead link fails the build), so no separate link-checker is needed.
-- `website/.vitepress/theme/components/Walkthrough.vue` — the self-contained, CSS-only animated
-  ~24s product demo embedded at the top of the Quickstart (message list → code rewinds → diff →
-  timeline scrub). Captions localize by `useData().lang` (en/zh/ja); respects
-  `prefers-reduced-motion`. Pure CSS keyframes — no external hosting, no JS timers to leak.
+  `cacheWriteByTtl`, `cacheWriteCostByTtl`). Update when models/prices change.
+- `src/kinds.ts` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels decision).
+- `src/i18n.ts` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the key
+  itself); `setLang` reloads the page. Add a locale = add a dict here. **Because English IS
+  the key, a long explainer's key must BE the full English sentence, not a short label** —
+  a label key renders that literal string for English users (bit us once).
+- **Design system (PR 5c):** `src/styles.css`'s `:root` is the token contract every view is
+  styled against — `--bg0/1/2`, `--border(-strong)`, `--ink/-2/-3`, `--brass(-text)`,
+  `--ok/--warn/--danger`, `--c1..--c5` (categorical, fixed order, never cycled). A
+  `:root[data-theme="light"]` twin is authored but unwired. `src/Modal.tsx` (Radix Dialog),
+  `src/InfoTip.tsx` (Radix Popover), and inline Radix `DropdownMenu`/`Popover`/`Toast` usage
+  are the shared interactive primitives — see the Radix Dialog sibling-portal gotcha below
+  before touching `.modal`/`.modal-backdrop`. `src/colors.ts` (`projectColorMap`) and
+  `src/charts/ChartWrapper.tsx` (Recharts wrapper) are chart primitives.
 
 ## Patterns
 
-- State lives on `globalThis` (`__chronicleLive`, `__chronicleHub`, `__chronicleSkillWatch`)
-  so Vite SSR module reloads don't orphan watchers/child processes.
+- State lives on `globalThis` (`__chronicleLive` etc.) so Vite SSR module reloads don't
+  orphan watchers/child processes.
 - All secret-bearing API output goes through `maskService`-style masking; never return
   raw headers/env.
-- Destructive or user-visible ops (hook install, restores, takeovers) back up first
-  under `~/.chronicle/backups/` and require an explicit UI click.
+- Destructive or user-visible ops back up first under `~/.chronicle/backups/` and require
+  an explicit UI click.
 - UI is plain React + one `styles.css` (CSS variables, dark theme) — no UI framework;
-  match that style.
+  match that style. Charts are Recharts (via `ChartWrapper`) or hand-rolled SVG/CSS.
 - Long lists: window around the selection (~400 rows) + decimate timeline ticks;
   don't render unbounded arrays (sessions reach 5k+ messages).
-- **Release checklist** (order matters): bump `package.json` version FIRST →
-  `npm run dist:mac` → `shasum -a 256 release/*.dmg` → update
-  `packaging/homebrew/Casks/chronicle.rb` (version + both shas) → commit + push →
-  `gh release create vX.Y.Z --notes-file …` → `gh release upload vX.Y.Z *.dmg`
-  (separately from create: 234 MB uploads exceed 5-min foreground timeouts) →
-  reinstall locally (`ditto release/mac-arm64/Chronicle.app /Applications/…`) →
-  `rm -rf release`. Tag must land on the bump commit so tag = package version = DMGs
-  = cask shas. Auto-update needs the zip + latest-mac.yml + blockmap on the tap release too:
-  `gh release upload vX.Y.Z release/*.dmg release/*.zip release/latest-mac.yml release/*.blockmap`.
-  **Signed builds** need the signing keychain + notary env (see the signing gotcha):
-  `security unlock-keychain -p "$(cat ~/apple-signing/keychain-password.txt)"
-  ~/apple-signing/chronicle-sign.keychain-db` then run `dist:mac` with
-  `CSC_KEYCHAIN=~/apple-signing/chronicle-sign.keychain-db` (NOT `CSC_LINK`),
-  `APPLE_API_KEY=~/apple-signing/AuthKey_M2G8W47DPN.p8`, `APPLE_API_KEY_ID=M2G8W47DPN`,
-  `APPLE_API_ISSUER=2745be46-…`, `APPLE_TEAM_ID=9W7B6USGG9`. Verify before uploading:
-  `spctl -a -vvv <app>` → "accepted / source=Notarized Developer ID" and
-  `xcrun stapler validate <app>`. v0.1.6 was the first signed release; existing
-  UNSIGNED users (≤0.1.5) upgrade once manually, then auto-update takes over.
-  **Docs site: now auto-deploys.** The app release updates `CHANGELOG.md`, and a
-  push to `main` touching `docs/**`, `CHANGELOG.md`, or `website/**` triggers
-  `.github/workflows/deploy-docs.yml`, which regenerates content and deploys the
-  `chronicle-web` Vercel project (needs the `VERCEL_TOKEN` repo secret; org/project
-  IDs are inlined). So the changelog page updates on its own now — no manual
-  `cd website && npm run deploy` (still the fallback / `workflow_dispatch`). The zh +
-  ja changelog is **auto-translated at build time** too: `build-content.mjs` calls
-  `translate-changelog.mjs`, which keeps the committed `docs/<lang>/changelog.md`
-  block for every already-translated version and LLM-translates only the versions
-  CHANGELOG.md has that the locale file lacks — via **OpenRouter** (free
-  `nvidia/nemotron-3-ultra-550b-a55b:free`, `OPENROUTER_API_KEY` repo secret). No key
-  or an API failure → English fallback with a "translation pending" note, so the build
-  never breaks and no version goes missing. Hand-translating in `docs/zh|ja/changelog.md`
-  is still preferred for quality (committed blocks always win over the LLM), but no
-  longer required before a release. Verify live after the Action runs:
-  `curl -sL getchronicle.dev/docs/changelog.html | grep vX.Y.Z`.
-- Charts are hand-rolled SVG/CSS (polyline + conic-gradient donuts) — no chart
-  library; keep it that way.
-- **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight
-  to `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
+- **npm-publish checklist** (order matters): bump `package.json` version FIRST → commit +
+  push (a branch + PR) → merge, return to `main` → confirm `main` green
+  (`npm run typecheck && npm test && npm run build`) → `npm publish` (`prepublishOnly` gates
+  on typecheck+test; `prepack` builds `dist/` + `dist-server/`) → verify
+  `npm view chronicle-cli version` → clean-dir npx smoke (see npm / npx) → tag the bump
+  commit `git tag vX.Y.Z <commit> && git push origin vX.Y.Z` → `gh release create vX.Y.Z`.
+  Tag = `package.json` version = published version.
+- **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight to
+  `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
   direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
-  checkout to `main`** (`git checkout main && git pull && git fetch --prune && git
-  branch -D <branch>`) — see the git-pill gotcha below.
-- **Squash-merge leaves stale head branches; they read as "not merged".** GitHub's
-  squash merge rewrites the PR into ONE new commit on `main`, so the original branch's
-  commits are NOT ancestors of `main` — `git merge-base --is-ancestor origin/<b> origin/main`
-  returns false and the branch looks unmerged even though its content shipped. Auto-delete
-  didn't fire (setting off / cloud-agent branches), so they linger on the remote. Before
-  deleting, confirm the work landed via a MERGED PR (`gh pr list --state all --head <b>`),
-  NOT via `is-ancestor`. Then `git push origin --delete <b>`. (This session cleaned
-  `claude/chronicle-developer-docs-58ad63` (PR #10) and `docs-v2-batch` (PR #16); PRs from
-  forks/cloud agents don't create branches in `origin` at all, so nothing to clean there.)
-- **Multi-worktree: singletons collide in the external resource, not in git.** When two
-  worktrees/branches both touch a singleton — the Vercel relay, `package.json` version, the
-  release tag, the Homebrew cask — git may merge cleanly while the *deployed* thing
-  diverges. Deploy/publish those from `main` AFTER merge, never from a feature branch. (This
-  session: two branches both edited `feedback-relay/api/feedback.js` → small "keep both"
-  rebase conflicts, and an early relay deploy from a feature branch was later superseded by
-  the deploy from `main`.)
-- **Publishing the docs site.** `cd website && npm run deploy` = generate docs content locally
-  (`npm run content` → `website/docs`), upload `website/`, and Vercel runs `npm run build:site`
-  (`vitepress build` + `assemble.mjs`). Deploy from `main` after merge; the live project is
-  `chronicle-web`. Docs content lives in `docs/` — editing `website/docs/` is pointless (it's
-  regenerated on every build).
-- **Trilingual docs upkeep.** English (`docs/*` + the generated `changelog.md`) is the source of
-  truth; `docs/zh/**` + `docs/ja/**` are committed translations. When you edit an English page,
-  re-translate its `zh`/`ja` counterpart (`docs/<lang>/<same-path>.md`) or it drifts — keep code,
-  paths, links, and product names verbatim, translate only prose/headings/table text. The initial
-  pass used parallel translation subagents (one per locale × section). New English page = add its
-  `zh`/`ja` twin too, or the locale's relative links 404 and the build fails.
+  checkout to `main`** (`git checkout main && git pull && git fetch --prune && git branch -D
+  <branch>`) — see the git-pill gotcha below.
+- **Squash-merge leaves stale head branches; they read as "not merged".** GitHub's squash
+  merge rewrites the PR into ONE new commit on `main`, so the original branch's commits are
+  NOT ancestors of `main` — `git merge-base --is-ancestor origin/<b> origin/main` returns
+  false even though its content shipped. Before deleting, confirm the work landed via a
+  MERGED PR (`gh pr list --state all --head <b>`), NOT `is-ancestor`. Then
+  `git push origin --delete <b>`.
+- **The docs site is a separate deployable.** `website/` (VitePress, EN-only, `srcDir: docs`,
+  `base: '/docs/'`) serves getchronicle.dev/docs + a static landing at `/`, deployed to the
+  `chronicle-web` Vercel project via `.github/workflows/deploy-docs.yml` on any push to
+  `main` touching `docs/**`/`CHANGELOG.md`/`website/**` (secret: `VERCEL_TOKEN`). Edit
+  `docs/`, never `website/docs/` (regenerated at build by `website/scripts/build-content.mjs`
+  + `assemble.mjs`). The changelog page is GENERATED from repo-root `CHANGELOG.md`.
 
 ## Gotchas
 
@@ -382,234 +321,66 @@ TypeScript is DEV-ONLY (type gate); it never emits.
 - Merge commits show empty `diff-tree` without `-m --first-parent` (already handled).
 - OpenCode/Cursor DBs are WAL — copying only the `.db` file yields an EMPTY database;
   always copy `-wal`/`-shm` too (parsers do).
-- Claude Code JSONL: skip `isSidechain` entries, `<command-name>`/`<local-command`
-  user strings, and `<system-reminder>` text blocks, or imports fill with noise.
+- Claude Code JSONL: skip `<command-name>`/`<local-command` user strings and
+  `<system-reminder>` text blocks, or imports fill with noise. (Sidechain/subagent entries
+  are NOW imported deliberately — see the Subagents decision — not skipped.)
 - `messages.seq` from live SSE starts at 1,000,000 to avoid colliding with stored seqs;
   live messages exist only in client state until re-import.
-- Replay auto-play must SKIP command steps and out-of-project writes (mark `skipped`),
-  never hard-pause on them — pausing made the button look broken (fixed once already).
-- The pre-tool-use hook, once installed in `~/.claude/settings.json`, genuinely blocks
-  Claude Code tool calls containing seeded secrets — including Chronicle's own dev
-  sessions (test fixtures contain fake keys). It is NOT currently installed.
 - Session import is `replaceSession` (delete + reinsert): re-import is idempotent, but
-  live-only messages and share `content` frozen at creation are unaffected by design.
-- The repo has moved twice in the maintainer's home dir (2026-07-05: out of a parent
-  dir with a trailing space; 2026-08-08: renamed `ai-session-manager` → `chronicle`
-  under a renamed parent). Each move changes the munged Claude Code transcript dir
-  under `~/.claude/projects/`; old session JSONLs were migrated to the current munged
-  path and all internal `cwd` paths updated, so imported sessions stay valid.
-- Update feed = electron-updater reading the PUBLIC `chizhangucb/homebrew-chronicle`
-  tap releases (baked into `app-update.yml` from `build.publish` in `package.json`,
-  NOT hardcoded in `electron/main.mjs`); the tap also hosts the cask DMGs.
-  electron-updater does a semver compare and installs only when the running app and
-  the update share a Developer ID signature, so `package.json` version MUST equal the
-  release tag (minus the `v`) and the release must carry the `.zip` + `latest-mac.yml`
-  + `.blockmap` (see the release checklist). Each release still needs a matching
-  release on BOTH repos (chronicle for the record, the tap for public download + the
-  update feed).
-- **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they
-  are blocked (silently return null) in embedded/preview browser contexts, so the
-  action no-ops with no error. The session rename learned this the hard way; use an
-  inline edit-in-place field instead (see `OverviewMode` in `SessionView.jsx`).
-  `ProjectMenu`'s gear still uses `prompt`/`confirm`/`alert`; the Home multi-select flow
-  is the confirm-free path (an inline confirm bar) — prefer that pattern for new UI.
-- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD.** Since PR 5c, `InfoTip` is a shared
-  component (`src/InfoTip.tsx`) using Radix Popover with `side="bottom"` +
-  `avoidCollisions={false}` — the `avoidCollisions={false}` is load-bearing, not optional:
-  Radix's default collision-flip would otherwise flip it upward inside `.page`
-  (`overflow-y: auto`, clips both axes) and cut it off at the viewport top, same failure
-  as the original hand-rolled hover-CSS version. 250px wide so long explainers stay short.
-- **Radix `Dialog.Overlay` and `Dialog.Content` render as PORTALED SIBLINGS, not nested.**
-  Bit us in PR 5c: `.modal`'s old centering relied on being a flex child of
-  `.modal-backdrop` (`display:flex; align-items:center`), which silently stopped working
-  once the backdrop→modal DOM nesting was replaced by Radix's Portal (Overlay and Content
-  are both direct portal children, unrelated in the DOM). `.modal` now self-centers via its
-  own `position:fixed; top/left:50%; transform:translate(-50%,-50%)`. Second gotcha buried
-  in the first: that transform must be a STATIC property on `.modal`, not only present in
-  the entrance keyframe's `to` state — `animation-fill-mode` defaults to `none`, so once the
-  200ms `modal-in` animation finishes, an animated-only transform reverts to `transform:none`
-  and the modal snaps to the top-left of its centered anchor point. Caught only by clicking
-  through the built app, not by typecheck/tests/build — Radix Popover/DropdownMenu don't
-  have this problem (they self-position via `@floating-ui` internals), only Dialog does.
-  Radix `Toast.Root` also defaults to a 5s `duration` — pass `duration={N}` explicitly if
-  app logic (e.g. the undo window) assumes a different auto-dismiss time.
-- **`replaceSession` preserves the user-set `name`** across its delete+reinsert
-  (reads `prev.name` first) — `summary`/`usage` are re-derived each import, but a
-  Chronicle rename must survive re-sync. An OLD build sharing `~/.chronicle/chronicle.db`
-  (e.g. a stale packaged app on 41730) does NOT know the `name` column and will
-  wipe titles on any sync — quit it (`pkill -f Chronicle.app`) before debugging
-  "my rename vanished".
+  live-only messages are unaffected by design.
+- **`replaceSession` preserves the user-set `name`** across its delete+reinsert (reads
+  `prev.name` first) — `summary`/`usage` are re-derived each import, but a Chronicle rename
+  must survive re-sync. A stale process sharing `~/.chronicle/chronicle.db` that predates the
+  `name` column will wipe titles on any sync — kill it before debugging "my rename vanished".
 - `sessions.context_tokens` (real context size from Claude Code usage records) only
-  populates on import — after upgrading, re-import or Sync Update, else session cards
-  fall back to the ~chars/4 estimate.
-- Per-session source-file deletion is restricted to sources where one file = one
-  session (claude-code, codex, copilot); OpenCode/Cursor share one DB across
-  sessions, so their files are never deleted.
-- Packaging (`npm run dist:mac`) uses `asar: false` — the server resolves `dist/`
-  and parsers as plain files via `import.meta.url`; enabling asar breaks those paths.
-  Homebrew cask lives in `packaging/homebrew/` and is published to the
-  `chizhangucb/homebrew-chronicle` tap with DMGs attached to that repo's releases.
-- **Not every tag ships an app binary — and the download page reads the TAP repo.**
-  A docs/website-only release (v0.1.4, v0.1.8) has NO DMGs, so the cask, `latest-mac.yml`,
-  and installed apps stay pinned to the last REAL app release (v0.1.8 shipped nothing →
-  everything sat at 0.1.7 until v0.1.9). The getchronicle.dev landing fetches
-  `api.github.com/repos/chizhangucb/homebrew-chronicle/releases/latest` (the **tap**, not
-  the `chronicle` repo), so the tap release must carry the DMGs AND be marked Latest. Split
-  per the v0.1.7/v0.1.9 pattern: the **`chronicle` repo** release carries just the 2 DMGs
-  "for the record"; the **tap** release carries the full auto-update set (2 DMGs + 2
-  blockmaps + 2 zips + 2 zip-blockmaps + `latest-mac.yml`). v0.1.9 (0.1.7→0.1.9, skipping
-  the binary-less 0.1.8) was the first confirmed over-the-air update — the "Relaunch to
-  apply" toast works end-to-end when both apps share the `9W7B6USGG9` Developer ID.
-- **New client-side npm deps go in devDependencies**, not dependencies — Vite bundles
-  them into `dist/`, and electron-builder ships everything in `dependencies` inside
-  the app (a misplaced client lib silently fattens every DMG). Only genuine
-  server-runtime deps (express) belong in `dependencies`.
-- electron-builder 26 rejects `dmg.format: "ULMO"` — ULFO (lzfse) is the strongest
-  supported DMG compression.
-- `gh release upload` sometimes fails with `dial tcp: lookup uploads.github.com: no
-  such host` — a transient resolver hiccup, not sandbox/network policy; just retry
-  (with `--clobber`). Create the release first, upload assets as a separate step.
-- Only one Chronicle can run per machine (single-instance lock + port 41730): a
-  freshly launched app exits silently (code 0, no output) if any instance — dev
-  `electron .`, packaged, or a stale `standalone.js` — already holds the lock or
-  port. `pkill -f "Chronicle.app/Contents/MacOS/Chronicle"` before launching a new
-  build; check `lsof -iTCP:41730` when the UI 404s unexpectedly (a stale server from
-  a deleted directory once served broken pages here).
-- The tool-result error heuristic exists twice: `ERROR_RE` in `server/api.js`
-  (project analytics) and `isErrorResult` in `src/SessionView.jsx` (Overview).
-  Change both or the Errors counts diverge.
-- Feedback email flows app → **hosted relay** (`feedback-relay/` on Vercel) →
-  **Resend** → inbox, switched from formsubmit.co on 2026-07-07 (formsubmit's free
-  tier returned `success:true` but Gmail silently dropped the mail; it also needed a
-  per-address activation click + an `Origin` header). The relay exists because
-  Chronicle is local-first: each user's app sends from THEIR machine, so a Resend
-  key in a local file only works for the maintainer — the relay holds the key
-  server-side so feedback works from every install. **New Vercel projects default to
-  Deployment Protection (SSO) ON** → the relay 401s until you disable it
-  (`PATCH /v9/projects/<name>` `ssoProtection:null`, or dashboard → Settings →
-  Deployment Protection). The relay's branded URL is now `relay.getchronicle.dev`
-  (Vercel custom domain → `DEFAULT_FEEDBACK_RELAY`); the legacy
-  `feedback-relay-chizhangucb-projects.vercel.app` alias still serves already-shipped
-  apps (the deploy-hash URL changes each deploy — never use it). Set
-  `RESEND_API_KEY`/`FEEDBACK_TO`/`FEEDBACK_FROM` as Vercel env vars and REDEPLOY
-  (`cd feedback-relay && vercel --prod`, authed as chizhangucb) for changes to take
-  effect. `getchronicle.dev` is DKIM+SPF-verified in Resend (Pro plan), so `FEEDBACK_FROM`
-  sends from it; `onboarding@resend.dev` only reaches the Resend account owner.
-  **Porkbun gotcha:** its Cloudflare-embedded DNS console frequently hangs in browser
-  automation ("Page still loading"/never idle) and the extension blocks reading
-  base64 (DKIM) values — paste DNS records manually; `vercel --prod` + `dig` were the
-  reliable verification paths.
-- `npm run reinstall:mac` rebuilds the bundle but its `pkill; …; open` **does not
-  reliably relaunch the new code**: closing the window only hides the app to the
-  tray, so `pkill` often fails to kill it, the old process keeps port 41730 (single-
-  instance lock), and the new binary exits on launch. The still-running process
-  serves the OLD server code from memory (it loaded `server/*.js` at startup;
-  replacing files on disk doesn't touch it). After `reinstall:mac`, VERIFY the
-  restart — `ps -o lstart= -p $(lsof -tiTCP:41730)` must be AFTER the rebuild;
-  if not, quit via the tray menu (or `pkill`) and `open -a Chronicle`.
-- The project-card **git pill shows the local checkout's live branch** — `repoInfo`
-  in `server/git.js` shells out to `git` on every `/api/projects` call (NO caching),
-  so it's always accurate, not stale. If it shows a feature branch after a PR merged,
-  that's because the working tree is still ON that branch — switch back to `main`
-  (the pill is right, the checkout is wrong). Bit us twice; see the branch/PR pattern.
-- `release/` is disposable and gitignored: `mac/` (x64) and `mac-arm64/` are
-  electron-builder staging dirs the DMGs are packed from; the `.yml`/`.blockmap`
-  files are for electron-builder's own updater, which Chronicle doesn't use.
-- **Signing is guarded.** `build/notarize.cjs` (afterSign hook) notarizes only when
-  `APPLE_*` creds are in env; `build.mac` has no `identity`, so electron-builder signs
-  when a Developer ID cert is present and produces an UNSIGNED build otherwise. Do NOT
-  re-add `identity: null` (hard-disables signing). `npm run dist:mac` must stay green
-  with no Apple creds.
-- **macOS signing needs a DEDICATED keychain, NOT `CSC_LINK`** (the v0.1.6 lesson, cost
-  ~5 build attempts). electron-builder's default `CSC_LINK=<p12>` imports the cert into
-  a throwaway TEMP keychain whose `codesign --keychain <temp>` can't reach the system
-  Apple Root → `codesign … errSecInternalComponent` + "unable to build chain to
-  self-signed root" (it also drops any intermediate/root bundled in the `.p12`).
-  **FIX** (all creds live in `~/apple-signing/`, OUTSIDE the repo): (1) build a `.p12`
-  with the FULL chain — leaf → `Developer ID Certification Authority` (G2, from
-  apple.com/certificateauthority) → `Apple Root CA` (apple.com/appleca) + private key;
-  (2) `security create-keychain -p <kcpw> chronicle-sign.keychain-db` +
-  `security set-keychain-settings` (no auto-lock); (3) `security import devid.p12 -k
-  <kc> -P <p12pw> -T /usr/bin/codesign`; (4) `security set-key-partition-list -S
-  apple-tool:,apple:,codesign: -k <kcpw> <kc>` (uses the KC's own password — the login
-  password is never needed); (5) **add the KC to the user search list**
-  (`security list-keychains -d user -s <kc> <existing…>`) so trust anchors to the
-  SYSTEM Apple Root; (6) build with `CSC_KEYCHAIN=<kc>` and NO `CSC_LINK`, and NO
-  `CSC_NAME` (electron-builder rejects the `Developer ID Application:` prefix —
-  auto-discovery finds the single identity). Sanity gate: `security find-identity -v
-  -p codesigning` must print "1 valid identities found" before building; a lone
-  `--keychain <kc>` (not in the search list) shows 0 valid. Notarization pre-flight:
-  `xcrun notarytool history --key <p8> --key-id <id> --issuer <uuid>` → "No submission
-  history" = creds OK. Team ID `9W7B6USGG9`.
-- **Auto-update = electron-updater**, feed = `build.publish` github
-  `chizhangucb/homebrew-chronicle` (baked into `app-update.yml`). It installs only when the running
-  app and the update share a Developer ID signature — dormant until the first SIGNED
-  release. `quitAndInstall()` does the clean quit + swap + relaunch, replacing the old
-  `pkill`/`reinstall:mac` dance for end users. Mac targets are `["dmg","zip"]`;
-  electron-updater updates from the ZIP, not the DMG.
-- **The Relaunch toast** needs the preload
-  (`electron/preload.cjs` → `window.chronicleUpdater`) + IPC in `electron/main.mjs`. In dev/standalone (browser) the
-  bridge is absent, so the toast never renders. Updater calls are guarded by
-  `app.isPackaged` — `npm run desktop` runs unpacked, so no update runs there. Note the
-  toast is only visible after an update downloads — its *absence* is not proof the code is
-  missing (verify by grepping the installed bundle for a marker string instead).
-- **macOS App Management (TCC) blocks the harness from swapping the installed app.** Once
-  `Chronicle.app` is in `/Applications` and signed, an agent/sandboxed shell can't `ditto`
-  over it or `rm -rf` it → `Operation not permitted` (EPERM, not a running-process lock);
-  only the user's own Finder/Terminal has App Management. Build the new `.app` in the repo,
-  then have the USER do the final swap (Finder drag-replace, or a Terminal one-liner).
-- **A local `electron-builder --dir` build SIGNS but does NOT notarize** (afterSign only
-  fires with `APPLE_*` in env). Fine for a local reinstall — a locally-built app has no
-  quarantine, so Gatekeeper runs it. For a shipped release use full `dist:mac` + notary env.
-  And **bump the version for any new build**: two different builds both called `0.1.6` (a
-  stale `release/` DMG vs current `main`) triggered a "my install is missing the latest
-  features" hunt — the DMG was frozen at an older commit. Version = the truth; grep the
-  bundle to confirm what's actually in it.
+  populates on import — after upgrading, re-import or Sync Update, else session cards fall
+  back to the ~chars/4 estimate.
+- Per-session source-file deletion is restricted to sources where one file = one session
+  (claude-code, codex); OpenCode/Cursor share one DB across sessions, so their files are
+  never deleted.
+- The tool-result error heuristic exists in multiple places: `ERROR_RE` in
+  `server/routes/projects.ts` + `server/insights.ts` + `server/explore.ts`, and
+  `isErrorResult` in `src/SessionView.tsx`. Change all or the Errors counts diverge.
+- **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they are
+  blocked (silently return null) in embedded/preview browser contexts, so the action
+  no-ops with no error. Use an inline edit-in-place field / inline confirm bar instead
+  (see `OverviewMode` in `SessionView.tsx` and the `HomePage` multi-select flow).
+- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD.** `InfoTip` (`src/InfoTip.tsx`) uses
+  Radix Popover with `side="bottom"` + `avoidCollisions={false}` — the
+  `avoidCollisions={false}` is load-bearing, not optional: Radix's default collision-flip
+  would otherwise flip it upward inside `.page` (`overflow-y: auto`, clips both axes) and
+  cut it off at the viewport top. 250px wide so long explainers stay short.
+- **Radix `Dialog.Overlay` and `Dialog.Content` render as PORTALED SIBLINGS, not nested.**
+  `.modal`'s old centering relied on being a flex child of `.modal-backdrop`, which stopped
+  working once Radix's Portal made Overlay and Content direct portal children. `.modal` now
+  self-centers via its own `position:fixed; top/left:50%; transform:translate(-50%,-50%)` —
+  and that transform must be a STATIC property on `.modal`, not only in the entrance
+  keyframe's `to` state (`animation-fill-mode` defaults to `none`, so an animated-only
+  transform reverts to `transform:none` when the 200ms `modal-in` finishes and the modal
+  snaps to the top-left of its anchor). Caught only by clicking through the built app.
+  Radix `Toast.Root` also defaults to a 5s `duration` — pass `duration={N}` explicitly if
+  app logic (e.g. an undo window) assumes a different auto-dismiss time.
+- The project-card **git pill shows the local checkout's live branch** — `repoInfo` in
+  `server/git.ts` shells out to `git` on every `/api/projects` call (NO caching), so it's
+  always accurate. If it shows a feature branch after a PR merged, the working tree is still
+  ON that branch — switch back to `main` (the pill is right, the checkout is wrong).
+- The repo has moved twice in the maintainer's home dir (2026-07-05, 2026-08-08). Each move
+  changes the munged Claude Code transcript dir under `~/.claude/projects/`; old session
+  JSONLs were migrated to the current munged path and internal `cwd` paths updated, so
+  imported sessions stay valid.
 - **The auto-mode safety classifier gates outward/irreversible steps** — Vercel prod
-  deploys, `git push` to the default branch, `gh release` publishing, `rm` of things
+  deploys, `git push` to the default branch, `gh release` / `npm publish`, `rm` of things
   outside the repo. Explicit user authorization in the immediately preceding turn usually
-  clears it (the release pushes went through after "ship it"); otherwise route via a PR or
-  hand the exact command to the user. Never work around a denial.
-- **getchronicle.dev is served by the `chronicle-web` Vercel project — NOT `chronicle-site`.**
-  This session accidentally created a duplicate `chronicle-site` project before noticing
-  `chronicle-web` (the PR #11 landing project) already owned the apex; `chronicle-site` was
-  deleted. The apex + `www` DNS (`A → 76.76.21.21`) already exist at Porkbun (coexisting with
-  the MX/Resend email records), so wiring the site needs NO DNS change — just attach the domain
-  to the project. `relay.getchronicle.dev` is a SEPARATE project (feedback-relay); leave it.
-- **A `website/`-rooted `vercel` CLI deploy only uploads `website/`, NOT `../docs`** — so the
-  docs content is generated LOCALLY (`npm run content` → `website/docs`) and uploaded, and
-  Vercel's buildCommand is `vitepress build` + assemble (it does NOT re-run the `../docs`
-  copy). `website/.vercelignore` must therefore NOT ignore `docs/` (the generated content must
-  ship) but must ignore `dist`/`.vitepress/dist`/`.vitepress/cache`/`node_modules`.
-- **VitePress base `/docs/` + `assemble.mjs`.** The docs are served under `/docs`, so VitePress
-  builds with `base: '/docs/'` and its output is placed at `dist/docs`; nav/sidebar `link`s are
-  srcDir-relative (base auto-prepends `/docs/`), and a link back to the landing at `/` must be
-  an absolute/external URL (base would otherwise prepend `/docs/`). `assemble.mjs` copies the
-  landing `index.html` + `assets/` to `dist/` root; the docs' hashed assets live at
-  `dist/docs/assets` (own immutable cache header in `website/vercel.json`).
-- **VitePress i18n structure.** Locales live under `srcDir`: English at `docs/*` (root locale),
-  `docs/zh/**` + `docs/ja/**` for the others. `locales` in `config.mjs` sets each locale's
-  `label`/`lang`/`link` plus its OWN translated `themeConfig` (nav + sidebar labels). A relative
-  link in a translated page resolves WITHIN that locale, so every page must exist in every locale
-  or the link 404s — and VitePress fails the build on dead links (the safety net). The changelog
-  is GENERATED into `website/docs/changelog.md` (+ `zh`/`ja`) from repo-root `CHANGELOG.md` at
-  build time; never hand-edit `website/docs/**` — edit `CHANGELOG.md` or the `docs/<lang>` sources.
-  The `<Walkthrough/>` component reads `useData().lang` for captions, so it works in all three.
-- **Multi-worktree collision (this session).** I branched off an OLD `main`; meanwhile the docs
-  PR and the landing PR both merged, so my branch clobbered the landing `website/`. The fix was
-  to rebranch off `main` and INTEGRATE (docs at `/docs` under the landing), not replace. Always
-  rebase onto latest `main` before touching a shared dir/deployable — `git reset --hard` is
-  blocked by the auto-mode classifier, so use `git checkout -b <branch> origin/main` instead.
+  clears it; otherwise route via a PR or hand the exact command to the user. Never work
+  around a denial.
 
 ## Verification habits used here
 
 Features were verified against real data: this repo's own Claude Code session
-(import → time travel → causality → replay of its own construction),
-`~/health-analyst` (234 commits), the live `anthropics/skills` repo (GitHub import),
-and fixture DBs/JSON for Cursor/Codex/Gemini/Copilot/OpenCode-live. Prefer that over
-mocks: the fastest end-to-end check is importing Chronicle's own session and clicking
-around. Known deferrals: remote SSH (no host to test), OAuth browser flow, destructive
-skills takeover.
+(import → time travel → causality), `~/health-analyst` (234 commits), and fixture
+DBs/JSON for Cursor/Codex/OpenCode-live in `test/fixtures/`. Prefer that over mocks: the
+fastest end-to-end check is importing Chronicle's own session and clicking around. Known
+deferrals: remote SSH (no host to test), Windows/Linux beyond the npx path.
 
 ## Records seam (AIOS hub)
 
