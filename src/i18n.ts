@@ -113,7 +113,6 @@ const zh = {
   'Session removed': '会话已移除',
   'sessions removed': '个会话已移除',
   'From Chronicle only — source logs untouched.': '仅从 Chronicle 中移除——源日志不受影响。',
-  'Recent Sessions': '最近会话',
   'Minor sessions': '次要会话',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '简短、活跃度低的会话不会出现在主列表中——可以提升以恢复，或忽略以永久移除。',
@@ -208,6 +207,14 @@ const zh = {
   'Line': '折线',
   'Bar': '柱状',
   'Call Ranking': '调用排行',
+  'Tokens': '词元',
+  'Commits': '提交',
+  'models': '个模型',
+  'prompts': '条提示',
+  'Daily cost & sessions': '每日成本与会话',
+  'Source mix': '来源占比',
+  'Cost by model': '按模型成本',
+  'No cost data recorded.': '没有记录到成本数据。',
   'No sessions in this time range.': '该时间范围内没有会话。',
   'No activity in this time range.': '该时间范围内没有活动。',
   'No sessions match.': '没有匹配的会话。',
@@ -351,6 +358,14 @@ const zh = {
   'Files touched': '涉及文件',
   'No files touched.': '没有涉及文件。',
   'User Prompt': '用户提问',
+  // Home ledger (Phase 5 PR 5d-1)
+  'Recent sessions': '最近会话',
+  'Filter sessions… (title, project, content)': '筛选会话…（标题、项目、内容）',
+  'needs association': '需要关联',
+  'Yesterday': '昨天',
+  'Project': '项目',
+  'Active': '活跃',
+  'When': '时间',
 };
 
 const ja = {
@@ -463,7 +478,6 @@ const ja = {
   'Session removed': 'セッションを削除しました',
   'sessions removed': '件のセッションを削除しました',
   'From Chronicle only — source logs untouched.': 'Chronicle からのみ削除されました — 元のログは変更されません。',
-  'Recent Sessions': '最近のセッション',
   'Minor sessions': 'マイナーセッション',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '短くて活動の少ないセッションはメインリストに表示されません — 昇格で復元、または無視で完全に削除できます。',
@@ -554,6 +568,14 @@ const ja = {
   'Line': '折れ線',
   'Bar': '棒',
   'Call Ranking': '呼び出しランキング',
+  'Tokens': 'トークン',
+  'Commits': 'コミット',
+  'models': 'モデル',
+  'prompts': '件のプロンプト',
+  'Daily cost & sessions': '日次コストとセッション',
+  'Source mix': 'ソース内訳',
+  'Cost by model': 'モデル別コスト',
+  'No cost data recorded.': 'コストデータが記録されていません。',
   'No sessions in this time range.': 'この期間にセッションはありません。',
   'No activity in this time range.': 'この期間にアクティビティはありません。',
   'No sessions match.': '一致するセッションはありません。',
@@ -708,6 +730,14 @@ const ja = {
   'Files touched': '変更したファイル',
   'No files touched.': '変更したファイルはありません。',
   'User Prompt': 'ユーザープロンプト',
+  // Home ledger (Phase 5 PR 5d-1)
+  'Recent sessions': '最近のセッション',
+  'Filter sessions… (title, project, content)': 'セッションを絞り込み…（タイトル・プロジェクト・内容）',
+  'needs association': '関連付けが必要',
+  'Yesterday': '昨日',
+  'Project': 'プロジェクト',
+  'Active': 'アクティブ',
+  'When': '日時',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };

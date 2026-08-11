@@ -264,10 +264,13 @@ body {
 .project-card.selectable:hover { border-color: var(--brass); }
 .project-card.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
 /* Shared with the session-row multi-select (src/SessionSelect.tsx — mounted
-   in both the Home recent-sessions stream and the project session list). */
-.session-row.selectable { cursor: pointer; transition: border-color 0.15s; }
-.session-row.selectable:hover { border-color: var(--brass); }
-.session-row.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
+   in both the Home ledger stream and the project session list). ProjectDetail's
+   session list still uses `.card session-row`; Home's ledger (5d-1) switched its
+   row markup to the `.row` ledger primitive, so both selectors need the same
+   selection-state treatment or one of the two mount points loses its highlight. */
+.session-row.selectable, .row.selectable { cursor: pointer; transition: border-color 0.15s; }
+.session-row.selectable:hover, .row.selectable:hover { border-color: var(--brass); }
+.session-row.selected, .row.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.danger:hover { background: rgba(217, 79, 61, 0.12); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -427,6 +430,11 @@ body {
 .menu-item:hover, .menu-item[data-highlighted] { background: var(--bg1); }
 .menu-item.danger { color: var(--danger); }
 .menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+/* Inline two-step confirm INSIDE a DropdownMenu.Content, replacing the item
+   list in place (e.g. ProjectMenu's "Remove from Chronicle") — never
+   `window.confirm`, which silently no-ops in embedded/preview browsers. */
+.menu-confirm { padding: 6px 8px; display: flex; flex-direction: column; gap: 8px; }
+.menu-confirm-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
 /* Topbar right cluster + language dropdown */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -521,10 +529,36 @@ body {
 .trend-axis { display: flex; justify-content: space-between; margin-top: 2px; }
 .trend-spark { height: 150px; }
 .trend-legend { margin-top: 6px; color: var(--brass); }
-.pd-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.pd-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0; }
 .donut-legend-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; }
 .donut-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .rank-label { width: 110px; text-align: right; font-size: 12px; }
+
+/* ---- Segmented range control (5d-3 primitive) — replaces the old
+   <select class="range-select"> with a button group; same chip-on styling
+   language as .filter-chips/.chip elsewhere in the app. ---- */
+.rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.rangebar button {
+  background: none; border: none; border-radius: 6px; padding: 5px 10px;
+  font: 12px var(--mono); color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.rangebar button:hover { color: var(--ink); }
+.rangebar button.on { background: rgba(192, 138, 30, 0.18); color: var(--brass-text); }
+
+/* ---- Recharts donut wrapper (5d-3 primitive) — pie + legend side by side;
+   distinct from .ov-donut-wrap (the older hand-rolled conic-gradient donut
+   still used by Session Overview until it migrates to Recharts too). ---- */
+.donut-wrap { display: flex; gap: 18px; align-items: center; }
+
+/* ---- Horizontal bar ranking (5d primitive — mirrors .bar-row/.bar/.bar-fill
+   but with a fixed-order categorical color per row and a tabular-num value;
+   used by both Project analytics (Call Ranking, Cost by model) and Session
+   Overview (Tool mix)). ---- */
+.hbar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.hbar .n { width: 130px; font-size: 12px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.hbar .track { flex: 1; height: 8px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
+.hbar .fill { height: 100%; border-radius: 4px; }
+.hbar .v { width: 56px; text-align: right; flex-shrink: 0; color: var(--ink-2); font-size: 12px; }
 
 /* Session ID chip */
 .ov-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -919,3 +953,23 @@ h4 { margin: 6px 0; }
 .comp-bar { display: flex; gap: 2px; height: 14px; border-radius: 3px; overflow: hidden; }
 .comp-bar span { height: 100%; }
 .comp-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 10.5px var(--mono); color: var(--ink-2); margin-top: 8px; }
+
+/* ---- 5d-1: Home right rail + always-visible search ---- */
+.home-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.home-stream { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 26px; }
+.home-rail { width: 264px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--bg1); overflow-y: auto; padding: 16px 14px; }
+.rail-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.rail-head .sync { font: 11px var(--mono); color: var(--ink-3); }
+.rail-head .sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
+.rail-head .sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
+/* Post-review addition (5d-0's useSyncStatus grew a `failed` field after this
+   task's brief was written) — distinguishes "sync failed" from "synced" so a
+   red dot doesn't read as a healthy green one. */
+.rail-head .sync.failed::before { color: var(--danger); animation: none; }
+.rail-proj { padding: 9px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 2px; }
+.rail-proj:hover { background: var(--bg2); border-color: var(--border); }
+.rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
+.rail-proj .n .c { font-size: 11px; color: var(--ink-3); }
+.rail-proj .meta { display: flex; gap: 8px; margin-top: 3px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
+.home-search { flex: 1; max-width: 560px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
+.home-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font: 13px var(--mono); }

@@ -81,7 +81,8 @@ export function mountProjects(app: Express): void {
       WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
       .all(project.id, cutoff) as unknown as { head: string }[])
       .reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
-    res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors } });
+    const commits = gitEngine.commitCountSince(project.path, cutoff || null);
+    res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors, commits } });
   });
 
   // ---- Project management (FR-PM-3/4/5) ----

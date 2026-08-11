@@ -119,6 +119,7 @@ export interface ProjectDetail {
     kindDist: KindCount[];
     activity: DayCount[];
     errors: number;
+    commits: number;
   };
 }
 
@@ -256,6 +257,12 @@ export interface SearchResultItem {
   snippet: string;
   seq?: number;
   ts: string | null;
+  // Only populated on the empty-query "recent" branch of GET /api/search (see
+  // server/routes/search.ts) — the FTS/LIKE match branch doesn't select them,
+  // so they're undefined there. Used by the Home ledger's Cost/Active/Msgs columns.
+  message_count?: number;
+  usage?: string | null;
+  agent_active_ms?: number | null;
 }
 
 export interface SearchResponse {
