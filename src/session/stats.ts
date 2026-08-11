@@ -7,6 +7,13 @@
 // @shared's `Event` fields but keeps `kind` as `string` (a `Kind` value is
 // still assignable to it, since `Kind` is a subtype of `string`) — the honest
 // common shape both callers satisfy.
+// stats.ts is executed directly by node (unit tests import it as `.ts`, and
+// node's strip-only loader takes import specifiers literally — it does NOT
+// rewrite `.js` → `.ts` the way Vite's bundler resolution does). So unlike the
+// `.tsx` call sites in this file's siblings (OverviewMode.tsx, ProjectDetail.tsx,
+// which only ever run through Vite/tsc and use `../models.js`), this import
+// must point at the real `.ts` file.
+import { costOf, type ModelUsageInput } from '../models.ts';
 export interface StatMessage {
   kind: string;
   ts?: string | null;
@@ -54,6 +61,48 @@ function topDist(names: string[]): [string, number][] {
   const other = sorted.slice(7).reduce((s, [, n]) => s + n, 0);
   if (other) top.push(['other', other]);
   return top;
+}
+
+// Tool-mix counts, reshaped for Recharts' `data` prop (thin wrapper around
+// the same tally topDist does, but unsorted-cap and keyed as {name,count}
+// rather than [name,count] pairs — the Tool Mix card wants every tool, sorted,
+// not top-7 + "other").
+function toolMixSorted(messages: StatMessage[]): { name: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const m of messages) {
+    if (m.kind !== 'tool_use' || !m.tool_name) continue;
+    counts.set(m.tool_name, (counts.get(m.tool_name) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+}
+
+// A per-assistant-turn cumulative-cost point series for the "Cost over
+// session" chart. Chronicle only stores AGGREGATE per-model usage on the
+// session (no per-turn token breakdown), so this distributes the known
+// per-model total evenly across that model's assistant turns in chronological
+// order — an approximation (real spend is lumpier), good enough for the
+// trend shape the chart is showing. `usageByModel` is the parsed
+// `session.usage` JSON (Record<model, ModelUsageInput>).
+function cumulativeCostSeries(
+  messages: StatMessage[],
+  usageByModel: Record<string, ModelUsageInput>,
+): { t: string; cumCost: number }[] {
+  const turnsByModel = new Map<string, StatMessage[]>();
+  for (const m of messages) {
+    if (m.kind !== 'assistant' || !m.model || !m.ts) continue;
+    if (!turnsByModel.has(m.model)) turnsByModel.set(m.model, []);
+    turnsByModel.get(m.model)!.push(m);
+  }
+  const points: { t: string; cost: number }[] = [];
+  for (const [model, turns] of turnsByModel) {
+    const usage = usageByModel[model];
+    const total = usage ? (costOf(model, usage) ?? 0) : 0;
+    const perTurn = turns.length ? total / turns.length : 0;
+    for (const turn of turns) points.push({ t: turn.ts as string, cost: perTurn });
+  }
+  points.sort((a, b) => a.t.localeCompare(b.t));
+  let running = 0;
+  return points.map((p) => { running += p.cost; return { t: p.t, cumCost: running }; });
 }
 
 function fmtCtx(tokens: number): string {
@@ -135,6 +184,8 @@ export {
   DELETABLE_SOURCES,
   isErrorResult,
   topDist,
+  toolMixSorted,
+  cumulativeCostSeries,
   fmtCtx,
   fmtTokNum,
   fmtDur,
