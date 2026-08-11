@@ -9,6 +9,7 @@ import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf, type ModelUsageInput } from './models.ts';
+import ExploreTab from './ExploreTab.tsx';
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -19,6 +20,8 @@ const RANGES: { key: string; days: number | null }[] = [
   { key: '90d', days: 90 },
   { key: 'All', days: null },
 ];
+
+type Tab = 'overview' | 'explore' | 'content';
 
 // ---- Local formatters (mirrors src/ProjectDetail.tsx's fmtDur/fmtTok style
 // — kept local rather than shared, since that file isn't in this task's
@@ -72,8 +75,8 @@ function sessionTokens(json: string | null): number {
 }
 
 export default function InsightsPage(): JSX.Element {
-  const [, navigate] = useLocation();
   const [days, setDays] = useState<number | null>(30);
+  const [tab, setTab] = useState<Tab>('overview');
   const [result, setResult] = useState<InsightsResult | null>(null);
 
   useEffect(() => {
@@ -82,14 +85,50 @@ export default function InsightsPage(): JSX.Element {
     return () => { cancelled = true; };
   }, [days]);
 
+  return (
+    <div className="page insights-page">
+      <div className="head"><h1>{t('Insights')}</h1><span className="sub">{t('all projects · all sources')}</span></div>
+      <div className="ctlrow">
+        <div className="tabs">
+          <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => setTab('overview')}>
+            {t('Overview')}
+          </button>
+          <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => setTab('explore')}>
+            {t('Explore')}
+          </button>
+          <button type="button" className="tab" disabled title={t('Content tab coming soon')}>
+            {t('Content')}
+          </button>
+        </div>
+        <div className="rangebar">
+          {RANGES.map((r) => (
+            <button key={r.key} className={days === r.days ? 'on' : ''} onClick={() => setDays(r.days)}>
+              {r.days ? `${r.days}d` : t('All')}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'overview' && (
+        result ? <InsightsOverview result={result} days={days} /> : <div className="muted pad8">{t('Loading…')}</div>
+      )}
+      {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
+    </div>
+  );
+}
+
+// ---- Overview body (everything the page showed before the 5e-1 tab split)
+// — factored out so InsightsPage can switch between it and ExploreTab without
+// re-fetching /api/insights on every tab click. ----
+function InsightsOverview({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
+  const [, navigate] = useLocation();
   const rangeLabel = days ? `${days}d` : t('All');
 
-  const projectById = useMemo(() => new Map(result?.projects.map((p) => [p.id, p.name]) ?? []), [result]);
-  const projectColors = useMemo(() => projectColorMap((result?.projects ?? []).map((p) => p.id)), [result]);
+  const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
+  const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
   // ---- KPI aggregates ----
   const kpis = useMemo(() => {
-    if (!result) return null;
     let cost = 0, tokens = 0, input = 0, cacheRead = 0, agentActiveMs = 0, engagedMs = 0;
     const projectsTouched = new Set<number>();
     for (const s of result.sessions) {
@@ -125,7 +164,7 @@ export default function InsightsPage(): JSX.Element {
   // which projects happen to rank in the top 5 here.
   const projectSpend = useMemo(() => {
     const m = new Map<number, number>();
-    for (const s of result?.sessions ?? []) {
+    for (const s of result.sessions) {
       const cost = sessionCost(s.usage);
       if (!cost) continue;
       m.set(s.project_id, (m.get(s.project_id) ?? 0) + cost);
@@ -133,13 +172,12 @@ export default function InsightsPage(): JSX.Element {
     return m;
   }, [result]);
   const projectsBySpend = useMemo(
-    () => [...(result?.projects ?? [])].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
+    () => [...result.projects].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
     [result, projectSpend],
   );
   const topProjects = useMemo(() => projectsBySpend.slice(0, 5), [projectsBySpend]);
   const otherProjectIds = useMemo(() => new Set(projectsBySpend.slice(5).map((p) => p.id)), [projectsBySpend]);
   const spendChartData = useMemo(() => {
-    if (!result) return [];
     const byDay = new Map<string, Record<string, number>>();
     for (const s of result.sessions) {
       if (!s.started_at) continue;
@@ -157,7 +195,6 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Spend by model (hbar) ----
   const spendByModel = useMemo(() => {
-    if (!result) return [];
     const m = new Map<string, number>();
     for (const s of result.sessions) {
       for (const [model, u] of Object.entries(parseUsage(s.usage))) {
@@ -169,7 +206,6 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Sources (hbar) ----
   const bySource = useMemo(() => {
-    if (!result) return [];
     const m = new Map<string, number>();
     for (const s of result.sessions) m.set(s.source, (m.get(s.source) ?? 0) + 1);
     return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -177,7 +213,6 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Global tool mix (top 5 + Other) ----
   const toolMix = useMemo(() => {
-    if (!result) return [];
     const top = result.toolDist.slice(0, 5).map((r) => ({ name: r.name, value: r.count }));
     const rest = result.toolDist.slice(5).reduce((n, r) => n + r.count, 0);
     return rest ? [...top, { name: t('Other'), value: rest }] : top;
@@ -185,7 +220,6 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Error rate by project (top 6) ----
   const errorRateByProject = useMemo(() => {
-    if (!result) return [];
     return result.errorsByProject
       .filter((r) => r.head_count > 0)
       .map((r) => ({ name: projectById.get(r.project_id) ?? `#${r.project_id}`, value: (r.error_count / r.head_count) * 100 }))
@@ -195,7 +229,6 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Token usage by model table ----
   const tokenTable = useMemo(() => {
-    if (!result) return [];
     const agg = new Map<string, { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; cost: number }>();
     for (const s of result.sessions) {
       for (const [model, u] of Object.entries(parseUsage(s.usage))) {
@@ -225,30 +258,14 @@ export default function InsightsPage(): JSX.Element {
 
   // ---- Top sessions by cost ----
   const topSessions = useMemo(() => {
-    if (!result) return [];
     return result.sessions
       .map((s) => ({ session: s, cost: sessionCost(s.usage), tokens: sessionTokens(s.usage) }))
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 15);
   }, [result]);
 
-  if (!result || !kpis) {
-    return <div className="page"><div className="muted pad8">{t('Loading…')}</div></div>;
-  }
-
   return (
-    <div className="page insights-page">
-      <div className="head"><h1>{t('Insights')}</h1><span className="sub">{t('all projects · all sources')}</span></div>
-      <div className="ctlrow">
-        <div className="rangebar">
-          {RANGES.map((r) => (
-            <button key={r.key} className={days === r.days ? 'on' : ''} onClick={() => setDays(r.days)}>
-              {r.days ? `${r.days}d` : t('All')}
-            </button>
-          ))}
-        </div>
-      </div>
-
+    <>
       <div className="kpis">
         <div className="kpi">
           <div className="l">{t('Spend')}</div>
@@ -444,7 +461,7 @@ export default function InsightsPage(): JSX.Element {
         </table>
         {!topSessions.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
       </div>
-    </div>
+    </>
   );
 }
 
