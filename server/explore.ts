@@ -173,7 +173,10 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   const errRows = db.prepare(`
     SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
     FROM messages r
-    JOIN messages u ON u.session_id = r.session_id AND u.tool_use_id = r.tool_use_id AND u.kind = 'tool_use'
+    JOIN messages u ON u.id = (
+      SELECT MIN(u2.id) FROM messages u2
+      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
+    )
     JOIN sessions s ON s.id = r.session_id
     JOIN projects p ON p.id = s.project_id
     WHERE r.kind = 'tool_result' AND r.text IS NOT NULL

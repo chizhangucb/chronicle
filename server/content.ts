@@ -100,7 +100,10 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   // Tool results by tool (join result→use on tool_use_id).
   const toolChars = db.prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
-    FROM messages r JOIN messages u ON u.session_id=r.session_id AND u.tool_use_id=r.tool_use_id AND u.kind='tool_use'
+    FROM messages r JOIN messages u ON u.id = (
+      SELECT MIN(u2.id) FROM messages u2
+      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
+    )
     JOIN sessions s ON s.id = r.session_id
     WHERE r.kind='tool_result' AND COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} AND u.tool_name IS NOT NULL
     GROUP BY u.tool_name`).all(...bind()) as unknown as { k: string; chars: number }[];
