@@ -1,19 +1,36 @@
 {
-  "name": "chronicle",
-  "version": "0.2.1",
+  "name": "chronicle-cli",
+  "version": "1.0.0",
   "description": "Local-first AI coding session time machine",
+  "bin": {
+    "chronicle": "bin/chronicle.mjs",
+    "chronicle-cli": "bin/chronicle.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "files": ["bin", "server", "shared", "dist"],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "standalone": "npm run build && node server/standalone.ts",
     "test": "node --test 'test/**/*.test.mjs'",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "prepublishOnly": "npm run build && npm run typecheck && npm test"
   },
-  "keywords": [],
+  "keywords": ["claude-code", "codex", "cursor", "opencode", "ai", "sessions", "cost", "tokens", "local-first", "cli"],
   "author": "Chi Zhang",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chizhangucb/chronicle.git"
+  },
+  "homepage": "https://getchronicle.dev",
+  "bugs": {
+    "url": "https://github.com/chizhangucb/chronicle/issues"
+  },
   "devDependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
