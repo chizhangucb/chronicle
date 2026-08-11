@@ -617,5 +617,5 @@ Chronicle is a registered AIOS satellite (minimal: records seam only; no runtime
 
 - Decisions meeting the hub logging bar: top of `<hub>/records/decisions.md`, header ending `(session <id>, stream: chronicle)`. Hub = `$AIOS_HUB` or `~/chizhang-2`.
 - Brainstorms: `<hub>/records/brainstorms/`.
-- Session end: the registry-scoped Stop hook (hub `.claude/hooks/session-ledger.py`, wired here via gitignored `.claude/settings.local.json`, CHI-115) appends this session's row to `<hub>/records/sessions_index.md` with `Repo = chronicle`. If it is not wired on this machine, append the row manually.
+- Session end: the registry-scoped Stop hook (hub `.claude/hooks/session-ledger.py`, wired in tracked `.claude/settings.json` per the hub template in `governance/satellite-repos.md`, CHI-115) appends this session's row to `<hub>/records/sessions_index.md` with `Repo = chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148 sweeper); do not fill them manually. Decisions Chi confirms live are still best logged in-flow.
 - Pre-push scan list: deferred until Chronicle reads hub data (CHI-107 decision). Chronicle never reads the hub today, so it cannot carry hub-confidential data. Standard push confirm-first still applies.

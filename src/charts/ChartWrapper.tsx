@@ -30,10 +30,15 @@ export const GRID_PROPS = { stroke: 'var(--border)', vertical: false };
 // Pass as Recharts' <Tooltip content={<ChartTooltip formatValue={...} />} />.
 export interface ChartTooltipProps<V extends number = number> extends TooltipContentProps<V, string> {
   formatValue?: (v: V) => string;
+  // Opt out of the summed "Total" row — for charts whose series don't share a
+  // unit (e.g. a $ bar + a count line on the same composed chart), where a
+  // sum-of-all-series total is meaningless. Defaults to false/undefined so
+  // every existing call site (single-unit charts) is unaffected.
+  hideTotal?: boolean;
 }
 
 export function ChartTooltip<V extends number = number>(
-  { active, label, payload, formatValue = (v) => String(v) }: ChartTooltipProps<V>,
+  { active, label, payload, formatValue = (v) => String(v), hideTotal }: ChartTooltipProps<V>,
 ): JSX.Element | null {
   if (!active || !payload?.length) return null;
   const rows = payload
@@ -53,7 +58,7 @@ export function ChartTooltip<V extends number = number>(
           <b>{formatValue((p.value ?? 0) as V)}</b>
         </div>
       ))}
-      {rows.length > 1 && (
+      {!hideTotal && rows.length > 1 && (
         <div className="tt-row tt-total">
           <span>Total</span>
           <b>{formatValue(total as V)}</b>
