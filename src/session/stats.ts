@@ -163,10 +163,16 @@ function activeDurationMs(messages: StatMessage[]): number {
 // drill-in filter (src/SessionView.tsx). Callers pass the UNFILTERED message
 // array (SessionView's default `messages` has sidechains stripped out).
 // Sorted desc by total tokens (input+output) so the busiest subagent leads.
+// The parser stamps `agent_type` on EVERY sidechain event (user/tool_use/
+// tool_result/thinking/assistant), not just assistant turns — so `turns` must
+// be gated to `kind === 'assistant'` or it double/triple-counts each real turn
+// via its accompanying tool_use/tool_result rows. Token sums don't need the
+// same gate: only assistant rows carry input_tokens/output_tokens, so summing
+// unconditionally is already correct (non-assistant rows contribute 0).
 function subagentRuns(messages: StatMessage[]): { agentType: string; turns: number; inputTokens: number; outputTokens: number }[] {
   const map = new Map<string, { agentType: string; turns: number; inputTokens: number; outputTokens: number }>();
   for (const m of messages) {
-    if (!m.is_sidechain || !m.agent_type) continue;
+    if (!m.is_sidechain || !m.agent_type || m.kind !== 'assistant') continue;
     const cur = map.get(m.agent_type) ?? { agentType: m.agent_type, turns: 0, inputTokens: 0, outputTokens: 0 };
     cur.turns++;
     cur.inputTokens += m.input_tokens ?? 0;

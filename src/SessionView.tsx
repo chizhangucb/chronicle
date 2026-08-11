@@ -258,6 +258,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const winEnd = Math.min(visible.length, winStart + WINDOW);
   const windowed = visible.slice(winStart, winEnd);
 
+  // Same windowing as the playback pane above, scoped to the subagent drill-in
+  // (a merged run can be hundreds+ rows — CLAUDE.md: don't render unbounded
+  // arrays). Reuses the same WINDOW constant and selectedSeq as the centering
+  // anchor; falls back to the start of the run when the current selection
+  // isn't one of this agent's own messages (findIndex → -1 → clamped to 0).
+  const subagentSelIdx = Math.max(0, subagentMessages.findIndex((m) => m.seq === selectedSeq));
+  const subagentWinStart = subagentMessages.length > WINDOW
+    ? Math.max(0, Math.min(subagentSelIdx - WINDOW / 2, subagentMessages.length - WINDOW)) : 0;
+  const subagentWinEnd = Math.min(subagentMessages.length, subagentWinStart + WINDOW);
+  const subagentWindowed = subagentMessages.slice(subagentWinStart, subagentWinEnd);
+
   // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
   useEffect(() => {
     if (!data || !selected?.ts) return;
@@ -415,12 +426,22 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         </div>
         <div className="panes">
           <div className="conv-pane subagent-conv">
-            {subagentMessages.map((m) => (
+            {subagentWinStart > 0 && (
+              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.max(0, subagentWinStart - WINDOW / 2)].seq, true)}>
+                ↑ {subagentWinStart.toLocaleString()} earlier messages
+              </button>
+            )}
+            {subagentWindowed.map((m) => (
               <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
                 keyword="" onClick={() => selectMessage(m.seq)}
                 causality={causality?.changes.find((c) => c.seq === m.seq)}
                 onJump={(seq) => selectMessage(seq, true)} />
             ))}
+            {subagentWinEnd < subagentMessages.length && (
+              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.min(subagentMessages.length - 1, subagentWinEnd + WINDOW / 2 - 1)].seq, true)}>
+                ↓ {(subagentMessages.length - subagentWinEnd).toLocaleString()} later messages
+              </button>
+            )}
             {!subagentMessages.length && <div className="muted center pad8">{t('No messages match the current filter.')}</div>}
           </div>
         </div>
