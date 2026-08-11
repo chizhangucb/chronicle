@@ -298,7 +298,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const maxCostByModel = Math.max(0.01, ...stats.costByModel.map(([, n]) => n));
 
   return (
-    <div className="page">
+    <div className="page project-detail">
       <div className="crumbs">
         <ProjectPicker current={project} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
