@@ -359,7 +359,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
       {/* ---- 5e-4: project sub-tabs — reuses .tabs/.tab from 5e-1, not redefined ---- */}
       <div className="ctlrow">
-        <div className="tabs project-tabs">
+        <div className="tabs">
           <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>{t('Overview')}</button>
           <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => selectTab('explore')}>{t('Explore')}</button>
           <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>{t('Content')}</button>

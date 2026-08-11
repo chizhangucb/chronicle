@@ -297,3 +297,18 @@ test('model group Detail tokens come from usage even under a non-token metric', 
   const tokT = Object.values(sonnetT?.tokensByModel ?? {}).reduce((n, c) => n + c.input + c.output, 0);
   assert.equal(tok, tokT, 'model tokensByModel must equal the usage-sourced value regardless of metric');
 });
+
+test("metric:spend returns priceable tokensByModel (calibrated for tool, usage for model)", () => {
+  const tool = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'spend', group: 'tool', rollup: 'total', topN: 10 });
+  assert.equal(tool.calibrated, true, 'spend over tool is calibrated → ≈ badge');
+  assert.ok(tool.rows.some((row) => Object.values(row.tokensByModel).some((c) => c.input + c.output > 0)), 'tool spend rows carry non-zero calibrated tokens to price');
+
+  const model = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'spend', group: 'model', rollup: 'total', topN: 10 });
+  assert.equal(model.calibrated, false, 'spend over model is exact usage, not calibrated');
+  const rt = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  assert.deepEqual(
+    model.rows.map((r) => r.key).sort(),
+    rt.rows.map((r) => r.key).sort(),
+    'spend and tokens over model surface the same model rows',
+  );
+});
