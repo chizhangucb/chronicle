@@ -9,7 +9,7 @@ import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWrite
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
   FRIENDLY_CALL, DELETABLE_SOURCES, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
-  fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput,
+  fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput, subagentRuns,
 } from './stats.js';
 import type { PlaybackMessage } from './MessageRow.tsx';
 import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
@@ -31,6 +31,9 @@ export interface OverviewModeProps {
   // an Overview delete navigates away immediately, so it can't show its own.
   onDeleted: (undo?: DeletedEntry) => void;
   onRename: (name: string) => Promise<void>;
+  // Drill into a subagent's transcript (see the Subagents card below). Optional
+  // so other OverviewMode call sites (if any appear later) aren't forced to wire it.
+  onOpenSubagent?: (agentType: string) => void;
 }
 
 // Session ID with one-click copy (shown on the session home page).
@@ -106,7 +109,7 @@ interface CostAgg {
   cacheHitPct: number | null;
 }
 
-export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename }: OverviewModeProps): JSX.Element {
+export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent }: OverviewModeProps): JSX.Element {
   const { session } = data;
 
   // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
@@ -219,6 +222,12 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       totalCacheRead, costInput, costOutput, cacheReadCost, cw5m, cw5mCost, cw1h, cw1hCost, cacheHitPct,
     };
   }, [usageRows]);
+
+  // Subagents card: sourced from the UNFILTERED session messages — `messages`
+  // (this component's prop) already has sidechain rows stripped out by
+  // SessionView, but subagent turns ARE sidechain rows, so the raw
+  // `data.messages` is the only place they still exist.
+  const subagents = useMemo(() => subagentRuns(data.messages), [data.messages]);
 
   const costSeries = useMemo(() => cumulativeCostSeries(messages, usageByModel), [messages, usageByModel]);
   const toolMix = useMemo(() => toolMixSorted(messages), [messages]);
@@ -444,6 +453,23 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           ))}
           {!stats.filesTouched.length && <div className="muted small">{t('No files touched.')}</div>}
         </div>
+
+        {subagents.length > 0 && (
+          <div className="card">
+            <h3>{t('Subagents')} · {subagents.length}</h3>
+            {subagents.map((r) => (
+              <div key={r.agentType} className="trow subagent-row"
+                role="button" tabIndex={0}
+                onClick={() => onOpenSubagent?.(r.agentType)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSubagent?.(r.agentType); } }}>
+                <span className="t">{r.agentType}</span>
+                <span className="k num">×{r.turns}</span>
+                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)}</b>
+                <span className="subagent-arrow">→</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <SourceFileZone session={session} liveStatus={liveStatus} onDeleted={onDeleted} />

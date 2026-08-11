@@ -1061,3 +1061,26 @@ h4 { margin: 6px 0; }
 .rail-proj .meta { display: flex; gap: 8px; margin-top: 3px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
 .home-search { flex: 1; max-width: 560px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
 .home-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font: 13px var(--mono); }
+
+/* ---- 5e-3: Subagents ---- */
+/* Overview's Subagents card rows reuse `.trow`/`.k`/`.t` (Conversation
+   timeline / Files touched already establish that layout) — only the
+   click affordance and column widths are added here, scoped under
+   `.subagent-row` rather than redefining the shared classes. */
+.subagent-row { cursor: pointer; }
+.subagent-row:hover { background: var(--bg2); }
+.subagent-row .t { flex: 1; }
+.subagent-row .k { width: auto; text-align: right; }
+.subagent-arrow { color: var(--ink-3); }
+/* Drill-in sub-header (SessionView's 'subagent' mode) — a slim bar matching
+   `.session-toolbar`'s placement, above the reused `.panes`/`.conv-pane`
+   message list (see the playback mode render block this borrows). */
+.subagent-head {
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+  border-bottom: 1px solid var(--border); background: var(--bg1); flex-shrink: 0;
+}
+.subagent-subtitle { font: 12px var(--mono); color: var(--ink-2); }
+/* The drill-in has no CodePanel sibling (no single Git snapshot applies to a
+   subagent's own multi-turn run), so its `.conv-pane` takes the full width
+   instead of the playback view's 44%/border-right split. */
+.subagent-conv { width: 100%; border-right: 0; }

@@ -86,7 +86,7 @@ export interface SessionData {
 export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
 export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
-export type SessionMode = 'overview' | 'playback' | 'refine';
+export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent';
 
 export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
@@ -131,6 +131,10 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
+  // Which subagent's transcript the 'subagent' drill-in mode is showing (set by
+  // OverviewMode's Subagents card; null when not drilled in). NOT part of the
+  // sidebar rail's `modes` — it's a drill-in reached only via the Overview card.
+  const [subagentRun, setSubagentRun] = useState<string | null>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [causality, setCausality] = useState<CausalityData | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
@@ -222,6 +226,12 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // default playback/refine/overview lists; durations and Cost & Usage include
   // them via the server-stored numbers.
   const messages = useMemo(() => (data?.messages ?? []).filter((m) => !m.is_sidechain), [data]);
+  // 'subagent' drill-in: that agent type's sidechain transcript, read from the
+  // UNFILTERED session messages (sidechains are excluded from `messages` above).
+  const subagentMessages = useMemo(
+    () => (data?.messages ?? []).filter((m) => m.is_sidechain && m.agent_type === subagentRun),
+    [data, subagentRun],
+  );
   const activeKinds = useMemo(() => {
     if (!chips.size) return null; // no filter → all
     const set = new Set<string>();
@@ -247,6 +257,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const winStart = visible.length > WINDOW ? Math.max(0, Math.min(selIdx - WINDOW / 2, visible.length - WINDOW)) : 0;
   const winEnd = Math.min(visible.length, winStart + WINDOW);
   const windowed = visible.slice(winStart, winEnd);
+
+  // Same windowing as the playback pane above, scoped to the subagent drill-in
+  // (a merged run can be hundreds+ rows — CLAUDE.md: don't render unbounded
+  // arrays). Reuses the same WINDOW constant and selectedSeq as the centering
+  // anchor; falls back to the start of the run when the current selection
+  // isn't one of this agent's own messages (findIndex → -1 → clamped to 0).
+  const subagentSelIdx = Math.max(0, subagentMessages.findIndex((m) => m.seq === selectedSeq));
+  const subagentWinStart = subagentMessages.length > WINDOW
+    ? Math.max(0, Math.min(subagentSelIdx - WINDOW / 2, subagentMessages.length - WINDOW)) : 0;
+  const subagentWinEnd = Math.min(subagentMessages.length, subagentWinStart + WINDOW);
+  const subagentWindowed = subagentMessages.slice(subagentWinStart, subagentWinEnd);
 
   // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
   useEffect(() => {
@@ -392,8 +413,39 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
       {mode === 'overview' && (
         <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
-          onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession} />
+          onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession}
+          onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }} />
       )}
+
+      {mode === 'subagent' && subagentRun && <>
+        <div className="subagent-head">
+          <button className="btn ghost small" onClick={() => { setSubagentRun(null); setMode('overview'); }}>
+            ← {t('back to session')}
+          </button>
+          <span className="subagent-subtitle">{t('parent')} ↳ {subagentRun}</span>
+        </div>
+        <div className="panes">
+          <div className="conv-pane subagent-conv">
+            {subagentWinStart > 0 && (
+              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.max(0, subagentWinStart - WINDOW / 2)].seq, true)}>
+                ↑ {subagentWinStart.toLocaleString()} earlier messages
+              </button>
+            )}
+            {subagentWindowed.map((m) => (
+              <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
+                keyword="" onClick={() => selectMessage(m.seq)}
+                causality={causality?.changes.find((c) => c.seq === m.seq)}
+                onJump={(seq) => selectMessage(seq, true)} />
+            ))}
+            {subagentWinEnd < subagentMessages.length && (
+              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.min(subagentMessages.length - 1, subagentWinEnd + WINDOW / 2 - 1)].seq, true)}>
+                ↓ {(subagentMessages.length - subagentWinEnd).toLocaleString()} later messages
+              </button>
+            )}
+            {!subagentMessages.length && <div className="muted center pad8">{t('No messages match the current filter.')}</div>}
+          </div>
+        </div>
+      </>}
 
       {mode === 'refine' && (
         <RefineMode messages={messages} session={data.session} project={data.project} />
