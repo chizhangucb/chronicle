@@ -275,6 +275,15 @@ export interface Settings {
 
 export type SettingsPatch = Partial<Settings>;
 
+// ---- Autosync status (Settings section, near Settings) ----
+
+export interface AutosyncStatus {
+  enabled: boolean;
+  running: boolean;
+  lastRun: string | null;
+  lastResult: { ok: true; imported: number; checked: number; ms: number } | { ok: true; skipped: string } | { ok: false; error: string } | null;
+}
+
 // ---- Git ----
 
 export type GitAtResult = { commit: Commit | null } | { noRepo: true };
@@ -319,6 +328,7 @@ export const api = {
   patchSettings: (patch: SettingsPatch): Promise<Settings> => j('/api/settings', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   }),
+  autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   resolveSession: (id: string): Promise<ResolveSessionResult> => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project: number | string, ts: string): Promise<GitAtResult> =>
     j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),

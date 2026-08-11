@@ -122,6 +122,14 @@ const zh = {
   'Pause auto-sync': '暂停自动同步',
   'Temporarily stop importing new sessions without turning auto-sync off — resume any time':
     '暂时停止导入新会话，无需关闭自动同步——可随时恢复',
+  'never synced': '从未同步过',
+  'syncing…': '同步中…',
+  'synced': '已同步',
+  'never': '从未',
+  's ago': '秒前',
+  'm ago': '分钟前',
+  'h ago': '小时前',
+  'd ago': '天前',
   // Session overview
   'Overview': '总览',
   'Session Statistics': '会话统计',
@@ -421,6 +429,14 @@ const ja = {
   'Pause auto-sync': '自動同期を一時停止',
   'Temporarily stop importing new sessions without turning auto-sync off — resume any time':
     '自動同期をオフにせずに新しいセッションの取り込みを一時停止 — いつでも再開できます',
+  'never synced': '未同期',
+  'syncing…': '同期中…',
+  'synced': '同期済み',
+  'never': '未',
+  's ago': '秒前',
+  'm ago': '分前',
+  'h ago': '時間前',
+  'd ago': '日前',
   'Overview': '概要',
   'Session Statistics': 'セッション統計',
   'Total Duration': '合計時間',
@@ -614,6 +630,7 @@ const DICTS: Record<string, Record<string, string>> = { zh, ja };
 export type Lang = 'en' | 'zh' | 'ja';
 
 export function lang(): Lang {
+  if (typeof localStorage === 'undefined') return 'en';
   return (localStorage.getItem('chronicle-lang') as Lang | null) || 'en';
 }
 

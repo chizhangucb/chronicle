@@ -49,6 +49,21 @@ export function repoInfo(dir: string | null | undefined): RepoInfo {
   }
 }
 
+// Total commits on HEAD, optionally only those on/after sinceIso (ISO string).
+// Used by Project (5d-3) and Insights (5d-4) for a "Commits" KPI — one cheap
+// shell-out per repo, not per-session.
+export function commitCountSince(dir: string, sinceIso: string | null): number {
+  if (!isGitRepo(dir)) return 0;
+  try {
+    const args = sinceIso
+      ? ['rev-list', '--count', `--since=${sinceIso}`, 'HEAD']
+      : ['rev-list', '--count', 'HEAD'];
+    return parseInt(git(dir, args).trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 // Commits in [from, to] range (ISO strings), oldest first, for timeline ticks.
 export function commitsBetween(dir: string, from: string, to: string): Commit[] {
   if (!isGitRepo(dir)) return [];
