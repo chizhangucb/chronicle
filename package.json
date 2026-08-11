@@ -9,7 +9,7 @@
   "engines": {
     "node": ">=24"
   },
-  "files": ["bin", "server", "shared", "dist"],
+  "files": ["bin", "dist", "dist-server"],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,7 +17,8 @@
     "standalone": "npm run build && node server/standalone.ts",
     "test": "node --test 'test/**/*.test.mjs'",
     "typecheck": "tsc -b",
-    "prepublishOnly": "npm run build && npm run typecheck && npm test"
+    "prepack": "npm run build && tsc -p tsconfig.publish.json",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
   "keywords": ["claude-code", "codex", "cursor", "opencode", "ai", "sessions", "cost", "tokens", "local-first", "cli"],
   "author": "Chi Zhang",
