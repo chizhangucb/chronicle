@@ -6,12 +6,18 @@
 export interface DayCount { day: string; count: number; }
 
 // Longest run of consecutive calendar days with count > 0, ending at `today`
-// (today's own zero-count doesn't break an in-progress streak check for
-// "current streak" — callers pass `asOf` = today's date string).
+// (GitHub-style: today's own zero-count does NOT break an in-progress streak
+// — a user who hasn't sent a message yet today is still mid-streak. So if
+// `asOf` itself has zero activity, it's skipped entirely (not counted, not
+// treated as a gap) and counting starts from yesterday instead. Every OTHER
+// day is evaluated normally — a zero on any non-today day is a real gap and
+// stops the count. Callers pass `asOf` = today's date string.)
 export function currentStreak(days: DayCount[], asOf: string): number {
   const byDay = new Map(days.map((d) => [d.day, d.count]));
   let streak = 0;
   let cursor = new Date(asOf);
+  const todayKey = cursor.toISOString().slice(0, 10);
+  if ((byDay.get(todayKey) ?? 0) === 0) cursor = new Date(cursor.getTime() - 86400000);
   while (true) {
     const key = cursor.toISOString().slice(0, 10);
     if ((byDay.get(key) ?? 0) > 0) { streak++; cursor = new Date(cursor.getTime() - 86400000); }

@@ -10,7 +10,7 @@
 // fixed trailing 182-day calendar heatmap and a fixed trailing 30-day
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
-import { commitCountSince } from './git.ts';
+import { commitCountSinceAsync } from './git.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -55,7 +55,32 @@ const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|com
 const CALENDAR_WINDOW_DAYS = 182;
 const HOURLY_WINDOW_DAYS = 30;
 
-export function computeInsights(days: number | null): InsightsResult {
+// Short-lived commit-count cache, keyed by `path::cutoff`. `computeInsights`
+// used to shell out to `git rev-list --count` once per project, SERIALLY and
+// SYNCHRONOUSLY, on every single request — including every 7d/30d/90d/All
+// range-control click, blocking the whole server's event loop for the full
+// duration each time (perf finding from the PR review). Two changes fix
+// this: (1) the shell-outs below now run CONCURRENTLY via
+// `commitCountSinceAsync` (libuv thread pool, not the main thread) instead
+// of serially; (2) this cache means rapid successive requests for the same
+// project+cutoff (e.g. clicking between range buttons and back within a few
+// seconds) don't re-spawn git at all. Module-scope (this file is a singleton
+// import, same lifetime as the process) — a real new commit becomes visible
+// again once the short TTL expires, which is fine for an analytics KPI.
+const COMMIT_CACHE_TTL_MS = 20_000;
+const commitCache = new Map<string, { value: number; expiresAt: number }>();
+
+async function cachedCommitCountSince(path: string, cutoff: string | null): Promise<number> {
+  const key = `${path}::${cutoff ?? ''}`;
+  const hit = commitCache.get(key);
+  const now = Date.now();
+  if (hit && hit.expiresAt > now) return hit.value;
+  const value = await commitCountSinceAsync(path, cutoff);
+  commitCache.set(key, { value, expiresAt: now + COMMIT_CACHE_TTL_MS });
+  return value;
+}
+
+export async function computeInsights(days: number | null): Promise<InsightsResult> {
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
   const calendarCutoff = new Date(Date.now() - CALENDAR_WINDOW_DAYS * 86400000).toISOString();
   const hourlyCutoff = new Date(Date.now() - HOURLY_WINDOW_DAYS * 86400000).toISOString();
@@ -132,10 +157,10 @@ export function computeInsights(days: number | null): InsightsResult {
 
   const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 
-  let commits = 0;
-  for (const p of db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[]) {
-    commits += commitCountSince(p.path, cutoff || null);
-  }
+  // Concurrent (not serial) + cached — see the cache comment above.
+  const projectPaths = db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[];
+  const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, cutoff || null)));
+  const commits = commitCounts.reduce((a, b) => a + b, 0);
 
   return { sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects };
 }

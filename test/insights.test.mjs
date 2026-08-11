@@ -77,14 +77,18 @@ before(async () => {
 
 after(() => teardown());
 
-test('computeInsights: aggregates across ALL projects, no project filter', () => {
-  const r = insightsModule.computeInsights(null);
+// computeInsights is async (its per-project commit counts run concurrently
+// via commitCountSinceAsync rather than blocking the event loop serially —
+// see the perf fix note in server/insights.ts), so every call below is awaited.
+
+test('computeInsights: aggregates across ALL projects, no project filter', async () => {
+  const r = await insightsModule.computeInsights(null);
   assert.equal(r.sessions.length, 2);
   assert.equal(r.projects.length, 2);
 });
 
-test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/commits but NOT dailyActivity/hourlyActivity', () => {
-  const r = insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (Aug, recent) stays
+test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/commits but NOT dailyActivity/hourlyActivity', async () => {
+  const r = await insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (Aug, recent) stays
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
   // dailyActivity/hourlyActivity use their own fixed windows (182d/30d) — both
@@ -94,31 +98,31 @@ test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/com
   assert.ok(Array.isArray(r.hourlyActivity));
 });
 
-test('computeInsights: toolDist counts tool_use messages globally', () => {
-  const r = insightsModule.computeInsights(null);
+test('computeInsights: toolDist counts tool_use messages globally', async () => {
+  const r = await insightsModule.computeInsights(null);
   const bash = r.toolDist.find((t) => t.name === 'Bash');
   assert.ok(bash);
   assert.equal(bash.count, 1);
 });
 
-test('computeInsights: excludes minor(=1) sessions from every aggregate', () => {
+test('computeInsights: excludes minor(=1) sessions from every aggregate', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 1 WHERE id = ?').run('s2');
-  const r = insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights(null);
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // restore for later tests
 });
 
-test('computeInsights: commits is 0 for projects with no real git repo (graceful, no throw)', () => {
-  const r = insightsModule.computeInsights(null);
+test('computeInsights: commits is 0 for projects with no real git repo (graceful, no throw)', async () => {
+  const r = await insightsModule.computeInsights(null);
   assert.equal(r.commits, 0);
 });
 
-test('computeInsights: errorsByProject buckets tool_result heads per project and sums to the global errors count', () => {
+test('computeInsights: errorsByProject buckets tool_result heads per project and sums to the global errors count', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
-  const r = insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights(null);
   const total = r.errorsByProject.reduce((n, p) => n + p.error_count, 0);
   assert.equal(total, r.errors);
 });
@@ -128,11 +132,11 @@ test('computeInsights: errorsByProject buckets tool_result heads per project and
 // (Active days/streaks/Peak hour, backed by dailyActivity/hourlyActivity —
 // already covered above). This mirrors that same "fixed window, ignores
 // days=" contract for the model distribution.
-test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', () => {
+test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
-  const r7 = insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (~Aug 1, well over 7d old) from the days-scoped aggregates
-  const rAll = insightsModule.computeInsights(null);
+  const r7 = await insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (~Aug 1, well over 7d old) from the days-scoped aggregates
+  const rAll = await insightsModule.computeInsights(null);
   assert.equal(r7.sessions.length, 0, 'sanity: days=7 excludes both fixture sessions from the days-scoped session list');
   // The fixed-window aggregate must be IDENTICAL regardless of days=, same
   // contract as dailyActivity/hourlyActivity.
@@ -143,4 +147,17 @@ test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyA
   const sonnet = r7.modelDistFixed.find((m) => m.model === 'claude-sonnet-5');
   assert.ok(sonnet, 'modelDistFixed should see s1 activity even when days= excludes s1 from `sessions`');
   assert.equal(sonnet.count, 6); // s1's 6 assistant events (odd indices of its 12-event rhythm), all tagged claude-sonnet-5
+});
+
+// Perf fix (PR review): the commits loop used to be N SERIAL SYNCHRONOUS
+// git shell-outs. It's now concurrent (Promise.all over commitCountSinceAsync)
+// plus a short-lived cache — this doesn't change the OBSERVABLE result (still
+// 0 for these fake, non-existent project paths), but proves computeInsights
+// resolves correctly as a Promise and a second call for the same cutoff
+// (hits the cache) still returns the same value.
+test('computeInsights: commits computation is async and cache-stable across repeated calls for the same cutoff', async () => {
+  const first = await insightsModule.computeInsights(null);
+  const second = await insightsModule.computeInsights(null); // should hit the commit cache, not re-shell
+  assert.equal(first.commits, 0);
+  assert.equal(second.commits, 0);
 });
