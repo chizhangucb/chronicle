@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/session-ledger.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Updating hub session ledger"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/session-close-spawn.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Spawning session-close sweeper"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/session-close-marker.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Marking session done"
+          }
+        ]
+      }
+    ]
+  }
+}
