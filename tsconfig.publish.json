@@ -1,0 +1,20 @@
+{
+  // Publish-time server compile ONLY — dev stays no-build (see tsconfig.server.json).
+  // Emits runnable ESM to dist-server/ for the published npm tarball, since Node
+  // refuses to type-strip .ts files under node_modules. Run via
+  // `tsc -p tsconfig.publish.json` (wired into the `prepack` script).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": false,
+    "declaration": false,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "outDir": "dist-server",
+    "rootDir": ".",
+    "skipLibCheck": true
+  },
+  "include": ["server/**/*.ts", "shared/**/*.ts"]
+}
