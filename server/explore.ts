@@ -31,6 +31,55 @@ export interface ExploreResult {
 }
 
 const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill'];
+// Groups whose token MAGNITUDE is sourced from the authoritative
+// `sessions.usage` per-model billed totals (= Overview / Insights / Claude
+// /usage), NOT the per-message token columns. Per-message columns capture only
+// ~0.73 of billed usage (≈27% is never stored per-row, and ~70% of what is
+// stored sits on tool_use rows, not assistant rows), so they cannot reconcile.
+// requests/sessions/errors/activeMs for these groups STAY per-message (their
+// natural units); only tokensByModel is overridden. hour/subagent are NOT here
+// — they are inherently message-level (usage has no hour/agent_type split) and
+// stay per-message by design.
+const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source'];
+
+// One parsed `sessions.usage` row's per-model billed cells, plus the session's
+// project name + source so a single scan feeds model/project/source grouping.
+interface SessionUsageParsed { id: string; project: string; source: string; models: Record<string, ModelUsageCell>; }
+// The raw JSON shape stored in sessions.usage (field names are
+// cacheWrite5m/cacheWrite1h/cacheRead; legacy `cacheWrite` = a 5m write).
+interface RawUsageCell { input?: number; output?: number; cacheRead?: number; cacheWrite5m?: number; cacheWrite1h?: number; cacheWrite?: number; }
+
+function parseUsageCells(usage: string | null): Record<string, ModelUsageCell> {
+  if (!usage) return {};
+  let parsed: Record<string, RawUsageCell>;
+  try { parsed = JSON.parse(usage) as Record<string, RawUsageCell>; } catch { return {}; }
+  const out: Record<string, ModelUsageCell> = {};
+  for (const [model, u] of Object.entries(parsed)) {
+    if (!u || typeof u !== 'object') continue;
+    out[model] = {
+      input: u.input ?? 0, output: u.output ?? 0, cacheRead: u.cacheRead ?? 0,
+      cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0,
+    };
+  }
+  return out;
+}
+
+// Loads in-scope sessions + parsed usage, honoring the SAME scope + days +
+// COALESCE(minor,0)=0 gate the message queries use.
+function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }): SessionUsageParsed[] {
+  const rows = db.prepare(`
+    SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
+    FROM sessions s JOIN projects p ON p.id = s.project_id
+    WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}
+  `).all(cutoff, ...sc.params) as unknown as { id: string; project: string; source: string; usage: string|null }[];
+  return rows.map((r) => ({ id: r.id, project: r.project, source: r.source, models: parseUsageCells(r.usage) }));
+}
+
+function addCell(target: Record<string, ModelUsageCell>, model: string, cell: ModelUsageCell): void {
+  const cur = target[model] ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 };
+  cur.input += cell.input; cur.output += cell.output; cur.cacheRead += cell.cacheRead; cur.cw5m += cell.cw5m; cur.cw1h += cell.cw1h;
+  target[model] = cur;
+}
 
 // SQL column/join to realize a group. Session-level groups (project/source)
 // join nothing extra; message-level (model/tool/skill/subagent/hour) read from
@@ -147,6 +196,34 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     for (const a of actRows) { const r = rowMap.get(String(a.gk)); if (r) r.activeMs += a.ms; }
   }
 
+  // Token-magnitude override for EXACT groups (model/project/source): replace
+  // the per-message tokensByModel (which undercounts vs Overview) with the
+  // authoritative sessions.usage per-model billed cells. requests/sessions/
+  // errors/activeMs (built above) stay per-message. Rows present per-message
+  // but absent from usage get an empty tokensByModel; rows present in usage but
+  // not per-message (a model that only appears in usage) are created so token/
+  // spend metrics are complete. topN/Other folding below is unaffected (it sums
+  // tokensByModel generically). GATED to token/spend metrics only: those are
+  // the only metrics that read tokensByModel, and running the override for
+  // requests/sessions/errors/active would materialize spurious zero-count rows
+  // for usage-only models (no per-message rows), skewing those metrics.
+  if (EXACT_USAGE_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend')) {
+    const usageRows = loadSessionUsage(cutoff, sc);
+    const acc = new Map<string, Record<string, ModelUsageCell>>();
+    for (const u of usageRows) {
+      for (const [model, cell] of Object.entries(u.models)) {
+        const rowKey = q.group === 'model' ? model : q.group === 'project' ? u.project : u.source;
+        let byModel = acc.get(rowKey);
+        if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
+        addCell(byModel, model, cell);
+      }
+    }
+    for (const row of rowMap.values()) row.tokensByModel = acc.get(row.key) ?? {};
+    for (const [k, byModel] of acc) {
+      if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+    }
+  }
+
   let rows = [...rowMap.values()];
 
   // Calibrated token override for tool/skill groups. A single ''-keyed cell
@@ -168,19 +245,26 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
       FROM messages m ${base} ${g.where} GROUP BY gk
     `).all(...bind()) as unknown as { gk: string|number; chars: number }[];
-    const billed = db.prepare(`
-      SELECT COALESCE(SUM(m.input_tokens),0)+COALESCE(SUM(m.output_tokens),0) AS billed
-      FROM messages m ${base} AND m.kind='assistant'
-    `).get(...bind()) as unknown as { billed: number };
-    const cal = calibrateByBucket(charRows.map((c) => ({ key: String(c.gk), chars: c.chars })), billed.billed);
+    // Calibration base + per-model split come from the authoritative
+    // sessions.usage (input+output = the Insights Tokens KPI, per the 5d
+    // "narrow Insights Tokens to input+output" decision), NOT per-message
+    // assistant sums — so calibrated tool/skill Spend prices off the real
+    // billed totals at a real blended rate.
+    const usageRows = loadSessionUsage(cutoff, sc);
+    const modelSplit = new Map<string, { input: number; output: number }>();
+    let billedAll = 0;
+    for (const u of usageRows) {
+      for (const [model, cell] of Object.entries(u.models)) {
+        const cur = modelSplit.get(model) ?? { input: 0, output: 0 };
+        cur.input += cell.input; cur.output += cell.output;
+        modelSplit.set(model, cur);
+        billedAll += cell.input + cell.output;
+      }
+    }
+    const cal = calibrateByBucket(charRows.map((c) => ({ key: String(c.gk), chars: c.chars })), billedAll);
     const byKey = new Map(cal.map((c) => [c.key, c.tokens]));
 
-    const modelSplitRows = db.prepare(`
-      SELECT m.model AS model, COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output
-      FROM messages m ${base} AND m.kind='assistant' AND m.model IS NOT NULL
-      GROUP BY m.model
-    `).all(...bind()) as unknown as { model: string; input: number; output: number }[];
-    const billedAll = modelSplitRows.reduce((n, r) => n + r.input + r.output, 0);
+    const modelSplitRows = [...modelSplit.entries()].map(([model, v]) => ({ model, input: v.input, output: v.output }));
 
     for (const r of rows) {
       const T = byKey.get(r.key) ?? 0;

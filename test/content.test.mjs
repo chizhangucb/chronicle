@@ -14,10 +14,15 @@ before(async () => {
   content = await import('../server/content.ts');
   const { upsertProject, replaceSession } = dbModule;
   const p1 = upsertProject('/tmp/proj-a');
+  // DIVERGENCE (the crux of the reconcile fix): per-message assistant tokens
+  // total 1230 (6×(100+40) main + 300+90 sidechain), but the session `usage`
+  // JSON claims 1000/500 (=1500) — the authoritative billed truth. The
+  // calibration base + calibratedTotalTokens must read the 1500 usage total,
+  // not the 1230 per-message sum, so the divergence proves the source.
   replaceSession(
     { id: 's1', project_id: p1.id, source: 'claude-code', file_path: '/tmp/s1.jsonl',
       started_at: '2026-08-01T10:00:00.000Z', ended_at: '2026-08-01T10:30:00.000Z',
-      usage: JSON.stringify({ 'claude-sonnet-5': { input: 600, output: 240, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 500, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
     rhythmEvents('2026-08-01T10:00:00.000Z', [
       { kind: 'tool_use', tool_name: 'Read', tool_use_id: 't1', ts: '2026-08-01T10:24:00.000Z' },
       { kind: 'tool_result', tool_use_id: 't1', text: 'x'.repeat(500), ts: '2026-08-01T10:24:03.000Z' },
@@ -55,4 +60,15 @@ test('computeContent: callouts return numbers, never throw on sparse data', () =
 test('computeContent: result carries an explicit calibrated:true contract marker', () => {
   const r = content.computeContent({ type: 'all' }, null);
   assert.equal(r.calibrated, true);
+});
+
+// calibratedTotalTokens (the calibration base + Shakespeare footnote) reconciles
+// to Σ in-scope sessions.usage(input+output) = the Insights Tokens KPI — NOT the
+// per-message assistant sum (1230). Fixture usage diverges (1500) to prove it.
+test('computeContent: calibratedTotalTokens === Σ sessions.usage(input+output), not per-message', () => {
+  const r = content.computeContent({ type: 'all' }, null);
+  assert.equal(r.calibratedTotalTokens, 1500); // 1000 input + 500 output from usage (not 1230 per-message)
+  // composition shares still track that calibrated total (±rounding across buckets).
+  const sum = r.composition.reduce((n, c) => n + c.tokens, 0);
+  assert.ok(Math.abs(sum - 1500) <= 2, `composition sum ${sum} should be ~1500`);
 });

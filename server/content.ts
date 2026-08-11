@@ -64,8 +64,21 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
     WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`;
   const bind = () => [cutoff, ...sc.params];
 
-  const billed = (db.prepare(`SELECT COALESCE(SUM(m.input_tokens),0)+COALESCE(SUM(m.output_tokens),0) AS b
-     FROM messages m ${base} AND m.kind='assistant'`).get(...bind()) as unknown as { b: number }).b;
+  // Calibration base = Σ in-scope sessions.usage (input+output) — the
+  // authoritative billed total (= Overview / Insights Tokens KPI, which is
+  // input+output per the 5d decision), NOT the per-message assistant sum
+  // (which undercounts vs Overview). Same scope + days + minor gate as `base`,
+  // minus the messages join. calibratedTotalTokens is this same value, so the
+  // composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
+  const usageRows = db.prepare(`SELECT s.usage AS usage FROM sessions s
+     WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { usage: string|null }[];
+  let billed = 0;
+  for (const r of usageRows) {
+    if (!r.usage) continue;
+    let parsed: Record<string, { input?: number; output?: number }>;
+    try { parsed = JSON.parse(r.usage) as Record<string, { input?: number; output?: number }>; } catch { continue; }
+    for (const mdl of Object.keys(parsed)) billed += (parsed[mdl].input ?? 0) + (parsed[mdl].output ?? 0);
+  }
 
   // Composition by kind (calibrated).
   const kindChars = db.prepare(`SELECT m.kind AS k, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
@@ -108,7 +121,8 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
      FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { ctx: number|null; usage: string|null }[];
   let pressureTokens = 0, totalTokens = 0;
   for (const s of sessions) {
-    const usage = s.usage ? JSON.parse(s.usage) as Record<string, { input?: number; output?: number }> : {};
+    let usage: Record<string, { input?: number; output?: number }> = {};
+    if (s.usage) { try { usage = JSON.parse(s.usage) as Record<string, { input?: number; output?: number }>; } catch { usage = {}; } }
     const models = Object.keys(usage);
     const tok = models.reduce((n, mdl) => n + (usage[mdl].input ?? 0) + (usage[mdl].output ?? 0), 0);
     totalTokens += tok;

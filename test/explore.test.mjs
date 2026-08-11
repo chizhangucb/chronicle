@@ -35,10 +35,18 @@ before(async () => {
   const { upsertProject, replaceSession } = dbModule;
   const p1 = upsertProject('/tmp/proj-a');
   const p2 = upsertProject('/tmp/proj-b');
+  // DIVERGENCE (the crux of the reconcile fix): s1's per-message sonnet tokens
+  // are 6 assistant turns × (100 in, 50 out) = 600/300, PLUS a sidechain
+  // assistant of 200/80 (→ 800/380 across all assistant kinds). The session's
+  // `usage` JSON below deliberately claims DIFFERENT totals (1200 in / 700 out)
+  // — the authoritative billed truth Overview/Insights reads. Every group=model
+  // /project/source token assertion below expects the USAGE numbers, so a test
+  // that read per-message columns instead would fail: the divergence is what
+  // proves tokens come from sessions.usage, not the per-message sums.
   replaceSession(
     { id: 's1', project_id: p1.id, source: 'claude-code', file_path: '/tmp/s1.jsonl',
       started_at: '2026-08-01T10:00:00.000Z', ended_at: '2026-08-01T10:30:00.000Z',
-      usage: JSON.stringify({ 'claude-sonnet-5': { input: 600, output: 300, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 1200, output: 700, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
     rhythmEvents('2026-08-01T10:00:00.000Z', [
       { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 't1', ts: '2026-08-01T10:24:00.000Z' },
       { kind: 'tool_result', tool_use_id: 't1', text: 'ok output text', ts: '2026-08-01T10:24:03.000Z' },
@@ -72,13 +80,52 @@ before(async () => {
 });
 after(() => teardown());
 
-test('computeExplore: group by model returns exact token cells, not calibrated', () => {
+// Token MAGNITUDE for group=model comes from sessions.usage (the authoritative
+// billed total = Overview/Insights), NOT the per-message token columns. The
+// fixture diverges the two (usage sonnet 1200/700 vs per-message 800/380;
+// usage haiku 40/20 vs per-message 600/300) so this assertion can only pass if
+// tokens are sourced from usage.
+test('computeExplore: group by model tokens come from sessions.usage, not per-message', () => {
   const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, false);
   const sonnet = r.rows.find((x) => x.key === 'claude-sonnet-5');
   assert.ok(sonnet);
-  assert.ok(sonnet.tokensByModel['claude-sonnet-5'].input > 0);
-  assert.ok(r.rows.some((x) => x.key === 'claude-haiku-4-5'));
+  assert.equal(sonnet.tokensByModel['claude-sonnet-5'].input, 1200);  // usage, not 800 per-message
+  assert.equal(sonnet.tokensByModel['claude-sonnet-5'].output, 700);  // usage, not 380 per-message
+  const haiku = r.rows.find((x) => x.key === 'claude-haiku-4-5');
+  assert.ok(haiku);
+  assert.equal(haiku.tokensByModel['claude-haiku-4-5'].input, 40);    // usage, not 600 per-message
+  assert.equal(haiku.tokensByModel['claude-haiku-4-5'].output, 20);   // usage, not 300 per-message
+});
+
+// group=project token totals reconcile to Σ that project's sessions.usage.
+test('computeExplore: group by project token total reconciles to Σ sessions.usage', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'project', rollup: 'total', topN: 10 });
+  const sum = (row) => Object.values(row.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  const a = r.rows.find((x) => x.key === 'proj-a');
+  const b = r.rows.find((x) => x.key === 'proj-b');
+  assert.ok(a && b);
+  assert.equal(sum(a), 1900); // s1 usage 1200+700
+  assert.equal(sum(b), 60);   // s2 usage 40+20
+});
+
+// group=source token totals reconcile to Σ that source's sessions.usage.
+test('computeExplore: group by source token total reconciles to Σ sessions.usage', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'source', rollup: 'total', topN: 10 });
+  const sum = (row) => Object.values(row.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  const cc = r.rows.find((x) => x.key === 'claude-code');
+  const cx = r.rows.find((x) => x.key === 'codex');
+  assert.ok(cc && cx);
+  assert.equal(sum(cc), 1900);
+  assert.equal(sum(cx), 60);
+});
+
+// Whole-scope reconciliation: Σ over rows Σ tokensByModel(input+output) for
+// group=model equals Σ all sessions.usage(input+output) in scope (1960).
+test('computeExplore: group=model total tokens reconcile to Σ sessions.usage across the scope', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const total = r.rows.reduce((n, row) => n + Object.values(row.tokensByModel).reduce((m, u) => m + u.input + u.output, 0), 0);
+  assert.equal(total, 1960); // (1200+700) + (40+20)
 });
 
 test('computeExplore: scope=project filters to one project', () => {
@@ -101,12 +148,19 @@ test('computeExplore: group by tool is CALIBRATED', () => {
   assert.ok(r.rows.some((x) => x.key === 'Bash'));
 });
 
-test('computeExplore: subgroup produces stacked segments summing to the row total tokens', () => {
+// Subgroup segments stay PER-MESSAGE (documented): they subdivide the bar
+// proportionally on the client (normalized by their own sum), so they need not
+// equal the usage-based row total. Here the sonnet row's usage total (1900)
+// deliberately DIVERGES from the per-message segment sum (1180 = 6×150 main +
+// 280 sidechain, all assistant kinds), which proves segments are per-message
+// while the row magnitude is usage-sourced.
+test('computeExplore: subgroup segments are per-message (subdivide the usage bar proportionally)', () => {
   const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', subgroup: 'project', rollup: 'total', topN: 10 });
   const sonnet = r.rows.find((x) => x.key === 'claude-sonnet-5');
   const segSum = sonnet.segments.reduce((n, s) => n + s.tokens, 0);
   const rowTokens = Object.values(sonnet.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
-  assert.equal(segSum, rowTokens);
+  assert.equal(segSum, 1180);      // per-message sonnet assistant tokens (incl. sidechain)
+  assert.equal(rowTokens, 1900);   // usage-based row total — intentionally different
 });
 
 test('computeExplore: topN caps rows and folds the rest into an "Other" row', () => {
@@ -177,4 +231,21 @@ test('computeExplore: calibrated tool tokens are nonzero (tool_input counts as c
   assert.ok(read);
   const totalTokens = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   assert.ok(totalTokens > 0, `expected 'Read' row tokens > 0, got ${totalTokens}`);
+});
+
+// Locks the calibrated tool/skill BASE to sessions.usage, not per-message
+// (review Finding 1). The calibration base (billedAll) is Σ in-scope
+// sessions.usage(input+output) = 1960 ((1200+700)+(40+20)); the per-message
+// assistant sum diverges at 2080 (s1 800/380 incl. sidechain + s2 600/300).
+// Only the 'Read' tool_use row carries chars (t3's tool_input; both Bash rows
+// have neither text nor tool_input → 0 chars), so calibrateByBucket routes the
+// FULL base to 'Read'. Its blended token total therefore equals the base
+// exactly: 1960 under usage, but would be 2080 if the base were still
+// per-message — a genuine RED-under-old-code lock on a headline Spend path.
+test('computeExplore: calibrated tool base comes from sessions.usage, not per-message', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const read = r.rows.find((x) => x.key === 'Read');
+  assert.ok(read);
+  const total = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.equal(total, 1960); // usage billedAll; would be 2080 under per-message
 });
