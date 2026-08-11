@@ -1084,3 +1084,37 @@ h4 { margin: 6px 0; }
    subagent's own multi-turn run), so its `.conv-pane` takes the full width
    instead of the playback view's 44%/border-right split. */
 .subagent-conv { width: 100%; border-right: 0; }
+
+/* ---- 5e-1: Insights tabs + Explore pivot ----
+   `.card`/`.tbl`/`.rangebar`/`.legend`/`.dot`/`.tbl .cost`/`.tbl tr.rowlink`
+   already exist (global, or `.insights-page`-scoped) — reused as-is below,
+   NOT redefined. Ranked-bar geometry is scoped under `.rank` (never a bare
+   `.track`/`.seg`/`.hbar`) per the 5d CSS-collision scar. */
+.tabs { display: flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 4px; padding: 2px; }
+.tab { font: 12px var(--mono); color: var(--ink-3); padding: 4px 14px; border-radius: 3px; cursor: pointer; background: none; border: 0; }
+.tab.on { background: var(--bg2); color: var(--brass-text); }
+.tab:hover:not(:disabled) { color: var(--ink); }
+.tab:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* Pivot filter bar */
+.pivot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--bg1); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; font: 12px var(--mono); }
+.pv { display: inline-flex; align-items: center; gap: 6px; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; cursor: pointer; color: var(--ink); }
+.pv:hover { border-color: var(--border-strong); }
+.pv .lbl { color: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; }
+.pv .car { color: var(--ink-3); font-size: 9px; }
+.pv.add { color: var(--ink-3); border-style: dashed; }
+.pv-sep { color: var(--ink-3); }
+.menu-item[data-disabled] { color: var(--ink-3); cursor: not-allowed; }
+.menu-item[data-disabled]:hover, .menu-item[data-disabled][data-highlighted] { background: none; }
+
+/* Ranked bars (Explore pivot card) */
+.rank { display: grid; grid-template-columns: 130px 1fr 66px 52px; gap: 10px; align-items: center; margin: 6px 0; font: 12px var(--mono); }
+.rank .n { color: var(--ink-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank .track { height: 14px; background: var(--bg2); border-radius: 3px; overflow: hidden; display: flex; gap: 2px; }
+.rank .track i { height: 100%; }
+.rank .v { text-align: right; color: var(--ink); }
+.rank .p { text-align: right; color: var(--ink-3); }
+
+/* Detail table share bar */
+.mini { display: inline-block; width: 70px; height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.mini i { display: block; height: 100%; }
