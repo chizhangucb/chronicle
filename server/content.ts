@@ -5,7 +5,7 @@
 // skill share calibrated), and three plain-language insight callouts. All
 // local, scope-parameterized.
 import { db } from './db.ts';
-import { scopeClause, type Scope } from './scope.ts';
+import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 
 // Inlined from src/models.ts CONTEXT_WINDOWS/contextWindowFor: importing the
@@ -61,7 +61,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
   const sc = scopeClause(scope);
   const base = `JOIN sessions s ON s.id = m.session_id
-    WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`;
+    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`;
   const bind = () => [cutoff, ...sc.params];
 
   // Calibration base = Σ in-scope sessions.usage (input+output) — the
@@ -71,7 +71,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   // minus the messages join. calibratedTotalTokens is this same value, so the
   // composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
   const usageRows = db.prepare(`SELECT s.usage AS usage FROM sessions s
-     WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { usage: string|null }[];
+     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as { usage: string|null }[];
   let billed = 0;
   for (const r of usageRows) {
     if (!r.usage) continue;
@@ -102,7 +102,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
     FROM messages r JOIN messages u ON u.session_id=r.session_id AND u.tool_use_id=r.tool_use_id AND u.kind='tool_use'
     JOIN sessions s ON s.id = r.session_id
-    WHERE r.kind='tool_result' AND COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql} AND u.tool_name IS NOT NULL
+    WHERE r.kind='tool_result' AND COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} AND u.tool_name IS NOT NULL
     GROUP BY u.tool_name`).all(...bind()) as unknown as { k: string; chars: number }[];
   const toolResultsByTool = toolChars.map((t) => ({ key: t.k, tokens: shareTokens(t.chars) }))
     .filter((t) => t.tokens > 0).sort((a, b) => b.tokens - a.tokens);
@@ -127,7 +127,7 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
   const bind = () => [cutoff, ...sc.params];
   // Context-pressure: token-weighted share of sessions whose context_tokens > 70% of the model's window.
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage
-     FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`).all(...bind()) as unknown as { ctx: number|null; usage: string|null }[];
+     FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as { ctx: number|null; usage: string|null }[];
   let pressureTokens = 0, totalTokens = 0;
   for (const s of sessions) {
     let usage: Record<string, { input?: number; output?: number }> = {};
@@ -143,14 +143,14 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS total,
        COALESCE(SUM(CASE WHEN m.is_sidechain=1 THEN COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0) ELSE 0 END),0) AS sub
      FROM messages m JOIN sessions s ON s.id=m.session_id
-     WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql} GROUP BY s.id`).all(...bind()) as unknown as { id: string; total: number; sub: number }[];
+     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} GROUP BY s.id`).all(...bind()) as unknown as { id: string; total: number; sub: number }[];
   let heavyTokens = 0, heavyTotal = 0;
   for (const h of heavy) { heavyTotal += h.total; if (h.total > 0 && h.sub > 0.5 * h.total) heavyTokens += h.total; }
   // Cache-warmth: median gap (min) between consecutive same-model assistant turns.
   const turns = db.prepare(`SELECT m.session_id AS sid, m.model AS model, m.ts AS ts FROM messages m
      JOIN sessions s ON s.id=m.session_id
      WHERE m.kind='assistant' AND m.model IS NOT NULL AND m.ts IS NOT NULL
-       AND COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql} ORDER BY m.session_id, m.ts`).all(...bind()) as unknown as { sid: string; model: string; ts: string }[];
+       AND COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} ORDER BY m.session_id, m.ts`).all(...bind()) as unknown as { sid: string; model: string; ts: string }[];
   const gaps: number[] = [];
   for (let i = 1; i < turns.length; i++) {
     if (turns[i].sid === turns[i-1].sid && turns[i].model === turns[i-1].model) {

@@ -34,6 +34,19 @@ before(async () => {
       { kind: 'assistant', model: 'claude-sonnet-5', skill: 'code-review', text: 'short skill invocation body', ts: '2026-08-01T10:26:00.000Z' },
     ]),
   );
+  // sMinor: 4 messages (below the <10 msg noise-gate threshold) → minor=1.
+  // Session scope must ignore the minor gate and still return content.
+  replaceSession(
+    { id: 'sMinor', project_id: p1.id, source: 'claude-code', file_path: '/tmp/sMinor.jsonl',
+      started_at: '2026-08-02T10:00:00.000Z', ended_at: '2026-08-02T10:02:00.000Z',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 300, output: 150, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    [
+      { kind: 'user', text: 'hi', ts: '2026-08-02T10:00:00.000Z' },
+      { kind: 'assistant', model: 'claude-sonnet-5', input_tokens: 100, output_tokens: 50, text: 'reply', ts: '2026-08-02T10:00:30.000Z' },
+      { kind: 'tool_use', tool_name: 'Read', tool_use_id: 'm1', tool_input: JSON.stringify({ path: '/x' }), ts: '2026-08-02T10:01:00.000Z' },
+      { kind: 'tool_result', tool_use_id: 'm1', text: 'file contents here', ts: '2026-08-02T10:01:03.000Z' },
+    ],
+  );
 });
 after(() => teardown());
 
@@ -99,4 +112,12 @@ test('computeContent: Σ skills tokens < calibratedTotalTokens when skills are a
   const skillSum = r.skills.reduce((n, s) => n + s.tokens, 0);
   assert.ok(skillSum > 0, 'expect the code-review skill fixture to attribute some tokens');
   assert.ok(skillSum < r.calibratedTotalTokens, `Σ skills ${skillSum} must be < calibratedTotalTokens ${r.calibratedTotalTokens} (old code inflated it to full billed)`);
+});
+
+test('session-scope Content is populated for a minor session', async () => {
+  // sMinor: 4 messages (below the <10 msg noise-gate threshold) → minor=1.
+  // Session scope must ignore the minor gate and still return content.
+  const r = content.computeContent({ type: 'session', id: 'sMinor' }, null);
+  assert.ok(r.calibratedTotalTokens > 0, 'minor session should still surface billed tokens under session scope');
+  assert.ok(r.composition.some((c) => c.tokens > 0), 'composition should be non-empty for a directly-opened minor session');
 });
