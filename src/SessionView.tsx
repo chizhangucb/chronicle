@@ -8,6 +8,7 @@ import SecurityCheck from './SecurityCheck.jsx';
 import { SessionPicker } from './ProjectDetail.jsx';
 import MessageRow, { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
+import ContentTab from './ContentTab.tsx';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 import type { DeletedEntry } from './SessionSelect.tsx';
 
@@ -86,7 +87,7 @@ export interface SessionData {
 export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
 export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
-export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent';
+export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'content';
 
 export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
@@ -414,7 +415,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       {mode === 'overview' && (
         <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
           onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession}
-          onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }} />
+          onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }}
+          onOpenContent={() => setMode('content')} />
+      )}
+
+      {mode === 'content' && (
+        <div className="page">
+          <button className="btn ghost small" style={{ marginBottom: 10 }} onClick={() => setMode('overview')}>
+            ← {t('back to session')}
+          </button>
+          <ContentTab scope={{ type: 'session', id: sessionId }} days={null} />
+        </div>
       )}
 
       {mode === 'subagent' && subagentRun && <>

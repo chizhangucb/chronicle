@@ -34,6 +34,9 @@ export interface OverviewModeProps {
   // Drill into a subagent's transcript (see the Subagents card below). Optional
   // so other OverviewMode call sites (if any appear later) aren't forced to wire it.
   onOpenSubagent?: (agentType: string) => void;
+  // Switch SessionView into the session-scoped Content panel (Task 5e-4's
+  // "See what filled the context" link). Optional for the same reason as above.
+  onOpenContent?: () => void;
 }
 
 // Session ID with one-click copy (shown on the session home page).
@@ -109,7 +112,7 @@ interface CostAgg {
   cacheHitPct: number | null;
 }
 
-export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent }: OverviewModeProps): JSX.Element {
+export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent, onOpenContent }: OverviewModeProps): JSX.Element {
   const { session } = data;
 
   // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
@@ -292,6 +295,12 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           <div className="kpi"><div className="l">{t('Cache hit')}</div><div className="v">{costAgg.cacheHitPct}%</div><div className="s">{t('read / (read+in)')}</div></div>
         )}
       </div>
+
+      {onOpenContent && (
+        <button type="button" className="btn tiny ghost" style={{ margin: '-4px 0 10px' }} onClick={onOpenContent}>
+          {t('See what filled the context →')}
+        </button>
+      )}
 
       {ctxPct !== null && (
         <div className="card ov-block ctx-block">

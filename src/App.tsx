@@ -46,9 +46,14 @@ export default function App() {
   const [, navigate] = useLocation();
   const [atHome] = useRoute('/');
   const [atProject, projectParams] = useRoute('/project/:id');
+  // Project sub-tabs (5e-4): Explore/Content are deep-linkable routes, but
+  // ProjectDetail owns the actual tab logic (it re-reads these same routes
+  // itself) — App only needs to know these paths resolve to the project view.
+  const [atProjExplore, peParams] = useRoute('/project/:id/explore');
+  const [atProjContent, pcParams] = useRoute('/project/:id/content');
   const [atSession, sessionParams] = useRoute('/session/:id');
   const [atInsights] = useRoute('/insights');
-  const projectId = projectParams?.id;
+  const projectId = projectParams?.id ?? peParams?.id ?? pcParams?.id;
   const sessionId = sessionParams?.id;
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -105,7 +110,7 @@ export default function App() {
     });
   }
 
-  const inProjects = atHome || atProject || atSession;
+  const inProjects = atHome || atProject || atSession || atProjExplore || atProjContent;
 
   return (
     <Toast.Provider swipeDirection="right">
@@ -194,7 +199,7 @@ export default function App() {
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {atInsights && <InsightsPage />}
-        {atProject && projectId != null && (
+        {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail id={projectId}
             onBack={() => navigate('/')}
             onLiveChange={setLiveInfo}
