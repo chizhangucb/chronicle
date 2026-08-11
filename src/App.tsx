@@ -267,7 +267,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             <label className="settings-row">
               <input type="checkbox" checked={settings.autoSync !== false} onChange={() => toggle('autoSync')} />
               <span>{t('Auto-sync sessions')}</span>
-              <span className="muted small">{t('Keep imported projects up to date automatically (on launch, on wake, and when source logs change)')}</span>
+              <span className="muted small">{t('Keep imported projects up to date automatically (on launch, periodically, and when source logs change)')}</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.autoSyncPaused === true} disabled={settings.autoSync === false}
