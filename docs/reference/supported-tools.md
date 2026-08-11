@@ -1,7 +1,7 @@
 # Supported Tools & Configuration
 
 Which AI coding tools Chronicle imports from, where each tool's logs live on disk, and the
-handful of environment variables and files you can use to override the defaults.
+handful of environment variables you can use to override the defaults.
 
 Chronicle imports conversation logs from four tools and maps every message to the Git snapshot
 at that moment. Most features work identically across all four; subagent (sidechain)
@@ -13,7 +13,7 @@ attribution is Claude Code-specific, and remote access is not built yet.
 | --- | :---: | :---: | :---: | :---: |
 | Conversation import | ✅ | ✅ | ✅ | ✅ |
 | Time Travel / code snapshots | ✅ | ✅ | ✅ | ✅ |
-| Replay Mode | ✅ | ✅ | ✅ | ✅ |
+| Refine mode | ✅ | ✅ | ✅ | ✅ |
 | Message filtering | ✅ | ✅ | ✅ | ✅ |
 | Content redaction | ✅ | ✅ | ✅ | ✅ |
 | Tool call viewing | ✅ | ✅ | ✅ | ✅ |
@@ -21,14 +21,16 @@ attribution is Claude Code-specific, and remote access is not built yet.
 | Git history matching | ✅ | ✅ | ✅ | ✅ |
 | Live streaming | ✅ | ✅ | ✅ | ✅ |
 | Auto-sync | ✅ | ✅ | ✅ | ✅ |
-| Sidechain (subagent) import | ✅ | – | – | – |
+| Insights (Overview / Explore / Content) | ✅ | ✅ | ✅ | ✅ |
+| Subagent (sidechain) import | ✅ | – | – | – |
 | Per-message token usage | ✅ | ⚠️ | ⚠️ | ⚠️ |
 | Remote SSH access | 🔜 | 🔜 | 🔜 | 🔜 |
 
 Legend: ✅ full · ⚠️ partial · 🔜 planned (not yet built) · – not applicable.
 
-- **Sidechain (subagent) import** — with `agent_type` and `skill` attribution — is a Claude
-  Code concept; the other parsers mark every row `is_sidechain = 0`.
+- **Subagent (sidechain) import** — with `agent_type` and skill attribution, surfaced in the
+  session Overview's Subagents card and in Insights' Explore/Content tabs — is a Claude Code
+  concept; the other parsers mark every row as not a subagent.
 - **Per-message token usage** is captured wherever a tool's logs carry usage records; coverage
   varies by tool and log version.
 - **Remote SSH access** (import / browse / live-watch over SSH) is **planned but not
@@ -52,7 +54,7 @@ these — see the read-only column.
 > tools' live databases are never touched.
 
 Default path constants live in each parser (`CLAUDE_PROJECTS_DIR`, `CODEX_SESSIONS_DIR`,
-`OPENCODE_DB` in `server/parsers/*.js`). Only Cursor exposes an environment override.
+`OPENCODE_DB` in `server/parsers/*.ts`). Only Cursor exposes an environment override.
 
 ### Per-tool caveats
 
@@ -62,19 +64,19 @@ Default path constants live in each parser (`CLAUDE_PROJECTS_DIR`, `CODEX_SESSIO
 
 ## Known limitations
 
-- **Large sessions degrade gracefully.** Beyond ~5,000 messages, the UI switches to windowed
-  rendering — it draws roughly 400 DOM rows around your current position and decimates
-  timeline ticks — so a 6,000-message session stays responsive.
+- **Large sessions degrade gracefully.** Beyond a few thousand messages, the UI switches to
+  windowed rendering — it draws roughly a few hundred DOM rows around your current position
+  and decimates timeline ticks — so a long session stays responsive.
 - **Git submodules** are supported by the snapshot engine.
-- **Non-standard or custom log paths** are handled through manual selection: use the import
-  wizard's Browse option (or the `CHRONICLE_CURSOR_DIR` override) to point Chronicle at logs
-  outside the default locations.
+- **Non-standard or custom log paths** are handled through the `CHRONICLE_CURSOR_DIR`
+  override for Cursor; the other three sources read from their tool's single well-known
+  location.
 
 ## Configuration
 
 Chronicle needs almost no configuration — it works out of the box against your tools' default
 log locations and stores everything under a single directory in your home folder. There is no
-settings server and no account; overrides are files and env vars only.
+settings server and no account; overrides are environment variables and a local config file.
 
 ### The `~/.chronicle/` directory
 
@@ -84,55 +86,40 @@ Everything Chronicle writes lives under one base directory (`~/.chronicle` by de
 | Path | What it holds |
 | --- | --- |
 | `chronicle.db` | The SQLite database — all projects, sessions, and messages |
-| `replay/<id>/` | Per-run Replay sandboxes, seeded from the Git snapshot at session start |
-| `backups/` | Backups written before destructive or user-visible operations |
-| `feedback.log` | Every feedback submission, appended locally *before* any network send |
-| `config.json` | Optional user overrides (see below) |
+| `backups/` | Backups written before destructive operations (e.g. deleting a project) |
+| `config.json` | Local settings — auto-sync on/off, pause state, the noise-gate thresholds |
 
 ### Environment variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CHRONICLE_DATA_DIR` | `~/.chronicle` | Base directory for the database and all state above |
-| `CHRONICLE_FEEDBACK_RELAY` | `relay.getchronicle.dev` | Override the hosted feedback relay URL |
 | `CHRONICLE_CURSOR_DIR` | Cursor's VS Code `workspaceStorage` | Point the Cursor parser at a non-standard location |
-| `PORT` | `41730` | Port for the headless standalone server |
+| `PORT` | `41730` | Requested port (the CLI's `--port` flag does the same thing) |
 
-### `config.json` overrides
+### Auto-sync settings
 
-Drop a `config.json` in the data directory to set persistent overrides without environment
-variables. Today the one supported key is the feedback relay:
-
-```json
-{
-  "feedbackRelay": "https://relay.example.com/feedback"
-}
-```
-
-Precedence for the relay URL is: `CHRONICLE_FEEDBACK_RELAY` env → `feedbackRelay` in
-`config.json` → the built-in default. Feedback always appends to `feedback.log` locally first,
-so nothing is lost if the relay is unreachable.
+The in-app **Settings** panel (bottom of the sidebar) toggles background auto-sync on/off and
+lets you pause it without tearing down its file watchers. These are stored in
+`~/.chronicle/config.json` and read back via `GET /api/settings`; see
+[How it works](../architecture/how-it-works.md) for what auto-sync actually does under the
+hood (watchers, debounce, backstop).
 
 ### Ports and binding
 
-All three run modes serve the same Express apps (`/api`, `/share`); they differ only in port
-and shell.
+```bash
+npx chronicle-cli --port 5173
+```
 
-| Mode | Port | Bind |
-| --- | --- | --- |
-| `npm run dev` | `http://localhost:4173` | localhost |
-| `npm run desktop` (Electron) | `41730` | loopback |
-| `npm run standalone` | `41730` (override with `PORT`) | `127.0.0.1` |
-
-> **Single-instance lock:** only one Chronicle can run per machine. The Electron shell takes a
-> single-instance lock and holds port `41730`, so a second launch exits silently rather than
-> double-binding. If the UI 404s unexpectedly, a stale server may be holding the port — check
-> `lsof -iTCP:41730`.
+Chronicle binds to `127.0.0.1` (loopback only — it's never reachable from another machine on
+your network) and requests port `41730` by default. If that port is taken, it scans forward
+for a free one and prints the port it actually bound.
 
 ## Related
 
-- [Installation](../guide/installation.md) — install paths, run modes, and requirements.
-- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the short list
-  of outbound calls.
-- [How it works](../architecture/how-it-works.md) — the ingestion pipeline and why one process
-  serves every mode.
+- [Installation](../guide/installation.md) — the `npx chronicle-cli` install path, CLI flags,
+  and requirements.
+- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the outbound
+  network calls (there are none).
+- [How it works](../architecture/how-it-works.md) — the ingestion pipeline and the invisible
+  sync engine.

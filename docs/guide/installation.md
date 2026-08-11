@@ -1,70 +1,109 @@
 # Installation
 
-How to install Chronicle on macOS, run it from source on any platform, and what the machine needs to give you full time-travel.
+How to install Chronicle, what your machine needs to give you full time-travel, and where
+Chronicle stores its data.
 
-Chronicle ships as a signed, notarized macOS app and keeps itself up to date. There is no cloud account, no sign-in, and no server to stand up — everything runs locally, so "install" is genuinely just getting the binary onto your machine (or `npm install` from source). This page covers both paths and the small set of requirements that unlock every feature.
+Chronicle ships as an **npm package**. There is no cloud account, no sign-in, and nothing to
+build — `npx chronicle-cli` downloads the package, starts a local web server, and opens your
+browser to the dashboard. This page covers the prerequisite, the install paths, the CLI flags,
+and where your data lives on disk.
 
-## Install on macOS
+## Prerequisite: Node.js 24+
 
-### Homebrew (recommended)
+Chronicle requires **Node.js 24 or newer**. Node 24 is what lets Chronicle run its server
+`.ts` files directly — Node's built-in type stripping means there's no build step, no
+transpiler, and no compiled server bundle to keep in sync. Node 24 is also required for
+`node:sqlite`, the built-in SQLite driver Chronicle uses for its local database (no native
+module compilation needed).
 
-```bash
-brew tap chizhangucb/chronicle
-brew install --cask chronicle
-```
-
-The cask is published to the public [`chizhangucb/homebrew-chronicle`](https://github.com/chizhangucb/homebrew-chronicle) tap, which also hosts the DMGs and the update feed. `brew upgrade --cask chronicle` pulls new versions.
-
-### Direct download (DMG)
-
-Grab the DMG from [Releases](https://github.com/chizhangucb/homebrew-chronicle/releases):
-
-- **arm64** for Apple Silicon (M-series)
-- **x64** for Intel Macs
-
-Builds are **signed with an Apple Developer ID and notarized**, so they open with no Gatekeeper warning — you do *not* need `xattr -d com.apple.quarantine` or a `--no-quarantine` flag. Just drag Chronicle to `/Applications`.
-
-### Auto-update
-
-Once installed, Chronicle keeps itself current. `electron-updater` polls the release feed, downloads new **notarized** builds in the background, and surfaces a one-click **"Relaunch to update"** toast when a build is ready. Clicking it does a clean quit-and-relaunch — no manual reinstall, and no stale process left holding the port.
-
-> **Note:** Auto-update only installs a build that shares a Developer ID signature with the running app. The very first signed release (v0.1.6) is the handoff point — an older unsigned copy upgrades once by hand, then auto-update takes over.
-
-## Run from source
-
-Source runs on macOS, Windows, and Linux. It is also the *only* way to run Chronicle on Windows and Linux today, since native installers for those platforms are not built yet.
+Check your version:
 
 ```bash
-npm install
+node -v
 ```
 
-Then pick a run mode. All three modes serve the **same** Express apps (`/api`, `/share`) — they differ only in how the UI is served and whether there's a desktop shell around it.
+If it's below `v24`, install the latest from **[nodejs.org](https://nodejs.org)** (or via
+`nvm install 24`). The `chronicle` launcher checks this itself and exits with a clear message
+if your Node is too old.
 
-| Command | What it's for | Port |
+## Run it — no install
+
+```bash
+npx chronicle-cli
+```
+
+This is the recommended way to run Chronicle. `npx` fetches the package (cached after the
+first run), starts the local server, and opens your default browser to the dashboard. Press
+`Ctrl-C` in the terminal to stop it. There's nothing left behind beyond npm's own package
+cache — Chronicle's own data lives separately, under `~/.chronicle/` (see below), so it
+survives even if you clear the npm cache.
+
+## Install globally (optional)
+
+If you run Chronicle often and don't want to wait on `npx` resolving the package each time:
+
+```bash
+npm install -g chronicle-cli
+chronicle
+```
+
+Both `chronicle` and `chronicle-cli` are installed as the same binary — use whichever reads
+better. To pick up new releases, run `npm install -g chronicle-cli` again (or
+`npm update -g chronicle-cli`).
+
+## CLI flags
+
+```bash
+npx chronicle-cli --port 5173     # run on a specific port instead of the default
+npx chronicle-cli --no-open       # start the server without opening a browser tab
+```
+
+| Flag | Default | What it does |
 | --- | --- | --- |
-| `npm run dev` | Vite dev server with the API mounted in-process. API routes hot-reload on save (per-request `ssrLoadModule`). Use this for development. | http://localhost:4173 |
-| `npm run desktop` | Production build wrapped in the Electron shell with a system tray. The everyday desktop experience. | 41730 |
-| `npm run standalone` | Headless production server (UI + `/api` + `/share`), bound to `127.0.0.1`. Handy for running Chronicle without Electron; override the port with `PORT`. | 41730 |
-| `npm run build` | `vite build` → `dist/`. Just the static client bundle; no server. | — |
+| `--port <n>` | `41730` | Requested port. If it's taken, Chronicle scans forward (up to 50 ports) for a free one and tells you which port it actually bound. |
+| `--no-open` | off | Skip auto-opening the browser — useful when running on a remote box or inside a script. |
 
-Why one port and one process? The Express apps are mounted directly into the Vite dev server (via a plugin in `vite.config.js`) and served without Vite by `server/standalone.js` under Electron. Any endpoint you add works in all three modes for free. The architecture overview goes deeper into this.
+On start, Chronicle prints the URL it's serving on (`http://localhost:<port>`) so you can open
+it manually or point another tool at it.
 
-To build macOS DMGs yourself:
+## Where your data lives
+
+Everything Chronicle writes lives under `~/.chronicle/` — one SQLite database
+(`~/.chronicle/chronicle.db`) holding every imported project, session, and message. Override
+the location with an environment variable:
 
 ```bash
-npm run dist:mac   # electron-builder → arm64 + x64 DMGs in release/
+CHRONICLE_DATA_DIR=/path/to/somewhere npx chronicle-cli
 ```
+
+See [Privacy & data](../reference/privacy-and-data.md) for the full layout and the local-first
+guarantees, and [Supported tools](../reference/supported-tools.md) for the environment
+variables that control where each tool's logs are read from.
+
+## Stopping and uninstalling
+
+- **Stop the server:** `Ctrl-C` in the terminal running `npx chronicle-cli` (or `chronicle`).
+  There's no background process, tray icon, or daemon — closing the terminal (or hitting
+  Ctrl-C) ends it.
+- **Uninstall the global install:** `npm uninstall -g chronicle-cli`.
+- **Remove your data:** delete `~/.chronicle/` (or your `CHRONICLE_DATA_DIR`). This deletes the
+  local database Chronicle built from your logs — it never touches your AI tools' original
+  logs, so nothing is lost; re-running `npx chronicle-cli` and re-importing rebuilds it.
 
 ## Requirements
 
-- **macOS 12+** for the packaged app. Source runs anywhere Node does.
-- **Git** — required for time travel. Chronicle reconstructs code snapshots by shelling out to `git` against your project's history (read-only), so a project must be a Git repo with commits for the snapshot panel to light up. More frequent commits mean higher-fidelity replay; conversation playback still works without a repo, just without the code view.
-- **Disk:** the app itself is a ~200 MB envelope (the ~100 MB floor is the Electron framework), plus ≥500 MB headroom for the local SQLite database and replay sandboxes under `~/.chronicle/`.
-- **RAM:** 4 GB minimum, 8 GB+ recommended for large multi-thousand-message sessions.
-
-> **Local-first:** Nothing here phones home. Chronicle parses your logs, stores them in a local SQLite database, and never writes to your original logs or project repos. See [Privacy & data](../reference/privacy-and-data.md) for the exact list of outbound calls (there are only a few, all optional).
+- **Node.js 24+** (see above) — the only hard requirement.
+- **Git** — required for time travel. Chronicle reconstructs code snapshots by shelling out to
+  `git` against your project's history (read-only), so a project needs to be a Git repo with
+  commits for the snapshot panel to light up. More frequent commits mean higher-fidelity
+  playback; conversation viewing still works without a repo, just without the code pane.
+- **Disk:** the npm package itself is small (no bundled runtime); budget headroom for the local
+  SQLite database under `~/.chronicle/` — a few hundred MB is comfortable even with thousands
+  of imported sessions.
+- **OS:** Chronicle runs anywhere Node 24 runs — macOS, Linux, and Windows.
 
 ## Related
 
-- [Quickstart](./quickstart.md) — your first time-travel in under five minutes.
-- [Supported tools](../reference/supported-tools.md) — the four supported tools, log locations, and configuration.
+- [Quickstart](./quickstart.md) — your first time-travel in a few minutes.
+- [Supported tools](../reference/supported-tools.md) — the four supported tools, log locations,
+  and configuration.

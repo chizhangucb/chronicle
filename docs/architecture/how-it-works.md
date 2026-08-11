@@ -2,46 +2,70 @@
 
 Chronicle is a local-first "time machine" for AI coding sessions: it imports conversation
 logs from four tools, maps every message to the Git snapshot at that moment, and adds
-security redaction, live streaming, background auto-sync, and deterministic replay — all in
-a single Node process with no cloud backend and no LLM calls.
+security redaction, live streaming, invisible background sync, and a cross-project Insights
+engine — all in a single Node process with no cloud backend and no LLM calls.
 
 This page is the whole architecture, top to bottom: the one design decision everything else
 hangs off (single process, single port), the data model, ingestion, the Git snapshot engine,
-and the security/live/replay subsystems. Read it once; it's the map for the rest of the
+invisible sync, and the Insights engine. Read it once; it's the map for the rest of the
 codebase.
 
 ## Single process, single port
 
-Chronicle is two Express apps and a React UI. The apps are:
+Chronicle is one Express app and a React UI. The app (`server/api.ts`) mounts every route
+group under `/api`:
 
-| App | Mount | Responsibility |
-| --- | --- | --- |
-| `server/api.js` | `/api` | All REST routes (scan/import, projects, sessions, git, search, security, replay, feedback) |
-| `server/shares.js` | `/share` | Public redacted, tokenized share pages served by the local app |
+| Route file (`server/routes/`) | Responsibility |
+| --- | --- |
+| `import-sync.ts` | Scan/import, per-project and per-session sync |
+| `projects.ts` | Project list, detail, associate/unlink, delete |
+| `sessions.ts` | Session detail, rename, delete/undo (tombstones), minor-session bucket, live SSE, causality |
+| `search.ts` | Global search (FTS5, `LIKE` fallback) |
+| `security.ts` | Security scan, redaction rules, redacted export |
+| `git.ts` | Snapshot queries (`/git/at`, `/git/tree`, `/git/file`) |
+| `insights.ts` | Cross-project Insights (Overview tab) |
+| `explore.ts` | The Explore pivot table |
+| `content.ts` | The Content composition tab |
+| `settings.ts` | Auto-sync on/off/pause, noise-gate thresholds |
 
-The key move: **the exact same app objects are served in every run mode.** In development
-they are mounted *into* the Vite dev server; in production a plain Express server
-(`server/standalone.js`) mounts them directly. Add an endpoint to one of these apps and it
-works in dev, desktop, and standalone for free — no per-mode wiring.
+The key move: **the exact same app object is served in every run mode.** In development it's
+mounted *into* the Vite dev server; in production a plain Express server
+(`server/standalone.ts`) mounts it directly and serves the built `dist/` for everything else.
+Add an endpoint to `server/routes/` and it works in dev and in `npm run standalone` for free —
+no per-mode wiring, and it's exactly what `npx chronicle-cli` runs under the hood.
 
 In dev, `vite.config.js` installs a small plugin that hangs middleware off Vite's connect
-server and loads each app lazily per request via `ssrLoadModule` — so **editing `server/*.js`
+server and loads the API lazily per request via `ssrLoadModule` — so **editing `server/*.ts`
 hot-reloads the API** without restarting the process, on the same port as the UI (`4173`).
 
-In production there is no Vite. `server/standalone.js` builds an Express app, mounts the same
-apps, and serves the built `dist/` for everything else.
+In production there is no Vite. `server/standalone.ts` builds an Express app, mounts the same
+API, and serves the built `dist/` for everything else — this is exactly what runs when you
+`npx chronicle-cli`.
 
 > **Gotcha — mount an Express *app*, not a Router.** The Vite middleware hands the app a raw
 > Node `req`/`res`. An Express *Router* does not decorate those objects, so `res.json` is
 > `undefined` and every route throws. Mounting a full Express *application* is what makes the
-> same code run behind Vite and behind `standalone.js`.
+> same code run behind Vite and behind `standalone.ts`.
+
+## `.ts` runs natively — no build step for the server
+
+Chronicle's server executes `.ts` files directly: Node 24 strips TypeScript types at load time,
+so `import './db.ts'` just works, with no transpiler and no compiled server bundle in
+development. `tsc` (`npm run typecheck`) is a **type checker only** here — the gate is that it
+exits 0, not that it produces output anyone runs.
+
+The one place a real compile happens is **publishing**: `npm run prepack` runs
+`tsc -p tsconfig.publish.json` to emit a compiled server tree (`dist-server/`), because a
+published npm package's `.ts` files sit under `node_modules` where Node's type-stripping loader
+doesn't apply the same way to a *dependency's* source. `bin/chronicle.mjs` (the `npx` entry
+point) imports the compiled `dist-server/server/standalone.js`, not the `.ts` source.
 
 ## Component map
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Desktop shell — Electron (electron/main.mjs)                 │
-│  tray, single-instance lock, auto-update; zero server imports │
+│  bin/chronicle.mjs — the npx/CLI launcher                     │
+│  Node 24 check, port scan, spawns the browser, Ctrl-C to stop │
 └───────────────────────────┬──────────────────────────────────┘
                             │ starts
 ┌───────────────────────────▼──────────────────────────────────┐
@@ -49,81 +73,80 @@ apps, and serves the built `dist/` for everything else.
 │                                                               │
 │  parsers/      claudeCode · codex · cursor · opencode         │
 │                → normalized events                            │
-│  db.js         projects / sessions / messages  (SQLite)       │
-│  git.js        read-only snapshot engine (rev-list/ls-tree)   │
-│  live.js       JSONL tail + SQLite poll → SSE                 │
-│  replay.js     deterministic sandbox re-execution             │
-│  causality.js  read→change linking (heuristic)                │
-│  security.js   redaction rules, session scan                  │
-│  shares.js     tokenized redacted /share pages                │
+│  db.ts         projects / sessions / messages  (SQLite)       │
+│  git.ts        read-only snapshot engine (rev-list/ls-tree)   │
+│  live.ts       JSONL tail + SQLite poll → SSE                 │
+│  autosync.ts   invisible background sync (watchers, backstop) │
+│  noiseGate.ts  "minor session" bucketing                      │
+│  causality.ts  read→change linking (heuristic)                │
+│  security.ts   redaction rules, session scan                  │
+│  insights.ts   explore.ts   content.ts   calibrate.ts         │
+│                → the Insights engine (Overview/Explore/Content)│
 │                                                               │
-│  Exposed as two Express apps → /api · /share                  │
+│  Exposed as one Express app → /api                            │
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTP + SSE
 ┌───────────────────────────▼──────────────────────────────────┐
-│  React UI (src/) — plain React + one styles.css, no framework │
-│  App.jsx global sidebar · SessionView playback/refine/replay  │
-│  hand-rolled SVG charts                                       │
+│  React UI (src/) — plain React + one styles.css               │
+│  App.tsx global sidebar (Projects · Insights)                 │
+│  HomePage · ProjectDetail · SessionView · InsightsPage         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The layering is strict in one direction that matters: **the server layer has zero Electron
-imports.** Electron starts the server and owns the window/tray, but nothing under `server/`
-knows Electron exists.
-
 ## Run modes
 
-All three modes serve the same apps; they differ only in what wraps them.
+Two modes serve the same app; they differ only in what wraps it.
 
 | Command | What runs | Port | Notes |
 | --- | --- | --- | --- |
-| `npm run dev` | Vite dev server + apps mounted via the plugin | `http://localhost:4173` | UI HMR **and** API hot-reload (`ssrLoadModule`) |
-| `npm run desktop` | `vite build` → Electron shell + tray | `41730` | Production bundle, window hides to tray |
-| `npm run standalone` | `server/standalone.js`, headless | `41730` | Binds `127.0.0.1`; `PORT` override; UI + `/api` + `/share` |
+| `npm run dev` | Vite dev server + API mounted via the plugin | `http://localhost:4173` | UI HMR **and** API hot-reload (`ssrLoadModule`) |
+| `npm run standalone` | `server/standalone.ts`, headless | `41730` (override with `PORT`) | Binds `127.0.0.1`; UI + `/api`; this is what `npx chronicle-cli` runs |
 
-Electron runs the standalone server internally, so "desktop" and "standalone" are the same
-server code with or without a window. Long-lived singletons (the live-tail watchers, auto-sync
-timers) live on `globalThis` so a Vite SSR module reload doesn't orphan them.
+`npx chronicle-cli` is a thin launcher (`bin/chronicle.mjs`) around the standalone server: it
+checks the Node version, finds a free port, calls `startServer()`, and opens the browser. There
+is no desktop shell, no tray, and no background daemon — the server runs in the foreground of
+your terminal and stops on `Ctrl-C`. Long-lived state (auto-sync watchers/timers, live-tail
+watchers) lives on `globalThis` so a Vite SSR module reload in dev doesn't orphan them.
 
 ## Product principles
 
 1. **Local-first, offline by default.** Parsing, viewing, and managing a session require no
-   network call. The only deliberate outbound features are the update check and the feedback
-   relay — each opt-in and narrow.
+   network call. The server makes zero outbound network requests — no telemetry, no update
+   check, nothing.
 2. **Git is the source of truth for code state.** Snapshots are reconstructed from commit
    history matched to conversation timestamps — never from a separate snapshot store, never
    from current disk.
 3. **Read-only on foreign systems.** Source logs and project repos are never written. SQLite
    sources are copied to temp before opening; the git engine only reads.
-4. **Safe by default.** Replay runs in a sandbox, redaction is one-way, destructive ops back
-   up first and need an explicit click.
+4. **Safe by default.** Redaction is one-way; destructive operations (delete session, delete
+   project) back up the database first and tombstone rather than silently discard.
 5. **Everything heavy is heuristic + local.** Causality confidence tiers, redaction regexes,
-   active-duration math — all local heuristics. **No LLM calls anywhere.**
+   active-duration math, Insights aggregation, token calibration — all local heuristics.
+   **No LLM calls anywhere.**
 
 ### Key stack decisions
 
-- **`node:sqlite` (`DatabaseSync`), not better-sqlite3.** Zero native compilation, so the app
-  builds and ships without a compiler on the target.
+- **`node:sqlite` (`DatabaseSync`), not better-sqlite3.** Zero native compilation, so the
+  package installs and runs without a compiler on the target machine — this is also why
+  Node 24+ is required.
 - **The git engine shells out to `git`** (`execFileSync`) rather than linking libgit2 — no
   native dependency, and it matches whatever `git` the developer already trusts.
-- **Electron, not Tauri** — the dev machine has no Rust toolchain, and the zero-Electron-imports
-  rule keeps the Tauri path open if the ~100 MB framework floor ever becomes worth shedding.
-- **Plain React + one `styles.css`**, hand-rolled SVG/CSS charts — no UI framework, no chart
-  library.
-- **Dependency discipline:** only genuine server-runtime deps (`express`, `electron-updater`)
-  live in `dependencies`; client libs (`react`, `react-dom`, `diff`) are `devDependencies`
-  because Vite bundles them into `dist/` and electron-builder ships everything in
-  `dependencies`.
+- **Plain React + one `styles.css`**, hand-rolled and Recharts-backed charts — no heavyweight
+  UI framework.
+- **Dependency discipline:** only the genuine server-runtime dependency (`express`) lives in
+  `dependencies`; every client library (`react`, `react-dom`, `recharts`, `wouter`, `diff`,
+  the Radix packages) is a `devDependency`, because Vite bundles them into `dist/` at build
+  time and the published npm package only ships `bin/`, `dist/`, and `dist-server/`.
 
 ## Data model
 
 Chronicle stores everything in a single local SQLite database at `~/.chronicle/chronicle.db`
-(override: `CHRONICLE_DATA_DIR`) — three tables (`projects`, `sessions`, `messages`) — and
-every parser flattens its tool-native log into one normalized event shape so the UI never has
-to care where a session came from.
+(override: `CHRONICLE_DATA_DIR`) — three core tables (`projects`, `sessions`, `messages`) plus
+a `session_tombstones` table — and every parser flattens its tool-native log into one
+normalized event shape so the UI never has to care where a session came from.
 
-```js
-// server/db.js
+```ts
+// server/db.ts
 import { DatabaseSync } from 'node:sqlite';
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
 ```
@@ -150,7 +173,7 @@ CREATE TABLE sessions (
   message_count INTEGER DEFAULT 0,
   first_prompt TEXT
   -- migration columns: context_tokens, name, summary, usage, sidechain_count,
-  --                    agent_active_ms, engaged_ms
+  --                    agent_active_ms, engaged_ms, imported_at, minor
 );
 
 CREATE TABLE messages (
@@ -158,7 +181,7 @@ CREATE TABLE messages (
   session_id TEXT NOT NULL REFERENCES sessions(id),
   seq INTEGER NOT NULL,             -- 0-based order within the session
   uuid TEXT, ts TEXT,
-  kind TEXT NOT NULL,               -- user|assistant|thinking|tool_use|tool_result|note
+  kind TEXT NOT NULL,               -- user|assistant|thinking|tool_use|tool_result
   text TEXT,
   tool_name TEXT, tool_input TEXT,  -- tool_input is a JSON string
   tool_use_id TEXT,                 -- pairs a tool_use with its tool_result
@@ -167,83 +190,96 @@ CREATE TABLE messages (
   --                    token columns (input/output/cache_read/cache_w5m/cache_w1h)
 );
 
+CREATE TABLE session_tombstones (
+  source TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  deleted_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (source, session_id)
+);
+
 CREATE INDEX idx_messages_session ON messages(session_id, seq);
 CREATE INDEX idx_sessions_project ON sessions(project_id);
+CREATE INDEX idx_messages_tooluse ON messages(session_id, tool_use_id);
 ```
 
 **`projects`** is keyed on `path` — the physical `cwd` recorded in the logs. One physical
 directory is one logical project no matter how many tools worked in it.
 
 **`sessions`** carries identity and summary fields, plus migration columns added over time:
-`context_tokens` (prompt side of the last main-chain API call, only set on import — re-import
-or Sync Update to backfill), `name` (a user-typed rename in Chronicle — the only user-authored
-field in the table), `summary` (parsed tool title, re-derived every import), `usage` (per-model
-token totals as JSON, shaped `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}`
-— 5-minute and 1-hour cache writes are kept split because they bill at different rates),
-`sidechain_count` (a denormalization for cards/analytics), and the stored duration metrics
-`agent_active_ms` / `engaged_ms` (computed at import time so the UI reads one number instead of
-re-deriving it client-side).
+`context_tokens` (prompt side of the last main-chain API call, only set on import), `name` (a
+user-typed rename in Chronicle — the only user-authored field in the table), `summary` (parsed
+tool title, re-derived every import), `usage` (per-model token totals as JSON, shaped
+`{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}`), `sidechain_count` (a
+denormalization for cards/Insights), the stored duration metrics `agent_active_ms` /
+`engaged_ms`, `imported_at` (drives incremental auto-sync), and `minor` (the noise-gate flag —
+see Invisible sync below).
 
 **`messages`** is the normalized event stream, ordered by `seq` within a session. The
-`(session_id, seq)` index is what makes windowed playback cheap — the UI renders ~400 rows
-around the selection rather than loading a 6,000-message session into the DOM. `is_sidechain`
-(1 = subagent/sidechain event — Claude Code only), `agent_type` (subagent type, matched by
-pairing the sidechain's first message with the main chain's `Task` tool call), and `skill`
-(active skill context) support subagent attribution. Five per-message token columns
-(`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_w5m_tokens`, `cache_w1h_tokens`)
-are stored on the first event of each API call, which is what unlocks costliest-message
-rankings — `sessions.usage` alone can't answer those. **The database stores tokens, never
-dollars**; `src/models.js` computes cost client-side from a static price table.
+`(session_id, seq)` index is what makes windowed playback cheap. `(session_id, tool_use_id)`
+is a second index added specifically for the Insights engine — Explore and Content both
+self-join `tool_use`↔`tool_result` pairs, and without it that join degrades to a per-session
+linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
+database. `is_sidechain` (1 = subagent event — Claude Code only), `agent_type` (subagent type),
+and `skill` (active skill context) support subagent attribution across the Overview Subagents
+card and the Insights Explore/Content tabs. Five per-message token columns are stored on the
+first event of each API call, which is what unlocks costliest-message rankings. **The database
+stores tokens, never dollars**; `src/models.ts` computes cost client-side from a static price
+table.
+
+**`session_tombstones`** records a deliberate delete (single session or whole-project) keyed on
+`(source, session_id)`. Every import path — manual import, per-project/per-session sync,
+auto-sync — checks this table before inserting, so a tombstoned session is never resurrected by
+a later scan of the same source log. "Undo" just removes the tombstone row.
 
 ### The normalized event model
 
 Every parser's job is to turn a tool-native log into a flat list of rows of one shape — the
 contract between ingestion and everything downstream (playback, refine, causality, search,
-share).
+Insights).
 
-| `kind` | Meaning | Label (`src/kinds.js`) |
+| `kind` | Meaning | Label (`src/kinds.ts`) |
 | --- | --- | --- |
 | `user` | a human prompt or an inserted user turn | User |
 | `assistant` | model prose | Assistant |
 | `thinking` | extended-thinking block | Thinking |
 | `tool_use` | a tool call (has `tool_name`, `tool_input`, `tool_use_id`) | Tool Call |
 | `tool_result` | a tool's output (has `tool_use_id`) | Tool Result |
-| `note` | a Refine-inserted annotation | Inserted |
 
 Each event row populates a subset of: `ts`, `kind`, `text`, `tool_name`, `tool_input` (a JSON
 *string*), `tool_use_id`, `uuid`, `model`. `tool_use_id` is the join key: a `tool_use` and the
 `tool_result` it produced carry the same id.
 
-> **One source of truth for labels.** `src/kinds.js` (`KIND_LABEL` / `KIND_ICON`) is imported
+> **One source of truth for labels.** `src/kinds.ts` (`KIND_LABEL` / `KIND_ICON`) is imported
 > by both Playback and Refine, so the vocabulary can't drift. Put new wording there, never
 > inline.
 
 ### `replaceSession()` — idempotent import
 
 Import is not an upsert-per-row; it is a full **delete-and-reinsert of one session inside a
-transaction**. Re-importing the same log produces the same rows, so Sync Update and re-import
-are safe to run repeatedly:
+transaction**. Re-importing the same log produces the same rows, so incremental auto-sync and
+manual re-import are safe to run repeatedly:
 
-```js
-// server/db.js — abridged
-export function replaceSession(session, events) {
+```ts
+// server/db.ts — abridged
+export function replaceSession(session: SessionInput, events: Event[]): void {
+  if (isTombstoned(session.source, session.id)) return; // deliberately deleted — never resurrect
   db.exec('BEGIN');
   try {
-    const prev = db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id);
+    const prev = db.prepare('SELECT name, minor FROM sessions WHERE id = ?').get(session.id);
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
-    db.prepare(`INSERT INTO sessions (..., name, summary, usage) VALUES (..., ?, ?, ?)`)
-      .run(/* … */ session.name ?? prev?.name ?? null, session.summary ?? null, session.usage ?? null);
+    const minor = prev?.minor === 0 ? 0 : (isMinorSession(activeMs, events.length) ? 1 : 0);
+    db.prepare(`INSERT INTO sessions (..., name, ...) VALUES (..., ?, ...)`)
+      .run(/* … */ session.name ?? prev?.name ?? null, /* … */ minor);
     events.forEach((e, i) => ins.run(session.id, i, /* … */));
     db.exec('COMMIT');
   } catch (err) { db.exec('ROLLBACK'); throw err; }
 }
 ```
 
-The subtle part: because the row is about to be deleted, a naive reinsert would wipe any
-rename the user typed. So `replaceSession` **reads `prev.name` first and falls back to it**.
-Result: `name` survives re-import (it's user-authored); `summary`/`usage`/`context_tokens` are
-re-derived every import, since they come from the log and the freshest parse should win.
+Two things survive re-import on purpose: a Chronicle **rename** (`prev.name`) and a session
+**promoted out of the minor bucket** (`prev.minor === 0`) — otherwise every re-sync would
+silently undo either.
 
 ### FTS5 full-text index
 
@@ -251,11 +287,11 @@ re-derived every import, since they come from the log and the freshest parse sho
 CREATE VIRTUAL TABLE messages_fts USING fts5(text, tool_input, content=messages, content_rowid=id);
 ```
 
-An external-content FTS5 table over `messages.text` and `tool_input`, populated inside
+An external-content FTS5 table over `messages.text` and `tool_input`, kept in sync inside
 `replaceSession` — because import is a delete-and-reinsert, rebuilding the session's FTS rows
 in the same transaction keeps the index consistent without triggers. `GET /api/search` uses
 FTS5 `MATCH` and falls back to `LIKE` if the FTS table is missing, grouped per session (empty
-query → recent sessions).
+query → recent sessions, which is what backs Home's default stream).
 
 ### Contract views
 
@@ -282,7 +318,7 @@ consumer should refuse loudly on `0` or an unknown value rather than guess at th
 
 ## Ingestion: scan, then import
 
-Every parser lives in `server/parsers/<tool>.js` and exports two kinds of function:
+Every parser lives in `server/parsers/<tool>.ts` and exports two kinds of function:
 
 - **`scan<Tool>Projects()`** — cheap, read-only. Lists importable projects/sessions with size
   estimates, without parsing message bodies. Backs the import wizard.
@@ -292,35 +328,35 @@ The four parsers wired in today:
 
 | Tool | Source key | File / dir (env override) | Format |
 | --- | --- | --- | --- |
-| Claude Code | `claude-code` | `~/.claude/projects/` (`CLAUDE_PROJECTS_DIR`) | JSONL |
-| Codex | `codex` | `~/.codex/sessions/` (`CODEX_SESSIONS_DIR`) | JSONL |
+| Claude Code | `claude-code` | `~/.claude/projects/` | JSONL |
+| Codex | `codex` | `~/.codex/sessions/` | JSONL |
 | Cursor | `cursor` | VS Code `workspaceStorage` (`CHRONICLE_CURSOR_DIR`) | SQLite (WAL) |
-| OpenCode | `opencode` | `~/.local/share/opencode/opencode.db` (`OPENCODE_DB`) | SQLite (WAL) |
+| OpenCode | `opencode` | `~/.local/share/opencode/opencode.db` | SQLite (WAL) |
 
 `GET /api/scan` fans out to all four scanners and annotates which sessions are already
-imported; `POST /api/import` routes the chosen source through `gatherParsed()` to the right
-parse function, then hands each `{ session, events }` to `replaceSession()`. The same
-`scanners` map backs a manual "select directory" scan and per-project/per-session sync.
+imported; `POST /api/import` routes the chosen source to the right parse function, then hands
+each `{ session, events }` to `replaceSession()`.
 
 > **Read-only, always.** Scanning and importing only read source logs. The write side of
 > ingestion touches nothing but `~/.chronicle/chronicle.db`.
 
 ### Per-tool notes
 
-**Claude Code JSONL — filter the noise.** `parseClaudeLine()` skips `isSidechain` entries into
-a separate attribution path (see below), skips `<command-name>`/`<local-command…>` user
-strings and `<system-reminder>` text blocks (not real prompts), and pairs `tool_use`/
-`tool_result` by `tool_use_id`. The session's auto-title comes from
-`{"type":"custom-title","customTitle":…}` lines — the `/rename` title, last one wins.
+**Claude Code JSONL — filter the noise.** The parser skips `isSidechain` entries into a
+separate attribution path (see below), skips `<command-name>`/`<local-command…>` user strings
+and `<system-reminder>` text blocks (not real prompts), and pairs `tool_use`/`tool_result` by
+`tool_use_id`. The session's auto-title comes from `{"type":"custom-title","customTitle":…}`
+lines — the `/rename` title, last one wins.
 
 **Sidechain (subagent) attribution — Claude Code only.** The parser imports sidechain lines
 (rather than dropping them) and marks them `is_sidechain = 1`, then derives `agent_type` by
 pairing the sidechain's first user message with the main chain's `Task` tool-call input
 (`subagent_type`). `skill` is set on a `Skill` tool-call row and on `<command-name>` turns.
-Span-style "everything between invocation and next user turn" attribution is deliberately not
-attempted — too heuristic. Scope rule: `context_tokens` stays main-chain-only (matching Claude
-Code's own status line); Cost & Usage and Agent Active *include* sidechains; default message
-counts, playback, and refine *exclude* them.
+Scope rule: `context_tokens` stays main-chain-only (matching Claude Code's own status line);
+Cost & Usage and Agent Active *include* sidechains; default message counts, Playback, and
+Refine *exclude* them. Subagent runs surface in a session's Overview (a dedicated card,
+drill-in to that subagent's transcript) and as a first-class dimension in Insights' Explore
+(group/subgroup by "subagent") and Content ("Skills & subagents" panel) tabs.
 
 **Cursor & OpenCode — copy the WAL, never open live.** Both store chats in SQLite databases the
 running editor may still be writing. Chronicle copies the DB to a temp directory **including
@@ -335,14 +371,15 @@ shortest seen ancestor so a project's sessions group together.
 
 ### HOWTO: add a new source
 
-1. **Write `server/parsers/newtool.js`** exporting `scanNewtoolProjects()` (cheap listing) and
+1. **Write `server/parsers/newtool.ts`** exporting `scanNewtoolProjects()` (cheap listing) and
    a parse function returning `{ session, events }` where each event is a normalized row
    (`{ ts, kind, text?, tool_name?, tool_input?, tool_use_id?, uuid?, model? }`). Populate
    `cwd` on the session; if the source is a WAL SQLite DB, copy the `-wal`/`-shm` sidecars to
    temp exactly as Cursor/OpenCode do.
-2. **Wire it into `server/api.js`** — import the two functions, add it to the `scanners` map
-   and `GET /scan`, and add a branch to `gatherParsed()` so `POST /import` routes to it.
-3. **Add it to `SOURCES` in `src/ImportWizard.jsx`** with a matching `key`.
+2. **Wire it into `server/routes/import-sync.ts`** — import the two functions, add it to the
+   scanner map for `GET /scan`, and add a branch so `POST /import` routes to it. Add it to
+   `server/autosync.ts`'s per-source loop too, so it participates in invisible sync.
+3. **Add it to `SOURCES` in `src/ImportWizard.tsx`** with a matching `key`.
 4. **Validate against a fixture, then real data.** Drop a sample log in `test/fixtures/` and
    confirm scan lists it and import produces sane rows; then import a real session and
    time-travel through it.
@@ -350,7 +387,7 @@ shortest seen ancestor so a project's sessions group together.
 ## Git snapshot engine
 
 Time travel works because Chronicle treats **Git history as the source of truth for code
-state**. `server/git.js` reconstructs "what the code looked like at this message" by matching
+state**. `server/git.ts` reconstructs "what the code looked like at this message" by matching
 the message's timestamp to a commit and reading files out of it — read-only, shelling out to
 `git`, never a separate snapshot store and never current disk.
 
@@ -369,13 +406,13 @@ There is no libgit2. Every call is a query (`rev-list`, `ls-tree`, `show`, `diff
 | `changedFiles(dir, commit)` | `diff-tree -m --first-parent` | files changed in the commit |
 
 **`repoInfo()` has no caching** — it runs `git` on every `/api/projects` call, so the
-project-card git pill (branch + commit count) is always live and accurate. If it shows a
-feature branch after a PR merged, the pill is right and the working tree is still on that
-branch.
+project-card git pill (branch + commit count) is always live and accurate. `commitCountSinceAsync`
+(used by the Insights Overview commit count) runs these concurrently across projects instead of
+serially, which is what keeps the Insights page fast with many projects.
 
 **`commitAt()` picks the nearest commit at or before the timestamp**, with a fallback: when a
-message predates the repo's first commit, there's nothing at-or-before it, so the engine falls
-back to the **oldest** commit and sets `beforeHistory: true`.
+message predates the repo's first commit, the engine falls back to the **oldest** commit and
+sets `beforeHistory: true`.
 
 The time-travel data flow: select a message → `commitAt(dir, ts)` → the nearest commit →
 `treeAt()` (file tree) and `fileAt()` (content + previous version for diff). The API exposes
@@ -387,13 +424,43 @@ commits is invisible to the engine.
 default options produces an *empty* diff. Both `fileAt()` and `changedFiles()` pass `-m
 --first-parent` so the diff is computed against the mainline before the merge.
 
-## Security, live streaming, replay & causality
+## Invisible sync
 
-Four subsystems make Chronicle feel "smart" — secret redaction, live session tailing,
-deterministic replay, and read→change causality — and all four are **local heuristics**, no
-LLM calls.
+Chronicle never asks you to manually re-import. `server/autosync.ts` runs an **incremental**
+background sync so the database stays fresh as you keep using your AI tools:
 
-### Security engine (`server/security.js`)
+- **Triggers:** on server start, a debounced (~30s) filesystem watch on the known log
+  directories, and a 30-minute backstop timer that catches anything the fs-watch missed (macOS
+  can drop fs events across sleep).
+- **Incremental:** per-file sources (Claude Code, Codex) are pre-filtered by mtime — only
+  sessions whose source file changed since their last import get re-parsed. DB-backed sources
+  (Cursor, OpenCode) re-parse their whole store only when its file is newer than the last
+  import from it.
+- **Idempotent by construction:** every pass calls the same `replaceSession()` used by manual
+  import, so a partial or repeated sync just supersedes the previous state — nothing needs
+  special-case "in progress" handling.
+- **Scoped to known projects:** auto-sync never creates a new project on its own; it only
+  updates sessions belonging to projects you've already imported into.
+- **Pausable, not just on/off:** turning auto-sync **off** tears down the watchers and timer
+  entirely. **Pausing** (a separate toggle in Settings) keeps them registered — so resuming
+  needs no restart — but every sync attempt they trigger no-ops. Manual actions (a session's
+  "Sync Update" button, `⇧⌘U`) call the import path directly and are never blocked by pause.
+
+**Deletes are tombstones, not silent drops.** Deleting a session or a whole project writes to
+`session_tombstones` (after backing up the database) rather than just removing rows — so a
+subsequent auto-sync pass of the same source log can't resurrect something you deliberately
+removed. "Undo" is just forgetting the tombstone; the source log was never touched either way.
+
+**The noise gate keeps low-signal sessions out of your way.** `server/noiseGate.ts` flags a
+session `minor` at import time when its agent-active time and message count both fall under
+small default thresholds (tunable in `~/.chronicle/config.json`). Minor sessions are excluded
+from the main lists and Insights aggregates by default, collected instead into a single
+collapsible "Minor sessions" bucket on Home with Promote/Ignore actions. Promoting a session out
+of the bucket is sticky across re-import (see `replaceSession` above).
+
+## Security & live streaming
+
+### Security engine (`server/security.ts`)
 
 Turns text into `{ findings, redacted }`. Built-in regex detectors (`api_key`, `password`,
 `token`, `db_conn`, `email`, `phone`, `private_ip`) run in an order that matters — `db_conn`
@@ -401,35 +468,25 @@ before `email`/`password` so a connection string redacts as a whole rather than 
 shredded into separate matches. Custom rules are **globs** (`*`/`?`) compiled to regex, either
 a `redact` rule or an `allow` rule that protects a span. `scanText()` resolves overlaps by
 priority: allow-list wins first, then custom rules before built-ins, then earlier match wins on
-overlap. `scanSession(messages)` is the batch path used by Security Check and share creation.
+overlap. `scanSession(messages)` is the batch path used by the Security Check panel and the
+redacted Markdown export.
 
-> **Contributor gotcha.** The "is this tool result an error?" check exists in two places —
-> `ERROR_RE` in `server/api.js` and `isErrorResult` in `src/SessionView.jsx`. Change one, change
-> both, or the Errors counts diverge.
+> **Contributor gotcha.** The "is this tool result an error?" check exists in three places —
+> `ERROR_RE` in `server/insights.ts`, the same pattern in `server/routes/projects.ts`, and
+> `isErrorResult` in `src/SessionView.tsx`. Change one, change all three, or the Errors counts
+> diverge.
 
-### Live streaming (`server/live.js`)
+### Live streaming (`server/live.ts`)
 
 Tails an in-progress session and pushes new messages over SSE. `isLiveCandidate(filePath)`
-gates on a 5-minute recency window. Two watcher implementations by source: a JSONL `Watcher`
+gates on a recency window. Two watcher implementations by source: a JSONL `Watcher`
 (Claude Code, Codex — size-poll + incremental read from the last offset) and a
 `SqlitePollWatcher` (Cursor, OpenCode — re-parses a temp DB snapshot, WAL-aware mtime). Both
-slow their poll interval after ~2 minutes of silence and auto-stop when the last viewer
-disconnects. Watchers live on `globalThis.__chronicleLive`; live messages use `seq` starting at
-1,000,000 to avoid colliding with stored rows and exist only in client state until re-import.
+slow their poll interval after a period of silence and auto-stop when the last viewer
+disconnects. Live messages use `seq` starting at 1,000,000 to avoid colliding with stored rows
+and exist only in client state until re-import.
 
-### Replay engine (`server/replay.js`)
-
-Re-executes a session's file and shell operations in an isolated sandbox
-(`~/.chronicle/replay/<id>/`) — deterministic, no LLM calls, never touching the real project.
-`buildPlan(sessionId)` extracts `Write`/`Edit`/`Bash` steps with the preceding assistant text as
-`reasoning`, flagging out-of-project targets. `startReplay()` seeds the sandbox from the Git
-snapshot at session start (`commitAt()` + `git archive | tar -x`). `executeStep()` applies
-Write/Edit directly to the sandbox; Bash requires an explicit `confirmCommand` (60s timeout,
-sandboxed cwd/HOME) or returns `{ needsConfirmation: true }` without running anything.
-Auto-play pauses on errors and **skips** (never hard-pauses on) command steps and out-of-project
-writes.
-
-### Context causality (`server/causality.js`)
+### Context causality (`server/causality.ts`)
 
 `analyzeCausality(sessionId)` links what the AI **read** to what it **changed** via pure
 structural analysis over the tool-call sequence:
@@ -442,81 +499,75 @@ structural analysis over the tool-call sequence:
 | 0.45 | a search pattern that matches the changed file |
 | 0.2 | read shortly before the change (background context, 8-read window) |
 
-### Share links (`server/shares.js`)
+## The Insights engine
 
-Sharing serves a session as a tokenized HTML page from the **local app** — nothing is uploaded.
-`createShare(sessionId, days = 7)` runs `scanSession()` and stores only the **redacted copy**,
-frozen at creation, so a later rule change can't retroactively leak anything. `listShares()` /
-`revokeShare(id)` manage tokens; the public page 404s once expired or revoked.
+**Insights** is Chronicle's tabbed analytics surface — **Overview / Explore / Content** —
+available at three scopes: all projects (the sidebar's **Insights** page), one project (a
+project's own Overview/Explore/Content/Sessions tabs), and one session (drill into Content
+from a session's Overview). All three scopes share the same underlying engines, parameterized
+by a `Scope`:
 
-## Desktop shell, packaging & auto-update
-
-The desktop app is an Electron shell (`electron/main.mjs`) around the same headless server
-that runs in dev and standalone mode. Electron is a **thin shell**: it starts the server, owns
-a window and tray, and does auto-update — nothing under `server/` imports Electron.
-
-On launch: acquire the single-instance lock (also holds port `41730` — a stale process holding
-either is the usual cause of "new build won't start"), start the embedded server
-(`server/standalone.js`), build the tray, show the window. **Closing the window hides it to the
-tray** rather than quitting, so auto-sync (fs-watchers, the 30-minute backstop, wake-resume)
-keeps running with no window open; only the tray's Quit item actually exits.
-
-Auto-update runs via `electron-updater`, feed = `build.publish` (github
-`chizhangucb/homebrew-chronicle`), baked into `app-update.yml` at build time. It checks on
-launch and every 6 hours (packaged only), downloads in the background, and the React UI shows
-a "Relaunch to update" toast (bridged over IPC via `electron/preload.cjs`) on
-`update-downloaded`; `quitAndInstall()` does the clean swap. Two hard requirements: the
-`package.json` version must equal the release tag, and the update installs **only when the
-running app and the update share a Developer ID signature** — dormant until the first signed
-release, and unspoofable by an untrusted build.
-
-Packaging is `electron-builder`, `asar: false` (the server resolves `dist/` and parsers as
-plain files via `import.meta.url`; asar packing breaks that). `mac.target` is `dmg` + `zip` —
-the zip is what electron-updater updates from. `build/notarize.cjs` notarizes only when
-`APPLE_*` credentials are in env, so `npm run dist:mac` stays green for a contributor with no
-Apple account. Only genuine server-runtime deps (`express`, `electron-updater`) live in
-`dependencies`; everything client-side is a `devDependency`.
-
-The Homebrew cask (`packaging/homebrew/`) is published to the public
-`chizhangucb/homebrew-chronicle` tap, which also hosts the release DMGs and serves as the
-update feed:
-
-```bash
-brew tap chizhangucb/chronicle
-brew install --cask chronicle
+```ts
+// server/scope.ts
+export type Scope = { type: 'all' | 'project' | 'session'; id?: number | string };
 ```
+
+`scopeClause(scope)` turns that into a SQL `WHERE` fragment the engine queries AND onto — and
+`minorGate(scope)` applies the noise-gate exclusion everywhere *except* session scope (a
+directly-opened session should never disappear just because it's flagged minor; the exclusion
+only matters for aggregates over many sessions).
+
+- **`server/insights.ts`** (`GET /api/insights`) — cross-project aggregation: spend/token/session
+  totals, tool and model distributions, error rate, commit counts (via `commitCountSinceAsync`,
+  run concurrently across projects rather than serially), and a fixed-window activity calendar
+  for the Working Rhythm panel.
+- **`server/explore.ts`** (`GET /api/explore`) — the pivot table: group/subgroup by model,
+  project, source, tool, skill, subagent, or hour of day, metric = spend/tokens/requests/
+  sessions/errors/active-time.
+- **`server/content.ts`** (`GET /api/content`) — context composition: what share of tokens are
+  tool results vs. tool calls vs. user/assistant/thinking text, tool-results-by-tool, and
+  skills/subagents as a share of total tokens.
+
+### Token magnitude reconciliation and calibration
+
+Chronicle bills tokens **per assistant API call**, not per tool-call or message kind — so
+"how many tokens did tool X's output cost" isn't a number the logs record directly.
+`server/calibrate.ts` is the one shared primitive that estimates it: it takes each bucket's
+share of message **text length** and scales that share onto the real billed total from
+`sessions.usage`, so the numbers Explore and Content show for tool/skill/subagent breakdowns
+sum to the same magnitude as the session's actual token spend rather than a separately-derived
+(and often wildly different) estimate. Results built this way carry a `calibrated: true` flag,
+and the UI marks them with a `≈` and an explanatory tooltip — an honest signal that the
+per-bucket split is an estimate even though the total it's scaled to is exact.
 
 ## HTTP API
 
-Chronicle exposes two mounts on one local port: `/api` (the REST API) and `/share` (public
-redacted pages) — the same Express apps back all three run modes. Requests are local only; the
-standalone server binds `127.0.0.1`.
+Chronicle exposes one mount on one local port: `/api`. Requests are local only; the standalone
+server binds `127.0.0.1`.
 
 > **Reading the database directly?** External consumers should read the versioned
 > `contract_*` SQL views (above) rather than these routes.
 
 | Area | Routes |
 | --- | --- |
-| Import & scan | `GET /scan`, `POST /import` |
-| Projects | `GET /projects`, `GET /projects/:id?days=N`, `PATCH /projects/:id`, `DELETE /projects/:id`, `POST /projects/:id/associate`, `POST /projects/:id/sync`, `POST /projects/:id/unlink` |
-| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `DELETE /sessions/:id/source-file`, `POST /sessions/:id/sync`, `GET /sessions/:id/causality`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted`, `POST /sessions/:id/share`, `GET /sessions/:id/replay-plan` |
+| Import & scan | `GET /scan`, `POST /import`, `POST /projects/:id/sync`, `POST /sessions/:id/sync` |
+| Projects | `GET /projects`, `GET /projects/:id`, `PATCH /projects/:id`, `DELETE /projects/:id`, `POST /projects/:id/associate`, `POST /projects/:id/unlink` |
+| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `DELETE /sessions/:id/source-file`, `POST /sessions/undo-delete`, `GET /sessions/minor`, `POST /sessions/:id/promote`, `GET /sessions/:id/causality`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted` |
 | Git | `GET /git/at`, `GET /git/tree`, `GET /git/file` |
 | Search | `GET /search` |
 | Live | `GET /live/status` |
 | Security | `GET/POST /security/rules`, `PATCH/DELETE /security/rules/:id` |
-| Replay | `GET /replay/preview`, `POST /replay/start`, `POST /replay/step`, `POST /replay/open` |
-| Feedback | `POST /feedback` |
-| Shares | `GET /shares`, `DELETE /shares/:id`, and on `/share`: `GET /share/:token` |
+| Insights | `GET /insights`, `GET /explore`, `GET /content` |
+| Settings | `GET/PATCH /settings`, `GET /autosync/status`, `POST /autosync/run` |
 
 `GET /api/sessions/:id/live` is **not** JSON — it upgrades to `text/event-stream` and pushes
-`data:` frames (`{ type: 'status' | 'messages', ... }`); the watcher auto-stops when the
-connection closes.
+`data:` frames; the watcher auto-stops when the connection closes.
 
 ## Related
 
 - [Supported tools](../reference/supported-tools.md) — the tool matrix, log locations, and
   configuration (env vars, `config.json`, ports).
 - [Privacy & data](../reference/privacy-and-data.md) — the local-first guarantees and outbound
-  calls.
+  calls (there are none).
 - [Installation](../guide/installation.md) — install paths, run modes, requirements.
 - [Contributing](../contributing.md) — dev setup and verification habits.
