@@ -291,6 +291,43 @@ export interface AutosyncStatus {
   lastResult: { ok: true; imported: number; checked: number; ms: number } | { ok: true; skipped: string } | { ok: false; error: string } | null;
 }
 
+// ---- Insights (global cross-project hub, Task 5d-4) ----
+
+// Mirrors server/insights.ts InsightsSessionRow/InsightsResult.
+export interface InsightsSessionRow {
+  id: string;
+  project_id: number;
+  project_name: string;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+  context_tokens: number | null;
+  usage: string | null;
+}
+
+export interface InsightsResult {
+  sessions: InsightsSessionRow[];
+  toolDist: NameCount[];
+  kindDist: KindCount[];
+  modelDist: { model: string; count: number }[];
+  // Fixed 30-day-trailing model distribution (mirrors server/insights.ts) —
+  // Working Rhythm's "Favorite model" reads this, not `modelDist`, so it
+  // stays in step with its fixed-window card-mates.
+  modelDistFixed: { model: string; count: number }[];
+  errors: number;
+  errorsByProject: { project_id: number; head_count: number; error_count: number }[];
+  commits: number;
+  dailyActivity: DayCount[];
+  hourlyActivity: { dow: number; hour: number; count: number }[];
+  projects: { id: number; name: string }[];
+}
+
 // ---- Git ----
 
 export type GitAtResult = { commit: Commit | null } | { noRepo: true };
@@ -343,4 +380,5 @@ export const api = {
     j(`/api/git/tree?project=${project}&commit=${commit}`),
   gitFile: (project: number | string, commit: string, path: string): Promise<GitFileResult> =>
     j(`/api/git/file?project=${project}&commit=${commit}&path=${encodeURIComponent(path)}`),
+  insights: (days?: number): Promise<InsightsResult> => j('/api/insights' + (days ? `?days=${days}` : '')),
 };

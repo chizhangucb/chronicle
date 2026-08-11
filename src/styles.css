@@ -928,6 +928,78 @@ h4 { margin: 6px 0; }
 /* v0.2: ongoing session pill + settings modal rows */
 .ongoing-pill { color: var(--warn, #fbbf24); border-color: var(--warn, #fbbf24); }
 .settings-row { display: grid; grid-template-columns: auto auto 1fr; gap: 8px 10px; align-items: baseline; padding: 10px 4px; cursor: pointer; }
+
+/* ---- Insights (Task 5d-4) — range control, chart grids, hbar rankings,
+   the two Working Rhythm heatmaps, and the chart legend/dot ported from the
+   Chi-approved insights.html mockup verbatim (pixel-specified, not new
+   design decisions). `.kpis`/`.kpi`/`.card`/`.tbl`/`.tooltip` already exist
+   (5c primitives, above); this section only adds what insights.html needs
+   beyond those. ---- */
+.head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.head h1 { font: 600 19px var(--mono); margin: 0; }
+.head .sub { font: 11.5px var(--mono); color: var(--ink-3); }
+.rangebar {
+  display: flex; gap: 2px; margin: 12px 0 14px; background: var(--bg1);
+  border: 1px solid var(--border); border-radius: 4px; padding: 2px; width: max-content;
+}
+.rangebar button {
+  font: 11.5px var(--mono); background: none; border: 0; border-radius: 3px;
+  color: var(--ink-3); padding: 4px 12px; cursor: pointer;
+}
+.rangebar button.on { background: var(--bg2); color: var(--brass-text); }
+.ctlrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 14px; flex-wrap: wrap; }
+.ctlrow .rangebar { margin: 0; }
+.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; }
+.grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.legend { display: flex; gap: 14px; font: 11px var(--mono); color: var(--ink-2); margin-top: 6px; flex-wrap: wrap; }
+.legend .dot, .tbl .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px;
+}
+.hbar { display: grid; grid-template-columns: 110px 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; font: 11.5px var(--mono); }
+.hbar .n { color: var(--ink-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; display: flex; gap: 2px; }
+.hbar .seg { height: 100%; }
+.hbar .v { text-align: right; color: var(--ink-2); }
+
+/* Hour-of-day heatmap (7 rows x 24 columns) */
+.heat { display: grid; grid-template-columns: 34px repeat(24, 1fr); gap: 2px; font: 9.5px var(--mono); color: var(--ink-3); max-width: 680px; }
+.heat .rl { align-self: center; }
+.heat .c { height: 13px; border-radius: 2px; background: var(--bg2); }
+.heat .c.h1 { background: #3a2f16; }
+.heat .c.h2 { background: #5c4718; }
+.heat .c.h3 { background: #8a671b; }
+.heat .c.h4 { background: #c08a1e; }
+.heat .c.h5 { background: #e0b054; }
+.heat-legend { display: flex; gap: 4px; align-items: center; font: 10px var(--mono); color: var(--ink-3); margin-top: 8px; }
+.heat-legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.heat-legend .h1 { background: #3a2f16; }
+.heat-legend .h2 { background: #5c4718; }
+.heat-legend .h3 { background: #8a671b; }
+.heat-legend .h4 { background: #c08a1e; }
+.heat-legend .h5 { background: #e0b054; }
+.hour-axis { display: flex; justify-content: space-between; max-width: 680px; margin: 3px 0 0 36px; font: 9.5px var(--mono); color: var(--ink-3); }
+
+/* Working rhythm strip + calendar heatmap (26 weeks x 7 days) */
+.subhead { margin: 0 0 6px; font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+.rhythm { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
+.rhythm .r { display: flex; flex-direction: column; gap: 1px; }
+.rhythm .rl2 { font: 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.rhythm b { font: 600 15px var(--mono); font-variant-numeric: tabular-nums; }
+.rhythm b i { font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink-3); }
+.cal-months { display: flex; justify-content: space-between; max-width: 646px; margin: 0 0 3px 34px; font: 9.5px var(--mono); color: var(--ink-3); }
+.calwrap { display: flex; gap: 4px; max-width: 680px; }
+.cal-days { display: flex; flex-direction: column; justify-content: space-between; font: 9.5px var(--mono); color: var(--ink-3); width: 30px; padding: 1px 0; }
+.cal {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; grid-template-rows: repeat(7, 13px);
+  gap: 2px; flex: 1; max-width: 646px; margin-bottom: 4px;
+}
+.cal i { height: 13px; border-radius: 2px; background: var(--bg2); }
+.cal i.l1 { background: #3a2f16; }
+.cal i.l2 { background: #5c4718; }
+.cal i.l3 { background: #8a671b; }
+.cal i.l4 { background: #c08a1e; }
+.cal i.l5 { background: #e0b054; }
+.fun { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font: 11px var(--mono); color: var(--ink-3); }
 .settings-row .small { grid-column: 2 / 4; }
 
 /* ---- Session Overview: dense KPI row + Recharts chart grid (5d-2) ----

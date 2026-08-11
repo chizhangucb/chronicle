@@ -8,6 +8,7 @@ import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomePage from './HomePage.jsx';
+import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
@@ -46,6 +47,7 @@ export default function App() {
   const [atHome] = useRoute('/');
   const [atProject, projectParams] = useRoute('/project/:id');
   const [atSession, sessionParams] = useRoute('/session/:id');
+  const [atInsights] = useRoute('/insights');
   const projectId = projectParams?.id;
   const sessionId = sessionParams?.id;
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
@@ -119,6 +121,9 @@ export default function App() {
             onClick={() => navigate('/')}>
             <span className="sb-icon">◷</span><span className="sb-label">{t('Projects')}</span>
           </button>
+          <button className={`sb-item ${atInsights ? 'on' : ''}`} title={t('Insights')} onClick={() => navigate('/insights')}>
+            <span className="sb-icon">∑</span><span className="sb-label">{t('Insights')}</span>
+          </button>
           {rail && (
             <>
               <div className="sb-sep" />
@@ -188,6 +193,7 @@ export default function App() {
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
+        {atInsights && <InsightsPage />}
         {atProject && projectId != null && (
           <ProjectDetail id={projectId}
             onBack={() => navigate('/')}

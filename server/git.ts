@@ -1,6 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const execFileAsync = promisify(execFile);
 
 export interface RepoInfo {
   isRepo: boolean;
@@ -59,6 +62,48 @@ export function commitCountSince(dir: string, sinceIso: string | null): number {
       ? ['rev-list', '--count', `--since=${sinceIso}`, 'HEAD']
       : ['rev-list', '--count', 'HEAD'];
     return parseInt(git(dir, args).trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// ---- Async twins (non-blocking shell-outs) ----
+//
+// `git()`/`isGitRepo()`/`commitCountSince()` above use `execFileSync`, which
+// blocks the Node event loop for the full subprocess duration. Fine for the
+// single-repo lookups Project analytics does per request, but Insights
+// (server/insights.ts) needs a COUNT PER PROJECT on every request — doing
+// that serially+synchronously would block the whole server for N spawns in a
+// row. These async twins run the subprocess via libuv's thread pool instead,
+// so `Promise.all`-ing them across projects lets the spawns run concurrently.
+//
+// ADDITIVE ONLY: the sync exports above are UNCHANGED and still used
+// synchronously elsewhere (ProjectDetail.tsx / Task 5d-3, outside this
+// worktree) — do not remove or repurpose them.
+
+async function gitAsync(repo: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', ['-C', repo, ...args], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return stdout;
+}
+
+async function isGitRepoAsync(dir: string | null | undefined): Promise<boolean> {
+  if (!dir || !fs.existsSync(dir)) return false;
+  try {
+    return (await gitAsync(dir, ['rev-parse', '--is-inside-work-tree'])).trim() === 'true';
+  } catch { return false; }
+}
+
+// Async twin of commitCountSince — same semantics, non-blocking.
+export async function commitCountSinceAsync(dir: string, sinceIso: string | null): Promise<number> {
+  if (!(await isGitRepoAsync(dir))) return 0;
+  try {
+    const args = sinceIso
+      ? ['rev-list', '--count', `--since=${sinceIso}`, 'HEAD']
+      : ['rev-list', '--count', 'HEAD'];
+    return parseInt((await gitAsync(dir, args)).trim(), 10) || 0;
   } catch {
     return 0;
   }
