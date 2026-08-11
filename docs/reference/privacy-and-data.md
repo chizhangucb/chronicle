@@ -34,10 +34,9 @@ was verified directly against the source: the server code contains no `fetch`, n
 and no hardcoded external URL. The client makes exactly one network call, `fetch('/api/...')`,
 and it's local — to Chronicle's own server on your machine.
 
-The single external URL anywhere in the app is a plain link (not a network call Chronicle
-makes on your behalf) in the sidebar's **Feedback** item, which opens
-`github.com/chizhangucb/chronicle/issues` in your browser if you click it. That's the browser
-navigating, not Chronicle phoning home.
+The single external URL anywhere in the app is a plain link in the sidebar (not a network call
+Chronicle makes on your behalf), which opens `github.com/chizhangucb/chronicle/issues` in your
+browser if you click it. That's the browser navigating, not Chronicle phoning home.
 
 Because `npx chronicle-cli` fetches the package itself from the npm registry, that one-time
 (or per-version) download is the only network activity involved in running Chronicle at
