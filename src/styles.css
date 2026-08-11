@@ -1118,3 +1118,15 @@ h4 { margin: 6px 0; }
 /* Detail table share bar */
 .mini { display: inline-block; width: 70px; height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .mini i { display: block; height: 100%; }
+
+/* ---- 5e-2: Insights Content tab ----
+   Ported verbatim from records/design/2026-08-10-chronicle-phase5/content.html.
+   `.card`/`.grid2`/`.rank`/`.track`/`.fun` already exist (5c/5d/5e-1
+   primitives, above) — reused as-is, NOT redefined here. This section only
+   adds what content.html needs beyond those: the insight callouts and the
+   composition-card footnote line. */
+.callout { border-left: 2px solid var(--brass); background: var(--bg2); border-radius: 0 6px 6px 0; padding: 9px 12px; margin-bottom: 8px; }
+.callout b { font: 600 13px var(--mono); }
+.callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
+.callout.warn { border-left-color: var(--warn); }
+.note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }

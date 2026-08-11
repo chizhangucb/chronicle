@@ -10,6 +10,7 @@ import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf, type ModelUsageInput } from './models.ts';
 import ExploreTab from './ExploreTab.tsx';
+import ContentTab from './ContentTab.tsx';
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -96,7 +97,7 @@ export default function InsightsPage(): JSX.Element {
           <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => setTab('explore')}>
             {t('Explore')}
           </button>
-          <button type="button" className="tab" disabled title={t('Content tab coming soon')}>
+          <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => setTab('content')}>
             {t('Content')}
           </button>
         </div>
@@ -113,6 +114,7 @@ export default function InsightsPage(): JSX.Element {
         result ? <InsightsOverview result={result} days={days} /> : <div className="muted pad8">{t('Loading…')}</div>
       )}
       {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
+      {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
     </div>
   );
 }

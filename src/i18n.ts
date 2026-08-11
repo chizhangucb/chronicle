@@ -440,6 +440,30 @@ const zh = {
   'Filtered session list coming soon': '按行筛选会话列表即将上线',
   '+ Filter': '+ 筛选',
   'More filters coming soon': '更多筛选条件即将上线',
+  // Content tab (Task 5e-2: Insights token-composition + insight callouts)
+  'What your usage says': '你的使用情况说明',
+  'of your usage ran at >70% context': '的使用发生在上下文占用 >70% 时',
+  'Long sessions are pricier even when cached. Splitting tasks or compacting mid-task would cut cache-write spend.':
+    '即使命中缓存，长会话的成本也更高。拆分任务或在任务中途压缩上下文可以降低缓存写入花费。',
+  'of tokens came from subagent-heavy sessions': '的词元来自子智能体密集型会话',
+  'Each subagent pays its own context. Worth it for parallel work; watch it on simple tasks.':
+    '每个子智能体都会占用自己的上下文。用于并行任务是值得的；简单任务中要留意。',
+  'Cache stays warm ~': '缓存保持热态约 ~',
+  ' min between your turns': ' 分钟（在你的两次对话之间）',
+  'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
+    '基于同模型对话间隔估算。在该窗口内保持任务推进可以避免缓存冷却后的重写。',
+  'Token composition · what fills the context': '词元构成 · 上下文都花在哪里',
+  'Tool results': '工具结果',
+  'Your prompts': '你的提问',
+  'Assistant responses': '助手回复',
+  'Shares from message text length, scaled to billed totals. Everything computed locally.':
+    '占比基于消息文本长度估算，并按计费总量缩放。全部为本地计算。',
+  'Tool results by tool': '按工具划分的工具结果',
+  'Skills & subagents': '技能与子智能体',
+  'Top: skill invocations · bottom: subagent runs. % = share of tokens.':
+    '上方：技能调用 · 下方：子智能体运行。% 表示词元占比。',
+  'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
+    '校准后词元数 {range}：{total} —— 约为莎士比亚全集的 {n} 倍。',
 };
 
 const ja = {
@@ -886,6 +910,30 @@ const ja = {
   'Filtered session list coming soon': '行単位のセッション絞り込みは近日公開',
   '+ Filter': '+ フィルター',
   'More filters coming soon': '追加のフィルターは近日公開',
+  // Content tab (Task 5e-2: Insights token-composition + insight callouts)
+  'What your usage says': 'あなたの利用状況からわかること',
+  'of your usage ran at >70% context': 'の利用がコンテキスト使用率 70% 超の状態で発生',
+  'Long sessions are pricier even when cached. Splitting tasks or compacting mid-task would cut cache-write spend.':
+    'キャッシュされていても、長いセッションはコストが高くなります。タスクを分割する、または途中でコンテキストを圧縮すると、キャッシュ書き込みのコストを削減できます。',
+  'of tokens came from subagent-heavy sessions': 'のトークンがサブエージェント多用セッションから発生',
+  'Each subagent pays its own context. Worth it for parallel work; watch it on simple tasks.':
+    '各サブエージェントは独自のコンテキスト分のコストがかかります。並列作業には有効ですが、単純なタスクでは注意が必要です。',
+  'Cache stays warm ~': 'キャッシュは約 ~',
+  ' min between your turns': ' 分間、あなたのターンの間で温存されます',
+  'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
+    '同一モデルのターン間隔から推定しています。この時間内にタスクを継続すると、キャッシュが冷えて再書き込みされるのを避けられます。',
+  'Token composition · what fills the context': 'トークン構成 · コンテキストの内訳',
+  'Tool results': 'ツール結果',
+  'Your prompts': 'あなたのプロンプト',
+  'Assistant responses': 'アシスタントの応答',
+  'Shares from message text length, scaled to billed totals. Everything computed locally.':
+    '割合はメッセージのテキスト長から推定し、課金合計に合わせてスケーリングしています。すべてローカルで計算されます。',
+  'Tool results by tool': 'ツール別のツール結果',
+  'Skills & subagents': 'スキル & サブエージェント',
+  'Top: skill invocations · bottom: subagent runs. % = share of tokens.':
+    '上段：スキル呼び出し · 下段：サブエージェント実行。% はトークンの占有割合です。',
+  'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
+    'キャリブレーション済みトークン数 {range}：{total} —— シェイクスピア全集の約 {n} 倍。',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };
