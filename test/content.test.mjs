@@ -9,6 +9,7 @@ function rhythmEvents(baseIso, extra = []) {
     ts: new Date(base + i * 2 * 60000).toISOString(), ...(i % 2 === 1 ? { model: 'claude-sonnet-5', input_tokens: 100, output_tokens: 40 } : {}) });
   return [...events, ...extra];
 }
+
 before(async () => {
   const temp = await withTempDb(); dbModule = temp.dbModule; teardown = temp.teardown;
   content = await import('../server/content.ts');
@@ -32,6 +33,33 @@ before(async () => {
       // lone bucket summed to the FULL billed total (1500); the fix normalizes
       // by all-content chars so it lands at its true share (~57).
       { kind: 'assistant', model: 'claude-sonnet-5', skill: 'code-review', text: 'short skill invocation body', ts: '2026-08-01T10:26:00.000Z' },
+    ]),
+  );
+  // sMinor: 4 messages (below the <10 msg noise-gate threshold) → minor=1.
+  // Session scope must ignore the minor gate and still return content.
+  replaceSession(
+    { id: 'sMinor', project_id: p1.id, source: 'claude-code', file_path: '/tmp/sMinor.jsonl',
+      started_at: '2026-08-02T10:00:00.000Z', ended_at: '2026-08-02T10:02:00.000Z',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 300, output: 150, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    [
+      { kind: 'user', text: 'hi', ts: '2026-08-02T10:00:00.000Z' },
+      { kind: 'assistant', model: 'claude-sonnet-5', input_tokens: 100, output_tokens: 50, text: 'reply', ts: '2026-08-02T10:00:30.000Z' },
+      { kind: 'tool_use', tool_name: 'Read', tool_use_id: 'm1', tool_input: JSON.stringify({ path: '/x' }), ts: '2026-08-02T10:01:00.000Z' },
+      { kind: 'tool_result', tool_use_id: 'm1', text: 'file contents here', ts: '2026-08-02T10:01:03.000Z' },
+    ],
+  );
+  // sDup: ONE erroring tool_result (te1) but TWO tool_use rows sharing
+  // tool_use_id 'te1' — the toolChars join must count the paired result's
+  // chars once, not double them. ≥12 msgs (rhythmEvents) so it is NON-minor.
+  replaceSession(
+    { id: 'sDup', project_id: p1.id, source: 'claude-code', file_path: '/tmp/sDup.jsonl',
+      started_at: '2026-08-03T10:00:00.000Z', ended_at: '2026-08-03T10:30:00.000Z',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 500, output: 200, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythmEvents('2026-08-03T10:00:00.000Z', [
+      { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'te1', ts: '2026-08-03T10:24:00.000Z' },
+      // DUPLICATE tool_use for the same id (mirrors a real re-imported/duped row).
+      { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'te1', ts: '2026-08-03T10:24:01.000Z' },
+      { kind: 'tool_result', tool_use_id: 'te1', text: 'Error: boom', ts: '2026-08-03T10:24:03.000Z' },
     ]),
   );
 });
@@ -70,12 +98,14 @@ test('computeContent: result carries an explicit calibrated:true contract marker
 // calibratedTotalTokens (the calibration base + Shakespeare footnote) reconciles
 // to Σ in-scope sessions.usage(input+output) = the Insights Tokens KPI — NOT the
 // per-message assistant sum (1230). Fixture usage diverges (1500) to prove it.
+// sDup (added for the 6-0.2 dedup fixture, non-minor so visible under 'all')
+// contributes another 700 (500+200), so the scope='all' total is 2200.
 test('computeContent: calibratedTotalTokens === Σ sessions.usage(input+output), not per-message', () => {
   const r = content.computeContent({ type: 'all' }, null);
-  assert.equal(r.calibratedTotalTokens, 1500); // 1000 input + 500 output from usage (not 1230 per-message)
+  assert.equal(r.calibratedTotalTokens, 2200); // 1000 input + 500 output (s1) + 500+200 (sDup)
   // composition shares still track that calibrated total (±rounding across buckets).
   const sum = r.composition.reduce((n, c) => n + c.tokens, 0);
-  assert.ok(Math.abs(sum - 1500) <= 2, `composition sum ${sum} should be ~1500`);
+  assert.ok(Math.abs(sum - 2200) <= 2, `composition sum ${sum} should be ~2200`);
 });
 
 // FINDING 1 (reconcile): toolResultsByTool must be the TRUE fraction of billed —
@@ -99,4 +129,24 @@ test('computeContent: Σ skills tokens < calibratedTotalTokens when skills are a
   const skillSum = r.skills.reduce((n, s) => n + s.tokens, 0);
   assert.ok(skillSum > 0, 'expect the code-review skill fixture to attribute some tokens');
   assert.ok(skillSum < r.calibratedTotalTokens, `Σ skills ${skillSum} must be < calibratedTotalTokens ${r.calibratedTotalTokens} (old code inflated it to full billed)`);
+});
+
+test('session-scope Content is populated for a minor session', async () => {
+  // sMinor: 4 messages (below the <10 msg noise-gate threshold) → minor=1.
+  // Session scope must ignore the minor gate and still return content.
+  const r = content.computeContent({ type: 'session', id: 'sMinor' }, null);
+  assert.ok(r.calibratedTotalTokens > 0, 'minor session should still surface billed tokens under session scope');
+  assert.ok(r.composition.some((c) => c.tokens > 0), 'composition should be non-empty for a directly-opened minor session');
+});
+
+test('duplicate tool_use rows do not inflate toolResultsByTool token share', () => {
+  // sDup has a single tool_result (~11 chars) paired to a DUPLICATED tool_use
+  // (two rows sharing tool_use_id 'te1'). Before the MIN(id) pairing fix, the
+  // join fanned out and double-summed the result's chars. Assert the paired
+  // tokens can't exceed the tool_result composition bucket — the invariant
+  // that breaks if the duplicate join doubles the char sum.
+  const r = content.computeContent({ type: 'session', id: 'sDup' }, null);
+  const bash = r.toolResultsByTool.find((x) => x.key === 'Bash');
+  const trBucket = r.composition.find((c) => c.key === 'tool_result')?.tokens ?? 0;
+  assert.ok((bash?.tokens ?? 0) <= trBucket, 'paired tool-result tokens cannot exceed the tool_result composition bucket');
 });

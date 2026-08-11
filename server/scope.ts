@@ -10,3 +10,11 @@ export function scopeClause(scope: Scope): { sql: string; params: (string | numb
   if (scope.type === 'session' && scope.id != null) return { sql: 'AND s.id = ?', params: [scope.id] };
   return { sql: '', params: [] };
 }
+
+// ANDed onto engine queries. For a directly-opened session, do NOT hide it
+// even if the noise gate marked it minor — session scope already restricts to
+// the one session, so the minor exclusion (meant for 'all'/'project'
+// aggregates) is wrong here and leaves the pane blank.
+export function minorGate(scope: Scope): string {
+  return scope.type === 'session' ? '' : 'AND COALESCE(s.minor,0)=0';
+}

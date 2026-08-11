@@ -6,7 +6,7 @@
 // columns + tags); tool/skill × tokens are CALIBRATED via calibrate.ts and the
 // result carries calibrated:true. rollup='total' only in 5e (ranked bars).
 import { db } from './db.ts';
-import { scopeClause, type Scope } from './scope.ts';
+import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 
 const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;
@@ -66,11 +66,11 @@ function parseUsageCells(usage: string | null): Record<string, ModelUsageCell> {
 
 // Loads in-scope sessions + parsed usage, honoring the SAME scope + days +
 // COALESCE(minor,0)=0 gate the message queries use.
-function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }): SessionUsageParsed[] {
+function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }, scope: Scope): SessionUsageParsed[] {
   const rows = db.prepare(`
     SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
     FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}
+    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}
   `).all(cutoff, ...sc.params) as unknown as { id: string; project: string; source: string; usage: string|null }[];
   return rows.map((r) => ({ id: r.id, project: r.project, source: r.source, models: parseUsageCells(r.usage) }));
 }
@@ -119,9 +119,14 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   const cutoff = q.days ? new Date(Date.now() - q.days * 86400000).toISOString() : '';
   const sc = scopeClause(q.scope);
   const base = `JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
-    WHERE COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}`;
+    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}`;
   const bind = (extra: (string|number)[] = []) => [cutoff, ...sc.params, ...extra];
-  const calibrated = CALIBRATED_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend');
+  // Token MAGNITUDE for tool/skill is always calibrated (deterministic, metric-
+  // independent) so the Detail table's Tokens/$ columns are correct under every
+  // metric. The `calibrated` flag below only drives the ≈ badge, so it stays
+  // tied to the displayed metric — no ≈ noise when viewing errors/requests.
+  const tokensAreCalibrated = CALIBRATED_GROUPS.includes(q.group);
+  const calibrated = tokensAreCalibrated && (q.metric === 'tokens' || q.metric === 'spend');
 
   // Per (groupValue, model) exact token + request aggregates. For calibrated
   // groups the token columns are meaningless on those message kinds, so tokens
@@ -173,11 +178,14 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   const errRows = db.prepare(`
     SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
     FROM messages r
-    JOIN messages u ON u.session_id = r.session_id AND u.tool_use_id = r.tool_use_id AND u.kind = 'tool_use'
+    JOIN messages u ON u.id = (
+      SELECT MIN(u2.id) FROM messages u2
+      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
+    )
     JOIN sessions s ON s.id = r.session_id
     JOIN projects p ON p.id = s.project_id
     WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
-      AND COALESCE(s.started_at,'9') >= ? AND COALESCE(s.minor,0)=0 ${sc.sql}
+      AND COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}
   `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
   for (const e of errRows) {
     if (e.gk == null || !ERROR_RE.test(e.head)) continue;
@@ -207,8 +215,8 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // the only metrics that read tokensByModel, and running the override for
   // requests/sessions/errors/active would materialize spurious zero-count rows
   // for usage-only models (no per-message rows), skewing those metrics.
-  if (EXACT_USAGE_GROUPS.includes(q.group) && (q.metric === 'tokens' || q.metric === 'spend')) {
-    const usageRows = loadSessionUsage(cutoff, sc);
+  if (EXACT_USAGE_GROUPS.includes(q.group)) {
+    const usageRows = loadSessionUsage(cutoff, sc, q.scope);
     const acc = new Map<string, Record<string, ModelUsageCell>>();
     for (const u of usageRows) {
       for (const [model, cell] of Object.entries(u.models)) {
@@ -219,8 +227,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       }
     }
     for (const row of rowMap.values()) row.tokensByModel = acc.get(row.key) ?? {};
-    for (const [k, byModel] of acc) {
-      if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+    // Only materialize usage-only rows (a model billed but with no per-message
+    // rows) when the displayed metric actually reads token magnitude — else
+    // they'd show as spurious zero-request/zero-session rows under other metrics.
+    if (q.metric === 'tokens' || q.metric === 'spend') {
+      for (const [k, byModel] of acc) {
+        if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+      }
     }
   }
 
@@ -233,7 +246,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // across the scope's REAL assistant-turn models by their billed token
   // share (modelSplitRows), preserving each model's own input:output ratio.
   // This gives a real blended $ via costOf while staying keyed by model.
-  if (calibrated) {
+  if (tokensAreCalibrated) {
     // Char measure includes tool_input, not just text: tool_use rows (the
     // 'tool' group, and skill-tagged tool_use rows for 'skill') store their
     // content in tool_input — text is NULL for kind='tool_use' — so summing
@@ -250,7 +263,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     // "narrow Insights Tokens to input+output" decision), NOT per-message
     // assistant sums — so calibrated tool/skill Spend prices off the real
     // billed totals at a real blended rate.
-    const usageRows = loadSessionUsage(cutoff, sc);
+    const usageRows = loadSessionUsage(cutoff, sc, q.scope);
     const modelSplit = new Map<string, { input: number; output: number }>();
     let billedAll = 0;
     for (const u of usageRows) {
@@ -319,7 +332,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // (the real tokens are calibrated post-hoc above, not summed per-row), so a
   // raw SUM here would render a near-zero, misleading stack. Leave segments
   // [] — the UI renders a single full-width bar when segments is empty.
-  if (q.subgroup && !calibrated) {
+  if (q.subgroup && !tokensAreCalibrated) {
     const sg = groupExpr(q.subgroup);
     const segRows = db.prepare(`
       SELECT ${g.col} AS gk, ${sg.col} AS sk,
