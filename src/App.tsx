@@ -200,7 +200,7 @@ export default function App() {
         )}
         {atInsights && <InsightsPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
-          <ProjectDetail id={projectId}
+          <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}
             onLiveChange={setLiveInfo}
             onOpenProject={(pid: number | string) => navigate(`/project/${pid}`)}
