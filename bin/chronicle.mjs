@@ -19,10 +19,14 @@ const argv = process.argv.slice(2);
 const noOpen = argv.includes('--no-open');
 let requestedPort = 41730;
 const pIdx = argv.indexOf('--port');
-if (pIdx !== -1 && argv[pIdx + 1]) {
-  const n = Number(argv[pIdx + 1]);
-  if (Number.isInteger(n) && n > 0 && n < 65536) requestedPort = n;
-  else { console.error(`Invalid --port "${argv[pIdx + 1]}".`); process.exit(1); }
+if (pIdx !== -1) {
+  const raw = argv[pIdx + 1];
+  const n = Number(raw);
+  if (raw === undefined || !Number.isInteger(n) || n <= 0 || n >= 65536) {
+    console.error(`Invalid --port "${raw ?? '(missing)'}" — expected an integer between 1 and 65535.`);
+    process.exit(1);
+  }
+  requestedPort = n;
 }
 
 // --- Find a free port starting at the requested one (bounded scan). ---
@@ -56,9 +60,16 @@ function openBrowser(url) {
 const pkgRoot = new URL('../', import.meta.url);
 const distDir = fileURLToPath(new URL('dist/', pkgRoot));
 
-const port = await firstFreePort(requestedPort);
-const { startServer } = await import(new URL('../dist-server/server/standalone.js', import.meta.url));
-const server = await startServer(port, distDir);
+let port, server;
+try {
+  port = await firstFreePort(requestedPort);
+  const { startServer } = await import(new URL('../dist-server/server/standalone.js', import.meta.url));
+  server = await startServer(port, distDir);
+} catch (err) {
+  console.error(`Chronicle could not start a local server: ${err?.message ?? err}`);
+  console.error('Another process may be holding the ports, or pass a different --port.');
+  process.exit(1);
+}
 const url = `http://localhost:${port}`;
 console.log(`\n  Chronicle is running at ${url}`);
 console.log('  Press Ctrl-C to stop.\n');
