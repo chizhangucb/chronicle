@@ -43,7 +43,6 @@ const FRIENDLY_CALL: Record<string, string> = {
   Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
-const DONUT_COLORS = ['#4f8ef7', '#34c98e', '#e5a54b', '#a78bfa', '#f472b6', '#38bdf8', '#e5684b', '#8b98a9'];
 const DELETABLE_SOURCES = new Set(['claude-code', 'codex']);
 
 function isErrorResult(m: StatMessage): boolean {
@@ -52,21 +51,9 @@ function isErrorResult(m: StatMessage): boolean {
       .test((m.text || '').slice(0, 200));
 }
 
-// Count occurrences → top-7 [name, count] entries plus an aggregated "other".
-function topDist(names: string[]): [string, number][] {
-  const d = new Map<string, number>();
-  for (const n of names) d.set(n, (d.get(n) || 0) + 1);
-  const sorted = [...d.entries()].sort((a, b) => b[1] - a[1]);
-  const top = sorted.slice(0, 7);
-  const other = sorted.slice(7).reduce((s, [, n]) => s + n, 0);
-  if (other) top.push(['other', other]);
-  return top;
-}
-
-// Tool-mix counts, reshaped for Recharts' `data` prop (thin wrapper around
-// the same tally topDist does, but unsorted-cap and keyed as {name,count}
-// rather than [name,count] pairs — the Tool Mix card wants every tool, sorted,
-// not top-7 + "other").
+// Tool-mix counts, reshaped for Recharts' `data` prop — every tool, sorted
+// desc by count (unlike a top-7 + "other" cut, the Tool Mix card only ever
+// renders its own top slice, so no aggregation bucket is needed here).
 function toolMixSorted(messages: StatMessage[]): { name: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const m of messages) {
@@ -180,10 +167,8 @@ function engagedDurationMs(messages: StatMessage[]): number {
 export {
   summarizeToolInput,
   FRIENDLY_CALL,
-  DONUT_COLORS,
   DELETABLE_SOURCES,
   isErrorResult,
-  topDist,
   toolMixSorted,
   cumulativeCostSeries,
   fmtCtx,

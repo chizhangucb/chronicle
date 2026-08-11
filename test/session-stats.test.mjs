@@ -1,8 +1,9 @@
 // Characterization tests for the two new src/session/stats.ts helpers that
-// feed the Session Overview chart grid (5d-2): toolMixSorted (a Recharts-
-// shaped wrapper around the existing topDist) and cumulativeCostSeries (a
-// per-turn running-cost series distributing each model's aggregate cost
-// evenly across its assistant turns, in chronological order).
+// feed the Session Overview chart grid (5d-2): toolMixSorted (tool_use
+// counts by tool_name, desc, reshaped for Recharts' `data` prop) and
+// cumulativeCostSeries (a per-turn running-cost series distributing each
+// model's aggregate cost evenly across its assistant turns, in chronological
+// order).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toolMixSorted, cumulativeCostSeries } from '../src/session/stats.ts';
