@@ -437,7 +437,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         </div>
         <div className="kpi">
           <div className="l">{t('Cost')}</div>
-          <div className="v">{fmtMoney(stats.totalCost, 2)}</div>
+          <div className="v">{fmtMoney(stats.totalCost, 0)}</div>
           <div className="s">{fmtInt(stats.modelCount)} {t('models')}</div>
         </div>
         <div className="kpi">
