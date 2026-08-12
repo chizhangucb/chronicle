@@ -1,10 +1,11 @@
 import type { Express, Request, Response } from 'express';
-import { computeExplore, type ExploreMetric, type ExploreGroup } from '../explore.ts';
+import { computeExplore, type ExploreMetric, type ExploreGroup, type ExploreRollup } from '../explore.ts';
 import type { Scope } from '../scope.ts';
 
 const SCOPE_TYPES: Scope['type'][] = ['all', 'project', 'session'];
 const METRICS: ExploreMetric[] = ['spend', 'tokens', 'requests', 'active', 'sessions', 'errors'];
 const GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'tool', 'skill', 'subagent', 'hour'];
+const ROLLUPS: ExploreRollup[] = ['total', 'hourly', 'daily', 'weekly', 'monthly'];
 
 export function mountExplore(app: Express): void {
   // Validate query params against their allowed value sets BEFORE calling
@@ -18,6 +19,7 @@ export function mountExplore(app: Express): void {
     const metric = String(req.query.metric || 'spend');
     const group = String(req.query.group || 'model');
     const subgroupRaw = req.query.subgroup != null ? String(req.query.subgroup) : undefined;
+    const rollup = String(req.query.rollup || 'total');
 
     if (!SCOPE_TYPES.includes(scopeType as Scope['type'])) {
       return void res.status(400).json({ error: `invalid scope: ${scopeType}` });
@@ -31,6 +33,9 @@ export function mountExplore(app: Express): void {
     if (subgroupRaw != null && !GROUPS.includes(subgroupRaw as ExploreGroup)) {
       return void res.status(400).json({ error: `invalid subgroup: ${subgroupRaw}` });
     }
+    if (!ROLLUPS.includes(rollup as ExploreRollup)) {
+      return void res.status(400).json({ error: `invalid rollup: ${rollup}` });
+    }
 
     const scope: Scope = { type: scopeType as Scope['type'], id: req.query.id as string | undefined };
     try {
@@ -39,7 +44,7 @@ export function mountExplore(app: Express): void {
         metric: metric as ExploreMetric,
         group: group as ExploreGroup,
         subgroup: (subgroupRaw as ExploreGroup) || undefined,
-        rollup: 'total', topN: Number(req.query.topN) || 10,
+        rollup: rollup as ExploreRollup, topN: Number(req.query.topN) || 10,
       }));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

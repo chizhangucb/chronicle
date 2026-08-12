@@ -1103,6 +1103,8 @@ h4 { margin: 6px 0; }
 .pv .lbl { color: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; }
 .pv .car { color: var(--ink-3); font-size: 9px; }
 .pv.add { color: var(--ink-3); border-style: dashed; }
+.pv:disabled { opacity: 0.4; cursor: not-allowed; }
+.pv:disabled:hover { border-color: var(--border); }
 .pv-sep { color: var(--ink-3); }
 .menu-item[data-disabled] { color: var(--ink-3); cursor: not-allowed; }
 .menu-item[data-disabled]:hover, .menu-item[data-disabled][data-highlighted] { background: none; }
