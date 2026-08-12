@@ -1,0 +1,78 @@
+# Publish chronicle-cli to npm via OIDC Trusted Publishing.
+#
+# WHY: npm retired TOTP and is deprecating tokens; a manual `npm publish` now
+# needs a human passkey/WebAuthn ceremony (Touch ID in a browser). Trusted
+# Publishing lets npm trust THIS workflow instead: GitHub mints a short-lived
+# OIDC token for the run, npm exchanges it, and publishes — no passkey, no
+# stored NPM_TOKEN secret, and provenance attestation is emitted automatically.
+#
+# ONE-TIME SETUP (npmjs.com, done once by the package owner):
+#   npmjs.com → chronicle-cli → Settings → Trusted Publisher → GitHub Actions:
+#     Organization/user: chizhangucb
+#     Repository:        chronicle
+#     Workflow filename: publish.yml
+#     Environment:       (leave blank)
+# After that, pushing a `vX.Y.Z` tag publishes automatically.
+#
+# RELEASE FLOW (unchanged from the manual one, minus the passkey):
+#   1. bump package.json version + CHANGELOG on a branch → PR → merge to main
+#   2. git tag vX.Y.Z <merge-commit> && git push origin vX.Y.Z
+#   3. this workflow runs: gates (typecheck+test via prepublishOnly, build +
+#      publish-compile via prepack), verifies tag == package.json version,
+#      then `npm publish`.
+# The manual `npm publish` path still works if ever needed — this is additive.
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+
+# Never let two publish runs race (e.g. a force-repushed tag).
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # REQUIRED: lets GitHub mint the OIDC token npm exchanges.
+    steps:
+      - uses: actions/checkout@v4
+
+      # NOTE: intentionally NO `registry-url` — it scaffolds an .npmrc with an
+      # empty NODE_AUTH_TOKEN line that can make npm try token auth before the
+      # OIDC exchange. The default registry is registry.npmjs.org already.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # Trusted Publishing needs npm >= 11.5.1, and Node 24.0 shipped npm 11.3.0
+      # (too old) — so this upgrade is load-bearing, not belt-and-suspenders.
+      # Pin an EXACT known-good version rather than @latest: this job holds
+      # id-token:write + publish rights, so pulling whatever npm is current at
+      # release time would be a non-reproducible supply-chain surface. Bump
+      # deliberately when validating a newer npm.
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@11.11.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+          echo "Publishing chronicle-cli@$PKG from tag $GITHUB_REF_NAME"
+
+      # `npm publish` runs prepublishOnly (typecheck + test) then prepack
+      # (build + tsc publish-compile → dist/ + dist-server/) automatically.
+      # No NODE_AUTH_TOKEN: OIDC trusted publishing supplies credentials.
+      - name: Publish
+        run: npm publish
