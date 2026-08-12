@@ -270,8 +270,11 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     const activeMs = agentActiveMs(events);
     // Precomputed error-heuristic aggregates — see the migration comment above.
     let resultCount = 0, errorCount = 0;
+    // `!= null` (not truthiness): empty-string results count toward
+    // result_count, matching the backfill's `text IS NOT NULL` and the old
+    // per-request query — else re-import shrinks the error-rate denominator.
     for (const e of events) {
-      if (e.kind !== 'tool_result' || !e.text) continue;
+      if (e.kind !== 'tool_result' || e.text == null) continue;
       resultCount++;
       if (isErrorHead(e.text)) errorCount++;
     }
