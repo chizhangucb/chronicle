@@ -153,7 +153,13 @@ body {
 .git-pill { color: var(--ok); }
 .warn-pill { color: var(--warn); }
 .ok-pill { color: var(--ok); }
-.src-pill { color: var(--brass); }
+/* Source tag (claude-code / codex / …): a SQUARED, muted tag, deliberately
+   distinct from the rounded brass project pill/dot so the two never read as
+   the same kind of chip. */
+.src-pill {
+  border-radius: 3px; background: transparent; border: 1px solid var(--border);
+  color: var(--ink-3); text-transform: uppercase;
+}
 /* Per-project identity pill: caller sets `--project-color` inline for the
    first 5 projects (see src/colors.ts projectColorMap()); the 6th+ project
    gets no `--project-color` and falls back to neutral ink (spec: "6th+
@@ -220,6 +226,9 @@ body {
 .colhead {
   display: grid; grid-template-columns: minmax(0,1fr) 90px 70px 70px 56px 64px; gap: 12px;
   padding: 0 12px 4px; margin-left: 18px;
+  /* Transparent 1px border so the header's content box lines up EXACTLY with
+     the bordered `.row`s below it (was drifting 2px without a matching box). */
+  border: 1px solid transparent;
 }
 .row {
   display: grid; grid-template-columns: minmax(0,1fr) 90px 70px 70px 56px 64px; gap: 12px;
@@ -235,6 +244,31 @@ body {
 }
 .row .m b { color: var(--ink); font-weight: 500; }
 .row .m .u { color: var(--ink-3); font-size: 10.5px; }
+/* Session title clamps to 2 lines (long `/rename` titles no longer push the
+   row height unbounded); the source tag sits a hair below it for rhythm. */
+.row .title .t {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.row .sub { margin-top: 6px; }
+/* Per-day summary ("3 sessions · $4.12") set off from the day label so it never
+   reads "TODAY3". Tabular-nums already applied in the PR1 combined rule. */
+.day-head .sum { margin-left: 10px; color: var(--ink-3); }
+
+/* Select mode prepends a 28px checkbox column to BOTH the header and the rows;
+   the base grids (no `.selectable`) are untouched, so nothing shifts when not
+   selecting. */
+.row.selectable, .colhead.selectable {
+  grid-template-columns: 28px minmax(0,1fr) 90px 70px 70px 56px 64px;
+}
+/* The prepended header cell pushes Project into the base `nth-child(n+3)`
+   right-align band; keep it left (matching the non-select header). */
+.colhead.selectable span:nth-child(3) { text-align: left; }
+.rowcheck { display: flex; align-items: center; justify-content: center; }
+
+/* Lazy-scroll trip wire at the ledger bottom; IntersectionObserver watches it
+   (see src/HomePage.tsx) to append the next page of recent sessions. */
+.ledger-sentinel { height: 1px; }
 
 /* ---- Table (5c primitive) ---- */
 .tbl { width: 100%; border-collapse: collapse; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
@@ -312,6 +346,13 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .sel-check.on { color: var(--brass); }
 .page-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .page-title-actions { display: flex; align-items: center; gap: 8px; }
+/* Grouped select→act toolbar (src/SessionSelect.tsx), mounted in both the Home
+   ledger and the project session list. */
+.select-toolbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 4px 8px; background: var(--bg1);
+  border: 1px solid var(--border); border-radius: 6px;
+}
 .project-path { font-size: 12px; font-family: var(--mono); margin: 4px 0 8px; word-break: break-all; }
 .project-stats { display: flex; gap: 10px; align-items: center; font-size: 12px; margin-bottom: 6px; flex-wrap: wrap; }
 
@@ -1091,12 +1132,17 @@ h4 { margin: 6px 0; }
    task's brief was written) — distinguishes "sync failed" from "synced" so a
    red dot doesn't read as a healthy green one. */
 .rail-head .sync.failed::before { color: var(--danger); animation: none; }
-.rail-proj { padding: 9px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 2px; }
+.rail-proj { padding: 10px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; }
 .rail-proj:hover { background: var(--bg2); border-color: var(--border); }
 .rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
 .rail-proj .n .c { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.rail-proj .meta { display: flex; gap: 8px; margin-top: 3px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
-.home-search { flex: 1; max-width: 560px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
+.rail-proj .meta { display: flex; gap: 8px; margin-top: 5px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
+/* Gear (project options) is quiet by default and revealed on row hover /
+   keyboard focus, or while a sync is spinning, so the rail reads as names+counts
+   at rest. */
+.rail-proj .gear { opacity: 0; transition: opacity 0.12s; }
+.rail-proj:hover .gear, .rail-proj .gear:focus-visible, .rail-proj .gear.spin { opacity: 1; }
+.home-search { max-width: none; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
 .home-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font: 13px var(--mono); }
 
 /* ---- 5e-3: Subagents ---- */

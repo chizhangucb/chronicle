@@ -9,6 +9,7 @@ import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { fmtDur } from './session/stats.js';
+import { fmtMoney, pluralize } from './format.js';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 import type { SearchResultItem } from './api.js';
@@ -120,6 +121,11 @@ export interface HomePageProps {
   onRefresh: () => void;
 }
 
+// The empty-query "recent" branch of GET /api/search returns this many rows
+// per page; a short page (< RECENT_PAGE) means there is nothing left to
+// lazy-load. Kept in sync with `LIMIT 50` in server/routes/search.ts.
+const RECENT_PAGE = 50;
+
 // ---- Ledger row helpers (local, trivial — not shared/tested) ----
 
 // Per-row cost: aggregates the row's `usage` blob (per-model token totals,
@@ -154,15 +160,19 @@ function msgsLabel(s: SearchResultItem): string {
   return s.message_count != null ? String(s.message_count) : '—';
 }
 
-// 'now'/'{n}h ago' etc. (via the shared formatRelativeTime) for today's rows;
-// a plain HH:MM local-time render for older ones, where relative time is
-// less useful than a clock time.
-function whenLabel(s: SearchResultItem, isToday: boolean): string {
+// Always an ABSOLUTE local timestamp — `MMM D HH:MM` 24-hour (e.g. `Aug 11
+// 23:47`). Relative time ("2h ago") is ambiguous once a day-head already
+// groups by calendar day, so the When column is always a fixed clock stamp.
+const WHEN_FMT = new Intl.DateTimeFormat('en-US', {
+  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+});
+function whenLabel(s: SearchResultItem): string {
   if (!s.ts) return '';
-  if (isToday) return formatRelativeTime(s.ts);
   const d = new Date(s.ts);
   if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  // en-US month/day/24h formatting; strip the ", " between date and time to
+  // read `Aug 11 23:47` rather than `Aug 11, 23:47`.
+  return WHEN_FMT.format(d).replace(', ', ' ');
 }
 
 interface DayGroup {
@@ -237,10 +247,18 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
   // that id is still the latest by the time it resolves, so an out-of-order
   // response can never clobber a newer one.
   const requestId = useRef(0);
+  // `hasMore` gates the lazy-scroll sentinel: a full page (=== RECENT_PAGE)
+  // means there may be more to load; a short page ends pagination.
+  const [hasMore, setHasMore] = useState(true);
+  const loadingMore = useRef(false);
   const refreshRecent = () => {
     const id = ++requestId.current;
-    api.search({}).then((r) => { if (id === requestId.current) setRecentSessions(r.results); })
-      .catch(() => { if (id === requestId.current) setRecentSessions([]); });
+    loadingMore.current = false;
+    api.search({}).then((r) => {
+      if (id !== requestId.current) return;
+      setRecentSessions(r.results);
+      setHasMore(r.results.length === RECENT_PAGE);
+    }).catch(() => { if (id === requestId.current) { setRecentSessions([]); setHasMore(false); } });
   };
   useEffect(() => { refreshRecent(); }, []);
 
@@ -258,6 +276,47 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
         .catch(() => { if (id === requestId.current) setRecentSessions([]); });
     }, 200);
   }
+
+  // Lazy-scroll: append the next page of recent sessions when the sentinel at
+  // the ledger bottom scrolls into view. Only in "recent" mode (empty query) —
+  // the FTS/LIKE search branch isn't paginated. New rows are deduped by id
+  // against what's already loaded, so a re-fetch or a session landing between
+  // pages can never double-render. `requestId` guards against a refresh/search
+  // superseding an in-flight append.
+  const isRecentMode = !query.trim();
+  function loadMore() {
+    if (loadingMore.current || !hasMore || !isRecentMode || recentSessions == null) return;
+    loadingMore.current = true;
+    const id = requestId.current;
+    const offset = recentSessions.length;
+    api.search({ offset }).then((r) => {
+      loadingMore.current = false;
+      if (id !== requestId.current) return;
+      setRecentSessions((prev) => {
+        const base = prev ?? [];
+        const seen = new Set(base.map((x) => x.id));
+        return [...base, ...r.results.filter((x) => !seen.has(x.id))];
+      });
+      setHasMore(r.results.length === RECENT_PAGE);
+    }).catch(() => { loadingMore.current = false; });
+  }
+  // Keep the observer callback pointed at the latest closure (state changes each
+  // render) without tearing down/rebuilding the observer on every keystroke.
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!isRecentMode || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) loadMoreRef.current();
+    }, { rootMargin: '300px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+    // Re-observe after each append so a still-visible sentinel triggers the
+    // next page (a continuously-intersecting target won't re-fire on its own).
+  }, [isRecentMode, hasMore, recentSessions]);
 
   const selectableRecent = (recentSessions ?? []).map((s) => ({ id: s.id, source: s.source, project_id: s.project_id }));
   const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); });
@@ -284,23 +343,22 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ padding: '18px 26px 0' }}>
-        <div className="home-search">
-          ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
-            onChange={(e) => handleQueryChange(e.target.value)} />
-          <span className="kbd">⌘K</span>
-        </div>
-      </div>
       <div className="home-body">
         <main className="home-stream">
+          <div className="home-search">
+            ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+              onChange={(e) => handleQueryChange(e.target.value)} />
+            <span className="kbd">⌘K</span>
+          </div>
           <div className="page-title-row">
             <h1 className="page-title">{t('Recent sessions')}</h1>
             <div className="page-title-actions">
-              <span className="muted">{recentSessions?.length ?? 0} {t('sessions')} · {projects?.length ?? 0} {t('projects')}</span>
+              <span className="muted">{pluralize(projects?.length ?? 0, t('project'), t('projects'))}</span>
               {recentSelect.Bar}
             </div>
           </div>
-          <div className="colhead">
+          <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
+            {recentSelect.selectMode && <span aria-hidden="true" />}
             <span>{t('Session')}</span><span>{t('Project')}</span><span>{t('Cost')}</span>
             <span>{t('Active')}</span><span>{t('Msgs')}</span><span>{t('When')}</span>
           </div>
@@ -309,23 +367,30 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
               <div className="day-head"><span className="d">{g.label}</span>
                 {g.sum && (
                   <span className="sum">
-                    {g.sum.count} {t('sessions')}{g.sum.cost != null && ` · $${g.sum.cost.toFixed(2)}`}
+                    {pluralize(g.sum.count, t('session'), t('sessions'))}{g.sum.cost != null && ` · ${fmtMoney(g.sum.cost, 2)}`}
                   </span>
                 )}</div>
               {g.rows.map((s) => (
                 <div key={s.id} className={`row ${recentSelect.selectMode ? 'selectable' : ''} ${recentSelect.isSelected(s.id) ? 'selected' : ''}`}
                   onClick={() => (recentSelect.selectMode ? recentSelect.toggle(s.id) : onOpenSession?.(s.id, s.project_id))}>
+                  {recentSelect.selectMode && (
+                    <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={recentSelect.isSelected(s.id)}
+                        onChange={() => recentSelect.toggle(s.id)} aria-label={t('Select session')} />
+                    </div>
+                  )}
                   <div className="title"><div className="t">{sessionDisplayName(s)}</div>
                     <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
                   <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
                   <div className="m"><b>{costLabel(s)}</b></div>
                   <div className="m">{activeLabel(s)}</div>
                   <div className="m"><b>{msgsLabel(s)}</b></div>
-                  <div className="m">{whenLabel(s, g.isToday)}</div>
+                  <div className="m">{whenLabel(s)}</div>
                 </div>
               ))}
             </section>
           ))}
+          {isRecentMode && hasMore && <div ref={sentinelRef} className="ledger-sentinel" aria-hidden="true" />}
           <MinorSessionsBucket onRefresh={onRefresh} />
         </main>
         <aside className="home-rail">

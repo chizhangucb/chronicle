@@ -82,11 +82,16 @@ export function mountSearch(app: Express): void {
       const where = ['COALESCE(s.minor, 0) = 0'];
       const params: (string | number)[] = [];
       if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
+      // Home ledger shows the last ~50 sessions and lazy-scrolls: the client
+      // bumps `offset` by 50 and appends the next page (dedupe by id). Ordering
+      // is stable by COALESCE(ended_at, started_at) DESC, so paging never
+      // overlaps or reorders. A missing/garbage offset degrades to 0.
+      const offset = Number(req.query.offset) || 0;
       const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
           s.started_at, s.ended_at, s.message_count, s.usage, s.agent_active_ms, p.name AS project_name
         FROM sessions s JOIN projects p ON p.id = s.project_id
         WHERE ${where.join(' AND ')}
-        ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 12`).all(...params) as unknown as RecentRow[];
+        ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 50 OFFSET ?`).all(...params, offset) as unknown as RecentRow[];
       return res.json({ recent: true, results: rows.map((r) => ({ ...r, matchCount: 0, snippet: '', ts: r.ended_at || r.started_at })) });
     }
 
