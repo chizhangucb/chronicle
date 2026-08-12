@@ -15,7 +15,7 @@ interface SearchScope {
 const SEARCH_SCOPES: SearchScope[] = [
   { key: 'all', label: 'All', icon: '≡' },
   { key: 'code', label: 'Code', icon: '</>' },
-  { key: 'chat', label: 'Chat', icon: '💬' },
+  { key: 'chat', label: 'Chat', icon: '▤' },
 ];
 
 interface SearchRange {
@@ -133,7 +133,6 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
           <span className="search-mag">⌕</span>
           <input ref={inputRef} className="search-input" placeholder={t('Search session content…')}
             value={q} onChange={(e) => setQ(e.target.value)} />
-          <span className="kbd">⌘K</span>
           <button className="btn ghost tiny" onClick={onClose}>✕</button>
         </div>
         <div className="search-filters">
@@ -146,10 +145,10 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
           </span>
           <span className="search-selects">
             <select className="chip range-select" value={days} onChange={(e) => setDays(e.target.value)}>
-              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>📅 {t(r.label)}</option>)}
+              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>◷ {t(r.label)}</option>)}
             </select>
             <select className="chip range-select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">📁 {t('All Projects')}</option>
+              <option value="">◫ {t('All Projects')}</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </span>
@@ -159,7 +158,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
           {results.map((r, i) => (
             <button key={r.id} data-idx={i} className={`search-row ${i === active ? 'active' : ''}`}
               onMouseEnter={() => setActive(i)} onClick={() => open(r)}>
-              <span className="search-row-clock">🕘</span>
+              <span className="search-row-clock">◷</span>
               <span className="search-row-body">
                 <span className="search-row-title">
                   <span className="search-row-project">{r.project_name}</span>

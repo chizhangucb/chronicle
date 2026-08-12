@@ -207,7 +207,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     if (!data) return;
     onRailChange?.({
       modes: [
-        { key: 'overview', icon: '📊', label: t('Overview'), title: 'Session Overview (⌘1)' },
+        { key: 'overview', icon: '⬚', label: t('Overview'), title: 'Session Overview (⌘1)' },
         { key: 'playback', icon: '▶', label: t('Playback'), title: 'Playback Mode (⌘2)' },
         { key: 'refine', icon: '✂', label: t('Refine'), title: 'Refine Mode (⌘3)' },
       ],
