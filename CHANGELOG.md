@@ -3,6 +3,24 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## 1.1.0
+
+- **App-wide design-system pass.** Consistent typography, spacing, control
+  sizing, and interaction states across Home, Project Detail, Insights,
+  Session Overview/Playback, and app chrome/modals — tabular numeric
+  alignment, one money-formatting policy, one mono icon/glyph vocabulary (no
+  more colored emoji in the UI), and a draggable sidebar + project rail with
+  persisted widths.
+- **Explore: time-rollup views.** New hourly/daily/weekly/monthly stacked
+  time-series, plus detail-column correctness and calibrated-marker fixes.
+- **Insights: proxy spend tile.** Live-reads a LiteLLM `spend.jsonl` when
+  present; faster range clicks via a covering index and precomputed error
+  counts.
+- **Home:** recent-50 lazy-scroll ledger, absolute timestamps, and inline
+  multi-select for bulk actions.
+- Assorted correctness fixes in Explore/Insights (error attribution, commit
+  caching) and dead-code cleanup.
+
 ## 1.0.2
 
 - Internal: shared conversation-pane component (`WindowedConvPane`) deduped
