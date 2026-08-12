@@ -11,7 +11,7 @@ import { fmtMoney } from './format.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
-import { groupHasPerModelTokens } from './explore/tokenColumns.ts';
+import { groupShowsTokenColumn } from './explore/tokenColumns.ts';
 
 // Mounted by both InsightsPage (5e-1, scope {type:'all'}) and ProjectDetail
 // (5e-4, scope {type:'project', id}) — kept generic from day one so 5e-4
@@ -196,9 +196,12 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // column for those (Spend/Active/Errors have no fixed twin, so it stays).
   const FIXED_COLUMN_KEYS = new Set(['Tokens', 'Requests', 'Sessions']);
   const showMetricCol = !FIXED_COLUMN_KEYS.has(METRIC_COLUMN_KEY[pivot.metric]);
-  // EXP-02: only model/project/source carry authoritative per-model token cells;
-  // tool/skill/subagent/hour render '—' in Tokens/$-per-session (see tokenColumns.ts).
-  const hasTokenCols = groupHasPerModelTokens(pivot.group);
+  // EXP-02: suppress the TOKENS column to '—' only for the truly-calibrated
+  // groups (tool/skill), whose card carries the ≈ badge. model/project/source
+  // (authoritative) AND subagent/hour (real per-message tokens, shown unmarked
+  // on the card/bar) show the concrete number. $/session is SPEND-derived and is
+  // NOT gated here — it shows for every group (see tokenColumns.ts).
+  const showTokenCol = groupShowsTokenColumn(pivot.group);
 
   return (
     <>
@@ -295,10 +298,10 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <td><span className="dot" style={{ background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} />{row.label}</td>
                       {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}
                       <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></span> {share.toFixed(1)}%</td>
-                      <td>{hasTokenCols ? fmtTok(rowTokens(row)) : '—'}</td>
+                      <td>{showTokenCol ? fmtTok(rowTokens(row)) : '—'}</td>
                       <td>{row.requests.toLocaleString()}</td>
                       <td>{row.sessions.toLocaleString()}</td>
-                      <td>{hasTokenCols ? fmtMoney(perSession, 2) : '—'}</td>
+                      <td>{fmtMoney(perSession, 2)}</td>
                     </tr>
                   );
                 })}

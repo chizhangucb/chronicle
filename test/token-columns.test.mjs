@@ -1,19 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupHasPerModelTokens } from '../src/explore/tokenColumns.ts';
+import { groupShowsTokenColumn } from '../src/explore/tokenColumns.ts';
 
-// Only model/project/source carry authoritative per-model token cells
-// (server EXACT_USAGE_GROUPS, sourced from sessions.usage). tool/skill are
-// calibrated; subagent/hour are per-message approximations — none authoritative.
-test('groupHasPerModelTokens: authoritative groups', () => {
-  assert.equal(groupHasPerModelTokens('model'), true);
-  assert.equal(groupHasPerModelTokens('project'), true);
-  assert.equal(groupHasPerModelTokens('source'), true);
+// The Detail Tokens column shows a concrete number for groups whose token
+// magnitude the app treats as real: model/project/source (authoritative billed
+// cells from sessions.usage) AND subagent/hour (per-message token columns,
+// shown UNMARKED on the card/bar — server sets result.calibrated only for
+// tool/skill, so `—` here would contradict the card).
+test('groupShowsTokenColumn: real-number groups', () => {
+  assert.equal(groupShowsTokenColumn('model'), true);
+  assert.equal(groupShowsTokenColumn('project'), true);
+  assert.equal(groupShowsTokenColumn('source'), true);
+  assert.equal(groupShowsTokenColumn('subagent'), true);
+  assert.equal(groupShowsTokenColumn('hour'), true);
 });
 
-test('groupHasPerModelTokens: calibrated / approximate groups render — (EXP-02)', () => {
-  assert.equal(groupHasPerModelTokens('tool'), false);
-  assert.equal(groupHasPerModelTokens('skill'), false);
-  assert.equal(groupHasPerModelTokens('subagent'), false);
-  assert.equal(groupHasPerModelTokens('hour'), false);
+// tool/skill are the ONLY calibrated exceptions: token magnitude is estimated
+// from message-text length and the card carries the `≈` badge, so the Detail
+// Tokens column suppresses to `—` (EXP-02). Note $/session is NOT gated by this
+// predicate — it is spend-derived and shows for every group.
+test('groupShowsTokenColumn: calibrated groups suppress Tokens to — (EXP-02)', () => {
+  assert.equal(groupShowsTokenColumn('tool'), false);
+  assert.equal(groupShowsTokenColumn('skill'), false);
 });
