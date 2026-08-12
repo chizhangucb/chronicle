@@ -11,7 +11,7 @@ import type { ExploreQueryParams } from '../api.ts';
 export type PivotMetric = ExploreQueryParams['metric'];
 export type PivotGroup = ExploreQueryParams['group'];
 export type PivotSubgroup = PivotGroup | 'none';
-export type PivotRollup = 'total' | 'hourly' | 'daily' | 'weekly';
+export type PivotRollup = NonNullable<ExploreQueryParams['rollup']>;
 
 export interface PivotState {
   metric: PivotMetric;
@@ -63,15 +63,13 @@ function subgroupOptions(): Option<PivotSubgroup>[] {
   return [{ key: 'none', label: t('None') }, ...groupOptions()];
 }
 
-// Planning decision: only Total is wired in 5e-1 — Hourly/Daily/Weekly are
-// shown (matching the mockup) but disabled with an explanatory title.
 function rollupOptions(): Option<PivotRollup>[] {
-  const comingSoon = t('Time rollups coming soon');
   return [
-    { key: 'total', label: t('Total'), enabled: true },
-    { key: 'hourly', label: t('Hourly'), enabled: false, title: comingSoon },
-    { key: 'daily', label: t('Daily'), enabled: false, title: comingSoon },
-    { key: 'weekly', label: t('Weekly'), enabled: false, title: comingSoon },
+    { key: 'total', label: t('Total') },
+    { key: 'hourly', label: t('Hourly') },
+    { key: 'daily', label: t('Daily') },
+    { key: 'weekly', label: t('Weekly') },
+    { key: 'monthly', label: t('Monthly') },
   ];
 }
 
@@ -81,14 +79,25 @@ const TOPN_OPTIONS: Option<number>[] = [5, 10, 20, 50].map((n) => ({ key: n, lab
 // current value + caret). Markup/pattern copied from App.tsx's language
 // switcher so styling matches exactly.
 function PvChip<T extends string | number>({
-  label, options, current, onSelect,
+  label, options, current, onSelect, disabled, disabledTitle,
 }: {
   label: string;
   options: Option<T>[];
   current: T;
   onSelect: (key: T) => void;
+  disabled?: boolean;
+  disabledTitle?: string;
 }): JSX.Element {
   const currentLabel = options.find((o) => o.key === current)?.label ?? String(current);
+  // Whole-chip disable (e.g. Subgroup while a time rollup is active — the stack
+  // already carries the group series). Render a static button, no dropdown.
+  if (disabled) {
+    return (
+      <button type="button" className="pv" disabled title={disabledTitle}>
+        <span className="lbl">{label}</span> {currentLabel} <span className="car">▾</span>
+      </button>
+    );
+  }
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -124,7 +133,8 @@ export default function PivotControls({ value, onChange }: PivotControlsProps): 
       <PvChip label={t('Group')} options={groupOptions()} current={value.group}
         onSelect={(group) => onChange({ ...value, group })} />
       <PvChip label={t('Subgroup')} options={subgroupOptions()} current={value.subgroup}
-        onSelect={(subgroup) => onChange({ ...value, subgroup })} />
+        onSelect={(subgroup) => onChange({ ...value, subgroup })}
+        disabled={value.rollup !== 'total'} disabledTitle={t('Not available with time rollups')} />
       <PvChip label={t('Rollup')} options={rollupOptions()} current={value.rollup}
         onSelect={(rollup) => onChange({ ...value, rollup })} />
       <PvChip label={t('Top')} options={TOPN_OPTIONS} current={value.topN}

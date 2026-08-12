@@ -13,10 +13,15 @@ const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|com
 
 export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
 export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
+// 'total' collapses time (ranked bars). The four time rollups bucket the range
+// into a stacked time-series; 'total' output is byte-identical to before this
+// feature (plus the two scalar rollup fields on the result). See
+// records/design/2026-08-11-chronicle-explore-rollups/spec.md.
+export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export interface ExploreQuery {
   scope: Scope; days: number | null;
   metric: ExploreMetric; group: ExploreGroup; subgroup?: ExploreGroup;
-  rollup: 'total'; topN: number;
+  rollup: ExploreRollup; topN: number;
 }
 export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
 export interface ExploreRow {
@@ -25,9 +30,73 @@ export interface ExploreRow {
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
 }
+// One (bucket × series) cell in a time-rollup. Metric-SPECIALIZED: only the
+// dimension the chosen metric reads is populated (tokensByModel for
+// tokens/spend; the matching scalar for requests/sessions/errors/active), the
+// rest stay zero. The client reuses its per-row metricValue/rowSpend/rowTokens
+// on this same shape, so a cell projects to exactly one meaningful number.
+export interface ExploreCell {
+  tokensByModel: Record<string, ModelUsageCell>;
+  requests: number; sessions: number; errors: number; activeMs: number;
+}
+// One time bucket. `bucket` is the raw sortable key (ISO-ish); `label` is the
+// short human string for the axis. `series` is keyed by the SAME group values
+// chosen for the ranked rows (topN group values + 'Other'); a series absent
+// from a bucket is simply omitted (the client fills 0 for continuous stacking).
+export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: ExploreMetric; group: ExploreGroup; subgroup: ExploreGroup | null;
   calibrated: boolean; rows: ExploreRow[];
+  // effective rollup actually rendered (post cap-coarsening); requestedRollup =
+  // what the caller asked for. rollup !== requestedRollup ⇒ the client shows a
+  // "too dense, showing <coarser>" note. buckets present iff rollup !== 'total'.
+  rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
+}
+
+// Chart legibility cap: at ~90 bars in a ~1000px plot each bar is ≈11px, still
+// hoverable; beyond that bars become unreadable hairlines. When a range+bucket
+// would exceed this, the effective rollup steps coarser until it fits.
+export const ROLLUP_BUCKET_CAP = 90;
+const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'weekly', 'monthly'];
+
+// SQL expression yielding a bucket key for a timestamp column. Keys are chosen
+// to sort chronologically as plain strings and to be directly labelable:
+// hourly "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date
+// "2026-08-03" (%w is 0=Sun..6=Sat; Monday offset = (%w+6)%7 days back),
+// monthly "2026-08".
+export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string): string {
+  switch (rollup) {
+    case 'hourly': return `substr(${ts}, 1, 13)`;
+    case 'daily': return `substr(${ts}, 1, 10)`;
+    case 'weekly': return `date(${ts}, '-' || ((CAST(strftime('%w', ${ts}) AS INTEGER) + 6) % 7) || ' days')`;
+    case 'monthly': return `substr(${ts}, 1, 7)`;
+  }
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Deterministic short axis label from a bucket key (branch on key length so one
+// formatter serves all four rollups; no locale, matching the mono axis style).
+export function bucketLabel(key: string): string {
+  const mon = (m: string): string => MONTHS[Math.max(0, Math.min(11, Number(m) - 1))];
+  if (key.length === 13) return `${mon(key.slice(5, 7))} ${Number(key.slice(8, 10))} ${key.slice(11, 13)}h`; // hourly
+  if (key.length === 10) return `${mon(key.slice(5, 7))} ${Number(key.slice(8, 10))}`; // daily / weekly (Monday date)
+  if (key.length === 7) return `${mon(key.slice(5, 7))} ${key.slice(0, 4)}`; // monthly
+  return key;
+}
+
+// Pure cap-coarsening: from the requested rollup, return the finest rollup whose
+// bucket count fits the cap. `countFor` is called at most 3 times (monthly is
+// terminal — never coarsened further). Exported for unit testing without a DB.
+export function pickRollup(
+  requested: Exclude<ExploreRollup, 'total'>,
+  countFor: (r: Exclude<ExploreRollup, 'total'>) => number,
+  cap = ROLLUP_BUCKET_CAP,
+): Exclude<ExploreRollup, 'total'> {
+  for (let i = ROLLUP_ORDER.indexOf(requested); i < ROLLUP_ORDER.length; i++) {
+    const r = ROLLUP_ORDER[i];
+    if (r === 'monthly' || countFor(r) <= cap) return r;
+  }
+  return 'monthly';
 }
 
 const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill'];
@@ -348,5 +417,133 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     for (const r of rows) r.segments = (byRow.get(r.key) ?? []).sort((a, b) => b.tokens - a.tokens);
   }
 
-  return { metric: q.metric, group: q.group, subgroup: q.subgroup ?? null, calibrated, rows };
+  // Time rollups (rollup !== 'total'): keep `rows` as the range totals (Detail
+  // table + Total-view bars) and additionally return per-bucket series for the
+  // stacked time-series. First cap-coarsen the requested rollup to fit the
+  // legibility cap (cheap COUNT(DISTINCT bucket) over the in-scope timeline per
+  // step), then aggregate at the effective granularity. `rows` already carries
+  // the topN+Other fold, so its keys ARE the series set.
+  let effectiveRollup: ExploreRollup = 'total';
+  let buckets: ExploreBucket[] | undefined;
+  if (q.rollup !== 'total') {
+    effectiveRollup = pickRollup(q.rollup, (r) =>
+      (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
+        .get(...bind()) as { n: number }).n);
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, sc, base, g });
+  }
+
+  return {
+    metric: q.metric, group: q.group, subgroup: q.subgroup ?? null, calibrated, rows,
+    rollup: effectiveRollup, requestedRollup: q.rollup, buckets,
+  };
+}
+
+// Per-(bucket × series) aggregation for a time rollup. Metric-SPECIALIZED: only
+// the dimension the chosen metric reads is populated per cell (see ExploreCell).
+// `rows` supplies the series identity (its keys = topN group values + 'Other'),
+// so the time-series stacks the SAME series the ranked/Detail views show, in the
+// same colors. Non-topN group values fold into 'Other' per bucket.
+interface RollupCtx { cutoff: string; sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string }; }
+function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
+  if (effective === 'total') return [];
+  const { cutoff, sc, base, g } = ctx;
+  const bind = (extra: (string|number)[] = []): (string|number)[] => [cutoff, ...sc.params, ...extra];
+  const bm = bucketExpr(effective, 'm.ts');
+  const bs = bucketExpr(effective, 's.started_at');
+  // Session scan (used by usage-sourced token magnitude + calibrated billed),
+  // bucketed by started_at — a session lands wholly in one bucket.
+  const sessionSql = `SELECT ${bs} AS bkt, p.name AS project, s.source AS source, s.usage AS usage
+    FROM sessions s JOIN projects p ON p.id = s.project_id
+    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}`;
+
+  // series identity: topN group values are their own series; everything else
+  // (present iff `rows` was folded) collapses to 'Other'.
+  const topN = new Set(rows.filter((r) => r.key !== 'Other').map((r) => r.key));
+  const hasOther = rows.some((r) => r.key === 'Other');
+  const seriesKeyFor = (gv: string): string => (topN.has(gv) ? gv : (hasOther ? 'Other' : gv));
+
+  const grid = new Map<string, Map<string, ExploreCell>>();
+  const cell = (bkt: string, sk: string): ExploreCell => {
+    let m = grid.get(bkt); if (!m) { m = new Map(); grid.set(bkt, m); }
+    let c = m.get(sk); if (!c) { c = { tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0 }; m.set(sk, c); }
+    return c;
+  };
+
+  if (q.metric === 'tokens' || q.metric === 'spend') {
+    if (EXACT_USAGE_GROUPS.includes(q.group)) {
+      // model/project/source magnitude from sessions.usage, bucketed by started_at.
+      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; project: string; source: string; usage: string|null }[];
+      for (const r of srows) {
+        for (const [model, u] of Object.entries(parseUsageCells(r.usage))) {
+          const gv = q.group === 'model' ? model : q.group === 'project' ? r.project : r.source;
+          addCell(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
+        }
+      }
+    } else if (CALIBRATED_GROUPS.includes(q.group)) {
+      // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
+      // then split across the bucket's real models — the range-total path, partitioned.
+      const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
+        COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
+        FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
+      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; usage: string|null }[];
+      const billedByBucket = new Map<string, number>();
+      const splitByBucket = new Map<string, Map<string, { input: number; output: number }>>();
+      for (const r of srows) {
+        for (const [model, u] of Object.entries(parseUsageCells(r.usage))) {
+          billedByBucket.set(r.bkt, (billedByBucket.get(r.bkt) ?? 0) + u.input + u.output);
+          let sp = splitByBucket.get(r.bkt); if (!sp) { sp = new Map(); splitByBucket.set(r.bkt, sp); }
+          const cur = sp.get(model) ?? { input: 0, output: 0 }; cur.input += u.input; cur.output += u.output; sp.set(model, cur);
+        }
+      }
+      const charByBucket = new Map<string, { key: string; chars: number }[]>();
+      for (const cr of charRows) { const a = charByBucket.get(cr.bkt) ?? []; a.push({ key: String(cr.gk), chars: cr.chars }); charByBucket.set(cr.bkt, a); }
+      for (const [bkt, arr] of charByBucket) {
+        const billed = billedByBucket.get(bkt) ?? 0;
+        const split = splitByBucket.get(bkt);
+        for (const { key: gk, tokens: T } of calibrateByBucket(arr, billed)) {
+          const tbm = cell(bkt, seriesKeyFor(gk)).tokensByModel;
+          if (!split || billed <= 0) { addCell(tbm, '', { input: T, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 }); continue; }
+          for (const [model, v] of split) {
+            const msTotal = v.input + v.output; if (msTotal <= 0) continue;
+            const modelTokens = Math.round(T * (msTotal / billed));
+            const input = Math.round(modelTokens * (v.input / msTotal));
+            addCell(tbm, model, { input, output: modelTokens - input, cacheRead: 0, cw5m: 0, cw1h: 0 });
+          }
+        }
+      }
+    } else {
+      // hour/subagent: per-message token columns are exact, bucketed by m.ts.
+      const mrows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
+        COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
+        COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cw5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cw1h
+        FROM messages m ${base} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (ModelUsageCell & { bkt: string; gk: string|number; model: string })[];
+      for (const r of mrows) {
+        if (!r.model) continue;
+        addCell(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cw5m: r.cw5m, cw1h: r.cw1h });
+      }
+    }
+  } else if (q.metric === 'requests') {
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
+    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).requests += r.c;
+  } else if (q.metric === 'sessions') {
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
+    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
+  } else if (q.metric === 'errors') {
+    const errCol = errorGroupCol(q.group);
+    const br = bucketExpr(effective, 'r.ts');
+    const er = db.prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
+      FROM messages r
+      JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
+      JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
+      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}`).all(...bind()) as unknown as { bkt: string; gk: string|number|null; head: string }[];
+    for (const e of er) { if (e.gk == null || !ERROR_RE.test(e.head)) continue; cell(String(e.bkt), seriesKeyFor(String(e.gk))).errors++; }
+  } else if (q.metric === 'active') {
+    const rr = db.prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
+      FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string; gk: string|number; sid: string; ms: number }[];
+    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).activeMs += r.ms;
+  }
+
+  return [...grid.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([bucket, series]) => ({ bucket, label: bucketLabel(bucket), series: Object.fromEntries(series) }));
 }

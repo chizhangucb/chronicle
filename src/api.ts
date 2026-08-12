@@ -331,6 +331,7 @@ export interface InsightsResult {
 // These interfaces mirror server/explore.ts and server/content.ts VERBATIM —
 // keep them in sync if the server types change.
 
+export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
 export interface ExploreRow {
   key: string; label: string;
@@ -338,11 +339,20 @@ export interface ExploreRow {
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
 }
+// One (bucket × series) cell in a time-rollup — metric-specialized (only the
+// dimension the chosen metric reads is populated). Structurally a superset of
+// what metricValue/rowSpend/rowTokens read, so those helpers accept it directly.
+export interface ExploreCell {
+  tokensByModel: Record<string, ModelUsageCell>;
+  requests: number; sessions: number; errors: number; activeMs: number;
+}
+export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
   group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
   subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | null;
   calibrated: boolean; rows: ExploreRow[];
+  rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
 
 export interface ContentResult {
@@ -362,6 +372,7 @@ export interface ExploreQueryParams {
   metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
   group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour';
   subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'; topN?: number;
+  rollup?: ExploreRollup;
 }
 
 // ---- Git ----
@@ -423,6 +434,7 @@ export const api = {
     if (q.days) p.set('days', String(q.days));
     if (q.subgroup) p.set('subgroup', q.subgroup);
     if (q.topN) p.set('topN', String(q.topN));
+    if (q.rollup && q.rollup !== 'total') p.set('rollup', q.rollup);
     return j('/api/explore?' + p.toString());
   },
   content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> => {

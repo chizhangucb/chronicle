@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
-import { api, type ExploreResult, type ExploreRow, type ExploreQueryParams } from './api.ts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { api, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
 import { t } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
+import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf } from './models.ts';
 import PivotControls, {
-  type PivotState, type PivotMetric, metricOptions, groupOptions,
+  type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
 
 // Mounted by both InsightsPage (5e-1, scope {type:'all'}) and ProjectDetail
@@ -36,8 +38,10 @@ function fmtHours(ms: number): string {
   return (ms / 3600000).toFixed(1);
 }
 
-// Sum of a row's billed input+output tokens across every model it touched.
-function rowTokens(row: ExploreRow): number {
+// These read only the metric-agnostic aggregate fields, so they accept either a
+// range-total ExploreRow or a per-bucket ExploreCell (ExploreRow is a superset).
+// Sum of a cell's billed input+output tokens across every model it touched.
+function rowTokens(row: ExploreCell): number {
   let n = 0;
   for (const u of Object.values(row.tokensByModel)) n += u.input + u.output;
   return n;
@@ -48,7 +52,7 @@ function rowTokens(row: ExploreRow): number {
 // cell, mapping ModelUsageCell's cw5m/cw1h field names to ModelUsageInput's
 // cacheWrite5m/cacheWrite1h; costOf returns null for unpriced models, which
 // contributes 0 rather than poisoning the sum.
-function rowSpend(row: ExploreRow): number {
+function rowSpend(row: ExploreCell): number {
   let n = 0;
   for (const [model, u] of Object.entries(row.tokensByModel)) {
     n += costOf(model, {
@@ -59,7 +63,7 @@ function rowSpend(row: ExploreRow): number {
   return n;
 }
 
-function metricValue(row: ExploreRow, metric: PivotMetric): number {
+function metricValue(row: ExploreCell, metric: PivotMetric): number {
   switch (metric) {
     case 'spend': return rowSpend(row);
     case 'tokens': return rowTokens(row);
@@ -101,13 +105,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     const params: ExploreQueryParams = {
       scope: scope.type, id: scope.id, days: days ?? undefined,
       metric: pivot.metric, group: pivot.group,
-      // 'none' is a UI-only sentinel (ExploreQueryParams has no 'none' subgroup) — omit the param entirely.
-      subgroup: pivot.subgroup === 'none' ? undefined : pivot.subgroup,
+      // 'none' is a UI-only sentinel (ExploreQueryParams has no 'none' subgroup)
+      // — omit the param. Also omit while a rollup is active: the time-series
+      // stack already carries the group series (Subgroup is disabled in the UI).
+      subgroup: pivot.subgroup === 'none' || pivot.rollup !== 'total' ? undefined : pivot.subgroup,
       topN: pivot.topN,
+      rollup: pivot.rollup,
     };
     api.explore(params).then((r) => { if (!cancelled) setResult(r); }).catch(() => { if (!cancelled) setResult(null); });
     return () => { cancelled = true; };
-  }, [scope.type, scope.id, days, pivot.metric, pivot.group, pivot.subgroup, pivot.topN]);
+  }, [scope.type, scope.id, days, pivot.metric, pivot.group, pivot.subgroup, pivot.topN, pivot.rollup]);
 
   const rangeLabel = days ? `${days}d` : t('All');
   const metricChipLabel = useMemo(() => metricOptions().find((o) => o.key === pivot.metric)?.label ?? pivot.metric, [pivot.metric]);
@@ -154,6 +161,30 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     return idx >= 0 && idx < CATEGORICAL_COLORS.length ? CATEGORICAL_COLORS[idx] : 'var(--ink-3)';
   };
 
+  // ---- Time-rollup chart (rollup !== 'total') ----
+  const ROLLUP_LABEL: Record<PivotRollup, string> = {
+    total: t('Total'), hourly: t('Hourly'), daily: t('Daily'), weekly: t('Weekly'), monthly: t('Monthly'),
+  };
+  // Series colour by ranked index — the SAME mapping the Detail table dots use,
+  // so a series' bar-segment colour matches its table row.
+  const seriesColor = (i: number): string => CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length];
+  // One Recharts row per bucket: { bucket: label, [seriesKey]: metricValue }.
+  // Series set = the ranked rows (topN + Other), so the stack matches the table.
+  const chartData = useMemo(() => {
+    if (!result?.buckets) return [];
+    return result.buckets.map((b) => {
+      const row: Record<string, string | number> = { bucket: b.label };
+      for (const { row: r } of ranked) { const cell = b.series[r.key]; row[r.key] = cell ? metricValue(cell, pivot.metric) : 0; }
+      return row;
+    });
+  }, [result, ranked, pivot.metric]);
+  const fmtChartValue = (v: number): string => {
+    if (pivot.metric === 'spend') return fmtMoney(v);
+    if (pivot.metric === 'tokens') return fmtTok(v);
+    if (pivot.metric === 'active') return `${fmtHours(v)}h`;
+    return Math.round(v).toLocaleString();
+  };
+
   const canRowLink = scope.type === 'project' && scope.id != null;
   const rowLinkTitle = canRowLink ? undefined : t('Filtered session list coming soon');
 
@@ -166,39 +197,62 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
         <>
           <div className="card">
             <h3>
-              {cardTitle}
+              {result.buckets
+                ? `${metricChipLabel} ${t('by')} ${groupChipLabel} · ${ROLLUP_LABEL[result.rollup]} · ${rangeLabel}`
+                : cardTitle}
               {result.calibrated && (
                 <>
                   {' ≈'}
                   <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
                 </>
               )}
+              {result.rollup !== result.requestedRollup && (
+                <span className="muted small"> · {ROLLUP_LABEL[result.requestedRollup]} {t('too dense — showing')} {ROLLUP_LABEL[result.rollup]}</span>
+              )}
             </h3>
-            {ranked.map(({ row, value }) => {
-              const totalBarPct = (value / maxValue) * 100;
-              const segTotal = row.segments.reduce((n, s) => n + s.tokens, 0);
-              return (
-                <div className="rank" key={row.key}>
-                  <span className="n">{row.label}</span>
-                  <div className="track">
-                    {row.segments.length > 0 && segTotal > 0
-                      ? row.segments.map((seg) => (
-                        <i key={seg.key} style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }} />
-                      ))
-                      : <i style={{ width: `${totalBarPct}%`, background: 'var(--c1)' }} />}
+            {result.buckets ? (
+              chartData.length ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={chartData}>
+                    <CartesianGrid {...GRID_PROPS} />
+                    <XAxis dataKey="bucket" {...AXIS_PROPS} />
+                    <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
+                    <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} />} />
+                    {ranked.map(({ row }, i) => (
+                      <Bar key={row.key} dataKey={row.key} stackId="a" name={row.label} fill={seriesColor(i)} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <div className="muted small pad8">{t('No sessions in range.')}</div>
+            ) : (
+              <>
+                {ranked.map(({ row, value }) => {
+                  const totalBarPct = (value / maxValue) * 100;
+                  const segTotal = row.segments.reduce((n, s) => n + s.tokens, 0);
+                  return (
+                    <div className="rank" key={row.key}>
+                      <span className="n">{row.label}</span>
+                      <div className="track">
+                        {row.segments.length > 0 && segTotal > 0
+                          ? row.segments.map((seg) => (
+                            <i key={seg.key} style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }} />
+                          ))
+                          : <i style={{ width: `${totalBarPct}%`, background: 'var(--c1)' }} />}
+                      </div>
+                      <span className="v">{fmtMetricValue(row, pivot.metric)}</span>
+                      <span className="p">{((value / totalValue) * 100).toFixed(1)}%</span>
+                    </div>
+                  );
+                })}
+                {!ranked.length && <div className="muted small">{t('No sessions in range.')}</div>}
+                {subgroupChipLabel && subgroupKeys.length > 0 && (
+                  <div className="legend">
+                    {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => (
+                      <span key={key}><span className="dot" style={{ background: segColor(key) }} />{subgroupLabelByKey.get(key) ?? key}</span>
+                    ))}
                   </div>
-                  <span className="v">{fmtMetricValue(row, pivot.metric)}</span>
-                  <span className="p">{((value / totalValue) * 100).toFixed(1)}%</span>
-                </div>
-              );
-            })}
-            {!ranked.length && <div className="muted small">{t('No sessions in range.')}</div>}
-            {subgroupChipLabel && subgroupKeys.length > 0 && (
-              <div className="legend">
-                {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => (
-                  <span key={key}><span className="dot" style={{ background: segColor(key) }} />{subgroupLabelByKey.get(key) ?? key}</span>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
 

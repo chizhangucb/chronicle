@@ -312,3 +312,92 @@ test("metric:spend returns priceable tokensByModel (calibrated for tool, usage f
     'spend and tokens over model surface the same model rows',
   );
 });
+
+// ---- Time rollups (post-1.0 Batch C #2) ----------------------------------
+
+// Helper: Σ input+output across a set of ExploreCells.
+function sumCells(cells) {
+  return cells.reduce((n, c) => n + Object.values(c.tokensByModel).reduce((m, u) => m + u.input + u.output, 0), 0);
+}
+
+test('rollup=total: output unchanged, buckets omitted, rollup fields present', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  assert.equal(r.rollup, 'total');
+  assert.equal(r.requestedRollup, 'total');
+  assert.equal(r.buckets, undefined);
+});
+
+test('rollup=daily: buckets by session started_at, reconcile to the range total', () => {
+  const q = { scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', topN: 10 };
+  const total = explore.computeExplore({ ...q, rollup: 'total' });
+  const daily = explore.computeExplore({ ...q, rollup: 'daily' });
+  assert.equal(daily.rollup, 'daily');
+  assert.equal(daily.requestedRollup, 'daily');
+  assert.deepEqual(daily.buckets.map((b) => b.bucket), ['2026-08-01', '2026-08-02', '2026-08-03']);
+  const aug1 = daily.buckets.find((b) => b.bucket === '2026-08-01');
+  assert.equal(aug1.label, 'Aug 1');
+  assert.equal(aug1.series['claude-sonnet-5'].tokensByModel['claude-sonnet-5'].input, 1200); // s1 usage
+  // Whole-scope reconciliation: Σ over buckets == Σ over range-total rows (2660).
+  const bucketTotal = daily.buckets.reduce((n, b) => n + sumCells(Object.values(b.series)), 0);
+  const rangeTotal = total.rows.reduce((n, row) => n + Object.values(row.tokensByModel).reduce((m, u) => m + u.input + u.output, 0), 0);
+  assert.equal(bucketTotal, rangeTotal);
+  assert.equal(bucketTotal, 2660);
+});
+
+test('rollup=monthly: same-month sessions collapse into one bucket', () => {
+  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'monthly', topN: 10 });
+  assert.equal(r.buckets.length, 1);
+  assert.equal(r.buckets[0].bucket, '2026-08');
+  assert.equal(r.buckets[0].label, 'Aug 2026');
+  assert.equal(r.buckets[0].series['claude-sonnet-5'].tokensByModel['claude-sonnet-5'].input, 1700); // 1200 + 500
+  assert.equal(r.buckets[0].series['claude-haiku-4-5'].tokensByModel['claude-haiku-4-5'].input, 40);
+});
+
+test('rollup calibrated (tool): per-bucket calibration keys off that bucket\'s own chars + billed', () => {
+  const daily = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'daily', topN: 10 });
+  assert.equal(daily.calibrated, true);
+  // Tool-active days only: Aug 1 (s1: Bash+Read tool_use) and Aug 3 (sDup: Bash);
+  // Aug 2 (s2, no tool_use) never appears. Same char-source rule as the range
+  // path: only Read carries chars (tool_input) — Bash tool_use rows here have
+  // neither text nor tool_input, so they calibrate to 0.
+  assert.deepEqual(daily.buckets.map((b) => b.bucket), ['2026-08-01', '2026-08-03']);
+  const tok = (bkt) => sumCells(Object.values(daily.buckets.find((b) => b.bucket === bkt).series));
+  // Aug 1: Read is the only char-bearing tool, so it absorbs Aug 1's billed (1900).
+  assert.ok(Math.abs(tok('2026-08-01') - 1900) <= 2, `Aug1 tools ≈ billed 1900, got ${tok('2026-08-01')}`);
+  // Aug 3: sDup's only tool (Bash) has 0 chars → 0 calibrated tokens; that day's
+  // billed goes unattributed. Per-bucket calibration never invents chars.
+  assert.equal(tok('2026-08-03'), 0);
+});
+
+test('rollup=daily requests: per-bucket counts reconcile to the range total', () => {
+  const daily = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'source', rollup: 'daily', topN: 10 });
+  const bucketTotal = daily.buckets.reduce((n, b) => n + Object.values(b.series).reduce((m, c) => m + c.requests, 0), 0);
+  const rangeTotal = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'source', rollup: 'total', topN: 10 })
+    .rows.reduce((n, row) => n + row.requests, 0);
+  assert.equal(bucketTotal, rangeTotal);
+});
+
+test('rollup: empty scope yields empty buckets, no throw', () => {
+  const r = explore.computeExplore({ scope: { type: 'project', id: 999999 }, days: null, metric: 'tokens', group: 'model', rollup: 'daily', topN: 10 });
+  assert.deepEqual(r.buckets, []);
+  assert.equal(r.rollup, 'daily');
+});
+
+test('pickRollup: coarsens to the finest bucket under the cap; monthly is terminal', () => {
+  const counts = { hourly: 500, daily: 120, weekly: 30, monthly: 8 };
+  const fn = (r) => counts[r];
+  assert.equal(explore.pickRollup('hourly', fn, 90), 'weekly'); // 500>90, 120>90, 30<=90
+  assert.equal(explore.pickRollup('daily', fn, 90), 'weekly');
+  assert.equal(explore.pickRollup('weekly', fn, 90), 'weekly');
+  assert.equal(explore.pickRollup('daily', () => 10, 90), 'daily'); // already fits
+  assert.equal(explore.pickRollup('monthly', () => 9999, 90), 'monthly'); // terminal even if over cap
+  assert.equal(explore.pickRollup('hourly', () => 5, 90), 'hourly');
+});
+
+test('bucketLabel / bucketExpr shape the four granularities', () => {
+  assert.equal(explore.bucketLabel('2026-08-09T14'), 'Aug 9 14h');
+  assert.equal(explore.bucketLabel('2026-08-09'), 'Aug 9');
+  assert.equal(explore.bucketLabel('2026-08'), 'Aug 2026');
+  assert.equal(explore.bucketExpr('daily', 'm.ts'), 'substr(m.ts, 1, 10)');
+  assert.equal(explore.bucketExpr('monthly', 's.started_at'), 'substr(s.started_at, 1, 7)');
+});
