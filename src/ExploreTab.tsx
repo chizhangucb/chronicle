@@ -7,9 +7,11 @@ import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf } from './models.ts';
+import { fmtMoney } from './format.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
+import { groupHasPerModelTokens } from './explore/tokenColumns.ts';
 
 // Mounted by both InsightsPage (5e-1, scope {type:'all'}) and ProjectDetail
 // (5e-4, scope {type:'project', id}) — kept generic from day one so 5e-4
@@ -24,11 +26,9 @@ export interface ExploreTabProps {
   days: number | null;
 }
 
-// ---- Local formatters (mirrors InsightsPage.tsx's file-local fmtMoney/
-// fmtTok/fmtHours — kept local rather than shared per that file's own note).
-function fmtMoney(n: number, decimals = 2): string {
-  return `$${n.toFixed(decimals)}`;
-}
+// ---- Local formatters. Money uses the shared `fmtMoney` from format.ts
+// (grouped thousands): 0dp for the large-magnitude BAR labels (aligns with
+// Insights Overview "Spend by model") and 2dp only in the Detail table (EXP-03).
 function fmtTok(tokens: number): string {
   if (tokens >= 1e6) return `${(tokens / 1e6).toFixed(1)}M`;
   if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
@@ -75,9 +75,11 @@ function metricValue(row: ExploreCell, metric: PivotMetric): number {
   }
 }
 
-function fmtMetricValue(row: ExploreRow, metric: PivotMetric): string {
+// `moneyDp` controls Spend precision: 0dp for ranked-bar labels (default),
+// 2dp for the Detail table's metric column (EXP-03).
+function fmtMetricValue(row: ExploreRow, metric: PivotMetric, moneyDp: 0 | 2 = 0): string {
   switch (metric) {
-    case 'spend': return fmtMoney(rowSpend(row));
+    case 'spend': return fmtMoney(rowSpend(row), moneyDp);
     case 'tokens': return fmtTok(rowTokens(row));
     case 'requests': return row.requests.toLocaleString();
     case 'sessions': return row.sessions.toLocaleString();
@@ -179,7 +181,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     });
   }, [result, ranked, pivot.metric]);
   const fmtChartValue = (v: number): string => {
-    if (pivot.metric === 'spend') return fmtMoney(v);
+    if (pivot.metric === 'spend') return fmtMoney(v, 0);
     if (pivot.metric === 'tokens') return fmtTok(v);
     if (pivot.metric === 'active') return `${fmtHours(v)}h`;
     return Math.round(v).toLocaleString();
@@ -187,6 +189,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
 
   const canRowLink = scope.type === 'project' && scope.id != null;
   const rowLinkTitle = canRowLink ? undefined : t('Filtered session list coming soon');
+
+  // EXP-01: the Detail table renders a dynamic metric column AND fixed
+  // Tokens/Requests/Sessions columns. When the selected metric IS one of those
+  // three, the metric column is an exact duplicate — drop the leading metric
+  // column for those (Spend/Active/Errors have no fixed twin, so it stays).
+  const FIXED_COLUMN_KEYS = new Set(['Tokens', 'Requests', 'Sessions']);
+  const showMetricCol = !FIXED_COLUMN_KEYS.has(METRIC_COLUMN_KEY[pivot.metric]);
+  // EXP-02: only model/project/source carry authoritative per-model token cells;
+  // tool/skill/subagent/hour render '—' in Tokens/$-per-session (see tokenColumns.ts).
+  const hasTokenCols = groupHasPerModelTokens(pivot.group);
 
   return (
     <>
@@ -217,7 +229,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                     <CartesianGrid {...GRID_PROPS} />
                     <XAxis dataKey="bucket" {...AXIS_PROPS} />
                     <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
-                    <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} />} />
+                    <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={result.calibrated} />} />
                     {ranked.map(({ row }, i) => (
                       <Bar key={row.key} dataKey={row.key} stackId="a" name={row.label} fill={seriesColor(i)} />
                     ))}
@@ -231,7 +243,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                   const segTotal = row.segments.reduce((n, s) => n + s.tokens, 0);
                   return (
                     <div className="rank" key={row.key}>
-                      <span className="n">{row.label}</span>
+                      <span className="n" title={row.label}>{row.label}</span>
                       <div className="track">
                         {row.segments.length > 0 && segTotal > 0
                           ? row.segments.map((seg) => (
@@ -262,7 +274,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>{t('Group')}</th>
-                  <th>{t(METRIC_COLUMN_KEY[pivot.metric])}</th>
+                  {showMetricCol && <th>{t(METRIC_COLUMN_KEY[pivot.metric])}</th>}
                   <th>{t('Share')}</th>
                   <th>{t('Tokens')}</th>
                   <th>{t('Requests')}</th>
@@ -281,12 +293,12 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       onClick={canRowLink ? () => navigate(`/project/${scope.id}`) : undefined}
                     >
                       <td><span className="dot" style={{ background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} />{row.label}</td>
-                      <td className="cost">{fmtMetricValue(row, pivot.metric)}</td>
+                      {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}
                       <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></span> {share.toFixed(1)}%</td>
-                      <td>{fmtTok(rowTokens(row))}</td>
+                      <td>{hasTokenCols ? fmtTok(rowTokens(row)) : '—'}</td>
                       <td>{row.requests.toLocaleString()}</td>
                       <td>{row.sessions.toLocaleString()}</td>
-                      <td>{fmtMoney(perSession)}</td>
+                      <td>{hasTokenCols ? fmtMoney(perSession, 2) : '—'}</td>
                     </tr>
                   );
                 })}
