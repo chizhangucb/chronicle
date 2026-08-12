@@ -9,6 +9,7 @@ import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf, type ModelUsageInput } from './models.ts';
+import { fmtInt, fmtMoney } from './format.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 
@@ -26,10 +27,9 @@ type Tab = 'overview' | 'explore' | 'content';
 
 // ---- Local formatters (mirrors src/ProjectDetail.tsx's fmtDur/fmtTok style
 // — kept local rather than shared, since that file isn't in this task's
-// touch list). ----
-function fmtMoney(n: number, decimals = 2): string {
-  return `$${n.toFixed(decimals)}`;
-}
+// touch list). `fmtMoney`/`fmtInt` are the SHARED grouped formatters from
+// format.ts: money is 0dp (whole grouped dollars) for summary KPIs + bar
+// labels, 2dp only in the detail tables. ----
 function fmtTok(tokens: number): string {
   if (tokens >= 1e6) return `${(tokens / 1e6).toFixed(1)}M`;
   if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
@@ -300,7 +300,7 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
 
   return (
     <>
-      <div className={hasLaneC ? 'kpis kpis-9' : 'kpis'}>
+      <div className="kpis">
         <div className="kpi">
           <div className="l">{t('Spend')}</div>
           <div className="v">{fmtMoney(kpis.cost, 0)}</div>
@@ -408,7 +408,7 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
               <div className="hbar" key={r.name}>
                 <span className="n">{r.name}</span>
                 <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{r.value.toLocaleString()}</span>
+                <span className="v num">{fmtInt(r.value)}</span>
               </div>
             );
           })}
@@ -453,8 +453,8 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
                 <td>{r.cw5m ? fmtTok(r.cw5m) : '—'}</td>
                 <td>{r.cw1h ? fmtTok(r.cw1h) : '—'}</td>
                 <td>{r.hitRate.toFixed(0)}%</td>
-                <td>{r.msgs.toLocaleString()}</td>
-                <td className="cost">{fmtMoney(r.cost)}</td>
+                <td>{fmtInt(r.msgs)}</td>
+                <td className="cost">{fmtMoney(r.cost, 2)}</td>
               </tr>
             ))}
           </tbody>
@@ -467,8 +467,8 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
               <td>{tokenTotals.cw5m ? fmtTok(tokenTotals.cw5m) : '—'}</td>
               <td>{tokenTotals.cw1h ? fmtTok(tokenTotals.cw1h) : '—'}</td>
               <td>{tokenTotalsHitRate.toFixed(0)}%</td>
-              <td>{tokenTotals.msgs.toLocaleString()}</td>
-              <td className="cost">{fmtMoney(tokenTotals.cost)}</td>
+              <td>{fmtInt(tokenTotals.msgs)}</td>
+              <td className="cost">{fmtMoney(tokenTotals.cost, 2)}</td>
             </tr>
           </tfoot>
         </table>
@@ -492,7 +492,7 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
               <tr key={session.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(session.id)}`)}>
                 <td>{sessionDisplayName(session)}</td>
                 <td style={{ textAlign: 'left', color: projectColors.get(session.project_id) ?? 'var(--brass-text)' }}>{session.project_name}</td>
-                <td className="cost">{fmtMoney(cost)}</td>
+                <td className="cost">{fmtMoney(cost, 2)}</td>
                 <td>{fmtTok(tokens)}</td>
                 <td>{fmtActive(session.agent_active_ms || 0)}</td>
                 <td>{session.started_at ? fmtDayLabel(session.started_at.slice(0, 10)) : '—'}</td>

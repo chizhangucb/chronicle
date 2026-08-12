@@ -92,14 +92,20 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byDay, gridStartMonday.getTime(), today.getTime()]);
 
+  // Each label carries the WEEK COLUMN INDEX of the month's first week, so it
+  // can be grid-placed over that column (INS-MONTH-LABELS) rather than
+  // even-spaced — months span 4–5 columns, so space-between drifted them.
   const monthLabels = useMemo(() => {
-    const fmt = new Intl.DateTimeFormat(localeOf(), { month: 'short' });
-    const labels: string[] = [];
+    // timeZone:'UTC' — weekMonday is a UTC-midnight Date; formatting it in the
+    // browser's local zone would shift it back a day for west-of-UTC users,
+    // mislabelling a month boundary (a Jun-1 00:00 UTC week reading "May").
+    const fmt = new Intl.DateTimeFormat(localeOf(), { month: 'short', timeZone: 'UTC' });
+    const labels: { label: string; col: number }[] = [];
     let lastMonth = -1;
     for (let w = 0; w < CAL_WEEKS; w++) {
       const weekMonday = addDaysUtc(gridStartMonday, w * 7);
       const m = weekMonday.getUTCMonth();
-      if (m !== lastMonth) { labels.push(fmt.format(weekMonday)); lastMonth = m; }
+      if (m !== lastMonth) { labels.push({ label: fmt.format(weekMonday), col: w }); lastMonth = m; }
     }
     return labels;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +113,10 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
 
   // Mon/Wed/Fri/Sun row labels (a sparse subset of the 7 weekday rows, per the
   // mockup's `.cal-days` axis) — computed from real weekday names, not hardcoded English.
-  const weekdayFmt = new Intl.DateTimeFormat(localeOf(), { weekday: 'short' });
+  // timeZone:'UTC' for the same reason as the month formatter above — the ref
+  // dates are UTC-midnight, so local-zone formatting drifted the weekday row
+  // labels back a day (Mon/Wed/Fri/Sun rows reading Sun/Tue/Thu/Sat).
+  const weekdayFmt = new Intl.DateTimeFormat(localeOf(), { weekday: 'short', timeZone: 'UTC' });
   // A known UTC Monday to derive any weekday's localized short name from.
   const REF_MONDAY = new Date(Date.UTC(2024, 0, 1)); // 2024-01-01 is a Monday
   const calDayLabels = [0, 2, 4, 6].map((mondayOffset) => weekdayFmt.format(addDaysUtc(REF_MONDAY, mondayOffset)));
@@ -137,7 +146,9 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
       </div>
 
       <h4 className="subhead">{t('Daily activity · last 26 weeks')}</h4>
-      <div className="cal-months">{monthLabels.map((m, i) => <span key={i}>{m}</span>)}</div>
+      <div className="cal-months" style={{ gridTemplateColumns: `repeat(${CAL_WEEKS}, minmax(0, 1fr))` }}>
+        {monthLabels.map((m) => <span key={m.col} style={{ gridColumnStart: m.col + 1 }}>{m.label}</span>)}
+      </div>
       <div className="calwrap">
         <div className="cal-days">{calDayLabels.map((d, i) => <span key={i}>{d}</span>)}</div>
         <div className="cal">

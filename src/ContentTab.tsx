@@ -60,12 +60,24 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
     return { rows, total, max };
   }, [result]);
 
-  // Skills & subagents: skills are now a true fraction of `billed` (share of
-  // ALL content) and subagents are exact-per-message, so both are expressed as
-  // a share of the REAL total (calibratedTotalTokens) — a subpool denominator
-  // would mix two incommensurable pools. Each row's bar WIDTH == its displayed
-  // %, so bar and label agree. Guard divide-by-zero.
-  const skillsTotal = useMemo(() => (result && result.calibratedTotalTokens > 0 ? result.calibratedTotalTokens : 0), [result]);
+  // Skills & subagents: the old %-of-billed share read 0.0% on every row (a
+  // skill's tokens are tiny against the whole-content pool), so the column was
+  // dropped — rows now show the invocation/run COUNT only, with a magnitude bar
+  // sized against the heaviest displayed row (skills + subagents share one
+  // scale). Capped at 8 each (mirrors the Tool-results top-6) with a "+N more"
+  // affordance, so a long skill list can't blow out the card height.
+  const SKILLS_CAP = 8;
+  const skillsView = useMemo(() => {
+    if (!result) return { skills: [], subagents: [], max: 1, skillsMore: 0, subagentsMore: 0 };
+    const skills = result.skills.slice(0, SKILLS_CAP);
+    const subagents = result.subagents.slice(0, SKILLS_CAP);
+    const max = Math.max(1, ...skills.map((s) => s.tokens), ...subagents.map((s) => s.tokens));
+    return {
+      skills, subagents, max,
+      skillsMore: result.skills.length - skills.length,
+      subagentsMore: result.subagents.length - subagents.length,
+    };
+  }, [result]);
 
   if (!result) return <div className="muted pad8">{t('Loading…')}</div>;
 
@@ -83,10 +95,12 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
           <b>{callouts.subagentHeavyShare}% {t('of tokens came from subagent-heavy sessions')}</b>
           <div className="why">{t('Each subagent pays its own context. Worth it for parallel work; watch it on simple tasks.')}</div>
         </div>
-        <div className="callout">
-          <b>{t('Cache stays warm ~')}{callouts.cacheWarmthMinutes}{t(' min between your turns')}</b>
-          <div className="why">{t('Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.')}</div>
-        </div>
+        {callouts.cacheWarmthMinutes >= 1 && (
+          <div className="callout">
+            <b>{t('Cache stays warm ~')}{callouts.cacheWarmthMinutes}{t(' min between your turns')}</b>
+            <div className="why">{t('Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.')}</div>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -140,32 +154,24 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               </>
             )}
           </h3>
-          {result.skills.map((s, i) => {
-            const share = skillsTotal ? (s.tokens / skillsTotal) * 100 : 0;
-            const width = share;
-            return (
-              <div className="rank" key={`skill-${s.key}`}>
-                <span className="n">{s.key}</span>
-                <div className="track"><i style={{ width: `${width}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v">×{s.count}</span>
-                <span className="p">{share.toFixed(1)}%</span>
-              </div>
-            );
-          })}
-          {result.subagents.map((s, i) => {
-            const share = skillsTotal ? (s.tokens / skillsTotal) * 100 : 0;
-            const width = share;
-            return (
-              <div className="rank" key={`subagent-${s.key}`}>
-                <span className="n">{s.key}</span>
-                <div className="track"><i style={{ width: `${width}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v">×{s.runs}</span>
-                <span className="p">{share.toFixed(1)}%</span>
-              </div>
-            );
-          })}
-          {!result.skills.length && !result.subagents.length && <div className="muted small">{t('No sessions in range.')}</div>}
-          <div className="note">{t('Top: skill invocations · bottom: subagent runs. % = share of tokens.')}</div>
+          {skillsView.skills.map((s, i) => (
+            <div className="rank nopct" key={`skill-${s.key}`}>
+              <span className="n">{s.key}</span>
+              <div className="track"><i style={{ width: `${(s.tokens / skillsView.max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+              <span className="v">×{s.count}</span>
+            </div>
+          ))}
+          {skillsView.skillsMore > 0 && <div className="muted small">{t('+{n} more').replace('{n}', String(skillsView.skillsMore))}</div>}
+          {skillsView.subagents.map((s, i) => (
+            <div className="rank nopct" key={`subagent-${s.key}`}>
+              <span className="n">{s.key}</span>
+              <div className="track"><i style={{ width: `${(s.tokens / skillsView.max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+              <span className="v">×{s.runs}</span>
+            </div>
+          ))}
+          {skillsView.subagentsMore > 0 && <div className="muted small">{t('+{n} more').replace('{n}', String(skillsView.subagentsMore))}</div>}
+          {!skillsView.skills.length && !skillsView.subagents.length && <div className="muted small">{t('No sessions in range.')}</div>}
+          <div className="note">{t('Top: skill invocations · bottom: subagent runs.')}</div>
         </div>
       </div>
 
