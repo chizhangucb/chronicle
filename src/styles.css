@@ -55,6 +55,9 @@ body {
   * { animation: none !important; transition: none !important; }
 }
 .num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* PR1 tabular-nums utility — use on any numeric cell not already covered by
+   `.num`/`.mono` or one of the specific selectors extended below. */
+.tabnum { font-variant-numeric: tabular-nums; }
 .eyebrow {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--ink-3);
@@ -194,7 +197,7 @@ body {
 }
 .kpi .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; margin-top: 4px; color: var(--ink); }
 .kpi .v .u { font-size: 12px; font-weight: 400; color: var(--ink-3); }
-.kpi .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; }
+.kpi .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi .s.up { color: var(--ok); }
 .kpi .s.down { color: var(--danger); }
 .kpi.warn .v { color: var(--warn); }
@@ -226,6 +229,9 @@ body {
 .row:hover { border-color: var(--border-strong); background: var(--bg2); }
 .row .m {
   font: 12px var(--mono); text-align: right; color: var(--ink-2); white-space: nowrap;
+  /* PR1: `font` shorthand above resets font-variant-numeric to `normal`,
+     overriding `body`'s global tabular-nums — restore it explicitly. */
+  font-variant-numeric: tabular-nums;
 }
 .row .m b { color: var(--ink); font-weight: 500; }
 .row .m .u { color: var(--ink-3); font-size: 10.5px; }
@@ -235,14 +241,39 @@ body {
 .tbl th {
   font: 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
   text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--border); font-weight: 500;
+  /* PR1: `font` shorthand above resets tabular-nums despite `.tbl` setting it. */
+  font-variant-numeric: tabular-nums;
 }
 .tbl th:first-child, .tbl td:first-child { text-align: left; }
-.tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: right; color: var(--ink-2); white-space: nowrap; }
+.tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: right; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tbl td:first-child { color: var(--ink); }
 .tbl tfoot td { border-bottom: 0; border-top: 1px solid var(--border-strong); color: var(--ink); font-weight: 600; }
 .tbl .cost { color: var(--brass-text); }
 .tbl tr.rowlink { cursor: pointer; }
 .tbl tr.rowlink:hover td { background: var(--bg2); }
+
+/* ---- PR1 design-system foundation: tabular numerals, alignment, control
+   sizing, focus rings, native control theming. Selectors that already existed
+   elsewhere (`.row .m`, `.tbl th`, `.tbl td` above; `.kpi .s`, `.tok-pill`,
+   `.wiz-stat-num`, `.wiz-summary`, `.rail-proj .n .c`, `.tab`, `.icon-btn`,
+   `.info-tip`, `.ttl`, `.grid2`/`.grid2b`/`.grid`/`.two`/`.pd-charts` below)
+   got the new declaration added to their EXISTING rule instead of being
+   repeated here, per "don't duplicate a selector" — see the PR1 report for
+   the `font`-shorthand cascade finding. ---- */
+.day-head .sum, .hbar .v, .bytype-count, .msg-ts { font-variant-numeric: tabular-nums; }
+
+/* right-align numeric column HEADERS to match right-aligned values (Home) */
+.colhead span:nth-child(n+3) { text-align: right; }
+
+/* control min-height >=24px + branded focus ring */
+.btn.tiny, .btn.ghost.small, .rangebar button { min-height: 24px; }
+.btn:focus-visible, .tab:focus-visible, .chip:focus-visible,
+.rangebar button:focus-visible, .info-tip:focus-visible {
+  outline: 2px solid var(--brass); outline-offset: 1px;
+}
+
+/* native form controls -> brass */
+input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; }
 
 /* ---- Recharts wrapper (5c primitive — src/charts/ChartWrapper.tsx); no
    call sites until 5d wires real charts) ---- */
@@ -354,6 +385,7 @@ body {
 .wiz-summary {
   display: flex; gap: 14px; align-items: center; background: var(--bg2);
   border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
 }
 .wiz-summary .accent { color: var(--brass); }
 .wiz-tree { flex: 1; overflow-y: auto; min-height: 120px; max-height: 46vh; border-top: 1px solid var(--border); }
@@ -400,7 +432,7 @@ body {
   flex: 1; text-align: center; background: var(--bg2); border: 1px solid var(--border);
   border-radius: 8px; padding: 12px;
 }
-.wiz-stat-num { font-size: 22px; font-weight: 700; }
+.wiz-stat-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wiz-stat-num.accent { color: var(--brass); }
 .wiz-result-row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -459,8 +491,8 @@ body {
    default keep this true even inside the `.page` `overflow-y:auto` clip). */
 .info-tip {
   display: inline-flex; align-items: center; justify-content: center;
-  margin-left: 3px; font-size: 11px; line-height: 1; color: var(--ink-3);
-  cursor: help; vertical-align: middle; background: none; border: none; padding: 0; outline: none;
+  margin-left: 3px; font-size: 12px; line-height: 1; color: var(--ink-3);
+  cursor: help; vertical-align: middle; background: none; border: none; padding: 2px; outline: none;
 }
 .info-tip:hover, .info-tip:focus-visible, .info-tip[data-state="open"] { color: var(--brass-text); }
 .info-bubble {
@@ -531,7 +563,7 @@ body {
 .trend-axis { display: flex; justify-content: space-between; margin-top: 2px; }
 .trend-spark { height: 150px; }
 .trend-legend { margin-top: 6px; color: var(--brass); }
-.pd-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0; }
+.pd-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0; align-items: start; }
 .donut-legend-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; }
 .donut-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .rank-label { width: 110px; text-align: right; font-size: 12px; }
@@ -752,7 +784,7 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .refine-ops { display: none; gap: 2px; }
 .refine-item:hover .refine-ops, .refine-item.selected .refine-ops { display: inline-flex; }
 .keep-btn.on { color: var(--ok); }
-.tok-pill { color: var(--ink-2); font-size: 10px; white-space: nowrap; }
+.tok-pill { color: var(--ink-2); font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .refine-item-body { font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 90px; overflow: hidden; margin-top: 3px; }
 .refine-item-body.open { max-height: none; }
 .expand-btn { font-size: 11px; padding: 0 4px; }
@@ -881,7 +913,7 @@ h4 { margin: 6px 0; }
 }
 .session-sync:hover:not(:disabled) { color: var(--brass); background: var(--bg2); }
 .session-sync:disabled { cursor: default; }
-.icon-btn { padding: 5px 10px; }
+.icon-btn { padding: 5px 10px; min-height: 24px; }
 
 /* ---- Global search palette (⌘K) ---- */
 .search-modal {
@@ -967,8 +999,8 @@ h4 { margin: 6px 0; }
 .insights-page .range-refreshing { opacity: 0.5; transition: opacity 0.15s linear; }
 .ctlrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 14px; flex-wrap: wrap; }
 .ctlrow .rangebar { margin: 0; }
-.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; }
-.grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: start; }
+.grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
 .legend { display: flex; gap: 14px; font: 11px var(--mono); color: var(--ink-2); margin-top: 6px; flex-wrap: wrap; }
 .legend .dot, .tbl .dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px;
@@ -1025,7 +1057,7 @@ h4 { margin: 6px 0; }
    this is their first real call site); `.grid`/`.hbar`/`.two`/`.trow`/`.ttl`/
    `.comp-bar`/`.comp-legend`/`.dot` are new here, matching the approved
    mockup (records/design/2026-08-10-chronicle-phase5/overview.html). */
-.grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; margin-bottom: 14px; align-items: start; }
 /* Scoped to `.overview-page` (Session Overview's existing root class) —
    Project analytics and Insights each independently authored their own
    `.hbar` geometry above; deduped at the 5d Wave-2 integration pass. */
@@ -1034,14 +1066,14 @@ h4 { margin: 6px 0; }
 .overview-page .hbar .track { height: 12px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
 .overview-page .hbar .fill { height: 100%; border-radius: 3px; }
 .overview-page .hbar .v { text-align: right; color: var(--ink-2); }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
 .trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
 .trow:last-child { border: 0; }
 .trow .k { color: var(--brass-text); white-space: nowrap; width: 52px; flex-shrink: 0; }
 .trow .t { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cost-row { display: flex; justify-content: space-between; font: 12px var(--mono); padding: 4px 0; color: var(--ink-2); }
 .cost-row b { color: var(--ink); font-weight: 500; }
-.ttl { font: 9px var(--mono); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; color: var(--ink-3); }
+.ttl { font: 10px var(--mono); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; color: var(--ink-3); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .comp-bar { display: flex; gap: 2px; height: 14px; border-radius: 3px; overflow: hidden; }
 .comp-bar span { height: 100%; }
@@ -1062,7 +1094,7 @@ h4 { margin: 6px 0; }
 .rail-proj { padding: 9px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 2px; }
 .rail-proj:hover { background: var(--bg2); border-color: var(--border); }
 .rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
-.rail-proj .n .c { font-size: 11px; color: var(--ink-3); }
+.rail-proj .n .c { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .rail-proj .meta { display: flex; gap: 8px; margin-top: 3px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
 .home-search { flex: 1; max-width: 560px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
 .home-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font: 13px var(--mono); }
@@ -1096,7 +1128,7 @@ h4 { margin: 6px 0; }
    NOT redefined. Ranked-bar geometry is scoped under `.rank` (never a bare
    `.track`/`.seg`/`.hbar`) per the 5d CSS-collision scar. */
 .tabs { display: flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 4px; padding: 2px; }
-.tab { font: 12px var(--mono); color: var(--ink-3); padding: 4px 14px; border-radius: 3px; cursor: pointer; background: none; border: 0; }
+.tab { font: 12px var(--mono); color: var(--ink-3); padding: 4px 14px; border-radius: 3px; cursor: pointer; background: none; border: 0; min-height: 24px; }
 .tab.on { background: var(--bg2); color: var(--brass-text); }
 .tab:hover:not(:disabled) { color: var(--ink); }
 .tab:disabled { cursor: not-allowed; opacity: 0.5; }
