@@ -172,6 +172,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [nameErr, setNameErr] = useState<string | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
   // Per-project identity color: assigned in the SAME fixed order as Home
   // (projectColorMap over all project ids), so the head/breadcrumb dot matches
@@ -216,6 +217,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
   function startRename() {
     if (!data) return;
+    setNameErr(null);
     setNameDraft(data.project.name);
     setRenaming(true);
   }
@@ -223,8 +225,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (savingName) return;
     const name = nameDraft.trim();
     if (!name) { setRenaming(false); return; } // blank cancels (folder name required)
+    setNameErr(null);
     setSavingName(true);
+    // catch → inline error (mirrors HomePage): without it a rejected rename is
+    // a silently-dropped unhandled promise rejection.
     try { await api.renameProject(id, name); setRenaming(false); refresh(); }
+    catch (e) { setNameErr(String((e as Error).message)); }
     finally { setSavingName(false); }
   }
 
@@ -366,6 +372,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
               onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenaming(false); }} />
             <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
             <button className="btn tiny ghost" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={() => setRenaming(false)}>✕</button>
+            {nameErr && <span className="menu-err small">{nameErr}</span>}
           </>
         ) : (
           <>

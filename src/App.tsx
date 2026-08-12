@@ -130,7 +130,7 @@ export default function App() {
         <nav className="sb-top">
           <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
             onClick={() => navigate('/')}>
-            <span className="sb-icon">◷</span><span className="sb-label">{t('Projects')}</span>
+            <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
           </button>
           <button className={`sb-item ${atInsights ? 'on' : ''}`} title={t('Insights')} onClick={() => navigate('/insights')}>
             <span className="sb-icon">∑</span><span className="sb-label">{t('Insights')}</span>

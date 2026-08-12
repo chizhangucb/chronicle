@@ -422,7 +422,6 @@ const zh = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': '子智能体',
   'back to session': '返回会话',
-  'parent': '主会话',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': '内容',
@@ -912,7 +911,6 @@ const ja = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': 'サブエージェント',
   'back to session': 'セッションに戻る',
-  'parent': '親セッション',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': 'コンテンツ',

@@ -115,17 +115,21 @@ interface CostAgg {
 export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent, onOpenContent }: OverviewModeProps): JSX.Element {
   const { session } = data;
 
-  // Inline rename (edit-in-place). Avoids window.prompt(), which is blocked in
-  // embedded/preview browser contexts and would fail silently.
+  // Inline rename (edit-in-place). Avoids the native window.prompt dialog, which
+  // is blocked in embedded/preview browser contexts and would fail silently.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
-  function startRename() { setDraft(session.name || ''); setEditing(true); }
+  const [nameErr, setNameErr] = useState<string | null>(null);
+  function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
   async function saveRename() {
     if (savingName) return;
+    setNameErr(null);
     setSavingName(true);
+    // Inline error surface (mirrors HomePage/ProjectDetail); the native
+    // window.alert dialog silently no-ops in embedded/preview browsers.
     try { await onRename?.(draft); setEditing(false); }
-    catch (e) { alert(String((e as Error).message)); }
+    catch (e) { setNameErr(String((e as Error).message)); }
     finally { setSavingName(false); }
   }
 
@@ -266,6 +270,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
             <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
             <button className="btn tiny ghost" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={() => setEditing(false)}>✕</button>
             {session.name && <span className="muted small">{t('Leave blank to reset to default')}</span>}
+            {nameErr && <span className="menu-err small">{nameErr}</span>}
           </>
         ) : (
           <>

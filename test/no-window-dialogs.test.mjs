@@ -7,7 +7,12 @@ import { fileURLToPath } from 'node:url';
 // embedded/preview browser contexts (see CLAUDE.md), so the project rename /
 // unlink / error flows must use inline affordances instead. This asserts the
 // touched views never reintroduce a native dialog call.
-const FILES = ['../src/ProjectDetail.tsx', '../src/HomePage.tsx'];
+const FILES = [
+  '../src/ProjectDetail.tsx',
+  '../src/HomePage.tsx',
+  '../src/session/OverviewMode.tsx',
+  '../src/SessionView.tsx',
+];
 const BANNED = /\b(?:window\.)?(?:prompt|confirm|alert)\s*\(/;
 
 for (const rel of FILES) {

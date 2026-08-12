@@ -764,8 +764,9 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* Once "Show all" expands a long body, drop the cap so the pane scrolls instead
    of nesting a second inner scrollbar (the double-scroll trap). */
 .msg-body.expanded { max-height: none; overflow-y: visible; }
-/* Show all / Show less needs a real click target, not 18px body-text height. */
-.msg-expand { padding: 4px 8px; margin-top: 2px; }
+/* Show all / Show less: the ≥24px click target comes from .btn.tiny{min-height}
+   (its own padding would lose to the global .btn.small/.tiny rule); just space it. */
+.msg-expand { margin-top: 2px; }
 .msg.tool .msg-body, .msg.tool-result .msg-body { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
 mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding: 0 1px; }
 
@@ -873,7 +874,6 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .tok-pill { color: var(--ink-2); font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .refine-item-body { font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 90px; overflow: hidden; margin-top: 3px; }
 .refine-item-body.open { max-height: none; }
-.expand-btn { font-size: 11px; padding: 4px 8px; }
 /* Per-row inline ops share the tiny-ghost look but need a real target (≥24px);
    they stay visible on the selected row (see .refine-item.selected .refine-ops). */
 .refine-ops .btn.tiny { padding: 4px 6px; }
