@@ -11,6 +11,7 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
+import { readLaneCSpend, type LaneCSpend } from './laneC.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -47,6 +48,9 @@ export interface InsightsResult {
   dailyActivity: { day: string; count: number }[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
+  // Lane C: authoritative proxy-lane billed spend (LiteLLM), model+time only,
+  // NOT session-linked. Honors the same `days=` cutoff as the rest of the page.
+  laneC: LaneCSpend;
 }
 
 // Mirrors ERROR_RE in server/routes/projects.ts and isErrorResult in
@@ -162,5 +166,5 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, cutoff || null)));
   const commits = commitCounts.reduce((a, b) => a + b, 0);
 
-  return { sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects };
+  return { sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects, laneC: readLaneCSpend(cutoff || null) };
 }

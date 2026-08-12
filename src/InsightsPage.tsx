@@ -266,9 +266,31 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
       .slice(0, 15);
   }, [result]);
 
+  // Lane C proxy-lane billed spend — a standalone tile shown only when the
+  // LiteLLM log actually has spend in range (so it never clutters a machine
+  // with no proxy usage). Tiny sub-cent values get 4 decimals so they read as
+  // non-zero. Model names are stripped of the noisy "openrouter/" prefix.
+  const laneC = result.laneC;
+  const hasLaneC = laneC.requests > 0;
+  // Authoritative billed $, so never round a non-zero spend down to a
+  // misleading "$0.00": floor tiny values to "<$0.0001", else 4 decimals
+  // under a cent, else normal money.
+  const fmtLaneC = (v: number): string => {
+    if (v <= 0) return fmtMoney(0, 2);
+    if (v < 0.0001) return '<$0.0001';
+    if (v < 0.01) return `$${v.toFixed(4)}`;
+    return fmtMoney(v, 2);
+  };
+  const stripModel = (m: string): string => m.replace(/^openrouter\//, '');
+  const laneCTip = laneC.byModel.map((m) => `${stripModel(m.model)}: ${fmtLaneC(m.spend)} · ${m.requests} ${t('req')}`).join('; ')
+    + `. ${t('Billed by the LiteLLM proxy lane — authoritative $, not session-linked.')}`;
+  const laneCSub = laneC.byModel.length === 1
+    ? `${stripModel(laneC.byModel[0].model)} · ${laneC.requests} ${t('req')}`
+    : `${laneC.byModel.length} ${t('models')} · ${laneC.requests} ${t('req')}`;
+
   return (
     <>
-      <div className="kpis">
+      <div className={hasLaneC ? 'kpis kpis-9' : 'kpis'}>
         <div className="kpi">
           <div className="l">{t('Spend')}</div>
           <div className="v">{fmtMoney(kpis.cost, 0)}</div>
@@ -309,6 +331,13 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
           <div className="v">{kpis.commits}</div>
           <div className="s">{t('linked')}</div>
         </div>
+        {hasLaneC && (
+          <div className="kpi">
+            <div className="l">{t('Proxy lane (billed)')} <InfoTip text={laneCTip} /></div>
+            <div className="v">{fmtLaneC(laneC.totalSpend)}</div>
+            <div className="s">{laneCSub}</div>
+          </div>
+        )}
       </div>
 
       <div className="grid2">
