@@ -6,7 +6,8 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { SessionPicker } from './ProjectDetail.jsx';
-import MessageRow, { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
+import { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
+import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
 import ContentTab from './ContentTab.tsx';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
@@ -251,25 +252,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
   const selected = messages.find((m) => m.seq === selectedSeq) || null;
 
-  // FR-COMPAT-2: degrade gracefully on huge sessions — render a window of
-  // messages around the selection instead of the full list.
-  const WINDOW = 400;
-  const selIdx = Math.max(0, visible.findIndex((m) => m.seq === selectedSeq));
-  const winStart = visible.length > WINDOW ? Math.max(0, Math.min(selIdx - WINDOW / 2, visible.length - WINDOW)) : 0;
-  const winEnd = Math.min(visible.length, winStart + WINDOW);
-  const windowed = visible.slice(winStart, winEnd);
-
-  // Same windowing as the playback pane above, scoped to the subagent drill-in
-  // (a merged run can be hundreds+ rows — CLAUDE.md: don't render unbounded
-  // arrays). Reuses the same WINDOW constant and selectedSeq as the centering
-  // anchor; falls back to the start of the run when the current selection
-  // isn't one of this agent's own messages (findIndex → -1 → clamped to 0).
-  const subagentSelIdx = Math.max(0, subagentMessages.findIndex((m) => m.seq === selectedSeq));
-  const subagentWinStart = subagentMessages.length > WINDOW
-    ? Math.max(0, Math.min(subagentSelIdx - WINDOW / 2, subagentMessages.length - WINDOW)) : 0;
-  const subagentWinEnd = Math.min(subagentMessages.length, subagentWinStart + WINDOW);
-  const subagentWindowed = subagentMessages.slice(subagentWinStart, subagentWinEnd);
-
   // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
   useEffect(() => {
     if (!data || !selected?.ts) return;
@@ -376,36 +358,20 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
       {mode === 'playback' && <>
         <div className="panes">
-          <div className="conv-pane" ref={listRef}
+          <WindowedConvPane className="" paneRef={listRef}
             onScroll={(e) => {
               const el = e.currentTarget;
               atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
               if (atBottomRef.current) setNewCount(0);
-            }}>
-            {newCount > 0 && (
+            }}
+            header={newCount > 0 && (
               <button className="btn primary new-msgs" onClick={() => {
                 if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
                 setNewCount(0);
               }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
             )}
-            {winStart > 0 && (
-              <button className="btn small window-btn" onClick={() => selectMessage(visible[Math.max(0, winStart - WINDOW / 2)].seq, true)}>
-                ↑ {winStart.toLocaleString()} earlier messages
-              </button>
-            )}
-            {windowed.map((m) => (
-              <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
-                keyword={debounced} onClick={() => selectMessage(m.seq)}
-                causality={causality?.changes.find((c) => c.seq === m.seq)}
-                onJump={(seq) => selectMessage(seq, true)} />
-            ))}
-            {winEnd < visible.length && (
-              <button className="btn small window-btn" onClick={() => selectMessage(visible[Math.min(visible.length - 1, winEnd + WINDOW / 2 - 1)].seq, true)}>
-                ↓ {(visible.length - winEnd).toLocaleString()} later messages
-              </button>
-            )}
-            {!visible.length && <div className="muted center pad8">No messages match the current filter.</div>}
-          </div>
+            messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
+            onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />
         </div>
         <Timeline messages={messages} commits={data.commits}
@@ -436,25 +402,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           <span className="subagent-subtitle">{t('parent')} ↳ {subagentRun}</span>
         </div>
         <div className="panes">
-          <div className="conv-pane subagent-conv">
-            {subagentWinStart > 0 && (
-              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.max(0, subagentWinStart - WINDOW / 2)].seq, true)}>
-                ↑ {subagentWinStart.toLocaleString()} earlier messages
-              </button>
-            )}
-            {subagentWindowed.map((m) => (
-              <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
-                keyword="" onClick={() => selectMessage(m.seq)}
-                causality={causality?.changes.find((c) => c.seq === m.seq)}
-                onJump={(seq) => selectMessage(seq, true)} />
-            ))}
-            {subagentWinEnd < subagentMessages.length && (
-              <button className="btn small window-btn" onClick={() => selectMessage(subagentMessages[Math.min(subagentMessages.length - 1, subagentWinEnd + WINDOW / 2 - 1)].seq, true)}>
-                ↓ {(subagentMessages.length - subagentWinEnd).toLocaleString()} later messages
-              </button>
-            )}
-            {!subagentMessages.length && <div className="muted center pad8">{t('No messages match the current filter.')}</div>}
-          </div>
+          <WindowedConvPane className="subagent-conv" messages={subagentMessages} selectedSeq={selectedSeq}
+            keyword="" causality={causality} onSelect={selectMessage}
+            emptyText={t('No messages match the current filter.')} />
         </div>
       </>}
 
