@@ -112,28 +112,32 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
   const allSelected = selected.size === sessions.length && sessions.length > 0;
 
   const Bar = selectMode ? (
-    confirming ? (
-      <>
-        <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
-        <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
-        <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
-          {deleting ? t('Removing…') : `🗑 ${t('Remove')} ${selected.size}`}
-        </button>
-      </>
-    ) : (
-      <>
-        <span className="muted small">{selected.size} {t('selected')}</span>
-        <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(sessions.map((s) => s.id)))}>
-          {allSelected ? t('Clear') : t('Select all')}
-        </button>
-        <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
-        <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
-          🗑 {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
-        </button>
-      </>
-    )
+    // Select→act flow wrapped in a bg1 + hairline toolbar so it reads as one
+    // grouped affordance, not loose buttons in the title row.
+    <div className="select-toolbar">
+      {confirming ? (
+        <>
+          <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
+          <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
+          <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
+            {deleting ? t('Removing…') : `🗑 ${t('Remove')} ${selected.size}`}
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="muted small">{selected.size} {t('selected')}</span>
+          <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(sessions.map((s) => s.id)))}>
+            {allSelected ? t('Clear') : t('Select all')}
+          </button>
+          <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
+          <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
+            🗑 {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
+          </button>
+        </>
+      )}
+    </div>
   ) : (
-    <button className="btn ghost" onClick={enterSelect}>☑ {t('Select')}</button>
+    <button className="btn small" onClick={enterSelect}>☑ {t('Select')}</button>
   );
 
   const UndoToast = undoEntries ? (

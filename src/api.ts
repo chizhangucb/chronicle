@@ -243,6 +243,9 @@ export interface SearchParams {
   scope?: string;
   days?: string | number;
   project?: string | number;
+  // Empty-query "recent" branch only: page offset for the Home ledger's
+  // lazy-scroll (server returns 50 per page). See server/routes/search.ts.
+  offset?: number;
 }
 
 export interface SearchResultItem {
