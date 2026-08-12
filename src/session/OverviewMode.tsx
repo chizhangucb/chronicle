@@ -3,6 +3,7 @@ import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, A
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import InfoTip from '../InfoTip.tsx';
+import { fmtMoney } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
@@ -285,7 +286,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       </div>
 
       <div className="kpis">
-        <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">${costAgg.totalCost.toFixed(2)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
+        <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
         <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
@@ -330,7 +331,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               <AreaChart data={costSeries}>
                 <CartesianGrid {...GRID_PROPS} />
                 <XAxis dataKey="t" {...AXIS_PROPS} tickFormatter={(v: string) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} />
-                <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
                 <Tooltip content={(props) => {
                   // Recharts' <Tooltip> content callback is fixed to its own
                   // (wider) ValueType/NameType — not generic per call site —
@@ -344,7 +345,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                   const label = p.label != null
                     ? new Date(String(p.label)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     : p.label;
-                  return <ChartTooltip {...p} label={label} formatValue={(v) => `$${v.toFixed(2)}`} />;
+                  return <ChartTooltip {...p} label={label} formatValue={(v) => fmtMoney(v, 2)} />;
                 }} />
                 <Area type="stepAfter" dataKey="cumCost" name={t('Cost')} stroke={CATEGORICAL_COLORS[0]} fill={CATEGORICAL_COLORS[0]} fillOpacity={0.12} />
               </AreaChart>
@@ -364,7 +365,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         </div>
 
         <div className="card">
-          <h3>{t('Cost composition')}{costAgg.totalCost > 0 ? ` · $${costAgg.totalCost.toFixed(2)}` : ''}</h3>
+          <h3>{t('Cost composition')}{costAgg.totalCost > 0 ? ` · ${fmtMoney(costAgg.totalCost, 0)}` : ''}</h3>
           {costAgg.totalCost > 0 ? (
             <>
               <div className="comp-bar">
@@ -374,14 +375,14 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               </div>
               <div className="comp-legend">
                 {compSegments.map((s) => (
-                  <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} ${s.value.toFixed(2)}</span>
+                  <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} {fmtMoney(s.value, 0)}</span>
                 ))}
               </div>
               <h3 style={{ marginTop: 12 }}>{t('Cache behavior')}</h3>
-              <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · ${costAgg.cacheReadCost.toFixed(2)}</b></div>
-              <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · ${costAgg.cw5mCost.toFixed(2)}</b></div>
+              <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · {fmtMoney(costAgg.cacheReadCost, 2)}</b></div>
+              <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · {fmtMoney(costAgg.cw5mCost, 2)}</b></div>
               {costAgg.cw1h > 0 && (
-                <div className="cost-row"><span>{t('write')} <span className="ttl">1h</span></span><b className="num">{fmtTokNum(costAgg.cw1h)} · ${costAgg.cw1hCost.toFixed(2)}</b></div>
+                <div className="cost-row"><span>{t('write')} <span className="ttl">1h</span></span><b className="num">{fmtTokNum(costAgg.cw1h)} · {fmtMoney(costAgg.cw1hCost, 2)}</b></div>
               )}
             </>
           ) : (
@@ -421,7 +422,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                     <td>{r.cw.cw1h > 0 ? fmtTokNum(r.cw.cw1h) : '—'}</td>
                     <td>{rHit !== null ? `${rHit}%` : '—'}</td>
                     <td>{msgCountByModel.get(r.model) ?? 0}</td>
-                    <td className="cost">{r.cost != null ? `$${r.cost.toFixed(2)}` : '—'}</td>
+                    <td className="cost">{r.cost != null ? fmtMoney(r.cost, 2) : '—'}</td>
                   </tr>
                 );
               })}
@@ -436,7 +437,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                 <td>{costAgg.cw1h > 0 ? fmtTokNum(costAgg.cw1h) : '—'}</td>
                 <td>{costAgg.cacheHitPct !== null ? `${costAgg.cacheHitPct}%` : '—'}</td>
                 <td>{[...msgCountByModel.values()].reduce((a, b) => a + b, 0)}</td>
-                <td className="cost">${costAgg.totalCost.toFixed(2)}</td>
+                <td className="cost">{fmtMoney(costAgg.totalCost, 2)}</td>
               </tr>
             </tfoot>
           </table>

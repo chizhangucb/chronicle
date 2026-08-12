@@ -479,7 +479,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             <ComposedChart data={stats.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="day" {...AXIS_PROPS} tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis yAxisId="cost" {...AXIS_PROPS} tickFormatter={(v: number) => `$${v}`} />
+              <YAxis yAxisId="cost" {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
               <YAxis yAxisId="sessions" orientation="right" {...AXIS_PROPS} allowDecimals={false} />
               {/* Bar (cost, $) and Line (session count) share one tooltip but different
                   units — ChartTooltip's formatValue gets a single value with no series
@@ -492,7 +492,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                   (non-generic) `TooltipContentProps<ValueType, NameType>`; our chart
                   data is always numeric, so the cast to ChartTooltip's narrower
                   `<V extends number>` prop type reflects the real runtime shape. */}
-              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} hideTotal formatValue={(v: number) => (Number.isInteger(v) ? String(v) : `$${v.toFixed(2)}`)} />} />
+              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} hideTotal formatValue={(v: number) => (Number.isInteger(v) ? String(v) : fmtMoney(v, 2))} />} />
               <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'var(--mono)' }} />
               <Bar yAxisId="cost" dataKey="cost" name={t('Cost')} fill={CATEGORICAL_COLORS[0]} radius={[3, 3, 0, 0]} />
               <Line yAxisId="sessions" type="monotone" dataKey="count" name={t('Sessions')} stroke={CATEGORICAL_COLORS[1]} strokeWidth={2} dot={false} />

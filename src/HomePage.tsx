@@ -173,7 +173,7 @@ function rowCost(s: SearchResultItem): number | null {
 
 function costLabel(s: SearchResultItem): string {
   const c = rowCost(s);
-  return c == null ? '—' : `$${c.toFixed(2)}`;
+  return c == null ? '—' : fmtMoney(c, 2);
 }
 
 function activeLabel(s: SearchResultItem): string {
