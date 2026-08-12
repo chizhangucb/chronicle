@@ -399,7 +399,7 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
           <MinorSessionsBucket onRefresh={onRefresh} />
         </main>
         <div className="drag-handle" role="separator" aria-orientation="vertical"
-          aria-label={t('Resize projects panel')} onMouseDown={rail.onHandleMouseDown} />
+          aria-label={t('Resize projects panel')} onPointerDown={rail.onHandlePointerDown} />
         <aside className="home-rail" style={{ width: rail.width }}>
           <div className="rail-head">
             <span className="eyebrow">{t('Projects')}</span>

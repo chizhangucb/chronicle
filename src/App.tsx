@@ -170,7 +170,7 @@ export default function App() {
 
       {!collapsed && (
         <div className="drag-handle" role="separator" aria-orientation="vertical"
-          aria-label={t('Resize sidebar')} onMouseDown={sidebar.onHandleMouseDown} />
+          aria-label={t('Resize sidebar')} onPointerDown={sidebar.onHandlePointerDown} />
       )}
 
       <div className="app-main">
