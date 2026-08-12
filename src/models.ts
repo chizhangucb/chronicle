@@ -1,3 +1,14 @@
+// PR1 design-system foundation: re-export the shared money formatter so any
+// caller of `models.ts` (the cost-math module) can format its own output
+// without hand-rolling `toFixed`. NOTE: as of this PR, `models.ts` itself had
+// no pre-existing `fmtMoney` to align — the real duplicated (ungrouped,
+// `toFixed`-based) money formatters live as file-local functions in
+// `InsightsPage.tsx` and `ExploreTab.tsx`. This re-export is additive only
+// (no existing caller imports `fmtMoney` from here today), so it carries zero
+// behavior-change risk; consolidating the two UI-file duplicates onto it is
+// left to a follow-up since those two files aren't in this PR's touch list.
+export { fmtMoney } from './format.ts';
+
 // Static per-model context-window table (tokens), cached from the Anthropic
 // model catalog (platform.claude.com, 2026-06) plus common non-Claude models
 // Chronicle can import. Pure lookup — never fetched at runtime, preserving the

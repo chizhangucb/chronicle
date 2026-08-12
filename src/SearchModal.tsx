@@ -130,7 +130,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
   return (
     <Modal onClose={onClose} className="search-modal" title={t('Search session content…')} onKeyDown={onKey}>
         <div className="search-input-row">
-          <span className="search-mag">🔍</span>
+          <span className="search-mag">⌕</span>
           <input ref={inputRef} className="search-input" placeholder={t('Search session content…')}
             value={q} onChange={(e) => setQ(e.target.value)} />
           <span className="kbd">⌘K</span>

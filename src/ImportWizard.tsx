@@ -332,7 +332,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
             <div className="wiz-toolbar">
               <button className="btn small" disabled={rescanning} onClick={rescan}>◎ {rescanning ? t('Rescanning…') : t('Rescan')}</button>
               <button className="btn small" onClick={() => setDirForm(dirForm === null ? '' : null)}>🗀 {t('Select Directory Manually')}</button>
-              <input className="input wiz-search" placeholder={'🔍 ' + t('Search projects or sessions')}
+              <input className="input wiz-search" placeholder={'⌕ ' + t('Search projects or sessions')}
                 value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
             {dirForm !== null && (
