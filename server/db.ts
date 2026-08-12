@@ -158,7 +158,11 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
 
 // One-time backfill for sessions imported before the columns existed (NULL).
 // ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
-{
+// Failure (e.g. SQLITE_BUSY from a stale second Chronicle process holding a
+// write lock at this exact first-boot-after-upgrade moment) must NOT kill
+// startup: the rows just stay NULL — COALESCE(...,0) in the readers degrades
+// to undercounted errors until the next boot retries the backfill.
+try {
   const missing = (db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE result_count IS NULL').get() as unknown as { c: number }).c;
   if (missing > 0) {
     const heads = db.prepare(`SELECT session_id, substr(text, 1, 200) AS head FROM messages
@@ -181,6 +185,8 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
       throw err;
     }
   }
+} catch (err) {
+  console.warn('[chronicle] error-count backfill deferred (will retry next start):', (err as Error).message);
 }
 
 // Contract views: the dashboard reads ONLY these; base tables stay free to

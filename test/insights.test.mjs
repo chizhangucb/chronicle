@@ -123,6 +123,10 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
 // per request — replaceSession precomputes result_count/error_count on the
 // session row (shared server/errors.ts heuristic) and computeInsights just
 // SUMs them. s1's fixture appends exactly one tool_result ('Error: boom').
+// This REPLACES the old "errorsByProject sums to the global errors count"
+// test: `errors` is now derived by summing errorsByProject, so that
+// assertion became a tautology that could never fail — this one pins the
+// values against independent fixture expectations instead.
 test('error counts are precomputed on sessions at import and drive computeInsights', async () => {
   const { db } = dbModule;
   const s1 = db.prepare('SELECT result_count, error_count FROM sessions WHERE id = ?').get('s1');
@@ -136,14 +140,6 @@ test('error counts are precomputed on sessions at import and drive computeInsigh
   const p1 = r.errorsByProject.find((p) => p.head_count > 0);
   assert.ok(p1);
   assert.equal(p1.error_count, 1);
-});
-
-test('computeInsights: errorsByProject buckets tool_result heads per project and sums to the global errors count', async () => {
-  const { db } = dbModule;
-  db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
-  const r = await insightsModule.computeInsights(null);
-  const total = r.errorsByProject.reduce((n, p) => n + p.error_count, 0);
-  assert.equal(total, r.errors);
 });
 
 // Working Rhythm's "Favorite model" reads modelDistFixed, NOT modelDist,
