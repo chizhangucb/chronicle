@@ -114,12 +114,13 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
                       <span key={name} className="pill">{name}: {n}</span>
                     ))}
                   </>}
-              <span style={{ flex: 1 }} />
-              <button className="btn small" onClick={() => setShowRules(!showRules)}>
-                {showRules ? 'Hide rules' : `Rules (${rules.length} custom)`}
-              </button>
-              <a className="btn small primary" href={`/api/sessions/${encodeURIComponent(sessionId)}/export-redacted`}
-                download>Export redacted copy</a>
+              <div className="sec-actions">
+                <button className="btn small" onClick={() => setShowRules(!showRules)}>
+                  {showRules ? 'Hide rules' : `Rules (${rules.length} custom)`}
+                </button>
+                <a className="btn small primary" href={`/api/sessions/${encodeURIComponent(sessionId)}/export-redacted`}
+                  download>Export redacted copy</a>
+              </div>
             </div>
 
             {showRules && (

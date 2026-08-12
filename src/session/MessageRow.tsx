@@ -87,9 +87,9 @@ export default function MessageRow({ m, selected, keyword, onClick, causality, o
           ))}
         </div>
       )}
-      <div className="msg-body">{highlight(shown, keyword)}</div>
+      <div className={`msg-body ${expanded ? 'expanded' : ''}`}>{highlight(shown, keyword)}</div>
       {isLong && (
-        <button className="btn ghost tiny" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <button className="btn ghost tiny msg-expand" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
           {expanded ? 'Show less' : `Show all (${body.length.toLocaleString()} chars)`}
         </button>
       )}

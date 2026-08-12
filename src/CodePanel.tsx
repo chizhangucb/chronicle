@@ -105,7 +105,7 @@ export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps)
           <span className="commit-info" title={commit.hash}>
             <span className="pill git-pill">⎇ {commit.hash.slice(0, 7)}</span>
             <span className="commit-subject">{commit.subject}</span>
-            <span className="muted small">{new Date(commit.date).toLocaleString()}</span>
+            <span className="muted small commit-date">{new Date(commit.date).toLocaleString()}</span>
             {commit.beforeHistory && <span className="pill warn-pill">before first commit</span>}
           </span>
         ) : <span className="muted small">Select a message to load its code snapshot</span>}

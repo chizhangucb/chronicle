@@ -281,7 +281,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
       <div className="kpis">
         <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">${costAgg.totalCost.toFixed(2)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
-        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{t('in')} {fmtTokNum(costAgg.totalIn)} · {t('out')} {fmtTokNum(costAgg.totalOut)}</div></div>
+        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
         <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.')} /></div>
@@ -297,7 +297,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       </div>
 
       {onOpenContent && (
-        <button type="button" className="btn tiny ghost" style={{ margin: '-4px 0 10px' }} onClick={onOpenContent}>
+        <button type="button" className="ov-content-link" onClick={onOpenContent}>
           {t('See what filled the context →')}
         </button>
       )}
@@ -369,11 +369,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               </div>
               <div className="comp-legend">
                 {compSegments.map((s) => (
-                  <span key={s.key}><span className="dot" style={{ background: s.color }} />{s.label} ${s.value.toFixed(2)}</span>
+                  <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} ${s.value.toFixed(2)}</span>
                 ))}
               </div>
               <h3 style={{ marginTop: 12 }}>{t('Cache behavior')}</h3>
-              <div className="cost-row"><span>{t('hit rate')} <span className="muted">{t('read / (read+in)')}</span></span><b className="num">{costAgg.cacheHitPct ?? '—'}%</b></div>
               <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · ${costAgg.cacheReadCost.toFixed(2)}</b></div>
               <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · ${costAgg.cw5mCost.toFixed(2)}</b></div>
               {costAgg.cw1h > 0 && (
