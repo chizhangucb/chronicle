@@ -729,6 +729,10 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
   border: 1px solid var(--border); border-left: 3px solid var(--border);
   border-radius: 8px; padding: 8px 12px; cursor: pointer; background: var(--bg1);
 }
+/* Tool Call vs Tool Result read pixel-identical otherwise (both bg0 + default
+   left border); tint the result rail --ok, mirroring Refine's kind palette, so
+   the paired kinds separate. Placed before .selected/:hover so those still win. */
+.msg.tool-result { border-left-color: var(--ok); }
 .msg:hover { border-color: var(--brass); }
 .msg.selected { border-left-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
 .msg.user { border-left-color: var(--brass); background: rgba(192, 138, 30, 0.07); }
@@ -740,6 +744,11 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
   white-space: pre-wrap; word-break: break-word; font-size: 13px;
   max-height: 400px; overflow-y: auto;
 }
+/* Once "Show all" expands a long body, drop the cap so the pane scrolls instead
+   of nesting a second inner scrollbar (the double-scroll trap). */
+.msg-body.expanded { max-height: none; overflow-y: visible; }
+/* Show all / Show less needs a real click target, not 18px body-text height. */
+.msg-expand { padding: 4px 8px; margin-top: 2px; }
 .msg.tool .msg-body, .msg.tool-result .msg-body { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
 mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding: 0 1px; }
 
@@ -750,7 +759,11 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
   padding: 7px 12px; border-bottom: 1px solid var(--border); background: var(--bg1); flex-shrink: 0;
 }
 .commit-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.commit-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+/* Only the subject may ellipsis; the hash pill and date stay whole so the date
+   never wraps to a second line and floats the ± Diff button. */
+.commit-subject { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.commit-info .git-pill { flex-shrink: 0; }
+.commit-date { white-space: nowrap; flex-shrink: 0; }
 .code-body { display: flex; flex: 1; min-height: 0; }
 .file-tree {
   width: 250px; overflow-y: auto; border-right: 1px solid var(--border);
@@ -843,7 +856,10 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .tok-pill { color: var(--ink-2); font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .refine-item-body { font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 90px; overflow: hidden; margin-top: 3px; }
 .refine-item-body.open { max-height: none; }
-.expand-btn { font-size: 11px; padding: 0 4px; }
+.expand-btn { font-size: 11px; padding: 4px 8px; }
+/* Per-row inline ops share the tiny-ghost look but need a real target (≥24px);
+   they stay visible on the selected row (see .refine-item.selected .refine-ops). */
+.refine-ops .btn.tiny { padding: 4px 6px; }
 .refine-right { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg0); }
 .refine-right-head {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -880,6 +896,9 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 /* Security Check */
 .modal.wide { width: 980px; }
 .sec-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+/* Keep the two actions grouped + right-aligned so the primary export button
+   never wraps to a second row isolated from Rules when the pills fill row 1. */
+.sec-actions { display: flex; gap: 8px; margin-left: auto; }
 .sec-rules { margin-bottom: 12px; }
 .sec-rule-form { display: flex; gap: 8px; margin: 10px 0; }
 .sec-rule-form .search { flex: 1; width: auto; }
@@ -954,6 +973,12 @@ h4 { margin: 6px 0; }
 /* ---- Session overview: name + rename ---- */
 .ov-name-row { display: flex; align-items: center; gap: 8px; }
 .ov-name-row .ov-title { margin: 0; }
+/* Comfortable click target for the ✎ rename + ⧉ copy controls; the ghost
+   rename button gains a hover border (transparent at rest so it doesn't jump,
+   scoped to ghost so the copy button's own border + ok-copied state survive). */
+.ov-name-row .btn.tiny, .session-id-chip .btn.tiny { padding: 4px 8px; }
+.ov-name-row .btn.tiny.ghost { border: 1px solid transparent; }
+.ov-name-row .btn.tiny.ghost:hover { border-color: var(--border-strong); }
 .ov-title-icon { font-size: 18px; }
 .ov-name-input {
   flex: 1; min-width: 240px; max-width: 640px; font-size: 18px; font-weight: 600;
@@ -1137,6 +1162,10 @@ h4 { margin: 6px 0; }
 .overview-page .hbar .fill { height: 100%; border-radius: 3px; }
 .overview-page .hbar .v { text-align: right; color: var(--ink-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+/* A lone trailing card in an odd position (e.g. the Subagents card when it is
+   the 3rd) would leave column 2 empty — let it span the full row instead. Only
+   fires for the odd-count case, so the even 2-col layout is untouched. */
+.two .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
 .trow:last-child { border: 0; }
 .trow .k { color: var(--brass-text); white-space: nowrap; width: 52px; flex-shrink: 0; }
@@ -1148,6 +1177,18 @@ h4 { margin: 6px 0; }
 .comp-bar { display: flex; gap: 2px; height: 14px; border-radius: 3px; overflow: hidden; }
 .comp-bar span { height: 100%; }
 .comp-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 10.5px var(--mono); color: var(--ink-2); margin-top: 8px; }
+/* Composition legend markers are square swatches (mapping to the stacked bar
+   segments), distinct from the round-ish model `.dot` markers so the two
+   legends don't read as the same kind of key. */
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 1px; margin-right: 6px; vertical-align: -1px; }
+/* Sole entry to session-scoped Content — a left-aligned brass link, not a
+   full-width ghost button that reads as a caption in the flex-column page. */
+.ov-content-link {
+  align-self: flex-start; background: none; border: none; cursor: pointer;
+  color: var(--brass-text); text-decoration: underline; text-underline-offset: 2px;
+  font: inherit; padding: 4px 0; margin: -4px 0 4px;
+}
+.ov-content-link:hover { color: var(--ink); }
 
 /* ---- 5d-1: Home right rail + always-visible search ---- */
 .home-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
@@ -1191,11 +1232,16 @@ h4 { margin: 6px 0; }
   display: flex; align-items: center; gap: 12px; padding: 8px 14px;
   border-bottom: 1px solid var(--border); background: var(--bg1); flex-shrink: 0;
 }
-.subagent-subtitle { font: 12px var(--mono); color: var(--ink-2); }
+/* Subagent drill-in header reads as a real title: bold subagent name up top,
+   the parent session muted underneath — a hierarchy, not a cryptic mono line. */
+.subagent-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.subagent-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.subagent-parent { font: 11px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The drill-in has no CodePanel sibling (no single Git snapshot applies to a
    subagent's own multi-turn run), so its `.conv-pane` takes the full width
-   instead of the playback view's 44%/border-right split. */
-.subagent-conv { width: 100%; border-right: 0; }
+   instead of the playback view's 44%/border-right split — capped to a
+   comfortable reading measure and centred rather than spanning ~1450px. */
+.subagent-conv { width: 100%; max-width: 900px; margin-inline: auto; border-right: 0; }
 
 /* ---- 5e-1: Insights tabs + Explore pivot ----
    `.card`/`.tbl`/`.rangebar`/`.legend`/`.dot`/`.tbl .cost`/`.tbl tr.rowlink`

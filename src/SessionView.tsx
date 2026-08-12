@@ -5,7 +5,7 @@ import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
-import { SessionPicker } from './ProjectDetail.jsx';
+import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
 import { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
@@ -350,7 +350,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         </div>
         <input ref={searchRef} className="search" placeholder={t('Search messages…  ⌘F')}
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-        <span className="muted small">Match: {visible.length}/{messages.length}</span></>}
+        <span className="muted small">Match: <span className="num">{visible.length}/{messages.length}</span></span></>}
         <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
           title={`${t('Sync this session')} (⇧⌘U)`} onClick={syncThisSession} disabled={syncingSession}
           aria-label={t('Sync this session')}>{syncingSession ? '◌' : '⟳'}</button>
@@ -399,7 +399,10 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           <button className="btn ghost small" onClick={() => { setSubagentRun(null); setMode('overview'); }}>
             ← {t('back to session')}
           </button>
-          <span className="subagent-subtitle">{t('parent')} ↳ {subagentRun}</span>
+          <span className="subagent-title">
+            <strong className="subagent-name">{t('Subagent')} · {subagentRun}</strong>
+            <span className="subagent-parent muted small">{t('Parent session')} · {sessionDisplayName(data.session)}</span>
+          </span>
         </div>
         <div className="panes">
           <WindowedConvPane className="subagent-conv" messages={subagentMessages} selectedSeq={selectedSeq}
