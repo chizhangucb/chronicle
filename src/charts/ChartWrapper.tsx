@@ -35,12 +35,17 @@ export interface ChartTooltipProps<V extends number = number> extends TooltipCon
   // sum-of-all-series total is meaningless. Defaults to false/undefined so
   // every existing call site (single-unit charts) is unaffected.
   hideTotal?: boolean;
+  // When the charted values are calibrated estimates (e.g. Explore's tool/skill
+  // × tokens/spend), prefix each value with `≈` so the tooltip matches the
+  // card's own `≈` marking instead of reading as exact (EXP-05).
+  calibrated?: boolean;
 }
 
 export function ChartTooltip<V extends number = number>(
-  { active, label, payload, formatValue = (v) => String(v), hideTotal }: ChartTooltipProps<V>,
+  { active, label, payload, formatValue = (v) => String(v), hideTotal, calibrated }: ChartTooltipProps<V>,
 ): JSX.Element | null {
   if (!active || !payload?.length) return null;
+  const approx = calibrated ? '≈' : '';
   const rows = payload
     .filter((p) => Number(p.value ?? 0) !== 0)
     .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
@@ -55,13 +60,13 @@ export function ChartTooltip<V extends number = number>(
             <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: String(p.color), marginRight: 6 }} />
             {p.name}
           </span>
-          <b>{formatValue((p.value ?? 0) as V)}</b>
+          <b>{approx}{formatValue((p.value ?? 0) as V)}</b>
         </div>
       ))}
       {!hideTotal && rows.length > 1 && (
         <div className="tt-row tt-total">
           <span>Total</span>
-          <b>{formatValue(total as V)}</b>
+          <b>{approx}{formatValue(total as V)}</b>
         </div>
       )}
     </div>
