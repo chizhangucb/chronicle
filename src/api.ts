@@ -325,7 +325,13 @@ export interface InsightsResult {
   dailyActivity: DayCount[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
+  laneC: LaneCSpend;
 }
+
+// Lane C proxy-lane billed spend (mirrors server/laneC.ts) — authoritative
+// billed $ by model, not session-linked.
+export interface LaneCModel { model: string; spend: number; requests: number; tokens: number; }
+export interface LaneCSpend { totalSpend: number; requests: number; byModel: LaneCModel[]; }
 
 // ---- Explore / Content (Task 5e-0 backend engine) ----
 // These interfaces mirror server/explore.ts and server/content.ts VERBATIM —

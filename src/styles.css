@@ -180,6 +180,8 @@ body {
 
 /* ---- KPI / stat tile (5c primitive — no call sites until 5d wires real metrics) ---- */
 .kpis { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 12px; }
+/* Insights Overview only: a 9th tile (Lane C proxy spend) when present. */
+.kpis.kpis-9 { grid-template-columns: repeat(9, 1fr); }
 .kpi {
   background: var(--bg1); border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; cursor: default;
