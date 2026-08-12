@@ -3,6 +3,12 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## 1.0.2
+
+- Internal: shared conversation-pane component (`WindowedConvPane`) deduped
+  across playback and the subagent drill-in. No user-facing changes.
+- First release published via automated OIDC trusted publishing.
+
 ## 1.0.1
 
 - **Quieter startup.** The foreground `npx` launcher no longer prints the
