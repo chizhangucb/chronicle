@@ -222,7 +222,10 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   (`SessionMode` includes `'subagent'`, reached only via that card, not the sidebar rail).
 - **Insights hub** (`server/insights.ts`) mirrors the per-project analytics shapes
   (`server/routes/projects.ts`) but across ALL projects — same `COALESCE(minor,0)=0` gate,
-  same `days=` cutoff, same `ERROR_RE` heuristic. `dailyActivity`/`hourlyActivity` are
+  same `days=` cutoff, same error heuristic (precomputed per-session counts; see the
+  `server/errors.ts` gotcha). Message-level aggregates are written as `sessions CROSS JOIN
+  messages` so the covering `idx_messages_agg` index serves them (never a scan of the fat
+  messages table). `dailyActivity`/`hourlyActivity` are
   DELIBERATELY exempt from `days=` (Working Rhythm always shows a fixed trailing 182-day
   calendar + trailing 30-day hour-of-day heatmap).
 
@@ -338,9 +341,14 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
 - Per-session source-file deletion is restricted to sources where one file = one session
   (claude-code, codex); OpenCode/Cursor share one DB across sessions, so their files are
   never deleted.
-- The tool-result error heuristic exists in multiple places: `ERROR_RE` in
-  `server/routes/projects.ts` + `server/insights.ts` + `server/explore.ts`, and
-  `isErrorResult` in `src/SessionView.tsx`. Change all or the Errors counts diverge.
+- The tool-result error heuristic has ONE server copy: `server/errors.ts`
+  (`ERROR_RE`/`isErrorHead`), imported by `explore.ts` and by `db.ts` at import
+  time — `replaceSession` precomputes per-session `result_count`/`error_count`
+  (one-time backfill for old rows), which insights/projects SUM instead of
+  regexing tool_result heads per request. The client twin `isErrorResult` in
+  `src/SessionView.tsx` must stay in sync with it. Changing `ERROR_RE` only
+  affects sessions imported AFTER the change (stored counts are per-import) —
+  NULL out `sessions.result_count` to force a re-backfill.
 - **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they are
   blocked (silently return null) in embedded/preview browser contexts, so the action
   no-ops with no error. Use an inline edit-in-place field / inline confirm bar instead

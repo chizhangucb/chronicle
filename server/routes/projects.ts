@@ -39,9 +39,6 @@ export function mountProjects(app: Express): void {
     res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path) })));
   });
 
-  // Heuristic error detection (mirrors the client-side Overview heuristic).
-  const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;
-
   app.get('/projects/:id', (req: Request, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
@@ -65,22 +62,25 @@ export function mountProjects(app: Express): void {
       try { ongoing = Date.now() - fs.statSync(file_path).mtime.getTime() < ONGOING_MS; } catch {}
       return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
     });
-    const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
-      JOIN sessions s ON s.id = m.session_id
+    // CROSS JOIN pins sessions as the outer loop so messages come from the
+    // covering idx_messages_agg index instead of a full table scan — same
+    // perf-fix shape as server/insights.ts (see the index comment in db.ts).
+    const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
       WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
       GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
-    const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
-      JOIN sessions s ON s.id = m.session_id
+    const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
       WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
-    const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count FROM messages m
-      JOIN sessions s ON s.id = m.session_id
+    const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
       WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL
       GROUP BY day ORDER BY day`).all(project.id, cutoff);
-    const errors = (db.prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
-      JOIN sessions s ON s.id = m.session_id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
-      .all(project.id, cutoff) as unknown as { head: string }[])
-      .reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
+    // Precomputed at import (db.ts replaceSession, shared server/errors.ts
+    // heuristic) — no per-request regex over tool_result heads.
+    const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
+      WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0`)
+      .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
     const commits = gitEngine.commitCountSince(project.path, cutoff || null);
     res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors, commits } });
   });

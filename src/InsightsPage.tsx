@@ -79,10 +79,18 @@ export default function InsightsPage(): JSX.Element {
   const [days, setDays] = useState<number | null>(30);
   const [tab, setTab] = useState<Tab>('overview');
   const [result, setResult] = useState<InsightsResult | null>(null);
+  // True while a range change is refetching. The previous result stays on
+  // screen (dimmed via .range-refreshing) instead of blanking — a slow
+  // response must never look like a dead range bar.
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    api.insights(days ?? undefined).then((r) => { if (!cancelled) setResult(r); }).catch(() => { if (!cancelled) setResult(null); });
+    setRefreshing(true);
+    api.insights(days ?? undefined)
+      .then((r) => { if (!cancelled) setResult(r); })
+      .catch(() => { if (!cancelled) setResult(null); })
+      .finally(() => { if (!cancelled) setRefreshing(false); });
     return () => { cancelled = true; };
   }, [days]);
 
@@ -111,7 +119,9 @@ export default function InsightsPage(): JSX.Element {
       </div>
 
       {tab === 'overview' && (
-        result ? <InsightsOverview result={result} days={days} /> : <div className="muted pad8">{t('Loading…')}</div>
+        result
+          ? <div className={refreshing ? 'range-refreshing' : undefined}><InsightsOverview result={result} days={days} /></div>
+          : <div className="muted pad8">{t('Loading…')}</div>
       )}
       {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
       {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
