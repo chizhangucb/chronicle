@@ -10,6 +10,7 @@ import SearchModal from './SearchModal.tsx';
 import HomePage from './HomePage.jsx';
 import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
+import { useResizable } from './useResizable.ts';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
@@ -68,6 +69,10 @@ export default function App() {
   // payload here so ProjectDetail can surface the shared undo toast on landing.
   const [pendingUndo, setPendingUndo] = useState<DeletedEntry | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('chronicle-sidebar') === 'collapsed');
+  // Drag-to-resize width for the expanded sidebar (persisted, mirrors the
+  // collapse pattern above). Ignored while collapsed — the fixed 56px width
+  // wins there, so a persisted width never fights the collapse state.
+  const sidebar = useResizable({ storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right' });
 
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
@@ -115,7 +120,8 @@ export default function App() {
   return (
     <Toast.Provider swipeDirection="right">
     <div className="app">
-      <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}
+        style={collapsed ? undefined : { width: sidebar.width }}>
         <div className="sb-brand" title="Chronicle" onClick={() => navigate('/')}>
           <span className="brand-mark">◷</span>
           <span className="sb-label sb-brand-name">Chronicle</span>
@@ -161,6 +167,11 @@ export default function App() {
           </button>
         </nav>
       </aside>
+
+      {!collapsed && (
+        <div className="drag-handle" role="separator" aria-orientation="vertical"
+          aria-label={t('Resize sidebar')} onPointerDown={sidebar.onHandlePointerDown} />
+      )}
 
       <div className="app-main">
         <header className="topbar">

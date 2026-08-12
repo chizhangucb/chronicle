@@ -117,6 +117,19 @@ body {
 .sidebar.collapsed .sb-brand { justify-content: center; padding: 6px 0; }
 .sidebar.collapsed .sb-sec-head { display: none; }
 
+/* Drag-to-resize handles (PR3): thin flex-sibling grips between the sidebar and
+   app-main, and between the Home stream and its project rail. The resized panel
+   widths are applied inline (App.tsx / HomePage.tsx via useResizable); the
+   handle only captures the drag. `body.resizing` (set for the drag's duration)
+   kills the panel width transition and suppresses text selection app-wide. */
+.drag-handle {
+  flex-shrink: 0; width: 4px; align-self: stretch; cursor: col-resize;
+  background: transparent; transition: background var(--ease-hover);
+}
+.drag-handle:hover, .drag-handle:active { background: var(--brass); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .sidebar, body.resizing .home-rail { transition: none; }
+
 /* Top bar */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;

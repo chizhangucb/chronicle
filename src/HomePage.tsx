@@ -10,6 +10,7 @@ import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
+import { useResizable } from './useResizable.ts';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 import type { SearchResultItem } from './api.js';
@@ -328,6 +329,10 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
   const groups = useMemo(() => groupByDay(recentSessions ?? []), [recentSessions]);
 
+  // Drag-to-resize width for the right project rail (persisted). The handle
+  // sits on the rail's LEFT edge, so the rail grows as the cursor moves left.
+  const rail = useResizable({ storageKey: 'chronicle.railW', fallback: 280, min: 220, max: 480, edge: 'left' });
+
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) {
     return (
@@ -393,7 +398,9 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
           {isRecentMode && hasMore && <div ref={sentinelRef} className="ledger-sentinel" aria-hidden="true" />}
           <MinorSessionsBucket onRefresh={onRefresh} />
         </main>
-        <aside className="home-rail">
+        <div className="drag-handle" role="separator" aria-orientation="vertical"
+          aria-label={t('Resize projects panel')} onPointerDown={rail.onHandlePointerDown} />
+        <aside className="home-rail" style={{ width: rail.width }}>
           <div className="rail-head">
             <span className="eyebrow">{t('Projects')}</span>
             <span className={`sync ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}>{sync.text}</span>
