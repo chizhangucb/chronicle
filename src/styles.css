@@ -525,6 +525,9 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    `window.confirm`, which silently no-ops in embedded/preview browsers. */
 .menu-confirm { padding: 6px 8px; display: flex; flex-direction: column; gap: 8px; }
 .menu-confirm-actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* Inline error inside a dropdown (replaces window.alert on the rename/sync
+   failure path — alert silently no-ops in embedded browsers). */
+.menu-err { color: var(--danger); }
 
 /* Topbar right cluster + language dropdown */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -539,6 +542,15 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }
+/* Identity dot sits centered against the larger head title (the base .pdot is
+   sized for body text); color is the same projectColorMap hue as Home. */
+.project-head h2 .pdot { width: 11px; height: 11px; margin-right: 9px; vertical-align: 1px; }
+/* Inline unlink confirm bar — never window.confirm (see CLAUDE.md). */
+.inline-confirm {
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  flex-wrap: wrap; background: var(--bg1); border: 1px solid var(--border-strong);
+  border-radius: 6px; padding: 8px 12px; margin: 0 0 12px;
+}
 .stat { min-width: 110px; text-align: center; }
 .stat-num { font-size: 26px; font-weight: 700; color: var(--brass); }
 

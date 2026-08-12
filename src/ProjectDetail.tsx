@@ -9,7 +9,8 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
-import { CATEGORICAL_COLORS } from './colors.js';
+import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
+import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -166,6 +167,20 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const [sortKey, setSortKey] = useState('recent');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [listLimit, setListLimit] = useState(SESSION_WINDOW);
+  // Inline rename (edit-in-place) + inline unlink confirm — never window.prompt/
+  // confirm, which silently no-op in embedded/preview browsers (see CLAUDE.md).
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
+  // Per-project identity color: assigned in the SAME fixed order as Home
+  // (projectColorMap over all project ids), so the head/breadcrumb dot matches
+  // Home's rail + ledger pill for this project.
+  const [allProjects, setAllProjects] = useState<PickableProject[] | null>(null);
+  useEffect(() => { api.projects().then(setAllProjects).catch(() => setAllProjects([])); }, []);
+  const projectColor = useMemo(
+    () => projectColorMap((allProjects ?? []).map((p) => p.id)).get(Number(id)),
+    [allProjects, id]);
 
   const [, navigate] = useLocation();
   const [atExploreRoute] = useRoute('/project/:id/explore');
@@ -199,12 +214,18 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     return () => onLiveChange?.(null);
   }, [data]);
 
-  async function rename() {
+  function startRename() {
     if (!data) return;
-    const name = prompt('New display name (folder is not touched):', data.project.name);
-    if (!name) return;
-    await api.renameProject(id, name);
-    refresh();
+    setNameDraft(data.project.name);
+    setRenaming(true);
+  }
+  async function saveRename() {
+    if (savingName) return;
+    const name = nameDraft.trim();
+    if (!name) { setRenaming(false); return; } // blank cancels (folder name required)
+    setSavingName(true);
+    try { await api.renameProject(id, name); setRenaming(false); refresh(); }
+    finally { setSavingName(false); }
   }
 
   async function associate(e: React.FormEvent) {
@@ -216,8 +237,8 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   }
 
   async function unlink(source: string) {
-    if (!confirm(`Unlink ${source} sessions into their own project?`)) return;
     await fetch(`/api/projects/${id}/unlink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+    setConfirmUnlink(null);
     refresh();
   }
 
@@ -305,6 +326,14 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     return [...list].sort(by[sortKey]);
   }, [data, sortKey, sourceFilter]);
 
+  // Overview teaser: the 5 most-recent sessions, independent of the Sessions
+  // tab's sort/source filters (those live only under `tab==='sessions'`).
+  const recent5 = useMemo(
+    () => [...(data?.sessions ?? [])]
+      .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
+      .slice(0, 5),
+    [data]);
+
   // Session-level multi-select delete — the same shared component/behavior as
   // the Home recent-sessions stream (see src/SessionSelect.tsx).
   const selectableSessions = useMemo(
@@ -322,23 +351,36 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   return (
     <div className="page project-detail">
       <div className="crumbs">
-        <ProjectPicker current={project} onPick={onOpenProject} />
+        <ProjectPicker current={project} color={projectColor} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
         <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} />
         <button className="btn ghost small" style={{ marginLeft: 'auto' }} onClick={onBack}>← {t('Projects')}</button>
       </div>
 
       <div className="project-head">
-        <h2>📊 {project.name}</h2>
-        <button className="btn tiny ghost" title="Rename (display only)" onClick={rename}>✎</button>
+        {renaming ? (
+          <>
+            <input className="ov-name-input" autoFocus value={nameDraft} disabled={savingName}
+              placeholder={project.name}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenaming(false); }} />
+            <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
+            <button className="btn tiny ghost" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={() => setRenaming(false)}>✕</button>
+          </>
+        ) : (
+          <>
+            <h2><span className="pdot" style={{ '--project-color': projectColor } as React.CSSProperties} />{project.name}</h2>
+            <button className="btn tiny ghost" title={t('Rename project')} onClick={startRename}>✎</button>
+          </>
+        )}
         <span className="muted">{project.path}</span>
         {git.isRepo
-          ? <span className="pill git-pill">⎇ {git.branch} · {git.commitCount} commits</span>
+          ? <span className="pill git-pill">⎇ {git.branch}</span>
           : <span className="pill warn-pill">No Git repo — time travel unavailable</span>}
         {[...new Set(sessions.map((s) => s.source))].length > 1 &&
           [...new Set(sessions.map((s) => s.source))].map((src) => (
             <button key={src} className="btn tiny ghost" title={`Unlink ${src} into its own project`}
-              onClick={() => unlink(src)}>⛓✕ {src}</button>
+              onClick={() => setConfirmUnlink(src)}>⛓✕ {src}</button>
           ))}
         <div className="rangebar" style={{ marginLeft: 'auto' }} title={t('Time range')}>
           {RANGES.map((r) => (
@@ -346,6 +388,16 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           ))}
         </div>
       </div>
+
+      {confirmUnlink && (
+        <div className="inline-confirm">
+          <span className="muted small">{confirmUnlink} — {t('Unlink into its own project?')}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn tiny ghost" onClick={() => setConfirmUnlink(null)}>{t('Cancel')}</button>
+            <button className="btn tiny danger-btn" onClick={() => unlink(confirmUnlink)}>⛓✕ {t('Unlink')}</button>
+          </div>
+        </div>
+      )}
 
       {project.path.includes('#') && (
         <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
@@ -373,13 +425,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       {tab === 'overview' && <><div className="kpis">
         <div className="kpi">
           <div className="l">{t('Sessions')}</div>
-          <div className="v">{sessions.length}</div>
-          <div className="s">{stats.activeDays} {t('Active Days')}</div>
+          <div className="v">{fmtInt(sessions.length)}</div>
+          <div className="s">{fmtInt(stats.activeDays)} {t('Active Days')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Cost')}</div>
-          <div className="v">${stats.totalCost.toFixed(2)}</div>
-          <div className="s">{stats.modelCount} {t('models')}</div>
+          <div className="v">{fmtMoney(stats.totalCost, 2)}</div>
+          <div className="s">{fmtInt(stats.modelCount)} {t('models')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Tokens')}</div>
@@ -389,31 +441,32 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         <div className="kpi">
           <div className="l">{t('Agent Active')}</div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
-          <div className="s">{sessions.length} {t('sessions')}</div>
+          <div className="s">{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Messages')}</div>
-          <div className="v">{stats.messages}</div>
-          <div className="s">{stats.userPrompts} {t('prompts')}</div>
+          <div className="v">{fmtInt(stats.messages)}</div>
+          <div className="s">{fmtInt(stats.userPrompts)} {t('prompts')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Tool Calls')}</div>
-          <div className="v">{stats.toolCalls}</div>
+          <div className="v">{fmtInt(stats.toolCalls)}</div>
+          <div className="s">{fmtInt(sessions.length ? Math.round(stats.toolCalls / sessions.length) : 0)} {t('avg/session')}</div>
         </div>
         <div className={`kpi ${stats.errors ? 'warn' : ''}`}>
           <div className="l">{t('Errors')}</div>
-          <div className="v">{stats.errors}</div>
+          <div className="v">{fmtInt(stats.errors)}</div>
           <div className="s">{stats.errorRate.toFixed(1)}% {t('Error Rate')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Commits')}</div>
-          <div className="v">{data.analytics.commits}</div>
-          {git.isRepo && git.branch && <div className="s">⎇ {git.branch}</div>}
+          <div className="v">{fmtInt(data.analytics.commits)}</div>
+          <div className="s">{t('in range')}</div>
         </div>
       </div>
 
       <div className="card trend-card">
-        <strong>{t('Daily cost & sessions')}</strong>
+        <h3>{t('Daily cost & sessions')}</h3>
         {stats.trend.length ? (
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={stats.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
@@ -445,19 +498,26 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
       <div className="pd-charts">
         <div className="card">
-          <strong>{t('Source mix')}</strong>
+          <h3>{t('Source mix')}</h3>
           {stats.sources.length ? (
             <div className="donut-wrap" style={{ marginTop: 10 }}>
-              <PieChart width={140} height={140}>
-                <Pie data={stats.sources.map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name"
-                  innerRadius={38} outerRadius={64} paddingAngle={stats.sources.length > 1 ? 2 : 0} stroke="none">
-                  {stats.sources.map((_, i) => <Cell key={i} fill={CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />)}
-                </Pie>
-                {/* No hideTotal here: a Pie hover always yields a single-slice payload
-                    (one row), so ChartTooltip's `rows.length > 1` Total guard already
-                    never fires — there's no mixed-unit sum to suppress. */}
-                <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} />} />
-              </PieChart>
+              {/* Reflows with the card: ResponsiveContainer (fixed height, width
+                  100%) inside a bounded flex column, so the donut recomputes on
+                  card resize instead of clipping at a fixed 140px (PROJ-10). */}
+              <div style={{ flex: '1 1 140px', minWidth: 130, maxWidth: 180 }}>
+                <ResponsiveContainer width="100%" height={140}>
+                  <PieChart>
+                    <Pie data={stats.sources.map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name"
+                      innerRadius={38} outerRadius={64} paddingAngle={stats.sources.length > 1 ? 2 : 0} stroke="none">
+                      {stats.sources.map((_, i) => <Cell key={i} fill={CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />)}
+                    </Pie>
+                    {/* No hideTotal here: a Pie hover always yields a single-slice payload
+                        (one row), so ChartTooltip's `rows.length > 1` Total guard already
+                        never fires — there's no mixed-unit sum to suppress. */}
+                    <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
               <div>
                 {stats.sources.map(([src, n], i) => (
                   <div key={src} className="donut-legend-row">
@@ -466,7 +526,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                     <span className="muted">{Math.round((n / Math.max(1, sessions.length)) * 100)}%</span>
                   </div>
                 ))}
-                <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {sessions.length} {t('sessions')}</div>
+                <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {fmtInt(sessions.length)} {t('sessions')}</div>
               </div>
             </div>
           ) : (
@@ -474,33 +534,62 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           )}
         </div>
         <div className="card">
-          <strong>{t('Call Ranking')}</strong>
+          <h3>{t('Call Ranking')}</h3>
           <div style={{ marginTop: 10 }}>
             {stats.ranking.map(([label, n], i) => (
               <div key={label} className="hbar">
                 <span className="n">{label}</span>
                 <div className="track"><div className="fill" style={{ width: `${(n / maxRank) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{n}</span>
+                <span className="v num">{fmtInt(n)}</span>
               </div>
             ))}
             {!stats.ranking.length && <div className="muted small">{t('No tool calls recorded.')}</div>}
           </div>
         </div>
         <div className="card">
-          <strong>{t('Cost by model')}</strong>
+          <h3>{t('Cost by model')}</h3>
           <div style={{ marginTop: 10 }}>
             {stats.costByModel.map(([model, cost], i) => (
               <div key={model} className="hbar">
                 <span className="n">{model}</span>
                 <div className="track"><div className="fill" style={{ width: `${(cost / maxCostByModel) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">${cost.toFixed(2)}</span>
+                <span className="v num">{fmtMoney(cost, 2)}</span>
               </div>
             ))}
             {!stats.costByModel.length && <div className="muted small">{t('No cost data recorded.')}</div>}
           </div>
         </div>
+      </div>
+
+      {/* Overview teaser: the 5 most-recent sessions + a jump to the full list
+          (which lives ONLY under the Sessions tab — PROJ-06). */}
+      <div className="session-head">
+        <h3 className="page-title">{t('Recent sessions')}</h3>
+        {liveSession && (
+          <span className="pill live-pill live clickable" title={t('Open the live session')}
+            onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
+        )}
+        {sessions.length > 0 && (
+          <button className="btn small ghost" style={{ marginLeft: 'auto' }} onClick={() => selectTab('sessions')}>
+            {t('View all')} {fmtInt(sessions.length)} →
+          </button>
+        )}
+      </div>
+      <div className="session-list">
+        {recent5.map((s) => (
+          <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
+            <div className="session-prompt">{sessionDisplayName(s)}</div>
+            <div className="session-meta muted small">
+              {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
+              <span className="pill src-pill">{s.source}</span>
+              <span>{fmtInt(s.message_count)} messages</span>
+              {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
+            </div>
+          </div>
+        ))}
+        {!recent5.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
       </div></>}
-      {(tab === 'overview' || tab === 'sessions') && <>
+      {tab === 'sessions' && <>
       <div className="session-head">
         <h3 className="page-title">{t('Sessions')}</h3>
         {liveSession && (
@@ -541,7 +630,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                   <span className="pill ongoing-pill" title={t('The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh')}>◔ {t('ongoing')}</span>
                 )}
                 <span className="pill src-pill">{s.source}</span>
-                <span>{s.message_count} messages</span>
+                <span>{fmtInt(s.message_count)} messages</span>
                 {s.context_tokens && s.context_tokens > 0 ? (
                   <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
                 ) : s.char_count && s.char_count > 0 && (
@@ -555,7 +644,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         })}
         {sortedSessions.length > listLimit && (
           <button className="btn small window-btn" onClick={() => setListLimit((n) => n + SESSION_WINDOW)}>
-            ↓ {(sortedSessions.length - listLimit).toLocaleString()} more sessions
+            ↓ {fmtInt(sortedSessions.length - listLimit)} more sessions
           </button>
         )}
         {!sortedSessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
@@ -579,23 +668,31 @@ export interface PickableProject {
 export interface ProjectPickerProps {
   current: PickableProject | null | undefined;
   onPick: (id: number | string) => void;
+  // Identity color for the current project (from projectColorMap over all ids),
+  // rendered as a `.pdot` on the trigger so the breadcrumb matches Home + head.
+  color?: string;
 }
 
 // Project dropdown: switch projects from the breadcrumb, mirroring the session
 // picker. Lazily loads the project list on first open.
-export function ProjectPicker({ current, onPick }: ProjectPickerProps) {
+export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [projects, setProjects] = useState<PickableProject[] | null>(null);
   useEffect(() => { if (open && !projects) api.projects().then(setProjects).catch(() => setProjects([])); }, [open]);
   const list = (projects || []).filter((p) => !q
     || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
+  // Per-item identity dots, same fixed order as Home's rail/ledger.
+  const itemColors = useMemo(() => projectColorMap((projects ?? []).map((p) => p.id)), [projects]);
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button className="crumb on">
-          📁 {current?.name || t('Projects')} <span className="muted">▾</span>
+          {current
+            ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
+            : '📁 '}
+          {current?.name || t('Projects')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -608,7 +705,9 @@ export function ProjectPicker({ current, onPick }: ProjectPickerProps) {
               onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
               <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title">{p.name}</span>
+                <span className="picker-title">
+                  <span className="pdot" style={{ '--project-color': itemColors.get(Number(p.id)) } as React.CSSProperties} />{p.name}
+                </span>
                 <span className="muted small">
                   {p.session_count} {t('sessions')}
                   {p.last_active && ` · ${ago(p.last_active)}`}

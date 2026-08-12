@@ -44,8 +44,16 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
   // on an explicit Cancel click.
   const [open, setOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Inline rename + inline error — never window.prompt/alert, which silently
+  // no-op in embedded/preview browsers (see CLAUDE.md). Mirrors OverviewMode's
+  // edit-in-place and the confirmRemove two-step below.
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function run(action: 'sync' | 'details' | 'rename' | 'remove') {
+  async function run(action: 'sync' | 'details' | 'remove') {
+    setErr(null);
     try {
       if (action === 'sync') {
         setSyncing(true);
@@ -53,27 +61,33 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
         onRefresh();
       } else if (action === 'details') {
         onOpenProject(project.id);
-      } else if (action === 'rename') {
-        const name = prompt(t('New display name (folder is not touched):'), project.name);
-        if (!name) return;
-        await api.renameProject(project.id, name);
-        onRefresh();
       } else if (action === 'remove') {
         setRemoving(true);
         await api.deleteProject(project.id);
         onRefresh();
       }
     } catch (e) {
-      alert(String((e as Error).message));
+      setErr(String((e as Error).message));
     } finally {
       setSyncing(false);
       setRemoving(false);
     }
   }
 
+  async function saveRename() {
+    if (savingName) return;
+    const name = nameDraft.trim();
+    if (!name) { setRenaming(false); return; } // blank cancels (folder name required)
+    setErr(null);
+    setSavingName(true);
+    try { await api.renameProject(project.id, name); setRenaming(false); setOpen(false); onRefresh(); }
+    catch (e) { setErr(String((e as Error).message)); }
+    finally { setSavingName(false); }
+  }
+
   return (
     <span className="project-menu" onClick={(e) => e.stopPropagation()}>
-      <DropdownMenu.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) setConfirmRemove(false); }}>
+      <DropdownMenu.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmRemove(false); setRenaming(false); setErr(null); } }}>
         <DropdownMenu.Trigger asChild>
           <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title={t('Project options')}>
             {syncing ? '◌' : '⚙'}
@@ -81,7 +95,19 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content className="menu-pop" align="end" sideOffset={6}>
-            {confirmRemove ? (
+            {renaming ? (
+              <div className="menu-confirm" onKeyDown={(e) => e.stopPropagation()}>
+                <input className="search" autoFocus value={nameDraft} disabled={savingName}
+                  placeholder={project.name}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenaming(false); }} />
+                {err && <span className="menu-err small">{err}</span>}
+                <div className="menu-confirm-actions">
+                  <button className="btn tiny ghost" disabled={savingName} onClick={() => setRenaming(false)}>{t('Cancel')}</button>
+                  <button className="btn tiny primary" disabled={savingName} onClick={saveRename}>{savingName ? t('Loading…') : `✓ ${t('Rename')}`}</button>
+                </div>
+              </div>
+            ) : confirmRemove ? (
               <div className="menu-confirm">
                 <span className="muted small">
                   {t('Remove')} "{project.name}" {t('from Chronicle? Your source logs and project folder are not touched.')}
@@ -99,12 +125,13 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
               <>
                 <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => run('details')}>ⓘ {t('View Details')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => run('rename')}>✎ {t('Rename')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={(e) => { e.preventDefault(); setNameDraft(project.name); setErr(null); setRenaming(true); }}>✎ {t('Rename')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="menu-sep" />
                 <DropdownMenu.Item className="menu-item danger" onSelect={(e) => { e.preventDefault(); setConfirmRemove(true); }}>
                   🗑 {t('Remove from Chronicle')}
                   <span className="muted small">{t("(won't delete source project)")}</span>
                 </DropdownMenu.Item>
+                {err && <div className="menu-err small" style={{ padding: '6px 8px' }}>{err}</div>}
               </>
             )}
           </DropdownMenu.Content>
