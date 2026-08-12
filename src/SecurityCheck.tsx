@@ -98,7 +98,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
   return (
     <Modal onClose={onClose} className="wide" title={`Security Check — ${projectName}`}>
         <div className="modal-head">
-          <h3>🛡 Security Check — {projectName}</h3>
+          <h3>◈ Security Check — {projectName}</h3>
           <button className="btn ghost" onClick={onClose}>✕</button>
         </div>
         {error && <div className="error-banner">{error}</div>}

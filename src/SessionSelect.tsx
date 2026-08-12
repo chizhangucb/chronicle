@@ -120,7 +120,7 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
           <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
           <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
           <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
-            {deleting ? t('Removing…') : `🗑 ${t('Remove')} ${selected.size}`}
+            {deleting ? t('Removing…') : `⌫ ${t('Remove')} ${selected.size}`}
           </button>
         </>
       ) : (
@@ -131,7 +131,7 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
           </button>
           <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
           <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
-            🗑 {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
+            ⌫ {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
           </button>
         </>
       )}

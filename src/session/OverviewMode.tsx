@@ -263,7 +263,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       <div className="ov-name-row">
         {editing ? (
           <>
-            <span className="ov-title-icon">📊</span>
+            <span className="ov-title-icon">⬚</span>
             <input className="ov-name-input" autoFocus value={draft} disabled={savingName}
               placeholder={sessionDisplayName(session)}
               onChange={(e) => setDraft(e.target.value)}
@@ -275,7 +275,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           </>
         ) : (
           <>
-            <h3 className="ov-title">📊 {sessionDisplayName(session)}</h3>
+            <h3 className="ov-title">⬚ {sessionDisplayName(session)}</h3>
             <button className="btn tiny ghost" title={t('Rename session')} onClick={startRename}>✎</button>
           </>
         )}
@@ -561,16 +561,16 @@ function SourceFileZone({ session, liveStatus, onDeleted }: SourceFileZoneProps)
         <div className="ov-actions">
           {deletable && !fileDeleted && (
             <button className="btn small danger-btn" onClick={() => setConfirming('file')}>
-              🗑 {t('Delete source file')}
+              ⌫ {t('Delete source file')}
             </button>
           )}
           {deletable && !fileDeleted && (
             <button className="btn small danger-btn" onClick={() => setConfirming('everywhere')}>
-              🗑 {t('Delete everywhere')}
+              ⌫ {t('Delete everywhere')}
             </button>
           )}
           <button className="btn small danger-btn" onClick={() => setConfirming('chronicle')}>
-            🗑 {t('Delete from Chronicle')}
+            ⌫ {t('Delete from Chronicle')}
           </button>
         </div>
       )}
