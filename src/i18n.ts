@@ -468,8 +468,9 @@ const zh = {
     '占比基于消息文本长度估算，并按计费总量缩放。全部为本地计算。',
   'Tool results by tool': '按工具划分的工具结果',
   'Skills & subagents': '技能与子智能体',
-  'Top: skill invocations · bottom: subagent runs. % = share of tokens.':
-    '上方：技能调用 · 下方：子智能体运行。% 表示词元占比。',
+  'Top: skill invocations · bottom: subagent runs.':
+    '上方：技能调用 · 下方：子智能体运行。',
+  '+{n} more': '还有 {n} 项',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     '校准后词元数 {range}：{total} —— 约为莎士比亚全集的 {n} 倍。',
   // Project tabs + session→Content link (Task 5e-4)
@@ -948,8 +949,9 @@ const ja = {
     '割合はメッセージのテキスト長から推定し、課金合計に合わせてスケーリングしています。すべてローカルで計算されます。',
   'Tool results by tool': 'ツール別のツール結果',
   'Skills & subagents': 'スキル & サブエージェント',
-  'Top: skill invocations · bottom: subagent runs. % = share of tokens.':
-    '上段：スキル呼び出し · 下段：サブエージェント実行。% はトークンの占有割合です。',
+  'Top: skill invocations · bottom: subagent runs.':
+    '上段：スキル呼び出し · 下段：サブエージェント実行。',
+  '+{n} more': '他 {n} 件',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     'キャリブレーション済みトークン数 {range}：{total} —— シェイクスピア全集の約 {n} 倍。',
   // Project tabs + session→Content link (Task 5e-4)
