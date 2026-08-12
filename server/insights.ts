@@ -1,9 +1,10 @@
 // Global cross-project aggregation for the Insights hub (Task 5d-4). Mirrors
 // the per-project analytics shapes in server/routes/projects.ts, but scoped
 // across ALL projects instead of one — same query patterns (COALESCE(minor,0)
-// = 0 gate, COALESCE(started_at,'9') >= cutoff), same ERROR_RE heuristic
-// (keep in sync with server/routes/projects.ts + src/SessionView.tsx's
-// isErrorResult per the existing "two copies" gotcha).
+// = 0 gate, COALESCE(started_at,'9') >= cutoff). Error counts read the
+// per-session result_count/error_count columns precomputed at import with the
+// shared server/errors.ts heuristic (client twin: src/SessionView.tsx's
+// isErrorResult).
 //
 // `dailyActivity`/`hourlyActivity` are DELIBERATELY exempt from the `days=`
 // filter — Working Rhythm (src/insights/WorkingRhythm.tsx) always shows a
@@ -53,9 +54,6 @@ export interface InsightsResult {
   laneC: LaneCSpend;
 }
 
-// Mirrors ERROR_RE in server/routes/projects.ts and isErrorResult in
-// src/SessionView.tsx — change all three together or the Errors counts diverge.
-const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;
 const CALENDAR_WINDOW_DAYS = 182;
 const HOURLY_WINDOW_DAYS = 30;
 
@@ -71,7 +69,7 @@ const HOURLY_WINDOW_DAYS = 30;
 // seconds) don't re-spawn git at all. Module-scope (this file is a singleton
 // import, same lifetime as the process) — a real new commit becomes visible
 // again once the short TTL expires, which is fine for an analytics KPI.
-const COMMIT_CACHE_TTL_MS = 20_000;
+const COMMIT_CACHE_TTL_MS = 5 * 60_000;
 const commitCache = new Map<string, { value: number; expiresAt: number }>();
 
 async function cachedCommitCountSince(path: string, cutoff: string | null): Promise<number> {
@@ -84,10 +82,19 @@ async function cachedCommitCountSince(path: string, cutoff: string | null): Prom
   return value;
 }
 
+// The fixed-window aggregates (dailyActivity/hourlyActivity/modelDistFixed)
+// don't depend on `days=` at all, yet used to re-run on every range click —
+// most of the remaining repeat-click latency after the index fix. Same
+// short-TTL module-scope cache idea as the commit cache: minute-quantized
+// cutoffs keep the key stable, so range clicks reuse the identical result.
+const FIXED_CACHE_TTL_MS = 20_000;
+let fixedCache: { key: string; value: Pick<InsightsResult, 'dailyActivity' | 'hourlyActivity' | 'modelDistFixed'>; expiresAt: number } | null = null;
+
 export async function computeInsights(days: number | null): Promise<InsightsResult> {
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  const calendarCutoff = new Date(Date.now() - CALENDAR_WINDOW_DAYS * 86400000).toISOString();
-  const hourlyCutoff = new Date(Date.now() - HOURLY_WINDOW_DAYS * 86400000).toISOString();
+  const nowMinute = Math.floor(Date.now() / 60000) * 60000;
+  const calendarCutoff = new Date(nowMinute - CALENDAR_WINDOW_DAYS * 86400000).toISOString();
+  const hourlyCutoff = new Date(nowMinute - HOURLY_WINDOW_DAYS * 86400000).toISOString();
 
   const sessions = db.prepare(`
     SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
@@ -97,73 +104,94 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
     ORDER BY s.started_at DESC
   `).all(cutoff) as unknown as InsightsSessionRow[];
 
+  // Every message-level aggregate below is written as `sessions CROSS JOIN
+  // messages` ON PURPOSE: CROSS JOIN pins sessions (a few hundred slim rows)
+  // as the outer loop, so messages are reached through the COVERING
+  // idx_messages_agg index (see db.ts) instead of a full scan of the fat
+  // messages table. That scan was the 0.1-3.6s-per-query (multi-second cold)
+  // cost behind every Insights range click.
   const toolDist = db.prepare(`
-    SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id
+    SELECT m.tool_name AS name, COUNT(*) AS count
+    FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0
       AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
     GROUP BY m.tool_name ORDER BY count DESC LIMIT 24
   `).all(cutoff) as unknown as { name: string; count: number }[];
 
   const kindDist = db.prepare(`
-    SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id
+    SELECT m.kind AS kind, COUNT(*) AS count
+    FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0
     GROUP BY m.kind
   `).all(cutoff) as unknown as { kind: string; count: number }[];
 
   const modelDist = db.prepare(`
-    SELECT m.model AS model, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id
+    SELECT m.model AS model, COUNT(*) AS count
+    FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0
       AND m.kind = 'assistant' AND m.model IS NOT NULL
     GROUP BY m.model ORDER BY count DESC
   `).all(cutoff) as unknown as { model: string; count: number }[];
 
-  const resultHeads = db.prepare(`
-    SELECT s.project_id AS project_id, substr(m.text, 1, 200) AS head FROM messages m
-    JOIN sessions s ON s.id = m.session_id
+  // Error stats come from the per-session result_count/error_count columns
+  // precomputed at import (db.ts replaceSession + one-time backfill). The old
+  // shape pulled EVERY tool_result head (35k+ rows on the maintainer's real
+  // DB) into JS and regexed each one on every request — 0.8-17s per click.
+  const errorsByProject = db.prepare(`
+    SELECT s.project_id AS project_id,
+           SUM(COALESCE(s.result_count, 0)) AS head_count,
+           SUM(COALESCE(s.error_count, 0)) AS error_count
+    FROM sessions s
     WHERE COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0
-      AND m.kind = 'tool_result' AND m.text IS NOT NULL
-  `).all(cutoff) as unknown as { project_id: number; head: string }[];
-  const errors = resultHeads.reduce((n, r) => n + (ERROR_RE.test(r.head) ? 1 : 0), 0);
-  const errorsByProjectMap = new Map<number, { head_count: number; error_count: number }>();
-  for (const r of resultHeads) {
-    const cur = errorsByProjectMap.get(r.project_id) ?? { head_count: 0, error_count: 0 };
-    cur.head_count++;
-    if (ERROR_RE.test(r.head)) cur.error_count++;
-    errorsByProjectMap.set(r.project_id, cur);
-  }
-  const errorsByProject = [...errorsByProjectMap.entries()].map(([project_id, v]) => ({ project_id, ...v }));
+    GROUP BY s.project_id
+  `).all(cutoff) as unknown as { project_id: number; head_count: number; error_count: number }[];
+  const errors = errorsByProject.reduce((n, r) => n + r.error_count, 0);
 
   // Fixed trailing windows — NOT filtered by `days=` (see file header).
-  const dailyActivity = db.prepare(`
-    SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id
-    WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
-    GROUP BY day ORDER BY day
-  `).all(calendarCutoff) as unknown as { day: string; count: number }[];
+  // Cached briefly (see fixedCache above) since they're identical across
+  // range clicks; a fresh import becomes visible once the short TTL expires.
+  const fixedKey = `${calendarCutoff}::${hourlyCutoff}`;
+  let fixed = fixedCache && fixedCache.key === fixedKey && fixedCache.expiresAt > Date.now() ? fixedCache.value : null;
+  if (!fixed) {
+    const dailyActivity = db.prepare(`
+      SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+      GROUP BY day ORDER BY day
+    `).all(calendarCutoff) as unknown as { day: string; count: number }[];
 
-  const hourlyActivity = db.prepare(`
-    SELECT CAST(strftime('%w', m.ts) AS INTEGER) AS dow, CAST(strftime('%H', m.ts) AS INTEGER) AS hour, COUNT(*) AS count
-    FROM messages m JOIN sessions s ON s.id = m.session_id
-    WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
-    GROUP BY dow, hour
-  `).all(hourlyCutoff) as unknown as { dow: number; hour: number; count: number }[];
+    const hourlyActivity = db.prepare(`
+      SELECT CAST(strftime('%w', m.ts) AS INTEGER) AS dow, CAST(strftime('%H', m.ts) AS INTEGER) AS hour, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+      GROUP BY dow, hour
+    `).all(hourlyCutoff) as unknown as { dow: number; hour: number; count: number }[];
 
-  const modelDistFixed = db.prepare(`
-    SELECT m.model AS model, COUNT(*) AS count FROM messages m
-    JOIN sessions s ON s.id = m.session_id
-    WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
-      AND m.kind = 'assistant' AND m.model IS NOT NULL
-    GROUP BY m.model ORDER BY count DESC
-  `).all(hourlyCutoff) as unknown as { model: string; count: number }[];
+    const modelDistFixed = db.prepare(`
+      SELECT m.model AS model, COUNT(*) AS count
+      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+        AND m.kind = 'assistant' AND m.model IS NOT NULL
+      GROUP BY m.model ORDER BY count DESC
+    `).all(hourlyCutoff) as unknown as { model: string; count: number }[];
+    fixed = { dailyActivity, hourlyActivity, modelDistFixed };
+    fixedCache = { key: fixedKey, value: fixed, expiresAt: Date.now() + FIXED_CACHE_TTL_MS };
+  }
+  const { dailyActivity, hourlyActivity, modelDistFixed } = fixed;
 
   const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 
-  // Concurrent (not serial) + cached — see the cache comment above.
+  // Concurrent (not serial) + cached — see the cache comment above. The
+  // cache key is `path::cutoff`, and `cutoff` is derived from Date.now() with
+  // MILLISECOND precision — as-is the key changed on every request, so the
+  // cache NEVER hit and every range click re-spawned one `git rev-list` per
+  // project (26 on the maintainer's machine). Quantizing the commit cutoff to
+  // 5 minutes makes the key stable across the matching 5-min TTL, so revisiting
+  // a range during a browsing session is a pure cache hit; the git window
+  // boundary moves by at most 5min — irrelevant for a day-granular KPI.
+  const commitCutoff = days ? new Date(Math.floor(Date.now() / COMMIT_CACHE_TTL_MS) * COMMIT_CACHE_TTL_MS - days * 86400000).toISOString() : null;
   const projectPaths = db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[];
-  const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, cutoff || null)));
+  const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, commitCutoff)));
   const commits = commitCounts.reduce((a, b) => a + b, 0);
 
   return { sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits, dailyActivity, hourlyActivity, projects, laneC: readLaneCSpend(cutoff || null) };

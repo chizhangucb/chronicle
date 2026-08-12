@@ -8,8 +8,10 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-
-const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;
+// Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
+// count can't say WHICH tool errored), so this engine keeps its head queries —
+// but the heuristic itself is the shared server-side copy.
+import { ERROR_RE } from './errors.ts';
 
 export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
 export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';

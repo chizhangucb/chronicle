@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
+import { isErrorHead } from './errors.ts';
 import type { Event, SessionInput, Project } from '../shared/types.ts';
 
 export type ProjectRow = Project;
@@ -28,6 +29,8 @@ export interface SessionRow {
   agent_active_ms: number | null;
   engaged_ms: number | null;
   minor: number;
+  result_count: number | null;
+  error_count: number | null;
 }
 
 // Full `messages` row shape.
@@ -100,6 +103,16 @@ CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 -- and /api/content from ~24-37s to ~1-1.5s (see task-perf-report.md for the
 -- full before/after table).
 CREATE INDEX IF NOT EXISTS idx_messages_tooluse ON messages(session_id, tool_use_id);
+-- COVERING index for the Insights/project-analytics aggregates (toolDist,
+-- kindDist, modelDist, dailyActivity, hourlyActivity). Those queries group
+-- over kind/tool_name/model/ts joined to sessions -- without this, SQLite
+-- picks SCAN over the messages table itself, and messages rows are FAT
+-- (text/tool_input blobs), so every /api/insights range click re-read the
+-- whole ~400MB table: 0.1-3.6s per query warm, multi-second cold. With it,
+-- the engines drive from sessions (small) and read ONLY slim index entries:
+-- measured 6-65ms per query on the maintainer's 414MB/108k-row real DB.
+-- The queries force this shape with CROSS JOIN (sessions outer).
+CREATE INDEX IF NOT EXISTS idx_messages_agg ON messages(session_id, kind, ts, tool_name, model);
 -- Tombstones: sessions deliberately removed from Chronicle (single delete or
 -- whole-project delete). Keyed on (source, session id) since ids are only
 -- unique within a source. Import/autosync paths (replaceSession) consult this
@@ -135,6 +148,40 @@ try { db.exec('ALTER TABLE messages ADD COLUMN output_tokens INTEGER'); } catch 
 try { db.exec('ALTER TABLE messages ADD COLUMN cache_read_tokens INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN cache_w5m_tokens INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN cache_w1h_tokens INTEGER'); } catch {}
+// Precomputed error-heuristic aggregates (perf fix): result_count = tool_result
+// messages with text, error_count = the subset whose head matches ERROR_RE.
+// Computed once at import in replaceSession (same pattern as durations), so
+// insights/project analytics read 3-figure session rows instead of regexing
+// tens of thousands of tool_result heads per request (was 0.8-17s per click).
+try { db.exec('ALTER TABLE sessions ADD COLUMN result_count INTEGER'); } catch {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
+
+// One-time backfill for sessions imported before the columns existed (NULL).
+// ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
+{
+  const missing = (db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE result_count IS NULL').get() as unknown as { c: number }).c;
+  if (missing > 0) {
+    const heads = db.prepare(`SELECT session_id, substr(text, 1, 200) AS head FROM messages
+                              WHERE kind = 'tool_result' AND text IS NOT NULL`).all() as unknown as { session_id: string; head: string }[];
+    const agg = new Map<string, { rc: number; ec: number }>();
+    for (const r of heads) {
+      let a = agg.get(r.session_id);
+      if (!a) { a = { rc: 0, ec: 0 }; agg.set(r.session_id, a); }
+      a.rc++;
+      if (isErrorHead(r.head)) a.ec++;
+    }
+    db.exec('BEGIN');
+    try {
+      db.exec('UPDATE sessions SET result_count = 0, error_count = 0 WHERE result_count IS NULL');
+      const up = db.prepare('UPDATE sessions SET result_count = ?, error_count = ? WHERE id = ?');
+      for (const [id, a] of agg) up.run(a.rc, a.ec, id);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+}
 
 // Contract views: the dashboard reads ONLY these; base tables stay free to
 // refactor. user_version bumps only on breaking view changes.
@@ -221,18 +268,25 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
     const sidechainCount = events.reduce((n, e) => n + (e.is_sidechain ? 1 : 0), 0);
     const activeMs = agentActiveMs(events);
+    // Precomputed error-heuristic aggregates — see the migration comment above.
+    let resultCount = 0, errorCount = 0;
+    for (const e of events) {
+      if (e.kind !== 'tool_result' || !e.text) continue;
+      resultCount++;
+      if (isErrorHead(e.text)) errorCount++;
+    }
     // Once a session is promoted out of (or was never in) the minor bucket,
     // that stays sticky across re-imports — otherwise a re-sync would silently
     // undo the user's "promote" action every time.
     const minor = prev && prev.minor === 0 ? 0 : (isMinorSession(activeMs, events.length) ? 1 : 0);
     db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens, name, summary, usage,
-                                      sidechain_count, agent_active_ms, engaged_ms, imported_at, minor)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                                      sidechain_count, agent_active_ms, engaged_ms, imported_at, minor, result_count, error_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
            session.started_at ?? null, session.ended_at ?? null, events.length, session.first_prompt ?? null,
            session.context_tokens ?? null, session.name ?? prev?.name ?? null,
            session.summary ?? null, session.usage ?? null,
-           sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor);
+           sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor, resultCount, errorCount);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
                                                   is_sidechain, agent_type, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);

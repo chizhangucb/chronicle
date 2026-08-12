@@ -119,6 +119,25 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
   assert.equal(r.commits, 0);
 });
 
+// Perf fix: error stats are no longer regexed out of every tool_result head
+// per request — replaceSession precomputes result_count/error_count on the
+// session row (shared server/errors.ts heuristic) and computeInsights just
+// SUMs them. s1's fixture appends exactly one tool_result ('Error: boom').
+test('error counts are precomputed on sessions at import and drive computeInsights', async () => {
+  const { db } = dbModule;
+  const s1 = db.prepare('SELECT result_count, error_count FROM sessions WHERE id = ?').get('s1');
+  assert.equal(s1.result_count, 1);
+  assert.equal(s1.error_count, 1);
+  const s2 = db.prepare('SELECT result_count, error_count FROM sessions WHERE id = ?').get('s2');
+  assert.equal(s2.result_count, 0);
+  assert.equal(s2.error_count, 0);
+  const r = await insightsModule.computeInsights(null);
+  assert.equal(r.errors, 1);
+  const p1 = r.errorsByProject.find((p) => p.head_count > 0);
+  assert.ok(p1);
+  assert.equal(p1.error_count, 1);
+});
+
 test('computeInsights: errorsByProject buckets tool_result heads per project and sums to the global errors count', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
