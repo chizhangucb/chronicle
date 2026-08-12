@@ -205,7 +205,6 @@ function whenLabel(s: SearchResultItem): string {
 
 interface DayGroup {
   label: string;
-  isToday: boolean;
   // `cost` is null (not 0) when none of the group's rows carry priced usage
   // data — e.g. every row came from the FTS/LIKE search branch of
   // /api/search, which doesn't select `usage` at all. A real $0.00 (priced
@@ -219,10 +218,10 @@ function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-// 'Today' / 'Yesterday' / 'Ddd · Mon D' for older days. `diffDays` is passed
-// in (not recomputed) so the isToday flag on DayGroup stays derived from the
-// same calculation as the label — comparing against the (locale-translated)
-// label string itself would silently break for zh/ja.
+// 'Today' / 'Yesterday' / 'Ddd · Mon D' for older days. `diffDays` is computed
+// by the caller and passed in so the Today/Yesterday branch keys off the same
+// day-diff math, not a comparison against the (locale-translated) label string
+// (which would silently break for zh/ja).
 function dayLabel(d: Date, diffDays: number): string {
   if (diffDays === 0) return t('Today');
   if (diffDays === 1) return t('Yesterday');
@@ -255,7 +254,7 @@ function groupByDay(sessions: SearchResultItem[]): DayGroup[] {
     const diffDays = Math.round((today - startOfDay(date)) / 86400000);
     const pricedCosts = rows.map(rowCost).filter((c): c is number => c != null);
     const cost = pricedCosts.length ? pricedCosts.reduce((a, b) => a + b, 0) : null;
-    return { label: dayLabel(date, diffDays), isToday: diffDays === 0, sum: { count: rows.length, cost }, rows };
+    return { label: dayLabel(date, diffDays), sum: { count: rows.length, cost }, rows };
   });
 }
 

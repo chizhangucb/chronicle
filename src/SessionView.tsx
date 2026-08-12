@@ -142,6 +142,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
   const [newCount, setNewCount] = useState(0);
   const [syncingSession, setSyncingSession] = useState(false);
+  const [syncErr, setSyncErr] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const atBottomRef = useRef(true);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -310,12 +311,15 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // Per-session Sync Update: re-import just this session, then reload its messages.
   async function syncThisSession(): Promise<void> {
     if (syncingSession) return;
+    setSyncErr(null);
     setSyncingSession(true);
     try {
       await api.syncSession(sessionId);
       setData(await api.sessionMessages(sessionId));
     } catch (e) {
-      alert(String((e as Error).message));
+      // Inline error (the native window.alert dialog no-ops in embedded/preview
+      // browsers); a full-page error-banner would blow away the live session view.
+      setSyncErr(String((e as Error).message));
     } finally {
       setSyncingSession(false);
     }
@@ -354,6 +358,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
           title={`${t('Sync this session')} (⇧⌘U)`} onClick={syncThisSession} disabled={syncingSession}
           aria-label={t('Sync this session')}>{syncingSession ? '◌' : '⟳'}</button>
+        {syncErr && <span className="menu-err small">{syncErr}</span>}
       </div>
 
       {mode === 'playback' && <>

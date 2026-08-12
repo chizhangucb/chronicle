@@ -357,8 +357,8 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
             <BarChart data={spendChartData}>
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="day" {...AXIS_PROPS} />
-              <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => `$${v}`} />
-              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => `$${Number(v).toFixed(2)}`} />} />
+              <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
+              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
               {topProjects.map((p, i) => (
                 <Bar key={p.id} dataKey={String(p.id)} stackId="a" name={p.name} fill={projectColors.get(p.id) ?? CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />
               ))}

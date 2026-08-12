@@ -145,7 +145,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
           </span>
           <span className="search-selects">
             <select className="chip range-select" value={days} onChange={(e) => setDays(e.target.value)}>
-              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>◷ {t(r.label)}</option>)}
+              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>⧖ {t(r.label)}</option>)}
             </select>
             <select className="chip range-select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
               <option value="">◫ {t('All Projects')}</option>
@@ -158,7 +158,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
           {results.map((r, i) => (
             <button key={r.id} data-idx={i} className={`search-row ${i === active ? 'active' : ''}`}
               onMouseEnter={() => setActive(i)} onClick={() => open(r)}>
-              <span className="search-row-clock">◷</span>
+              <span className="search-row-clock">⧖</span>
               <span className="search-row-body">
                 <span className="search-row-title">
                   <span className="search-row-project">{r.project_name}</span>
