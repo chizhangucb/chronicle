@@ -1,6 +1,6 @@
 {
   "name": "chronicle-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Local-first AI coding session time machine",
   "bin": {
     "chronicle": "bin/chronicle.mjs",
