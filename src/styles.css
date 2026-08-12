@@ -406,6 +406,11 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 
 /* Import wizard (4-step) */
 .modal.wizard { width: 760px; display: flex; flex-direction: column; max-height: 86vh; }
+/* CHR-07: step 1 is just 3 source cards + one line of copy — the full 760px
+   width (needed for step 2's scrollable project/session tree) left it mostly
+   empty. Narrower for step 1 only (App.tsx toggles `wiz-step1`); the card
+   row is also centered below so it doesn't clump to the left edge. */
+.modal.wizard.wiz-step1 { width: 640px; }
 .wiz-steps { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
 .wiz-step { display: flex; align-items: center; gap: 7px; color: var(--ink-2); white-space: nowrap; }
 .wiz-step-dot {
@@ -421,7 +426,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .wiz-step-label { font-size: 13px; }
 .wiz-body { padding: 6px 0; overflow-y: auto; }
 .wiz-source-section { margin: 12px 0 8px; }
-.wiz-source-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.wiz-source-grid { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .wiz-source-card {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
@@ -1006,7 +1011,13 @@ h4 { margin: 6px 0; }
 }
 .session-sync:hover:not(:disabled) { color: var(--brass); background: var(--bg2); }
 .session-sync:disabled { cursor: default; }
-.icon-btn { padding: 5px 10px; min-height: 24px; }
+/* CHR-03: the top-bar search button used `.btn.ghost` (borderless) which read
+   as a bare glyph, detached from "+ Import" and the EN language pill next to
+   it. It now uses plain `.btn` (real border + `.btn:hover`'s border-strong
+   affordance) — `.icon-btn` here only trims the padding/height for a
+   square-ish icon-only button, bumped to a full 28px so the toolbar cluster
+   lines up. */
+.icon-btn { padding: 5px 10px; min-height: 28px; }
 
 /* ---- Global search palette (⌘K) ---- */
 .search-modal {
@@ -1033,6 +1044,21 @@ h4 { margin: 6px 0; }
 .search-tabs { display: flex; gap: 6px; }
 .search-tab-icon { font-family: var(--mono); font-size: 11px; }
 .search-selects { display: flex; gap: 8px; }
+/* CHR-09: the time-range/project native <selects> reuse `.chip` for sizing,
+   but that made them read as toggle buttons identical to the scope tabs
+   above. A squarer shape + inset bg + a drawn caret marks them as
+   dropdowns instead — two-class selector so it wins over `.chip` regardless
+   of source order. */
+.chip.range-select {
+  border-radius: 6px; background: var(--bg0); border-color: var(--border-strong); padding-right: 22px;
+  appearance: none; -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 55%, calc(100% - 8px) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
 .search-results { overflow-y: auto; padding: 6px; min-height: 120px; }
 .search-section { padding: 6px 8px 3px; text-transform: uppercase; letter-spacing: 0.04em; }
 .search-row {

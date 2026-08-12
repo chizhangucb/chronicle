@@ -147,7 +147,7 @@ export default function App() {
               ))}
               <button className={`sb-item mode security ${rail.securityOpen ? 'on' : ''}`} title={t('Security Check')}
                 onClick={() => rail.select('security-check')}>
-                <span className="sb-icon">🛡</span><span className="sb-label">{t('Security Check')}</span>
+                <span className="sb-icon">◈</span><span className="sb-label">{t('Security Check')}</span>
               </button>
             </>
           )}
@@ -182,7 +182,7 @@ export default function App() {
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
               </span>
             )}
-            <button className="btn ghost icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>⌕</button>
+            <button className="btn icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>⌕</button>
             <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
