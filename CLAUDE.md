@@ -390,6 +390,58 @@ DBs/JSON for Cursor/Codex/OpenCode-live in `test/fixtures/`. Prefer that over mo
 fastest end-to-end check is importing Chronicle's own session and clicking around. Known
 deferrals: remote SSH (no host to test), Windows/Linux beyond the npx path.
 
+## UI/UX design-QA (how to audit + polish surfaces)
+
+Reusable playbook from the Batch B aesthetic pass (77 findings across every surface, resolved in
+one autonomous run). Reach for it whenever asked to "polish", "clean up the UI", or fix layout/
+aesthetic issues on a surface.
+
+- **Generate with the skills, judge with the rubric.** `frontend-design` (aesthetic direction/
+  typography), `dataviz` (charts/heatmaps/stat tiles), and `ui-ux-pro-max` are good at *producing*
+  UI, but they're generic — they don't know Chronicle's house style and won't catch Chronicle
+  regressions. The house style + the checks below are what keep a change on-system.
+- **The 8-category design-QA rubric** (tag every finding with one; most fixes are cross-cutting):
+  **NUM** numeric alignment/format (right-aligned + `tabular-nums`, one currency/precision) ·
+  **DEDUP** no stat shown twice with unclear difference · **SPACE** no run-together label+value,
+  correct eyebrow spacing · **RHYTHM** consistent gaps, intentional density · **DISTINCT** different
+  semantic things look different (source pill vs project pill vs dot vs icon) · **AFFORD** controls
+  look interactive + ≥24px target · **LAYOUT** content fills its column, panels resize where useful,
+  no wasted fixed space · **BUG** stray gaps, misalignment, overflow, unbalanced spans.
+- **Audit → re-probe loop (do this per touched surface, not just eyeball):** with `npm run dev` up
+  on a free port (macOS has no `setsid`; `run_in_background` bash gets reaped at turn end, so launch
+  detached: `nohup npm run dev -- --port <free> --strictPort > /tmp/chr.log 2>&1 &`), drive it with
+  Playwright: navigate the surface, then `browser_evaluate` a script that ASSERTS the specific defect
+  is gone (e.g. every numeric leaf cell reports `fontVariantNumeric` containing `tabular`; card
+  `trailingPx <= 28`; no KPI tile's right edge exceeds the row at 1040px; a focused control's
+  `outlineColor` is the brass token, not blue) + screenshot. A finding is closed only when its probe
+  assertion passes. Radix dropdown/menu items portal and don't survive an `evaluate` boundary — drive
+  them with real Playwright clicks or verify the underlying logic another way. Uncommon glyphs:
+  confirm they render (not tofu) by pixel-signature diff against a private-use missing char (width
+  fails on a monospace font — every glyph is one cell wide).
+- **App-wide invariants (must not regress; grep to confirm):** ZERO `window.prompt/confirm/alert` in
+  app code (blocked in embedded browsers — use inline edit/confirm; `test/no-window-dialogs.test.mjs`
+  guards it) · exactly ONE magnifier glyph `⌕` · one mono glyph vocabulary, no colored emoji in chrome
+  OR page content (`⌕`=search `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security
+  `∑`=insights `⚙`=settings `⌫`=destructive; `✕`=close is distinct from `⌫`) · one money-precision
+  policy via `src/format.ts` (`fmtInt`/`fmtMoney(dp)`/`pluralize`): 0dp grouped for KPIs/axes/
+  summaries/bar labels, 2dp grouped for detail tables/tooltips/per-row cost — never a raw
+  `` `$${v}` ``/`toFixed` money template · design tokens only (never re-tone `:root`; the only new var
+  the batch added was `--heat-axis-offset`, a layout offset not a color).
+- **CSS-cascade traps that are invisible to typecheck/tests/build (a rendering click-through won't
+  catch them either — only a combined-diff read does):** (1) the `font:` shorthand RESETS
+  `font-variant-numeric` to `normal`, silently killing `tabular-nums` on any rule that sets `font: …`
+  — re-add `font-variant-numeric: tabular-nums;` as a trailing declaration in the same rule. (2)
+  Duplicate CSS selectors don't error; the cascade collapses to the last one (the 5d `.hbar`/
+  `.rangebar` triple-duplication scar) — grep the COMBINED diff for any selector you added that already
+  exists, and extend the existing rule instead. Scope a per-surface block under its page-root class
+  (`.project-detail`/`.insights-page`/`.overview-page`) when two surfaces might both want the class.
+- **Process:** branch + PR per surface; after each squash-merge, re-gate on freshly-pulled `main`
+  before branching the next (squash-merge does NOT preserve a hand-resolved conflict merge). Money/
+  format/label policies live in `src/format.ts` + `src/kinds.ts` + `src/models.ts` — change the
+  policy there, not at call sites. Full backlog + the per-surface finding tables: hub
+  `records/brainstorms/2026-08-11-chronicle-batch-b-aesthetic-polish.md` + plan
+  `records/plans/2026-08-12-chronicle-batch-b-aesthetic-polish.md`.
+
 ## Records seam (AIOS hub)
 
 Chronicle is a registered AIOS satellite (minimal: records seam only; no runtime hub reads yet). Its dev sessions and decisions flow into the hub.
