@@ -1,6 +1,6 @@
 {
   "name": "chronicle-cli",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Local-first AI coding session time machine",
   "bin": {
     "chronicle": "bin/chronicle.mjs",
@@ -9,7 +9,11 @@
   "engines": {
     "node": ">=24"
   },
-  "files": ["bin", "dist", "dist-server"],
+  "files": [
+    "bin",
+    "dist",
+    "dist-server"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -20,7 +24,18 @@
     "prepack": "rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json",
     "prepublishOnly": "npm run typecheck && npm test"
   },
-  "keywords": ["claude-code", "codex", "cursor", "opencode", "ai", "sessions", "cost", "tokens", "local-first", "cli"],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "cursor",
+    "opencode",
+    "ai",
+    "sessions",
+    "cost",
+    "tokens",
+    "local-first",
+    "cli"
+  ],
   "author": "Chi Zhang",
   "license": "MIT",
   "type": "module",
