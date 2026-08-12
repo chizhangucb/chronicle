@@ -117,7 +117,7 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
                     {t('Cancel')}
                   </button>
                   <button className="btn tiny danger-btn" disabled={removing} onClick={() => run('remove')}>
-                    {removing ? t('Removing…') : `🗑 ${t('Remove')}`}
+                    {removing ? t('Removing…') : `⌫ ${t('Remove')}`}
                   </button>
                 </div>
               </div>
@@ -128,7 +128,7 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
                 <DropdownMenu.Item className="menu-item" onSelect={(e) => { e.preventDefault(); setNameDraft(project.name); setErr(null); setRenaming(true); }}>✎ {t('Rename')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="menu-sep" />
                 <DropdownMenu.Item className="menu-item danger" onSelect={(e) => { e.preventDefault(); setConfirmRemove(true); }}>
-                  🗑 {t('Remove from Chronicle')}
+                  ⌫ {t('Remove from Chronicle')}
                   <span className="muted small">{t("(won't delete source project)")}</span>
                 </DropdownMenu.Item>
                 {err && <div className="menu-err small" style={{ padding: '6px 8px' }}>{err}</div>}

@@ -200,7 +200,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
             <button className="btn ghost small" title={t('Keep every message')}
               onClick={() => setAllDeleted(false)}>✓ {t('Keep All')}</button>
             <button className="btn ghost small" title={t('Delete every message')}
-              onClick={() => setAllDeleted(true)}>🗑 {t('Delete All')}</button>
+              onClick={() => setAllDeleted(true)}>⌫ {t('Delete All')}</button>
           </div>
           {presentKinds.length > 1 && (
             <div className="refine-bytype" title={t('Toggle whole message types in or out')}>
@@ -233,8 +233,8 @@ export default function RefineMode({ messages, session, project }: RefineModePro
                     <span className="refine-ops">
                       <button className={`btn tiny ghost keep-btn ${!it.deleted ? 'on' : ''}`} title={`${t('Keep')} (K)`}
                         onClick={(e) => { e.stopPropagation(); setDeleted(it.id, false); }}>✓</button>
-                      <button className="btn tiny ghost" title={`${t('Delete')} (D)`}
-                        onClick={(e) => { e.stopPropagation(); setDeleted(it.id, true); }}>🗑</button>
+                      <button className="btn tiny ghost" title={`${t('Delete')} (D)`} aria-label={t('Delete')}
+                        onClick={(e) => { e.stopPropagation(); setDeleted(it.id, true); }}>⌫</button>
                       <button className="btn tiny ghost" title={`${t('Edit')} (E)`}
                         onClick={(e) => { e.stopPropagation(); setSelected(it.id); setEditingId(it.id); }}>✎</button>
                       <button className="btn tiny ghost" title={`${t('Insert after')} (I)`}

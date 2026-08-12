@@ -334,7 +334,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       <div className="session-main">
       <div className="session-toolbar">
         <div className="crumbs">
-          <button className="crumb" title={t('Project home page')} onClick={() => onBack(undefined, data.project.id)}>📁 {data.project.name}</button>
+          <button className="crumb" title={t('Project home page')} onClick={() => onBack(undefined, data.project.id)}>◫ {data.project.name}</button>
           <span className="crumb-sep">›</span>
           <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
             onSwitch={onSwitchSession} />

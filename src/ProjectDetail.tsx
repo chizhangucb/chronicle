@@ -698,7 +698,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
         <button className="crumb on">
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
-            : '📁 '}
+            : '◫ '}
           {current?.name || t('Projects')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
@@ -754,7 +754,7 @@ export function SessionPicker({ sessions, current, onPick, loading }: SessionPic
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button className={`crumb ${current ? 'on' : ''}`}>
-          💬 {current ? title(current) : t('Select session')} <span className="muted">▾</span>
+          ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
