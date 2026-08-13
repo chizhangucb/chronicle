@@ -262,6 +262,17 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
      the bordered `.row`s below it (was drifting 2px without a matching box). */
   border: 1px solid transparent;
 }
+/* `.ts-col`'s `width: 9ch` is relative to the element's OWN font — the
+   `.colhead` labels otherwise inherit `body`'s sans-serif 13px, while the
+   `.row .m` cells below them are `font: 12px var(--mono)`. Different fonts'
+   "0" glyph is a different width, so the same `9ch` resolves to a different
+   pixel width in each context and the header/row right edges drift. Match
+   the row's exact font recipe on the numeric header cells so `ch` (and thus
+   the column's pixel width) is identical top to bottom. */
+.colhead .num-col, .colhead .ts-col {
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums; /* `font:` shorthand above resets it — restore, trailing */
+}
 .row {
   display: grid; grid-template-columns: minmax(0,1fr) 90px 70px 70px 56px 64px; gap: 12px;
   align-items: center; padding: 8px 12px; margin: 2px 0;
@@ -269,9 +280,15 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 }
 .row:hover { border-color: var(--border-strong); background: var(--bg2); }
 .row .m {
-  font: 12px var(--mono); text-align: right; color: var(--ink-2); white-space: nowrap;
+  font: 12px var(--mono); color: var(--ink-2); white-space: nowrap;
   /* PR1: `font` shorthand above resets font-variant-numeric to `normal`,
-     overriding `body`'s global tabular-nums — restore it explicitly. */
+     overriding `body`'s global tabular-nums — restore it explicitly. (Kept
+     here rather than relying solely on `.num-col` because `.num-col` has
+     lower specificity than `.row .m` — see the design-rubric's `font:`
+     shorthand trap.) Alignment itself is NOT set here: the Project cell (also
+     `.m`) is left-aligned text, not a number — Cost/Active/Msgs/When opt into
+     right-align individually via the shared `.num-col`/`.ts-col` classes
+     (C2 Task 12), not a blanket rule on every `.m`. */
   font-variant-numeric: tabular-nums;
 }
 .row .m b { color: var(--ink); font-weight: 500; }
@@ -293,9 +310,6 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 .row.selectable, .colhead.selectable {
   grid-template-columns: 28px minmax(0,1fr) 90px 70px 70px 56px 64px;
 }
-/* The prepended header cell pushes Project into the base `nth-child(n+3)`
-   right-align band; keep it left (matching the non-select header). */
-.colhead.selectable span:nth-child(3) { text-align: left; }
 .rowcheck { display: flex; align-items: center; justify-content: center; }
 
 /* Lazy-scroll trip wire at the ledger bottom; IntersectionObserver watches it
@@ -328,8 +342,9 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
    the `font`-shorthand cascade finding. ---- */
 .day-head .sum, .hbar .v, .bytype-count, .msg-ts { font-variant-numeric: tabular-nums; }
 
-/* right-align numeric column HEADERS to match right-aligned values (Home) */
-.colhead span:nth-child(n+3) { text-align: right; }
+/* Home's colhead Cost/Active/Msgs/When headers carry explicit `.num-col`/
+   `.ts-col` classes (C2 Task 12) matching the row cells below them — no
+   nth-child one-off needed. */
 
 /* control min-height >=24px + branded focus ring */
 .btn.tiny, .btn.ghost.small, .rangebar button { min-height: 24px; }
