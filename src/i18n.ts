@@ -288,7 +288,11 @@ const zh = {
   'Search session content…': '搜索会话内容…',
   'All': '全部',
   'Code': '代码',
+  'Tools': '工具',
   'Chat': '对话',
+  'Search everything': '搜索全部内容',
+  'Tool calls and their results': '工具调用及其结果',
+  'User and assistant messages': '用户与助手消息',
   'All Time': '全部时间',
   'All Projects': '全部项目',
   'Recent Access': '最近访问',
@@ -340,10 +344,6 @@ const zh = {
   'Start Chronicle in the tray when you log in (desktop app only)': '登录后在托盘中启动 Chronicle（仅桌面应用）',
   'ongoing': '进行中',
   'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': '源日志在最近 10 分钟内有写入——统计为“至今”数据，自动同步会保持其最新',
-  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '智能体真正在工作的时长（包含子智能体活动）。工具执行时间（紧随工具调用的工具结果）会被完整计入——长时间的构建或测试都会体现出来。其余每段间隔以 10 分钟为上限，而你每次真实提问前的停顿（阅读/输入/离开的时间）会被完全排除。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
-  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
-    '参与时长用来估计你实际投入这个会话的时间：把相邻消息之间的每段间隔相加，每段以 90 分钟为上限。与“智能体活跃”不同，它不区分智能体工作和你的停顿——更接近会话被使用的挂钟时间。',
   // Refine: delete by type
   'By type': '按类型',
   'Toggle whole message types in or out': '整类消息一键保留或删除',
@@ -357,10 +357,12 @@ const zh = {
   'Your engaged': '你的参与时长',
   'Tool calls': '工具调用',
   'Error rate': '错误率',
-  'Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.':
-    '智能体工作时长：每次消息间隔都会计入，除了紧邻你真实输入提示前的那段间隔。后台等待（构建、通知）也计入活跃时间。',
-  "Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.":
-    '你的专注时间：围绕你输入的提示和交互的间隔总和，并设有上限以避免长时间离开被计入。杠杆率 = 智能体活跃时间 ÷ 参与时间。',
+  'Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.':
+    'Agent Active（智能体活跃时长）累加消息之间的每一段间隔，但排除紧邻你真实输入提示之前的间隔；每段间隔上限为 10 分钟，但以工具结果结束的间隔不设上限。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.':
+    'Engaged（参与时长）累加消息之间的每一段间隔，每段上限为 90 分钟；与 Agent Active 不同，它不区分智能体工作与你自己的停顿。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.':
+    'Engaged（参与时长）累加消息之间的每一段间隔，每段上限为 90 分钟；与 Agent Active 不同，它不区分智能体工作与你自己的停顿。杠杆率 = 智能体活跃时间 ÷ 参与时间。',
   'Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.':
     '所选时间范围内所有会话中的工具调用总数（Bash、Read、Edit 等）。每次调用及其结果也都会产生词元成本——详见 Content 标签页。',
   'Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.':
@@ -836,7 +838,11 @@ const ja = {
   'Search session content…': 'セッション内容を検索…',
   'All': 'すべて',
   'Code': 'コード',
+  'Tools': 'ツール',
   'Chat': 'チャット',
+  'Search everything': 'すべてを検索',
+  'Tool calls and their results': 'ツール呼び出しとその結果',
+  'User and assistant messages': 'ユーザーとアシスタントのメッセージ',
   'All Time': '全期間',
   'All Projects': 'すべてのプロジェクト',
   'Recent Access': '最近のアクセス',
@@ -890,10 +896,6 @@ const ja = {
   'Start Chronicle in the tray when you log in (desktop app only)': 'ログイン時にトレイで Chronicle を起動します（デスクトップアプリのみ）',
   'ongoing': '進行中',
   'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': 'ソースログが直近 10 分以内に書き込まれています。統計は「現時点まで」の値で、自動同期が最新に保ちます',
-  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    'エージェントが実際に作業していた時間です（サブエージェントの活動を含む）。ツールの実行時間（ツール呼び出しに続くツール結果）は全部カウントされ、長いビルドやテストもそのまま反映されます。それ以外の間隔は 1 回あたり最大 10 分まで、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）は完全に除外されます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
-  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
-    'エンゲージ時間は、このセッションに実際に向き合っていた時間の目安です。連続するメッセージ間の間隔をすべて合計し、1 回あたり最大 90 分で打ち切ります。「エージェント稼働」と違い、エージェントの作業とあなたの停止を区別しないため、セッションが使われていた実時間に近い値になります。',
   // Refine: delete by type
   'By type': 'タイプ別',
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
@@ -907,10 +909,12 @@ const ja = {
   'Your engaged': 'あなたの関与時間',
   'Tool calls': 'ツール呼び出し',
   'Error rate': 'エラー率',
-  'Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.':
-    'エージェントが稼働していた時間：メッセージ間のすべての間隔をカウントしますが、実際に入力したプロンプト直前の間隔は除きます。バックグラウンドの待機（ビルドや通知）もアクティブ時間として計上されます。',
-  "Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.":
-    'あなたの関与時間：入力したプロンプトやインタラクションの前後の間隔の合計で、離席時間が水増しされないよう上限が設けられています。レバレッジ = エージェント稼働時間 ÷ 関与時間。',
+  'Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.':
+    'Agent Active（エージェント稼働時間）は、実際に入力したプロンプト直前の間隔を除き、メッセージ間のすべての間隔を合計します。各間隔は 10 分を上限としますが、ツール結果で終わる間隔には上限がありません。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.':
+    'Engaged（関与時間）は、メッセージ間のすべての間隔を合計し、各間隔は 90 分を上限とします。Agent Active と異なり、エージェントの作業とあなた自身の停止を区別しません。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.':
+    'Engaged（関与時間）は、メッセージ間のすべての間隔を合計し、各間隔は 90 分を上限とします。Agent Active と異なり、エージェントの作業とあなた自身の停止を区別しません。レバレッジ = エージェント稼働時間 ÷ 関与時間。',
   'Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.':
     '選択した期間内の全セッションにおけるツール呼び出しの総数（Bash、Read、Edit など）。各呼び出しとその結果にもトークンコストが発生します——詳細は Content タブを参照してください。',
   'Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.':

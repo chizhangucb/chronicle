@@ -190,12 +190,12 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
         <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Agent active')} <InfoTip text={t('Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.')} /></div>
+        <div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
         <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
         <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Your engaged')} <InfoTip text={t("Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.")} /></div>
+        <div className="l">{t('Your engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.')} /></div>
         <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
         <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
       </div>
