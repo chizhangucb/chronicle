@@ -14,7 +14,7 @@ import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
-import { useCachedFetch, prefetch } from './useCachedFetch.js';
+import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -207,7 +207,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // The URL doubles as the SWR cache key (Task 5): re-landing on this exact
   // id+range combo (tab switch, breadcrumb back-nav) renders the last-seen
   // data immediately instead of a blank page, then refreshes in place.
-  const { data, refresh } = useCachedFetch<ProjectDetailData>(projectUrl(id, days ?? undefined));
+  // `loadError` is the hook's fetch-failure signal — only rendered as a hard
+  // error banner below when `data` is still null (a true cold-load failure,
+  // e.g. a deleted project's 404): a background revalidation failure on an
+  // already-populated pane must not blank/replace working data.
+  const { data, error: loadError, refresh } = useCachedFetch<ProjectDetailData>(projectUrl(id, days ?? undefined));
 
   // Project-level LIVE pill: light up when any session log is being written right now.
   useEffect(() => {
@@ -230,7 +234,17 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     setSavingName(true);
     // catch → inline error (mirrors HomePage): without it a rejected rename is
     // a silently-dropped unhandled promise rejection.
-    try { await api.renameProject(id, name); setRenaming(false); refresh(); }
+    try {
+      await api.renameProject(id, name);
+      // The renamed name is now stale everywhere it's cached client-side
+      // (ProjectPicker's list, this project's own detail payload, etc.) —
+      // drop the whole SWR cache so the next read of any of those URLs goes
+      // back to the server instead of replaying the old name for the rest
+      // of the session.
+      invalidateClientCache();
+      setRenaming(false);
+      refresh();
+    }
     catch (e) { setNameErr(String((e as Error).message)); }
     finally { setSavingName(false); }
   }
@@ -240,11 +254,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     const r = await fetch(`/api/projects/${id}/associate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: assocPath }) });
     const body = await r.json();
     if (!r.ok) return setError(body.error);
+    invalidateClientCache(); // project may have merged/moved — every cached list/detail is now suspect
     onBack(); // project may have merged into another — go back to the list
   }
 
   async function unlink(source: string) {
     await fetch(`/api/projects/${id}/unlink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+    invalidateClientCache(); // unlinking spins off a new project — the cached project list is stale
     setConfirmUnlink(null);
     refresh();
   }
@@ -349,6 +365,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const sessionSelect = useSessionSelect(selectableSessions, refresh, pendingUndo);
 
   if (error) return <div className="page center error-banner">{error}</div>;
+  // A true cold-load failure (no data has ever rendered for this hook
+  // instance — e.g. a deleted project's 404) surfaces the hook's error
+  // instead of sticking on "Loading…" forever. Once `data` exists, a later
+  // background-refresh failure is deliberately NOT shown here — see
+  // `loadError`'s definition above.
+  if (loadError && !data) return <div className="page center error-banner">{loadError}</div>;
   if (!data || !stats) return <div className="page center muted">Loading…</div>;
   const { project, sessions, git } = data;
   const liveSession = sessions.find((s) => s.liveCandidate);

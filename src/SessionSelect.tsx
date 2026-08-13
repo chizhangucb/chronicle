@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as Toast from '@radix-ui/react-toast';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { invalidateClientCache } from './useCachedFetch.js';
 
 // Shared session-level multi-select delete, mounted verbatim in BOTH the Home
 // recent-sessions stream (HomePage) and the project session list
@@ -86,6 +87,11 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
           entries.push({ id, source: s?.source ?? r.source, projectId: s?.project_id ?? r.projectId });
         } catch {}
       }
+      // Deleted sessions change project session lists/aggregates (and, for a
+      // project whose only sessions were just removed, `/api/projects`
+      // itself) — shared by both ProjectDetail's and Home's session lists,
+      // so this is the one place that covers a delete from either surface.
+      if (entries.length) invalidateClientCache();
       onRefresh();
       exitSelect();
       if (entries.length) {
@@ -106,6 +112,7 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     for (const e of entries) { try { await api.undoDeleteSession(e.source, e.id); } catch {} }
     const projectIds = [...new Set(entries.map((e) => e.projectId))];
     for (const pid of projectIds) { try { await api.syncProject(pid); } catch {} }
+    invalidateClientCache();
     onRefresh();
   }
 
