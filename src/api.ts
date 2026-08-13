@@ -356,6 +356,9 @@ export interface ExploreRow {
   tokensByModel: Record<string, ModelUsageCell>;
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
+  // Only set on the synthetic key==='Other' row — count of folded-in group
+  // values, read by the "+N in Other" legend.
+  otherCount?: number;
 }
 // One (bucket × series) cell in a time-rollup — metric-specialized (only the
 // dimension the chosen metric reads is populated). Structurally a superset of
