@@ -31,6 +31,11 @@ export interface ExploreRow {
   tokensByModel: Record<string, ModelUsageCell>;
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
+  // Only set on the synthetic key==='Other' row: how many non-topN group
+  // values were folded into it (the client's "+N in Other" legend reads this
+  // — it has no way to derive N itself, since it only ever receives the
+  // already-folded topN+Other row set, never the raw pre-fold list).
+  otherCount?: number;
 }
 // One (bucket × series) cell in a time-rollup. Metric-SPECIALIZED: only the
 // dimension the chosen metric reads is populated (tokensByModel for
@@ -384,7 +389,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   if (rows.length > q.topN) {
     const keep = rows.slice(0, q.topN);
     const rest = rows.slice(q.topN);
-    const other: ExploreRow = { key: 'Other', label: 'Other', tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] };
+    const other: ExploreRow = { key: 'Other', label: 'Other', tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [], otherCount: rest.length };
     for (const r of rest) {
       other.requests += r.requests; other.errors += r.errors; other.activeMs += r.activeMs;
       other.sessions += r.sessions;
@@ -421,14 +426,20 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
 
   // Time rollups (rollup !== 'total'): keep `rows` as the range totals (Detail
   // table + Total-view bars) and additionally return per-bucket series for the
-  // stacked time-series. First cap-coarsen the requested rollup to fit the
-  // legibility cap (cheap COUNT(DISTINCT bucket) over the in-scope timeline per
-  // step), then aggregate at the effective granularity. `rows` already carries
-  // the topN+Other fold, so its keys ARE the series set.
+  // stacked time-series. `hourly` is requested EXPLICITLY by the client (the
+  // Hourly pivot chip) and must always render at hourly granularity — density
+  // is the client's problem, solved with a windowed Recharts <Brush> (default
+  // window = last 72 buckets), not by silently coarsening to daily server-side
+  // (a real request for "today, hourly" used to come back as "today, one bar").
+  // daily/weekly/monthly still cap-coarsen forward (cheap COUNT(DISTINCT
+  // bucket) over the in-scope timeline per step) since those requests have no
+  // brush and a multi-year weekly/monthly range can still overflow the
+  // legibility cap. `rows` already carries the topN+Other fold, so its keys
+  // ARE the series set.
   let effectiveRollup: ExploreRollup = 'total';
   let buckets: ExploreBucket[] | undefined;
   if (q.rollup !== 'total') {
-    effectiveRollup = pickRollup(q.rollup, (r) =>
+    effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
     buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, sc, base, g });

@@ -742,6 +742,53 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
   width: 44%; min-width: 360px; overflow-y: auto; padding: 12px;
   border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;
 }
+/* Playback's three-pane layout (chat / file-tree / code-view) — spec §2.3
+   task-8. A CSS Grid instead of the plain flex `.panes` above so the chat
+   column's width can be driven by the `useResizable` drag handle below,
+   while the file-tree/code-view ratio stays fixed. `grid-template-columns`
+   is set INLINE by SessionView.tsx (not here) — it needs the live
+   `chatSplit.width` value plus a `min(…, calc(100% - …))` viewport cap that
+   a static CSS rule can't express; see the JSX comment there for why. Only
+   ONE literal grid track is needed for "the right group" (`.code-pane`
+   spans it as a single grid item) — the file-tree/code-view 0.6fr/1.6fr
+   split lives one level down, inside `.code-body`'s own grid (see below);
+   because 0.6fr+1.6fr=2.2fr, nesting it there distributes space identically
+   to a flat 4-column grid, without having to break CodePanel's toolbar out
+   of its wrapping `.code-pane` div. `min-width: 0` on every pane (here and
+   on `.code-pane`/`.file-tree`/`.code-view` below) is load-bearing — without
+   it a flex/grid item's automatic minimum size is its content's intrinsic
+   width, which a long commit subject / deep file path / unwrapped code line
+   can exceed, pushing the layout past the viewport edge instead of
+   scrolling internally. */
+.panes.pb-grid { display: grid; }
+/* `min-width: 0` overrides the base rule's explicit `360px` floor above —
+   an author-specified min-width (unlike the "automatic" one) is NOT zeroed
+   by `overflow: auto`, so left alone it would fight the grid track's own
+   `minmax(280px, …)` floor once a drag takes the chat column down near
+   280px, overflowing the track instead of shrinking into it. */
+.pb-grid > .conv-pane { width: auto; min-width: 0; border-right: 0; }
+/* `.code-pane` already carries `min-width: 0` in its base rule below — no
+   pb-grid override needed there. */
+/* Slim draggable divider between the chat pane and the file-tree/code-view
+   group, driven by `useResizable` (same hook as the `.drag-handle` sidebar/
+   Home-rail handles above; this one is a grid track instead of a flex
+   sibling, since it sits between the two THIRDS of a 3-column grid rather
+   than beside a single flex panel). Its OWN grid track is the ≥24px
+   house-rule interactive-target minimum (`.pane-handle` fills that 24px
+   column edge-to-edge, so the whole thing is a valid pointer target), but
+   the VISIBLE line is a thin 2px `::after` centered inside it — a slim
+   divider, not a fat 24px bar. Text-selection suppression during the drag
+   comes from the SAME `body.resizing` rule the `.drag-handle` hook usage
+   above already relies on — no separate mechanism needed here. */
+.pane-handle {
+  position: relative; width: 100%; height: 100%; padding: 0; margin: 0;
+  border: 0; background: transparent; cursor: col-resize; z-index: 2;
+}
+.pane-handle::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+  transform: translateX(-50%); background: var(--border);
+}
+.pane-handle:hover::after, .pane-handle:active::after { background: var(--brass); }
 .msg {
   border: 1px solid var(--border); border-left: 3px solid var(--border);
   border-radius: 8px; padding: 8px 12px; cursor: pointer; background: var(--bg1);
@@ -783,10 +830,16 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .commit-info .git-pill { flex-shrink: 0; }
 .commit-date { white-space: nowrap; flex-shrink: 0; }
 .code-body { display: flex; flex: 1; min-height: 0; }
+/* Task-8 playback grid: the file-tree/code-view split itself becomes a grid
+   in the same 0.6fr/1.6fr ratio the brief specifies for the flat 3-column
+   layout — see the `.panes.pb-grid` comment above for why nesting it here
+   (rather than flattening `.panes` to 4 literal columns) is equivalent. */
+.pb-grid .code-body { display: grid; grid-template-columns: minmax(200px, 0.6fr) minmax(320px, 1.6fr); }
 .file-tree {
   width: 250px; overflow-y: auto; border-right: 1px solid var(--border);
   font-family: var(--mono); font-size: 12px; flex-shrink: 0;
 }
+.pb-grid .file-tree { width: auto; min-width: 0; }
 .file-tree .search.small { display: block; width: calc(100% - 12px); }
 .tree-item { flex-shrink: 0; }
 .tree-item {
@@ -800,7 +853,7 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
   display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--ok); margin-left: 5px; vertical-align: middle;
 }
-.code-view { flex: 1; overflow: auto; }
+.code-view { flex: 1; overflow: auto; min-width: 0; }
 .code-content {
   margin: 0; padding: 12px 16px; font-family: var(--mono); font-size: 12px;
   line-height: 1.55; white-space: pre; min-height: 100%;

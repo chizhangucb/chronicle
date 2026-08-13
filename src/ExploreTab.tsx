@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
 import { t } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
@@ -167,8 +167,14 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     total: t('Total'), hourly: t('Hourly'), daily: t('Daily'), weekly: t('Weekly'), monthly: t('Monthly'),
   };
   // Series colour by ranked index — the SAME mapping the Detail table dots use,
-  // so a series' bar-segment colour matches its table row.
-  const seriesColor = (i: number): string => CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length];
+  // so a series' bar-segment colour matches its table row. 'Other' is always
+  // `--ink-3` (never a rotating categorical hue) — it's a fold-in bucket, not
+  // an identity, so it must read as visually distinct/recessive rather than
+  // competing with the real top-N series for attention (dataviz "color
+  // follows the entity" rule: a non-entity fold-in gets the neutral ink, not
+  // a slot in the categorical rotation).
+  const rowColor = (row: ExploreRow, i: number): string =>
+    row.key === 'Other' ? 'var(--ink-3)' : CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length];
   // One Recharts row per bucket: { bucket: label, [seriesKey]: metricValue }.
   // Series set = the ranked rows (topN + Other), so the stack matches the table.
   const chartData = useMemo(() => {
@@ -179,6 +185,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
       return row;
     });
   }, [result, ranked, pivot.metric]);
+  // Recharts <Brush> default window for the hourly rollup — hourly never
+  // coarsens server-side any more (see server/explore.ts), so a wide range
+  // can return hundreds/thousands of buckets; the brush keeps the plot
+  // legible by defaulting to the last 72 (~3 days) while leaving the full
+  // series draggable. Clamped to 0 so a short series (< 72 buckets) just
+  // shows everything, no negative startIndex.
+  const brushStartIndex = Math.max(0, chartData.length - 72);
+  const brushEndIndex = Math.max(0, chartData.length - 1);
+  const showBrush = result?.rollup === 'hourly' && chartData.length > 0;
+  const otherRow = ranked.find(({ row }) => row.key === 'Other');
   const fmtChartValue = (v: number): string => {
     if (pivot.metric === 'spend') return fmtMoney(v, 0);
     if (pivot.metric === 'tokens') return fmtTok(v);
@@ -226,17 +242,41 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
             </h3>
             {result.buckets ? (
               chartData.length ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid {...GRID_PROPS} />
-                    <XAxis dataKey="bucket" {...AXIS_PROPS} />
-                    <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
-                    <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={result.calibrated} />} />
-                    {ranked.map(({ row }, i) => (
-                      <Bar key={row.key} dataKey={row.key} stackId="a" name={row.label} fill={seriesColor(i)} />
+                <>
+                  <ResponsiveContainer width="100%" height={showBrush ? 280 : 240}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid {...GRID_PROPS} />
+                      <XAxis dataKey="bucket" {...AXIS_PROPS} />
+                      <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
+                      <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={result.calibrated} />} />
+                      {ranked.map(({ row }, i) => (
+                        <Bar key={row.key} dataKey={row.key} stackId="a" name={row.label} fill={rowColor(row, i)} />
+                      ))}
+                      {showBrush && (
+                        <Brush
+                          dataKey="bucket"
+                          height={24}
+                          travellerWidth={8}
+                          startIndex={brushStartIndex}
+                          endIndex={brushEndIndex}
+                          stroke="var(--brass)"
+                          fill="var(--bg2)"
+                        />
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="legend">
+                    {ranked.filter(({ row }) => row.key !== 'Other').map(({ row }, i) => (
+                      <span key={row.key}><span className="dot" style={{ background: rowColor(row, i) }} />{row.label}</span>
                     ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                    {otherRow && (
+                      <span style={{ color: 'var(--ink-3)' }}>
+                        <span className="dot" style={{ background: 'var(--ink-3)' }} />
+                        + {otherRow.row.otherCount ?? ''} {t('in Other')}
+                      </span>
+                    )}
+                  </div>
+                </>
               ) : <div className="muted small pad8">{t('No sessions in range.')}</div>
             ) : (
               <>
@@ -294,9 +334,9 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       title={rowLinkTitle}
                       onClick={canRowLink ? () => navigate(`/project/${scope.id}`) : undefined}
                     >
-                      <td><span className="dot" style={{ background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} />{row.label}</td>
+                      <td><span className="dot" style={{ background: rowColor(row, i) }} />{row.label}</td>
                       {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}
-                      <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></span> {share.toFixed(1)}%</td>
+                      <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: rowColor(row, i) }} /></span> {share.toFixed(1)}%</td>
                       <td>{showTokenCol ? fmtTok(rowTokens(row)) : '—'}</td>
                       <td>{row.requests.toLocaleString()}</td>
                       <td>{row.sessions.toLocaleString()}</td>

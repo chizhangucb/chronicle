@@ -62,14 +62,30 @@ function uuidLike(next) {
 }
 
 // Advances a shared timestamp cursor by 2-40s (deterministic) and returns ISO.
+// `.bump(ms)` lets a caller insert one deliberate larger jump (see
+// GAP_AFTER_TURN below) without disturbing the normal 2-40s cadence.
 function makeClock(next) {
   let cursor = BASE_TS;
-  return () => {
+  const tick = () => {
     const incSec = 2 + (next() % 39); // 2..40
     cursor += incSec * 1000;
     return new Date(cursor).toISOString();
   };
+  tick.bump = (ms) => { cursor += ms; };
+  return tick;
 }
+
+// One deliberate multi-hour pause partway through the main transcript —
+// real Chronicle sessions routinely have a gap like this (stepped away for
+// hours mid-session; see session 2391e843's real 5h48m gap between seq
+// 472/473, found while diagnosing Task 7's Playback timeline bug). The
+// original fixture used purely uniform 2-40s spacing throughout, which
+// cannot reproduce the "timeline click/scrub is dead" defect — nearest-
+// message selection only degrades into a big dead zone when there's an
+// actual gap to fall into. Turn/line counts are unaffected; only the
+// timestamp cursor jumps once, right before this turn's user message.
+const GAP_AFTER_TURN = 1225; // ~half way through TURNS=2450
+const GAP_MS = 4 * 60 * 60 * 1000; // 4h
 
 function usageBlock(next) {
   return {
@@ -151,6 +167,8 @@ export function generateBigSession(destDir, opts = {}) {
   const taskToolUseIds = []; // toolUseId per direct agent (paired with meta.json)
 
   for (let t = 0; t < TURNS; t++) {
+    if (t === GAP_AFTER_TURN) clock.bump(GAP_MS);
+
     // user turn
     const userUuid = uuidLike(next);
     mainLines.push(jsonLine({

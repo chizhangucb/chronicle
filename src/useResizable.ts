@@ -29,6 +29,11 @@ export type ResizeEdge = 'left' | 'right';
 export interface Resizable {
   width: number;
   onHandlePointerDown: (e: React.PointerEvent<HTMLElement>) => void;
+  // Restores `fallback` and clears the persisted override (so a later
+  // `fallback` tuning in code takes effect on next load, rather than baking
+  // today's fallback into storage). Additive — existing callers (App.tsx's
+  // sidebar, HomePage.tsx's rail) ignore it.
+  reset: () => void;
 }
 
 export interface ResizableOptions {
@@ -124,5 +129,14 @@ export function useResizable({ storageKey, fallback, min, max, edge }: Resizable
   // and persists the in-progress width. No-op when idle.
   useEffect(() => () => { activeTeardown.current?.(); }, []);
 
-  return { width, onHandlePointerDown };
+  const reset = useCallback(() => {
+    const clamped = clamp(fallback, min, max);
+    latest.current = clamped;
+    setWidth(clamped);
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(storageKey); } catch { /* storage unavailable — nothing to clear */ }
+    }
+  }, [fallback, min, max, storageKey]);
+
+  return { width, onHandlePointerDown, reset };
 }

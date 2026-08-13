@@ -10,6 +10,7 @@ import { type PlaybackMessage, type MessageCausality } from './session/MessageRo
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
 import ContentTab from './ContentTab.tsx';
+import { useResizable } from './useResizable.ts';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 import type { DeletedEntry } from './SessionSelect.tsx';
 
@@ -90,6 +91,31 @@ export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
 export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'content';
 
+// Playback's chat/right-group drag handle (spec §2.3 task-8) — reuses
+// `useResizable` (App.tsx's sidebar / HomePage.tsx's project rail already
+// use it) for the persisted width + all the drag robustness it already
+// hardened: parseInt/NaN-guarded/clamped/try-caught localStorage
+// read+write, pointer capture, pointercancel handling, a `buttons===0`
+// self-heal, and unmount-safe teardown — see useResizable.ts's header
+// comment for exactly which failure modes each guards against. A bespoke
+// reimplementation here would either skip those guards or duplicate them
+// with a second chance to get them wrong.
+//
+// `min`/`max` are static, like the two existing callers' — the REAL,
+// viewport-relative ceiling (so a huge persisted width from a wide monitor
+// can't reopen the clipping bug on a narrow one, and so a live window
+// resize is safe even without a fresh drag) is enforced by the `min()` /
+// `calc()` in the inline `gridTemplateColumns` below, not by JS measuring
+// `.panes`' DOM rect — `.panes` isn't mounted yet at the hook's first
+// render, so a live-measurement-based dynamic max can't run at init time
+// anyway. `PLAYBACK_SPLIT_RESERVED` = the handle (24px) + the right
+// group's own floor (200px file-tree + 320px code-view, from
+// `.pb-grid .code-body`'s `minmax()`s below) — the chat column may never
+// eat into that reserve, at any width, dragged or not.
+const PLAYBACK_SPLIT_KEY = 'chronicle-playback-split';
+const PLAYBACK_SPLIT_MIN = 280;
+const PLAYBACK_SPLIT_RESERVED = 544;
+
 export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
   modes: RailModeDef[];
@@ -132,6 +158,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
+  const [commitLoading, setCommitLoading] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
   // Which subagent's transcript the 'subagent' drill-in mode is showing (set by
   // OverviewMode's Subagents card; null when not drilled in). NOT part of the
@@ -146,8 +173,20 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const esRef = useRef<EventSource | null>(null);
   const atBottomRef = useRef(true);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const chatSplit = useResizable({ storageKey: PLAYBACK_SPLIT_KEY, fallback: 420, min: PLAYBACK_SPLIT_MIN, max: 900, edge: 'right' });
   const searchRef = useRef<HTMLInputElement | null>(null);
   const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
+  // Whether the CURRENT selectedSeq was set via the Timeline's own scrub/seek,
+  // vs some other path (message card click, window-jump button). Overwritten
+  // synchronously by every `selectMessage` call, right alongside
+  // `setSelectedSeq` — never a one-shot flag that needs separate consumption,
+  // so it can't go stale the way a "did I just cause this" latch can (see
+  // Timeline.tsx's comment on `selectionFromTimeline` for the bug this
+  // replaced: a latch set in Timeline itself stayed true forever if a seek
+  // resolved to the already-selected message, since the effect that would
+  // reset it never fired — the NEXT genuinely external change then
+  // misread the stale flag and left the playhead frozen).
+  const selectionFromTimelineRef = useRef(false);
 
   useEffect(() => {
     api.sessionMessages(sessionId).then((d: SessionData) => {
@@ -253,15 +292,25 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
   const selected = messages.find((m) => m.seq === selectedSeq) || null;
 
-  // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
+  // FR-TT-4: snapshot = nearest preceding commit for the selected message's
+  // time. `commitLoading` is set synchronously the moment a NEW selection
+  // starts a fetch and cleared only by the (non-stale) fetch that owns it —
+  // gitAt/gitTree/gitFile each shell out to `git` synchronously
+  // (server/git.ts execFileSync, blocking the whole Node event loop for the
+  // subprocess's duration), so on a big/busy repo a snapshot fetch can take
+  // a perceptible moment. Without this, the panel shows the PREVIOUS
+  // snapshot with no indication a new one is even coming — indistinguishable
+  // from "selecting a message doesn't drive the panel" (the reported P0).
   useEffect(() => {
     if (!data || !selected?.ts) return;
     let stale = false;
+    setCommitLoading(true);
     api.gitAt(data.project.id, selected.ts).then((r: { noRepo?: boolean; commit?: CommitInfo | null }) => {
       if (stale) return;
       if (r.noRepo) { setNoRepo(true); setCommit(null); }
       else { setNoRepo(false); setCommit(r.commit ?? null); }
-    }).catch(() => {});
+      setCommitLoading(false);
+    }).catch(() => { if (!stale) setCommitLoading(false); });
     return () => { stale = true; };
   }, [data, selectedSeq]);
 
@@ -280,7 +329,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  function selectMessage(seq: number, scroll = false): void {
+  function selectMessage(seq: number, scroll = false, fromTimeline = false): void {
+    selectionFromTimelineRef.current = fromTimeline;
     setSelectedSeq(seq);
     if (scroll) {
       requestAnimationFrame(() => {
@@ -298,7 +348,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       const d = Math.abs(new Date(m.ts).getTime() - tsMillis);
       if (d < bestD) { bestD = d; best = m; }
     }
-    if (best) selectMessage(best.seq, true);
+    if (best) selectMessage(best.seq, true, true);
   }
 
   // Rename this session (optimistically patches the shared session object so the
@@ -362,7 +412,19 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       </div>
 
       {mode === 'playback' && <>
-        <div className="panes">
+        {/* `gridTemplateColumns` is inline (not the static CSS default) so the
+            chat column can be BOTH the drag-resized pixel width from
+            `chatSplit` AND capped against the CURRENT viewport at all times —
+            `min(${chatSplit.width}px, calc(100% - ${PLAYBACK_SPLIT_RESERVED}px))`
+            re-evaluates on every browser layout (including a plain window
+            resize, no drag needed), so a huge persisted width from a wider
+            monitor — or the window simply shrinking — can never push the
+            file-tree/code-view group below its own floor. See the
+            PLAYBACK_SPLIT_RESERVED comment above for the 544 = handle(24) +
+            file-tree(200) + code-view(320) breakdown. */}
+        <div className="panes pb-grid" style={{
+          gridTemplateColumns: `minmax(${PLAYBACK_SPLIT_MIN}px, min(${chatSplit.width}px, calc(100% - ${PLAYBACK_SPLIT_RESERVED}px))) 24px minmax(520px, 2.2fr)`,
+        }}>
           <WindowedConvPane className="" paneRef={listRef}
             onScroll={(e) => {
               const el = e.currentTarget;
@@ -377,10 +439,14 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             )}
             messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
             onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
-          <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />
+          <div className="pane-handle" role="separator" aria-orientation="vertical"
+            aria-label={t('Resize chat / code panels')} tabIndex={0} title={t('Drag to resize · double-click to reset')}
+            onPointerDown={chatSplit.onHandlePointerDown} onDoubleClick={chatSplit.reset} />
+          <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
         <Timeline messages={messages} commits={data.commits}
-          currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />
+          currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs}
+          selectionFromTimeline={selectionFromTimelineRef.current} />
       </>}
 
       {mode === 'overview' && (

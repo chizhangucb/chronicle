@@ -1,4 +1,4 @@
-import React, { useState, type JSX } from 'react';
+import React, { useCallback, useRef, useState, type JSX } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 
 export interface InfoTipProps {
@@ -6,14 +6,88 @@ export interface InfoTipProps {
 }
 
 // Shared "ⓘ" stat-explainer affordance (Radix Popover), opened on hover or
-// keyboard focus. `side="bottom"` + `avoidCollisions={false}` is deliberate:
-// this renders inside `.page` (`overflow-y:auto`), so Radix's automatic
-// collision-flip would otherwise clip it upward at the viewport top — every
-// InfoTip must open downward (see CLAUDE.md, bit us once).
+// keyboard focus.
+//
+// Collision policy — VALIDATED against the Radix Popover.Content props
+// table (https://www.radix-ui.com/primitives/docs/components/popover):
+// `avoidCollisions` (default true) is a SINGLE switch for both axes. Its
+// `side` row is explicit: "The preferred side of the anchor to render
+// against when open. Will be reversed when collisions occur" — so turning
+// avoidCollisions on does not just shift horizontally, it can flip
+// side="bottom" to "top". `collisionPadding`/`sticky` only tune the ALIGN
+// axis (sticky: "The sticky behavior on the align axis"); neither the docs
+// nor the props table expose a way to allow align-axis shift while locking
+// the side axis to "bottom". So `avoidCollisions={true}` would reintroduce
+// the historical bug (see CLAUDE.md): flipping upward inside `.page`
+// (`overflow-y:auto`, clips both axes) and getting cut off at the viewport
+// top. We keep `avoidCollisions={false}` (Radix never repositions us —
+// side stays "bottom", always) and do the "stay inside the viewport" shift
+// OURSELVES, horizontally only, on an INNER wrapper — never on the outer
+// Popover.Content node Radix itself positions, so we don't fight its own
+// layout effect.
+//
+// Timing note #1: Radix mounts Popover.Content via its Presence machinery,
+// which does NOT land in the same commit as the `open` state flip — a
+// `useLayoutEffect` keyed on `open` reliably sees `bubbleRef.current` as
+// still null (verified empirically). A CALLBACK ref sidesteps this: it
+// fires exactly when the DOM node attaches/detaches, in whatever commit
+// that actually happens, so the clamp always runs against a real node.
+//
+// Timing note #2 (why the clamp lives on its own WRAPPER div, not on
+// `.info-bubble` itself): `.info-bubble`'s CSS entrance animation
+// (`animation: overlay-in …`, styles.css) also animates `transform`. CSS
+// Animations sit in a higher cascade origin than a plain inline style, so
+// while that animation is playing it overrides ANY inline `transform` we'd
+// set directly on that element — our horizontal clamp would get silently
+// clobbered for the animation's whole duration (verified empirically: the
+// inline `transform` was present in the DOM the entire time, but
+// `getBoundingClientRect()` still reported the pre-clamp position). Putting
+// the clamp's `transform` on an unanimated OUTER wrapper and leaving
+// `.info-bubble`'s own animated `transform` on the INNER element means the
+// two transforms compose on separate nodes instead of fighting over the
+// same property.
 export default function InfoTip({ text }: InfoTipProps): JSX.Element {
   const [open, setOpen] = useState(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  const clampRef = useCallback((el: HTMLDivElement | null) => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    if (!el) return;
+
+    const PAD = 8;
+    const clamp = (): void => {
+      el.style.transform = '';
+      const rect = el.getBoundingClientRect();
+      let shift = 0;
+      if (rect.right > window.innerWidth - PAD) shift = window.innerWidth - PAD - rect.right;
+      else if (rect.left < PAD) shift = PAD - rect.left;
+      if (shift !== 0) el.style.transform = `translateX(${shift}px)`;
+    };
+    clamp();
+
+    // Re-clamp on window resize, and whenever Radix rewrites the outer
+    // popper wrapper's inline position (top/left/transform) — e.g. on
+    // scroll, via its own `autoUpdate` — two levels up: `el.parentElement`
+    // is the Popover.Content node itself (only carries the
+    // `--radix-popover-content-*` custom-property vars), and
+    // `el.parentElement.parentElement` is the actual
+    // `[data-radix-popper-content-wrapper]` div that floating-ui positions.
+    const wrapper = el.parentElement?.parentElement ?? null;
+    let observer: MutationObserver | undefined;
+    if (wrapper) {
+      observer = new MutationObserver(clamp);
+      observer.observe(wrapper, { attributes: true, attributeFilter: ['style'] });
+    }
+    window.addEventListener('resize', clamp);
+    cleanupRef.current = () => {
+      window.removeEventListener('resize', clamp);
+      observer?.disconnect();
+    };
+  }, []);
+
   return (
-    <Popover.Root open={open}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
           type="button" className="info-tip" aria-label={text}
@@ -22,9 +96,21 @@ export default function InfoTip({ text }: InfoTipProps): JSX.Element {
         >ⓘ</button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content className="info-bubble" side="bottom" sideOffset={7} align="center"
-          avoidCollisions={false} onOpenAutoFocus={(e) => e.preventDefault()}>
-          {text}
+        {/* onOpenAutoFocus: don't steal focus into the bubble on open (it's
+            informational, not interactive). onCloseAutoFocus: don't return
+            focus to the trigger on close either — Radix's default DOES
+            that, which re-fires our own `onFocus` handler below and
+            reopens the tip right after Escape/outside-dismiss closes it
+            (a real "mixed open-state" trap: two independent triggers,
+            hover/focus vs Radix's internal focus management, fighting over
+            the same `open` state). */}
+        <Popover.Content side="bottom" sideOffset={7} align="center"
+          avoidCollisions={false}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}>
+          <div ref={clampRef}>
+            <div className="info-bubble">{text}</div>
+          </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
