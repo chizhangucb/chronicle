@@ -5,6 +5,7 @@ import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from './errors.ts';
+import { invalidateCache } from './cache.ts';
 import type { Event, SessionInput, Project } from '../shared/types.ts';
 
 export type ProjectRow = Project;
@@ -321,4 +322,7 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     db.exec('ROLLBACK');
     throw err;
   }
+  // Sessions/messages changed — every cached analytics result (insights,
+  // explore, content, per-project analytics) may now be stale.
+  invalidateCache();
 }

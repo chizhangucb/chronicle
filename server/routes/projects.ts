@@ -3,6 +3,7 @@ import type { Express, Request, Response } from 'express';
 import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions } from '../live.ts';
+import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 
 interface ProjectListRow extends ProjectRow {
@@ -42,53 +43,67 @@ export function mountProjects(app: Express): void {
   app.get('/projects/:id', (req: Request, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
-    // Optional time range (?days=7/30/365) — filters sessions and all analytics.
-    const days = Number(req.query.days) || null;
-    const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-    // Minor (noise-gated) sessions are excluded from this main list — they
-    // live in the global "minor sessions" bucket (GET /api/sessions/minor)
-    // until promoted or ignored.
-    const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
-        (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
-         FROM messages m WHERE m.session_id = sessions.id) AS char_count
-      FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0 ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
-    const liveIds = liveCandidatesForSessions(rawSessions);
-    // "Ongoing" = the source log was written to in the last 10 minutes — the
-    // session is likely still in progress (auto-sync keeps it fresh; stats read
-    // "so far" in the UI).
-    const ONGOING_MS = 10 * 60 * 1000;
-    const sessions = rawSessions.map(({ file_path, ...s }) => {
-      let ongoing = false;
-      try { ongoing = Date.now() - fs.statSync(file_path).mtime.getTime() < ONGOING_MS; } catch {}
-      return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
+    // The DB-derived half (sessions + the four aggregation queries below) is
+    // cached keyed by the full request URL — it only changes on a DB write.
+    // git.repoInfo/commitCountSince are deliberately computed FRESH on every
+    // request, outside the cache: the project-card git pill must show the
+    // local checkout's live branch with no caching (see CLAUDE.md gotcha) —
+    // a `git checkout` alone doesn't invalidate the result cache, so caching
+    // git-derived fields here would make them go stale.
+    const body = cached(req.originalUrl, () => {
+      // Optional time range (?days=7/30/365) — filters sessions and all analytics.
+      const days = Number(req.query.days) || null;
+      const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
+      // Minor (noise-gated) sessions are excluded from this main list — they
+      // live in the global "minor sessions" bucket (GET /api/sessions/minor)
+      // until promoted or ignored.
+      const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
+          (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
+           FROM messages m WHERE m.session_id = sessions.id) AS char_count
+        FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0 ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
+      const liveIds = liveCandidatesForSessions(rawSessions);
+      // "Ongoing" = the source log was written to in the last 10 minutes — the
+      // session is likely still in progress (auto-sync keeps it fresh; stats read
+      // "so far" in the UI).
+      const ONGOING_MS = 10 * 60 * 1000;
+      const sessions = rawSessions.map(({ file_path, ...s }) => {
+        let ongoing = false;
+        try { ongoing = Date.now() - fs.statSync(file_path).mtime.getTime() < ONGOING_MS; } catch {}
+        return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
+      });
+      // CROSS JOIN pins sessions as the outer loop so messages come from the
+      // covering idx_messages_agg index instead of a full table scan — same
+      // perf-fix shape as server/insights.ts (see the index comment in db.ts).
+      const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
+        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
+        GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
+      const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
+        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
+      const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count
+        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
+        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL
+        GROUP BY day ORDER BY day`).all(project.id, cutoff);
+      // Precomputed at import (db.ts replaceSession, shared server/errors.ts
+      // heuristic) — no per-request regex over tool_result heads.
+      const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
+        WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0`)
+        .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
+      return { sessions, analyticsBase: { toolDist, kindDist, activity, errors }, cutoff };
     });
-    // CROSS JOIN pins sessions as the outer loop so messages come from the
-    // covering idx_messages_agg index instead of a full table scan — same
-    // perf-fix shape as server/insights.ts (see the index comment in db.ts).
-    const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
-      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
-      GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
-    const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
-      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
-    const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count
-      FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL
-      GROUP BY day ORDER BY day`).all(project.id, cutoff);
-    // Precomputed at import (db.ts replaceSession, shared server/errors.ts
-    // heuristic) — no per-request regex over tool_result heads.
-    const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
-      WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0`)
-      .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
-    const commits = gitEngine.commitCountSince(project.path, cutoff || null);
-    res.json({ project, sessions, git: gitEngine.repoInfo(project.path), analytics: { toolDist, kindDist, activity, errors, commits } });
+    const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
+    res.json({ project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),
+      analytics: { ...body.analyticsBase, commits } });
   });
 
   // ---- Project management (FR-PM-3/4/5) ----
 
   app.patch('/projects/:id', (req: Request, res: Response) => {
-    if (req.body.name) db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(req.body.name, (req.params.id as string));
+    if (req.body.name) {
+      db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(req.body.name, (req.params.id as string));
+      invalidateCache();
+    }
     res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)));
   });
 
@@ -103,6 +118,7 @@ export function mountProjects(app: Express): void {
     if (target.id !== project.id) {
       db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ?').run(target.id, project.id);
       db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+      invalidateCache();
     }
     res.json({ ok: true, projectId: target.id });
   });
@@ -117,6 +133,7 @@ export function mountProjects(app: Express): void {
     db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(`${project.name} (${source})`, target.id);
     db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ? AND source = ?')
       .run(target.id, project.id, source);
+    invalidateCache();
     res.json({ ok: true, projectId: target.id });
   });
 
@@ -129,6 +146,7 @@ export function mountProjects(app: Express): void {
     db.prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run((req.params.id as string));
     db.prepare('DELETE FROM sessions WHERE project_id = ?').run((req.params.id as string));
     db.prepare('DELETE FROM projects WHERE id = ?').run((req.params.id as string));
+    invalidateCache();
     res.json({ ok: true });
   });
 }
