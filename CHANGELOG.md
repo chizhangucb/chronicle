@@ -3,6 +3,35 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## Unreleased
+
+- **New home: a live Insights dashboard at `/`.** The landing page is now a
+  Today/7d/30d KPI strip, a Today-only Activity block (live sessions + "since
+  you left"), and a Burn tile, with the recent-sessions ledger (search,
+  day-grouping, bulk select) below it. The project grid moved to its own
+  **Projects** page.
+- **Explore: hourly time brush + session grouping.** A new hourly granularity
+  with an "Other" rollup for long tails, plus a per-session grouping view for
+  Explore's pivot table.
+- **Content: 7 usage characteristics.** New scannable callouts — long
+  (8-hour+) sessions, workflow runs, subagent turns, high-context sessions
+  (absolute and relative to the model's window), cache efficiency, and
+  autonomous share — each with its own share/count and an InfoTip explainer.
+- **Subagent-folder ingestion.** Claude Code subagent transcripts written to
+  separate files/folders (direct and nested workflow runs) now import with
+  correct attribution; the Overview Subagents card shows the real run count.
+- **Synced indicator.** A topbar pill shows "synced Xm ago" / "syncing…" /
+  "sync failed Xm ago" and doubles as a click-to-sync-now button from any page.
+- **Resizable Playback panel.** The conversation pane in Playback now has a
+  draggable split against the code/file-tree pane (persisted width), plus
+  clipping and overflow fixes at common desktop widths.
+- **Quality gates for future releases.** A Playwright E2E suite (seeded
+  against a big fixture — 120 subagents, 5000 messages) now gates CI on every
+  PR; a checked-in design rubric (`.claude/design-rubric.md`) plus a
+  `npm run walk` release-capture script are the judged gate before every
+  `npm publish`. Internal: a server-side result cache and a client
+  stale-while-revalidate fetch layer speed up navigation between cached views.
+
 ## 1.1.0
 
 - **App-wide design-system pass.** Consistent typography, spacing, control

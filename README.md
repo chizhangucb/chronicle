@@ -30,19 +30,29 @@ The highlights:
 - **Import from 4 tools** — Claude Code, Codex, Cursor, and OpenCode, via a guided
   wizard. Read-only into a local SQLite DB (WAL-safe temp copies; originals never
   touched). Sessions aggregate into logical projects by repo path.
+- **Home dashboard** — the landing page is a live Insights-overview: a Today/7d/30d
+  KPI strip, a Today-only Activity block (live sessions + what happened "since you
+  left"), a Burn tile, and a recent-sessions ledger with search, day-grouping, and
+  bulk select below it. The project grid moved to its own **Projects** page.
 - **Time-travel & Playback** — click any message to see your code exactly as it was,
-  rebuilt from Git history, with file diffs and a scrubbable timeline of messages and
-  commits.
+  rebuilt from Git history, with file diffs, a scrubbable timeline of messages and
+  commits, and a resizable conversation panel.
 - **Insights** — a tabbed analytics home (Overview / Explore / Content) plus per-project
   tabs (Overview / Explore / Content / Sessions): cost, token magnitude, tool-call and
-  content breakdowns, calibrated to true share.
-- **Subagents** — sidechain (subagent) turns are first-class: attributed with token
-  usage, surfaced in an Overview card and a per-subagent drill-in, so subagent cost is
-  no longer invisible.
+  content breakdowns, calibrated to true share. Explore adds an hourly time brush (with
+  an "Other" rollup for long tails) and a per-session grouping view; Content surfaces 7
+  usage characteristics (long sessions, workflow runs, subagent turns, high-context
+  sessions, cache efficiency, and more) as scannable callouts.
+- **Subagents** — sidechain (subagent) turns are first-class, including subagents
+  Claude Code writes to separate transcript files/folders: attributed with token usage,
+  surfaced in an Overview card with the real run count and a per-subagent drill-in, so
+  subagent cost is no longer invisible.
 - **Security redaction** — built-in and custom redaction rules with a
   detected-vs-redacted preview and a one-way redacted export.
 - **Invisible sync** — background incremental import that keeps sessions fresh
   (tombstones for deletes, a noise gate, and pause controls) with no manual re-import.
+  A topbar indicator shows "synced Xm ago" (or "syncing…" / "sync failed") and doubles
+  as a click-to-sync-now button from anywhere in the app.
 - **Refine** — distill a session into docs or a reusable prompt (Keep / Delete / Edit /
   Insert, token stats, Markdown export).
 - **Search** — a Home command palette backed by an FTS5 full-text index (LIKE fallback)
