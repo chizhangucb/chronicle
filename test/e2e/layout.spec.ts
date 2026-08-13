@@ -261,6 +261,28 @@ for (const width of WIDTHS) {
   });
 }
 
+// The scrollWidth check above never goes RED on the fixture's short synthetic
+// session display names ("Fixture prompt #N: please continue the work.") —
+// the real defect needs a long real-world session title, which this fixture
+// doesn't produce (tightened per the task brief's guidance for the same
+// situation on the When-column probe). Structural regression guard instead:
+// the table must sit inside a `.pane` (min-width:0 + overflow:auto), so a
+// wide table scrolls internally instead of forcing the whole page wider —
+// fails if that wrapper is ever removed, independent of fixture data shape.
+test('(d) the Top Sessions table sits inside a .pane so it scrolls internally, not the page', async ({ page }) => {
+  await gotoInsights(page);
+  await expect(page.getByRole('heading', { name: /Top sessions by cost/ })).toBeVisible();
+  const wrapped = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll('h3')].find((h) => h.textContent?.includes('Top sessions by cost'));
+    const table = heading?.parentElement?.querySelector('table.tbl');
+    const pane = table?.closest('.pane');
+    if (!pane) return false;
+    const cs = getComputedStyle(pane);
+    return cs.minWidth === '0px' && (cs.overflowX === 'auto' || cs.overflowX === 'scroll');
+  });
+  expect(wrapped, 'Top Sessions table is not wrapped in a .pane (min-width:0; overflow:auto)').toBe(true);
+});
+
 // ── (e) Every reachable route/mode at all 3 widths: no horizontal overflow ─
 // One test per width (not per route×width) to keep navigation overhead down;
 // each collects every failing route into a single assertion.
