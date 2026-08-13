@@ -11,11 +11,15 @@ interface SearchScope {
   key: 'all' | 'code' | 'chat';
   label: string;
   icon: string;
+  // Hover clarity for what each scope actually filters on
+  // (server/routes/search.ts SCOPE_KINDS) — 'code' is tool_use/tool_result
+  // rows, not source-code files, so it's labeled "Tools" not "Code".
+  title: string;
 }
 const SEARCH_SCOPES: SearchScope[] = [
-  { key: 'all', label: 'All', icon: '≡' },
-  { key: 'code', label: 'Code', icon: '</>' },
-  { key: 'chat', label: 'Chat', icon: '▤' },
+  { key: 'all', label: 'All', icon: '≡', title: 'Search everything' },
+  { key: 'code', label: 'Tools', icon: '</>', title: 'Tool calls and their results' },
+  { key: 'chat', label: 'Chat', icon: '▤', title: 'User and assistant messages' },
 ];
 
 interface SearchRange {
@@ -138,7 +142,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
         <div className="search-filters">
           <span className="search-tabs">
             {SEARCH_SCOPES.map((s) => (
-              <button key={s.key} className={`chip ${scope === s.key ? 'on' : ''}`} onClick={() => setScope(s.key)}>
+              <button key={s.key} className={`chip ${scope === s.key ? 'on' : ''}`} title={t(s.title)} onClick={() => setScope(s.key)}>
                 <span className="search-tab-icon">{s.icon}</span> {t(s.label)}
               </button>
             ))}

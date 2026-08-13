@@ -56,11 +56,18 @@ export function groupOptions(): Option<PivotGroup>[] {
     { key: 'skill', label: t('Skill') },
     { key: 'subagent', label: t('Subagent') },
     { key: 'hour', label: t('Hour') },
+    { key: 'session', label: t('Session') },
   ];
 }
 
 function subgroupOptions(): Option<PivotSubgroup>[] {
-  return [{ key: 'none', label: t('None') }, ...groupOptions()];
+  // 'session' is excluded here (unlike every other group value) because
+  // subgroup segments are labeled by their raw group value (server/explore.ts
+  // never resolves them through the name/summary/first_prompt fallback the
+  // way the top-level group=session row label is) — stacking a bar by raw
+  // session UUIDs would put unreadable ids in the segment legend, a DISTINCT/
+  // AFFORD regression. Task 16 only asked for Session as a top-level Group.
+  return [{ key: 'none', label: t('None') }, ...groupOptions().filter((o) => o.key !== 'session')];
 }
 
 function rollupOptions(): Option<PivotRollup>[] {

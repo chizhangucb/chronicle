@@ -9,6 +9,7 @@ import { mountGit }        from './routes/git.ts';
 import { mountInsights }   from './routes/insights.ts';
 import { mountExplore }    from './routes/explore.ts';
 import { mountContent }    from './routes/content.ts';
+import { mountActivity }   from './routes/activity.ts';
 import { startAutoSync }   from './autosync.ts';
 
 export const api = express();
@@ -24,6 +25,7 @@ mountGit(api);
 mountInsights(api);
 mountExplore(api);
 mountContent(api);
+mountActivity(api);
 
 // Auto-sync starts with the server in every run mode (dev / standalone);
 // watchers + timer live on globalThis so SSR reloads don't orphan them.

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
 import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
-import { liveCandidatesForSessions } from '../live.ts';
+import { liveCandidatesForSessions, liveWatcherSessionIds } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 
@@ -29,6 +29,10 @@ interface RawSessionRow {
   char_count: number | null;
 }
 
+// Mirrors server/activity.ts LIVE_WINDOW_MS — a session is "live" if it has an
+// open SSE watcher OR its stored ended_at is within the trailing 5 minutes.
+const LIVE_WINDOW_MS = 5 * 60 * 1000;
+
 export function mountProjects(app: Express): void {
   app.get('/projects', (_req: Request, res: Response) => {
     const projects = db.prepare(`
@@ -37,7 +41,21 @@ export function mountProjects(app: Express): void {
              GROUP_CONCAT(DISTINCT s.source) AS sources
       FROM projects p LEFT JOIN sessions s ON s.project_id = p.id AND COALESCE(s.minor, 0) = 0
       GROUP BY p.id ORDER BY last_active DESC`).all() as unknown as ProjectListRow[];
-    res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path) })));
+    // Cheap "any session live" flag per project (Task 17), no per-project
+    // queries: one indexed scan for recently-ended sessions, plus a lookup for
+    // any project owning a currently-open SSE watcher (usually 0-1 rows).
+    const cutoff = new Date(Date.now() - LIVE_WINDOW_MS).toISOString();
+    const liveProjectIds = new Set(
+      (db.prepare('SELECT DISTINCT project_id FROM sessions WHERE COALESCE(minor,0)=0 AND ended_at >= ?').all(cutoff) as unknown as { project_id: number }[])
+        .map((r) => r.project_id),
+    );
+    const watcherIds = [...liveWatcherSessionIds()];
+    if (watcherIds.length) {
+      const placeholders = watcherIds.map(() => '?').join(',');
+      const rows = db.prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
+      for (const r of rows) liveProjectIds.add(r.project_id);
+    }
+    res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) })));
   });
 
   app.get('/projects/:id', (req: Request, res: Response) => {

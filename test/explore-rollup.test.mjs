@@ -9,6 +9,25 @@ import { withTempDb } from './helpers.mjs';
 
 let dbModule, teardown, explore, otherProjectId;
 
+// 12 alternating user/assistant events over 22 minutes — same shape as
+// test/explore.test.mjs's `rhythmEvents` — so each session clears BOTH
+// noiseGate.isMinorSession thresholds (>=10 messages, >=5min agent-active)
+// and lands in the main ledger rather than the minor-sessions bucket, which
+// minorGate would otherwise exclude from every 'all'-scope aggregate below.
+function rhythmEvents(baseIso, model = 'claude-sonnet-5') {
+  const base = new Date(baseIso).getTime();
+  const events = [];
+  for (let i = 0; i < 12; i++) {
+    events.push({
+      kind: i % 2 === 0 ? 'user' : 'assistant',
+      text: `msg ${i}`,
+      ts: new Date(base + i * 2 * 60000).toISOString(),
+      ...(i % 2 === 1 ? { model, input_tokens: 10, output_tokens: 5 } : {}),
+    });
+  }
+  return events;
+}
+
 before(async () => {
   const temp = await withTempDb();
   dbModule = temp.dbModule; teardown = temp.teardown;
@@ -86,6 +105,67 @@ before(async () => {
       ...toolEvents('2026-08-02', { Bash: 2, Grep: 6, Glob: 3, WebFetch: 1 }),
     ],
   );
+
+  // ---- group=session fixture (Task 16) ----
+  // Three sessions with token cost DESCENDING sA > sB > sC, and each
+  // exercising a different rung of the sessionDisplayName precedence (name →
+  // summary → first_prompt), so "ranked by token cost with names" is
+  // testable end-to-end: ranking order proves the sessions.usage sourcing,
+  // and the three distinct label rungs prove the fallback chain server-side.
+  const proj3 = upsertProject('/tmp/proj-sessgroup');
+  replaceSession(
+    { id: 'sSessA', project_id: proj3.id, source: 'claude-code', file_path: '/tmp/sSessA.jsonl',
+      started_at: '2026-08-05T09:00:00.000Z', ended_at: '2026-08-05T09:30:00.000Z',
+      name: 'Renamed Session A', summary: 'auto-summary A (should lose to name)',
+      first_prompt: 'first prompt A',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 500, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythmEvents('2026-08-05T09:00:00.000Z'),
+  );
+  replaceSession(
+    { id: 'sSessB', project_id: proj3.id, source: 'claude-code', file_path: '/tmp/sSessB.jsonl',
+      started_at: '2026-08-05T10:00:00.000Z', ended_at: '2026-08-05T10:30:00.000Z',
+      summary: 'Auto Summary B', first_prompt: 'first prompt B',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 200, output: 100, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythmEvents('2026-08-05T10:00:00.000Z'),
+  );
+  replaceSession(
+    { id: 'sSessC', project_id: proj3.id, source: 'claude-code', file_path: '/tmp/sSessC.jsonl',
+      started_at: '2026-08-05T11:00:00.000Z', ended_at: '2026-08-05T11:30:00.000Z',
+      first_prompt: 'first prompt C (no name, no summary)',
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 50, output: 50, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythmEvents('2026-08-05T11:00:00.000Z'),
+  );
+
+  // Non-claude-source sessions (code review finding): only claudeCode.ts
+  // writes `sessions.usage` at import — codex/cursor/opencode never do — so
+  // group=session's EXACT_USAGE_GROUPS override must not silently zero their
+  // Tokens/Spend next to a real nonzero Requests count (reads as a bug).
+  //
+  // sSessD mirrors codex: no `usage` field, but its per-message events DO
+  // carry input_tokens/output_tokens (codex.ts attaches real per-message
+  // token_count data) — the fallback should surface those real numbers.
+  replaceSession(
+    { id: 'sSessD', project_id: proj3.id, source: 'codex', file_path: '/tmp/sSessD.jsonl',
+      started_at: '2026-08-05T12:00:00.000Z', ended_at: '2026-08-05T12:30:00.000Z',
+      first_prompt: 'codex prompt D' },
+    rhythmEvents('2026-08-05T12:00:00.000Z', 'gpt-5-codex'),
+  );
+  // sSessE mirrors cursor/opencode: no `usage` field AND no per-message token
+  // fields at all (those parsers never populate token data anywhere) — the
+  // fallback has nothing to recover, so Tokens/Spend stay honestly 0.
+  const noTokenEvents = (baseIso) => {
+    const base = new Date(baseIso).getTime();
+    return Array.from({ length: 12 }, (_, i) => ({
+      kind: i % 2 === 0 ? 'user' : 'assistant', text: `msg ${i}`,
+      ts: new Date(base + i * 2 * 60000).toISOString(),
+    }));
+  };
+  replaceSession(
+    { id: 'sSessE', project_id: proj3.id, source: 'cursor', file_path: '/tmp/sSessE.jsonl',
+      started_at: '2026-08-05T13:00:00.000Z', ended_at: '2026-08-05T13:30:00.000Z',
+      first_prompt: 'cursor prompt E' },
+    noTokenEvents('2026-08-05T13:00:00.000Z'),
+  );
 });
 after(() => teardown());
 
@@ -137,4 +217,89 @@ test('rollup Other segment: per-bucket series sum (topN + Other) reconciles to t
   const day2Other = r.buckets?.find((b) => b.bucket === '2026-08-02')?.series.Other?.requests ?? 0;
   assert.equal(day1Other, 3 + 2); // Write + Edit
   assert.equal(day2Other, 3 + 1); // Glob + WebFetch
+});
+
+// ---- group=session (Task 16, spec §2.4) ----
+
+// group=session, metric=spend: fixture sessions ranked by token cost
+// (sessions.usage-sourced — EXACT_USAGE_GROUPS), each keyed by its session id
+// (for row-click navigation) and labeled with its resolved display name.
+test('computeExplore: group=session, metric=spend ranks fixture sessions by token cost, with resolved names', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+  });
+  const sessRows = ['sSessA', 'sSessB', 'sSessC'].map((id) => r.rows.find((x) => x.key === id));
+  assert.ok(sessRows.every(Boolean), 'expected all three fixture sessions as rows keyed by session id');
+  const [a, b, c] = sessRows;
+
+  // Server-side ranking proxy for spend/tokens is total tokens (see explore.ts
+  // `mag`) — the client re-sorts by its own priced Spend, but ranking by
+  // tokens is equivalent here since all three fixture sessions bill the same
+  // model. sA (1500) > sB (300) > sC (100).
+  const tokensOf = (row) => Object.values(row.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.equal(tokensOf(a), 1500);
+  assert.equal(tokensOf(b), 300);
+  assert.equal(tokensOf(c), 100);
+  const rankIdx = (id) => r.rows.findIndex((x) => x.key === id);
+  assert.ok(rankIdx('sSessA') < rankIdx('sSessB'), 'sSessA (1500 tokens) should rank above sSessB (300)');
+  assert.ok(rankIdx('sSessB') < rankIdx('sSessC'), 'sSessB (300 tokens) should rank above sSessC (100)');
+
+  // Names resolve through the full name → summary → first_prompt fallback
+  // chain (server/activity.ts displayName), not the raw session id.
+  assert.equal(a.label, 'Renamed Session A');       // name wins over summary/first_prompt
+  assert.equal(b.label, 'Auto Summary B');           // no name -> summary wins over first_prompt
+  assert.equal(c.label, 'first prompt C (no name, no summary)'); // no name/summary -> first_prompt
+});
+
+// session is an EXACT_USAGE_GROUPS member — tokens come straight from that
+// session's own sessions.usage row, so the result is never marked calibrated.
+test('computeExplore: group=session tokens are exact (not calibrated)', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'all' }, days: null, metric: 'tokens', group: 'session', rollup: 'total', topN: 10,
+  });
+  assert.equal(r.calibrated, false);
+});
+
+// Code-review fix: a session whose SOURCE never writes sessions.usage
+// (codex/cursor/opencode) must not silently show Tokens=0 next to a real
+// nonzero Requests count. sSessD (codex-like: no usage, but real per-message
+// input_tokens/output_tokens) falls back to those per-message cells —
+// 6 assistant turns x (10 in, 5 out) = 60/30, matching rhythmEvents' fixture.
+test('computeExplore: group=session falls back to per-message tokens when sessions.usage is absent (codex-like)', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+  });
+  const d = r.rows.find((x) => x.key === 'sSessD');
+  assert.ok(d, 'expected sSessD as a row');
+  assert.ok(d.requests > 0, 'sanity: sSessD has real requests');
+  const tokens = Object.values(d.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.equal(tokens, 90); // 6 x (10+5) — real per-message data, NOT silently zeroed
+  assert.ok(d.tokensByModel['gpt-5-codex'], 'expected the fallback to preserve the real per-message model key');
+});
+
+// sSessE (cursor/opencode-like: no usage AND no per-message token fields at
+// all) has nothing to fall back to — Tokens/Spend stay honestly 0 rather than
+// fabricating a number, while Requests still reflects the real message count.
+test('computeExplore: group=session stays honestly 0 tokens when a source has no token telemetry at all (cursor/opencode-like)', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+  });
+  const e = r.rows.find((x) => x.key === 'sSessE');
+  assert.ok(e, 'expected sSessE as a row');
+  assert.ok(e.requests > 0, 'sanity: sSessE has real requests');
+  const tokens = Object.values(e.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
+  assert.equal(tokens, 0);
+});
+
+// scope={type:'project', id} still filters group=session to that project's
+// own sessions (the same scope+minorGate every other group honors).
+test('computeExplore: group=session respects scope=project', () => {
+  const proj3Id = dbModule.db.prepare("SELECT project_id FROM sessions WHERE id = 'sSessA'").get().project_id;
+  const r = explore.computeExplore({
+    scope: { type: 'project', id: proj3Id }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+  });
+  // proj3 now also holds sSessD (codex) and sSessE (cursor) — the code-review
+  // fallback fixtures — so 5 sessions, not 3.
+  assert.equal(r.rows.length, 5);
+  assert.ok(r.rows.every((x) => ['sSessA', 'sSessB', 'sSessC', 'sSessD', 'sSessE'].includes(x.key)));
 });

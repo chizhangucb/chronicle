@@ -34,6 +34,11 @@ export interface UseSessionSelect {
   isSelected: (id: string) => boolean;
   toggle: (id: string) => void;
   enterSelect: () => void;
+  // Bulk add/remove a whole set of ids at once — e.g. a day-group header
+  // checkbox (select/clear exactly that day's visible rows) or a quick-select
+  // shortcut (e.g. Home's "Select minor sessions"). Generic on purpose so it
+  // stays reusable beyond the ids in the `sessions` list passed in above.
+  setMany: (ids: string[], value: boolean) => void;
   Bar: React.ReactNode;
   Toast: React.ReactNode;
 }
@@ -70,6 +75,14 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setConfirming(false);
+  }
+  function setMany(ids: string[], value: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) { if (value) next.add(id); else next.delete(id); }
       return next;
     });
     setConfirming(false);
@@ -116,7 +129,13 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     onRefresh();
   }
 
-  const allSelected = selected.size === sessions.length && sessions.length > 0;
+  // Subset check (all VISIBLE ids are selected), not a size comparison — the
+  // Set can legitimately hold ids outside `sessions` too (e.g. the "Select
+  // minor sessions" quick-select adds ids the ledger never lists), and a
+  // size-equality check would falsely read as "not all selected" the moment
+  // that happens. See the Select-all/Clear handler below for the same
+  // visible-only-ids fix.
+  const allVisibleSelected = sessions.length > 0 && sessions.every((s) => selected.has(s.id));
 
   const Bar = selectMode ? (
     // Select→act flow wrapped in a bg1 + hairline toolbar so it reads as one
@@ -133,8 +152,15 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
       ) : (
         <>
           <span className="muted small">{selected.size} {t('selected')}</span>
-          <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(sessions.map((s) => s.id)))}>
-            {allSelected ? t('Clear') : t('Select all')}
+          {/* Select all UNIONs the visible ids into the current selection, and
+              Clear SUBTRACTS only the visible ids — selection composes across
+              a filter change or an out-of-list quick-select (e.g. minor
+              sessions) instead of silently replacing/wiping it (spec §2.2:
+              "selection composes"). The toolbar's "N selected" count above
+              always reflects the real Set, so it never lies about what
+              Remove would remove. */}
+          <button className="btn ghost" onClick={() => setMany(sessions.map((s) => s.id), !allVisibleSelected)}>
+            {allVisibleSelected ? t('Clear') : t('Select all')}
           </button>
           <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
           <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
@@ -162,5 +188,5 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     </Toast.Root>
   ) : null;
 
-  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, Bar, Toast: UndoToast };
+  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, setMany, Bar, Toast: UndoToast };
 }

@@ -4,6 +4,21 @@
 const zh = {
   'AI Session Time Machine': 'AI 会话时光机',
   'Projects': '项目',
+  // Home dashboard (Task 13)
+  'Home': '主页',
+  'Live now': '正在进行',
+  'Since you left': '离开以来',
+  'No activity yet today — your live and recently-ended sessions will show here.': '今天还没有活动 — 正在进行和刚结束的会话会显示在这里。',
+  'error': '错误',
+  'live': '进行中',
+  'Burn rate': '消耗速率',
+  'Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged.': '本时段的花费与基线对比（今天取过去 14 个完整日的中位数，较长时段取上一周期）。超过基线 2 倍会被标记。',
+  'vs': '对比',
+  'typical day (14-day median)': '典型日（14 日中位数）',
+  'prior 7 days': '前 7 天',
+  'prior 30 days': '前 30 天',
+  'high': '偏高',
+  'Top session': '花费最高的会话',
   'MCP Hub': 'MCP 中心',
   'Skills': '技能',
   '+ Import Sessions': '+ 导入会话',
@@ -124,6 +139,7 @@ const zh = {
   'sessions removed': '个会话已移除',
   'From Chronicle only — source logs untouched.': '仅从 Chronicle 中移除——源日志不受影响。',
   'Minor sessions': '次要会话',
+  'Select minor sessions': '选择次要会话',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '简短、活跃度低的会话不会出现在主列表中——可以提升以恢复，或忽略以永久移除。',
   'Promote': '提升',
@@ -135,6 +151,7 @@ const zh = {
   'syncing…': '同步中…',
   'synced': '已同步',
   'sync failed': '同步失败',
+  'Sync now': '立即同步',
   'never': '从未',
   's ago': '秒前',
   'm ago': '分钟前',
@@ -271,7 +288,11 @@ const zh = {
   'Search session content…': '搜索会话内容…',
   'All': '全部',
   'Code': '代码',
+  'Tools': '工具',
   'Chat': '对话',
+  'Search everything': '搜索全部内容',
+  'Tool calls and their results': '工具调用及其结果',
+  'User and assistant messages': '用户与助手消息',
   'All Time': '全部时间',
   'All Projects': '全部项目',
   'Recent Access': '最近访问',
@@ -284,6 +305,8 @@ const zh = {
   'Rename session': '重命名会话',
   'New session name (leave blank to reset to default):': '新的会话名称（留空恢复默认）：',
   'Leave blank to reset to default': '留空恢复默认名称',
+  "Renames in Chronicle only — independent of Claude Code's /rename": '仅在 Chronicle 中重命名——与 Claude Code 的 /rename 无关',
+  'This session is live': '此会话正在直播',
   'Sync this session': '同步此会话',
   'Syncing…': '同步中…',
   'just now': '刚刚',
@@ -321,10 +344,6 @@ const zh = {
   'Start Chronicle in the tray when you log in (desktop app only)': '登录后在托盘中启动 Chronicle（仅桌面应用）',
   'ongoing': '进行中',
   'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': '源日志在最近 10 分钟内有写入——统计为“至今”数据，自动同步会保持其最新',
-  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    '智能体真正在工作的时长（包含子智能体活动）。工具执行时间（紧随工具调用的工具结果）会被完整计入——长时间的构建或测试都会体现出来。其余每段间隔以 10 分钟为上限，而你每次真实提问前的停顿（阅读/输入/离开的时间）会被完全排除。相比之下，“总时长”是从第一条到最后一条消息的完整挂钟跨度。',
-  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
-    '参与时长用来估计你实际投入这个会话的时间：把相邻消息之间的每段间隔相加，每段以 90 分钟为上限。与“智能体活跃”不同，它不区分智能体工作和你的停顿——更接近会话被使用的挂钟时间。',
   // Refine: delete by type
   'By type': '按类型',
   'Toggle whole message types in or out': '整类消息一键保留或删除',
@@ -338,10 +357,12 @@ const zh = {
   'Your engaged': '你的参与时长',
   'Tool calls': '工具调用',
   'Error rate': '错误率',
-  'Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.':
-    '智能体工作时长：每次消息间隔都会计入，除了紧邻你真实输入提示前的那段间隔。后台等待（构建、通知）也计入活跃时间。',
-  "Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.":
-    '你的专注时间：围绕你输入的提示和交互的间隔总和，并设有上限以避免长时间离开被计入。杠杆率 = 智能体活跃时间 ÷ 参与时间。',
+  'Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.':
+    'Agent Active（智能体活跃时长）累加消息之间的每一段间隔，但排除紧邻你真实输入提示之前的间隔；每段间隔上限为 10 分钟，但以工具结果结束的间隔不设上限。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.':
+    'Engaged（参与时长）累加消息之间的每一段间隔，每段上限为 90 分钟；与 Agent Active 不同，它不区分智能体工作与你自己的停顿。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.':
+    'Engaged（参与时长）累加消息之间的每一段间隔，每段上限为 90 分钟；与 Agent Active 不同，它不区分智能体工作与你自己的停顿。杠杆率 = 智能体活跃时间 ÷ 参与时间。',
   'Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.':
     '所选时间范围内所有会话中的工具调用总数（Bash、Read、Edit 等）。每次调用及其结果也都会产生词元成本——详见 Content 标签页。',
   'Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.':
@@ -418,6 +439,7 @@ const zh = {
   'Recent sessions': '最近会话',
   'Filter sessions… (title, project, content)': '筛选会话…（标题、项目、内容）',
   'needs association': '需要关联',
+  'A session in this project is live': '此项目中有会话正在直播',
   'Yesterday': '昨天',
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': '子智能体',
@@ -429,6 +451,7 @@ const zh = {
   'Not available with time rollups': '时间汇总下不可用',
   'too dense — showing': '过于密集，改为显示',
   'Metric': '指标',
+  'client-generated': '客户端生成',
   'Group': '分组',
   'Subgroup': '子分组',
   'Rollup': '汇总方式',
@@ -468,6 +491,47 @@ const zh = {
   ' min between your turns': ' 分钟（在你的两次对话之间）',
   'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
     '基于同模型对话间隔估算。在该窗口内保持任务推进可以避免缓存冷却后的重写。',
+  // Content tab (Task C3-T15: 7 usage characteristics, spec §2.5)
+  'Usage characteristics': '使用特征',
+  'of usage came from marathon sessions (8h+ active)': '的使用来自马拉松式会话（活跃 8 小时以上）',
+  'Sessions where the agent was actively working — not just open — for 8 hours or more.':
+    '智能体持续活跃工作（而不仅仅是打开着）达到 8 小时或以上的会话。',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.':
+    '智能体活跃时间累加消息之间的每一段间隔，但不包括等待你输入提示的时间；每段间隔上限为 10 分钟，除非是被一次长时间运行的工具调用占满——当总时长达到 8 小时时，该会话即计入此项。没有存储时长数据（尚未重新同步）的会话会被完全排除在此占比之外——分子分母都不计入。',
+  'marathon session': '个马拉松式会话', 'marathon sessions': '个马拉松式会话',
+  'of usage ran inside a multi-agent workflow': '的使用发生在多智能体工作流中',
+  'Tokens spent on groups of subagents launched together to divide one task.':
+    '花费在一组为拆分同一任务而一起启动的子智能体上的词元。',
+  "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.":
+    '工作流运行是指嵌套在同一个共享工作流文件夹下的一组子智能体——这里显示的是它们在计费词元中的精确占比，而非基于文本长度的估算。',
+  'workflow run': '次工作流运行', 'workflow runs': '次工作流运行',
+  'of usage came from subagent turns': '的使用来自子智能体轮次',
+  'Work delegated to Task-launched subagents rather than answered on the main thread.':
+    '委托给通过 Task 启动的子智能体完成的工作，而非在主线程中直接回答。',
+  "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.":
+    '统计子智能体产生的每一次回复，数据精确来自 Chronicle 逐条消息的旁链词元字段——同时包含工作流内和独立运行的子智能体。',
+  'subagent turn': '次子智能体轮次', 'subagent turns': '次子智能体轮次',
+  'of usage ran above 150k context tokens': '的使用发生在上下文超过 15 万词元时',
+  "Sessions carrying a large context regardless of the model's window size.":
+    '无论模型窗口大小如何，都携带较大上下文的会话。',
+  "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.":
+    '标记存储的上下文大小超过 150,000 词元的会话——这是一个绝对阈值，与所用模型或上下文窗口大小无关。没有存储上下文大小数据的会话（部分非 Claude Code 来源，或在支持上下文追踪之前导入的会话）会被完全排除在此占比之外——分子分母都不计入。',
+  "of usage ran past 70% of the model's context window": '的使用超过了模型上下文窗口的 70%',
+  "Chronicle's own heuristic threshold — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 自定的启发式阈值——并非 Claude Code 官方文档记载的自动压缩触发点。',
+  "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.":
+    '将每个会话存储的上下文大小与其模型的上下文窗口进行比较。70% 是 Chronicle 为提示成本上升而选择的启发式阈值，并非官方公布的自动压缩触发点——Claude Code 并未为 20 万词元窗口公布固定默认值，而 100 万词元窗口的自动压缩点约在 97% 左右，远高于 70%。没有存储上下文大小数据的会话会被完全排除在此占比之外——分子分母都不计入。',
+  'of input tokens were served from cache': '的输入词元由缓存提供',
+  'Higher is cheaper — a cache read costs a fraction of a fresh input token.':
+    '数值越高越省钱——缓存读取的成本只是全新输入词元的一小部分。',
+  "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.":
+    '输入侧词元（全新输入加缓存读取）中来自缓存读取的占比，直接根据每个会话的计费用量计算得出。',
+  'session with cache activity': '个有缓存活动的会话', 'sessions with cache activity': '个有缓存活动的会话',
+  'of usage ran mostly unattended': '的使用大部分是在无人值守下进行的',
+  'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.':
+    '参与（实际经过的）时间不到活跃时间的四分之一——智能体大部分时间都是在无人盯着的情况下工作的。',
+  'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.':
+    '标记参与时间（你实际在场的时间）低于智能体活跃时间（智能体工作的时间）25% 的会话——例如你离开时仍在运行的一次长时间构建或工具调用。没有存储时长数据（尚未重新同步）的会话会被完全排除在此占比之外——分子分母都不计入。',
   'Token composition · what fills the context': '词元构成 · 上下文都花在哪里',
   'Tool results': '工具结果',
   'Your prompts': '你的提问',
@@ -488,6 +552,21 @@ const zh = {
 const ja = {
   'AI Session Time Machine': 'AI セッションタイムマシン',
   'Projects': 'プロジェクト',
+  // Home dashboard (Task 13)
+  'Home': 'ホーム',
+  'Live now': '進行中',
+  'Since you left': '前回からの更新',
+  'No activity yet today — your live and recently-ended sessions will show here.': '今日はまだアクティビティがありません — 進行中や直近で終了したセッションがここに表示されます。',
+  'error': 'エラー',
+  'live': '進行中',
+  'Burn rate': '消費ペース',
+  'Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged.': 'この期間の支出とベースラインの比較（今日は直近14日間の中央値、長い期間は前の期間を使用）。ベースラインの2倍を超えると強調表示されます。',
+  'vs': '対',
+  'typical day (14-day median)': '平常日（14日間の中央値）',
+  'prior 7 days': '前の7日間',
+  'prior 30 days': '前の30日間',
+  'high': '高い',
+  'Top session': '最も高額なセッション',
   'MCP Hub': 'MCP ハブ',
   'Skills': 'スキル',
   '+ Import Sessions': '+ セッションをインポート',
@@ -606,6 +685,7 @@ const ja = {
   'sessions removed': '件のセッションを削除しました',
   'From Chronicle only — source logs untouched.': 'Chronicle からのみ削除されました — 元のログは変更されません。',
   'Minor sessions': 'マイナーセッション',
+  'Select minor sessions': 'マイナーセッションを選択',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '短くて活動の少ないセッションはメインリストに表示されません — 昇格で復元、または無視で完全に削除できます。',
   'Promote': '昇格',
@@ -617,6 +697,7 @@ const ja = {
   'syncing…': '同期中…',
   'synced': '同期済み',
   'sync failed': '同期失敗',
+  'Sync now': '今すぐ同期',
   'never': '未',
   's ago': '秒前',
   'm ago': '分前',
@@ -758,7 +839,11 @@ const ja = {
   'Search session content…': 'セッション内容を検索…',
   'All': 'すべて',
   'Code': 'コード',
+  'Tools': 'ツール',
   'Chat': 'チャット',
+  'Search everything': 'すべてを検索',
+  'Tool calls and their results': 'ツール呼び出しとその結果',
+  'User and assistant messages': 'ユーザーとアシスタントのメッセージ',
   'All Time': '全期間',
   'All Projects': 'すべてのプロジェクト',
   'Recent Access': '最近のアクセス',
@@ -771,6 +856,8 @@ const ja = {
   'Rename session': 'セッション名を変更',
   'New session name (leave blank to reset to default):': '新しいセッション名（空欄でデフォルトに戻す）：',
   'Leave blank to reset to default': '空欄でデフォルトに戻す',
+  "Renames in Chronicle only — independent of Claude Code's /rename": 'Chronicle 内でのみ名前を変更します — Claude Code の /rename とは独立しています',
+  'This session is live': 'このセッションはライブ中です',
   'Sync this session': 'このセッションを同期',
   'Syncing…': '同期中…',
   'just now': 'たった今',
@@ -810,10 +897,6 @@ const ja = {
   'Start Chronicle in the tray when you log in (desktop app only)': 'ログイン時にトレイで Chronicle を起動します（デスクトップアプリのみ）',
   'ongoing': '進行中',
   'The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh': 'ソースログが直近 10 分以内に書き込まれています。統計は「現時点まで」の値で、自動同期が最新に保ちます',
-  'How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.':
-    'エージェントが実際に作業していた時間です（サブエージェントの活動を含む）。ツールの実行時間（ツール呼び出しに続くツール結果）は全部カウントされ、長いビルドやテストもそのまま反映されます。それ以外の間隔は 1 回あたり最大 10 分まで、あなたが実際にプロンプトを送る前の停止（読む／入力する／離席する時間）は完全に除外されます。一方「合計時間」は最初から最後のメッセージまでの全体の長さです。',
-  'Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.':
-    'エンゲージ時間は、このセッションに実際に向き合っていた時間の目安です。連続するメッセージ間の間隔をすべて合計し、1 回あたり最大 90 分で打ち切ります。「エージェント稼働」と違い、エージェントの作業とあなたの停止を区別しないため、セッションが使われていた実時間に近い値になります。',
   // Refine: delete by type
   'By type': 'タイプ別',
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
@@ -827,10 +910,12 @@ const ja = {
   'Your engaged': 'あなたの関与時間',
   'Tool calls': 'ツール呼び出し',
   'Error rate': 'エラー率',
-  'Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.':
-    'エージェントが稼働していた時間：メッセージ間のすべての間隔をカウントしますが、実際に入力したプロンプト直前の間隔は除きます。バックグラウンドの待機（ビルドや通知）もアクティブ時間として計上されます。',
-  "Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.":
-    'あなたの関与時間：入力したプロンプトやインタラクションの前後の間隔の合計で、離席時間が水増しされないよう上限が設けられています。レバレッジ = エージェント稼働時間 ÷ 関与時間。',
+  'Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.':
+    'Agent Active（エージェント稼働時間）は、実際に入力したプロンプト直前の間隔を除き、メッセージ間のすべての間隔を合計します。各間隔は 10 分を上限としますが、ツール結果で終わる間隔には上限がありません。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.':
+    'Engaged（関与時間）は、メッセージ間のすべての間隔を合計し、各間隔は 90 分を上限とします。Agent Active と異なり、エージェントの作業とあなた自身の停止を区別しません。',
+  'Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.':
+    'Engaged（関与時間）は、メッセージ間のすべての間隔を合計し、各間隔は 90 分を上限とします。Agent Active と異なり、エージェントの作業とあなた自身の停止を区別しません。レバレッジ = エージェント稼働時間 ÷ 関与時間。',
   'Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.':
     '選択した期間内の全セッションにおけるツール呼び出しの総数（Bash、Read、Edit など）。各呼び出しとその結果にもトークンコストが発生します——詳細は Content タブを参照してください。',
   'Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.':
@@ -907,6 +992,7 @@ const ja = {
   'Recent sessions': '最近のセッション',
   'Filter sessions… (title, project, content)': 'セッションを絞り込み…（タイトル・プロジェクト・内容）',
   'needs association': '関連付けが必要',
+  'A session in this project is live': 'このプロジェクトでセッションがライブ中です',
   'Yesterday': '昨日',
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': 'サブエージェント',
@@ -918,6 +1004,7 @@ const ja = {
   'Not available with time rollups': '時間集計では利用不可',
   'too dense — showing': '密集しすぎ、代わりに表示',
   'Metric': '指標',
+  'client-generated': 'クライアント生成',
   'Group': 'グループ',
   'Subgroup': 'サブグループ',
   'Rollup': '集計方法',
@@ -957,6 +1044,47 @@ const ja = {
   ' min between your turns': ' 分間、あなたのターンの間で温存されます',
   'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
     '同一モデルのターン間隔から推定しています。この時間内にタスクを継続すると、キャッシュが冷えて再書き込みされるのを避けられます。',
+  // Content tab (Task C3-T15: 7 usage characteristics, spec §2.5)
+  'Usage characteristics': '利用特性',
+  'of usage came from marathon sessions (8h+ active)': 'の利用がマラソン型セッション（8時間以上アクティブ）から発生',
+  'Sessions where the agent was actively working — not just open — for 8 hours or more.':
+    'エージェントが単に開いていただけでなく、8時間以上継続してアクティブに作業していたセッション。',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.':
+    'エージェントのアクティブ時間は、あなたがプロンプトを入力するのを待っていた時間を除く、メッセージ間のすべての間隔を合計したものです。各間隔は10分を上限としますが、長時間実行されるツール呼び出しで埋まっている場合は例外です — 合計が8時間に達すると、このセッションはここにカウントされます。保存された継続時間データがない（まだ再同期されていない）セッションは、分子・分母ともにこの割合から完全に除外されます。',
+  'marathon session': '件のマラソン型セッション', 'marathon sessions': '件のマラソン型セッション',
+  'of usage ran inside a multi-agent workflow': 'の利用がマルチエージェント・ワークフロー内で発生',
+  'Tokens spent on groups of subagents launched together to divide one task.':
+    '1つのタスクを分割するために一緒に起動されたサブエージェント群に費やされたトークン。',
+  "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.":
+    'ワークフロー実行とは、1つの共有ワークフローフォルダーの下にネストされたサブエージェント群のことです — これは請求対象トークンにおける正確な割合であり、テキスト長からの推定ではありません。',
+  'workflow run': '件のワークフロー実行', 'workflow runs': '件のワークフロー実行',
+  'of usage came from subagent turns': 'の利用がサブエージェントのターンから発生',
+  'Work delegated to Task-launched subagents rather than answered on the main thread.':
+    'メインスレッドで直接応答するのではなく、Task で起動されたサブエージェントに委任された作業。',
+  "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.":
+    'サブエージェントが生成したすべての返信をカウントし、Chronicle のメッセージ単位のサイドチェーン・トークン列から正確に取得しています — ワークフロー内・単独実行の両方のサブエージェント実行を含みます。',
+  'subagent turn': '件のサブエージェント・ターン', 'subagent turns': '件のサブエージェント・ターン',
+  'of usage ran above 150k context tokens': 'の利用がコンテキスト15万トークンを超えて発生',
+  "Sessions carrying a large context regardless of the model's window size.":
+    'モデルのウィンドウサイズに関わらず、大きなコンテキストを抱えているセッション。',
+  "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.":
+    '保存されたコンテキストサイズが150,000トークンを超えたセッションにフラグを立てます — これはモデルやコンテキストウィンドウサイズに関係のない絶対的なしきい値です。保存されたコンテキストサイズがないセッション（一部の非 Claude Code ソース、またはコンテキスト追跡が追加される前のインポート）は、分子・分母ともにこの割合から完全に除外されます。',
+  "of usage ran past 70% of the model's context window": 'の利用がモデルのコンテキストウィンドウの70%を超えて発生',
+  "Chronicle's own heuristic threshold — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 独自の経験則によるしきい値であり、Claude Code の公式ドキュメントに記載された自動圧縮のトリガーではありません。',
+  "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.":
+    '各セッションの保存されたコンテキストサイズを、そのモデルのコンテキストウィンドウと比較します。70% はコスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値であり、公式に文書化された自動圧縮ポイントではありません — Claude Code は20万トークンウィンドウの固定デフォルト値を公表しておらず、100万トークンウィンドウは70%を大きく超えた約97%で自動圧縮されます。保存されたコンテキストサイズがないセッションは、分子・分母ともにこの割合から完全に除外されます。',
+  'of input tokens were served from cache': 'の入力トークンがキャッシュから提供',
+  'Higher is cheaper — a cache read costs a fraction of a fresh input token.':
+    '数値が高いほど安価です — キャッシュ読み取りのコストは新規入力トークンのごく一部です。',
+  "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.":
+    '入力側トークン（新規入力とキャッシュ読み取りの合計）のうち、キャッシュ読み取りから来た割合を、各セッションの請求対象利用量から直接計算しています。',
+  'session with cache activity': '件のキャッシュ活動があるセッション', 'sessions with cache activity': '件のキャッシュ活動があるセッション',
+  'of usage ran mostly unattended': 'の利用がほぼ無人状態で発生',
+  'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.':
+    '関与時間（実時間）がアクティブ時間の4分の1未満にとどまりました — エージェントはあなたが見ていない間にほとんどの作業を行いました。',
+  'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.':
+    '関与時間（あなたが実際に在席していた時間）がエージェントのアクティブ時間（エージェントの作業時間）の25%未満のセッションにフラグを立てます — 例えば、あなたが離席している間に実行されていた長時間のビルドやツール呼び出しなどです。保存された継続時間データがない（まだ再同期されていない）セッションは、分子・分母ともにこの割合から完全に除外されます。',
   'Token composition · what fills the context': 'トークン構成 · コンテキストの内訳',
   'Tool results': 'ツール結果',
   'Your prompts': 'あなたのプロンプト',

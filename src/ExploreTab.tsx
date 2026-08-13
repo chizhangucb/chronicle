@@ -175,6 +175,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // a slot in the categorical rotation).
   const rowColor = (row: ExploreRow, i: number): string =>
     row.key === 'Other' ? 'var(--ink-3)' : CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length];
+  // "<synthetic>" is Claude Code's placeholder model tag for client-generated
+  // assistant turns that never hit the API — connection errors, rate-limit
+  // notices, "no response requested" (VALIDATION GATE, Task 17: verified
+  // against real ~/.claude/projects/*/*.jsonl — every sampled row carries
+  // input_tokens/output_tokens/cache_*=0, so it never contributes to
+  // rowSpend/rowTokens; this is display-only, no cost-math change needed).
+  // Relabeled here rather than server-side so the raw model group key stays a
+  // faithful passthrough of the source data.
+  const rowDisplayLabel = (row: ExploreRow): string =>
+    (pivot.group === 'model' && row.key === '<synthetic>') ? t('client-generated') : row.label;
   // One Recharts row per bucket: { bucket: label, [seriesKey]: metricValue }.
   // Series set = the ranked rows (topN + Other), so the stack matches the table.
   const chartData = useMemo(() => {
@@ -250,7 +260,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
                       <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={result.calibrated} />} />
                       {ranked.map(({ row }, i) => (
-                        <Bar key={row.key} dataKey={row.key} stackId="a" name={row.label} fill={rowColor(row, i)} />
+                        <Bar key={row.key} dataKey={row.key} stackId="a" name={rowDisplayLabel(row)} fill={rowColor(row, i)} />
                       ))}
                       {showBrush && (
                         <Brush
@@ -267,7 +277,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                   </ResponsiveContainer>
                   <div className="legend">
                     {ranked.filter(({ row }) => row.key !== 'Other').map(({ row }, i) => (
-                      <span key={row.key}><span className="dot" style={{ background: rowColor(row, i) }} />{row.label}</span>
+                      <span key={row.key}><span className="dot" style={{ background: rowColor(row, i) }} />{rowDisplayLabel(row)}</span>
                     ))}
                     {otherRow && (
                       <span style={{ color: 'var(--ink-3)' }}>
@@ -285,7 +295,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                   const segTotal = row.segments.reduce((n, s) => n + s.tokens, 0);
                   return (
                     <div className="rank" key={row.key}>
-                      <span className="n" title={row.label}>{row.label}</span>
+                      <span className="n" title={rowDisplayLabel(row)}>{rowDisplayLabel(row)}</span>
                       <div className="track">
                         {row.segments.length > 0 && segTotal > 0
                           ? row.segments.map((seg) => (
@@ -328,13 +338,24 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 {ranked.map(({ row, value }, i) => {
                   const share = (value / totalValue) * 100;
                   const perSession = row.sessions ? rowSpend(row) / row.sessions : 0;
+                  // group=session rows carry the session id as `key` — link
+                  // straight to that session's own view, independent of the
+                  // project-scope-only fallback below ('Other' has no single
+                  // session id, so it stays unclickable). Takes precedence
+                  // over the project-scope link since it's strictly more
+                  // specific (one session, not "coming soon" filtered list).
+                  const isSessionRow = pivot.group === 'session' && row.key !== 'Other';
+                  const rowClickable = isSessionRow || canRowLink;
+                  const onRowClick = isSessionRow
+                    ? () => navigate(`/session/${encodeURIComponent(row.key)}`)
+                    : (canRowLink ? () => navigate(`/project/${scope.id}`) : undefined);
                   return (
                     <tr key={row.key}
-                      className={canRowLink ? 'rowlink' : ''}
-                      title={rowLinkTitle}
-                      onClick={canRowLink ? () => navigate(`/project/${scope.id}`) : undefined}
+                      className={rowClickable ? 'rowlink' : ''}
+                      title={isSessionRow ? undefined : rowLinkTitle}
+                      onClick={onRowClick}
                     >
-                      <td><span className="dot" style={{ background: rowColor(row, i) }} />{row.label}</td>
+                      <td><span className="dot" style={{ background: rowColor(row, i) }} />{rowDisplayLabel(row)}</td>
                       {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}
                       <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: rowColor(row, i) }} /></span> {share.toFixed(1)}%</td>
                       <td>{showTokenCol ? fmtTok(rowTokens(row)) : '—'}</td>

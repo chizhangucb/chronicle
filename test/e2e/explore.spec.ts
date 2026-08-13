@@ -143,3 +143,27 @@ test.describe('Explore "Other" fold-in segment (Task 10 step 4)', () => {
     }), { message: 'expected an Other-named bar series with fill var(--ink-3)' }).toBe('var(--ink-3)');
   });
 });
+
+test.describe('Explore session group (Task 16)', () => {
+  test('Group=Session renders the Detail table, and clicking a row opens that session', async ({ page }) => {
+    await page.goto(`${state.baseURL}/insights`);
+    await page.locator('.tabs button:has-text("Explore")').click();
+    await page.locator('.rangebar button:has-text("All")').click();
+
+    await page.locator('.pivot button.pv:has-text("Group Model")').click();
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/explore') && r.url().includes('group=session')),
+      page.locator('.menu-pop .menu-item:text-is("Session")').click(),
+    ]);
+
+    // Detail table renders at least one session row (the seeded big-fixture
+    // session, test/e2e/helpers.ts `state.sessionId`).
+    const firstRow = page.locator('.card table.tbl tbody tr').first();
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow).toHaveClass(/rowlink/);
+
+    await firstRow.click();
+    await expect(page).toHaveURL(new RegExp(`/session/${state.sessionId}$`));
+    await expect(page.locator('.session-view')).toBeVisible();
+  });
+});

@@ -247,13 +247,21 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
   content: ''; position: absolute; left: 4px; top: 26px; bottom: 0; width: 1px;
   background: var(--border);
 }
-.day-head { position: relative; padding: 4px 0 6px; }
+.day-head { position: relative; padding: 4px 0 6px; display: flex; align-items: center; }
 .day-head::before {
   content: ''; position: absolute; left: -18px; width: 9px; height: 9px; border-radius: 50%;
   background: var(--bg0); border: 2px solid var(--brass); margin-top: 3px;
 }
 .day-head .d {
   font: 600 12px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--brass-text);
+}
+/* Select-mode day-group header checkbox (tri-state via `indeterminate`,
+   RecentLedger.tsx) — 24x24 hit target (design-QA affordance minimum), a hair
+   of negative margin so its padding doesn't push `.d` further right than the
+   row checkboxes below it already do. */
+.day-head .daycheck {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin: 0 2px 0 -4px; cursor: pointer; flex: none;
 }
 .colhead {
   display: grid; grid-template-columns: minmax(0,1fr) 90px 70px 70px 56px 64px; gap: 12px;
@@ -310,7 +318,7 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 .row.selectable, .colhead.selectable {
   grid-template-columns: 28px minmax(0,1fr) 90px 70px 70px 56px 64px;
 }
-.rowcheck { display: flex; align-items: center; justify-content: center; }
+.rowcheck { display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; }
 
 /* Lazy-scroll trip wire at the ledger bottom; IntersectionObserver watches it
    (see src/HomePage.tsx) to append the next page of recent sessions. */
@@ -568,6 +576,14 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 
 /* Topbar right cluster + language dropdown */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
+/* Sync status, click-to-sync-now (Task 17) — passive text promoted to a ghost
+   button; shows on every page via App.tsx's topbar (previously /projects only). */
+.sync-btn {
+  background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px;
+  cursor: pointer; transition: border-color var(--ease-hover), background var(--ease-hover);
+}
+.sync-btn:hover:not(:disabled) { background: var(--bg2); border-color: var(--border); }
+.sync-btn:disabled { cursor: default; }
 .lang-select {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   background: var(--bg2); color: var(--ink); border: 1px solid var(--border);
@@ -1318,13 +1334,16 @@ h4 { margin: 6px 0; }
 .home-stream { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 26px; }
 .home-rail { width: 264px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--bg1); overflow-y: auto; padding: 16px 14px; }
 .rail-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-.rail-head .sync { font: 11px var(--mono); color: var(--ink-3); }
-.rail-head .sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
-.rail-head .sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
+/* Sync status indicator — unscoped (was duplicated per-surface); Task 17 moved
+   its only render site to the topbar (`.topbar-right .sync`), so this is the
+   one shared rule. */
+.sync { font: 11px var(--mono); color: var(--ink-3); }
+.sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
+.sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
 /* Post-review addition (5d-0's useSyncStatus grew a `failed` field after this
    task's brief was written) — distinguishes "sync failed" from "synced" so a
    red dot doesn't read as a healthy green one. */
-.rail-head .sync.failed::before { color: var(--danger); animation: none; }
+.sync.failed::before { color: var(--danger); animation: none; }
 .rail-proj { padding: 10px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; }
 .rail-proj:hover { background: var(--bg2); border-color: var(--border); }
 .rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
@@ -1420,3 +1439,58 @@ h4 { margin: 6px 0; }
 .callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
 .callout.warn { border-left-color: var(--warn); }
 .note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
+
+/* ---- Home dashboard (Task 13): Insights-overview landing (`/`) ---- */
+/* The `.home-dash` zone (Today strip → Activity → Burn) sits above the reused
+   Recent-sessions ledger; the whole `.home-dashboard` is a `.page` scroll
+   container, so the dashboard zone stays compact and the ledger flows below. */
+.home-dashboard .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-4); margin-bottom: var(--gap-3); flex-wrap: wrap; }
+.home-dashboard .dash-head .page-title { margin: 0; }
+.home-dashboard .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.home-dashboard .rangebar button { border: 0; background: none; color: var(--ink-3); font: 12px var(--mono); padding: 3px 10px; border-radius: 6px; cursor: pointer; min-height: 24px; }
+.home-dashboard .rangebar button:hover { color: var(--ink); }
+.home-dashboard .rangebar button.on { background: var(--bg2); color: var(--brass-text); }
+.home-dashboard .recent-ledger { margin-top: var(--gap-5); border-top: 1px solid var(--border); padding-top: var(--gap-4); }
+
+/* Activity block: live now + since-you-left rows. */
+.activity-card { margin-top: 10px; }
+.activity-group + .activity-group { margin-top: var(--gap-3); }
+.activity-card .eyebrow { margin-bottom: var(--gap-1); }
+.activity-row { display: flex; align-items: center; gap: var(--gap-3); padding: 6px 8px; border-radius: 6px; cursor: pointer; font: 12px var(--mono); }
+.activity-row:hover { background: var(--bg2); }
+/* Unscoped so any surface can drop a `.live-dot` in (activity rows, project
+   cards, the session Overview header) — Task 17 reused this beyond .activity-row. */
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; display: inline-block; }
+.live-dot.on { background: var(--ok); animation: pulse 1.6s infinite; }
+.rail-proj .n .live-dot { margin-left: 6px; }
+.ar-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ar-proj { flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-err { flex: none; color: var(--warn); font-variant-numeric: tabular-nums; }
+.ar-when { flex: none; }
+.ar-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Burn tile: current window spend vs baseline, with a comparison bar. */
+.burn-card { margin-top: 10px; }
+.burn-head { display: flex; align-items: center; gap: var(--gap-2); margin-bottom: var(--gap-2); }
+.burn-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-4); }
+.burn-now .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.burn-now .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.burn-card.warn .burn-now .v { color: var(--warn); }
+.burn-ratio { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); flex: none; }
+.burn-ratio.hot { color: var(--warn); }
+.burn-flag { font-size: 11px; font-weight: 500; }
+.burn-bar { position: relative; height: 6px; background: var(--bg2); border-radius: 3px; margin-top: var(--gap-3); }
+.burn-fill { height: 100%; border-radius: 3px; background: var(--brass); max-width: 100%; }
+.burn-fill.hot { background: var(--warn); }
+.burn-baseline { position: absolute; top: -2px; bottom: -2px; right: 0; width: 2px; background: var(--border-strong); }
+.burn-top { display: flex; align-items: center; gap: var(--gap-2); margin-top: var(--gap-3); padding-top: var(--gap-3); border-top: 1px solid var(--border); cursor: pointer; font: 12px var(--mono); }
+.burn-top:hover .bt-name { color: var(--brass-text); }
+.burn-top .eyebrow { flex: none; }
+.bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Projects grid (`/projects`) — the project cards moved off Home. Reuses the
+   `.rail-proj` card look in a responsive grid. */
+.projects-page .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--gap-3); }
+.projects-page .projects-grid .rail-proj { margin-bottom: 0; border: 1px solid var(--border); background: var(--bg1); }
+.projects-page .projects-grid .rail-proj:hover { background: var(--bg2); border-color: var(--border-strong); }

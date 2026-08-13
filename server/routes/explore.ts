@@ -5,7 +5,7 @@ import { cached } from '../cache.ts';
 
 const SCOPE_TYPES: Scope['type'][] = ['all', 'project', 'session'];
 const METRICS: ExploreMetric[] = ['spend', 'tokens', 'requests', 'active', 'sessions', 'errors'];
-const GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'tool', 'skill', 'subagent', 'hour'];
+const GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'tool', 'skill', 'subagent', 'hour', 'session'];
 const ROLLUPS: ExploreRollup[] = ['total', 'hourly', 'daily', 'weekly', 'monthly'];
 
 export function mountExplore(app: Express): void {

@@ -7,10 +7,12 @@ import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
-import HomePage from './HomePage.jsx';
+import HomeDashboard from './HomeDashboard.jsx';
+import ProjectsPage from './ProjectsPage.jsx';
 import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
+import { useSyncStatus } from './useSyncStatus.js';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
@@ -32,6 +34,9 @@ export interface ProjectListItem extends Project {
   last_active: string | null;
   sources: string | null;
   git: { isRepo: boolean; commitCount?: number; branch?: string | null };
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
 }
 
 // Navigation is now driven by real URL routes (wouter): `/` (Home),
@@ -46,6 +51,7 @@ export interface ProjectListItem extends Project {
 export default function App() {
   const [, navigate] = useLocation();
   const [atHome] = useRoute('/');
+  const [atProjects] = useRoute('/projects');
   const [atProject, projectParams] = useRoute('/project/:id');
   // Project sub-tabs (5e-4): Explore/Content are deep-linkable routes, but
   // ProjectDetail owns the actual tab logic (it re-reads these same routes
@@ -73,11 +79,14 @@ export default function App() {
   // collapse pattern above). Ignored while collapsed — the fixed 56px width
   // wins there, so a persisted width never fights the collapse state.
   const sidebar = useResizable({ storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right' });
+  // Passive sync indicator + click-to-sync-now, rendered in the topbar so it's
+  // visible on EVERY page (Task 17) — previously only shown on /projects.
+  const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
-  useEffect(() => { if (atHome) refresh(); }, [atHome, refresh]);
+  useEffect(() => { if (atHome || atProjects) refresh(); }, [atHome, atProjects, refresh]);
 
   // Deep link: a `#session=<id>` hash resolves the owning project and
   // navigates to that session (used by external openers linking into the app).
@@ -115,7 +124,9 @@ export default function App() {
     });
   }
 
-  const inProjects = atHome || atProject || atSession || atProjExplore || atProjContent;
+  // Sidebar "Projects" highlights across every project-scoped route (the grid,
+  // a project's analytics, a session opened from one) — but not on Home.
+  const inProjectArea = atProjects || atProject || atSession || atProjExplore || atProjContent;
 
   return (
     <Toast.Provider swipeDirection="right">
@@ -128,8 +139,12 @@ export default function App() {
         </div>
 
         <nav className="sb-top">
-          <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
+          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title={t('Home')}
             onClick={() => navigate('/')}>
+            <span className="sb-icon">⌂</span><span className="sb-label">{t('Home')}</span>
+          </button>
+          <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title={t('Projects')}
+            onClick={() => navigate('/projects')}>
             <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
           </button>
           <button className={`sb-item ${atInsights ? 'on' : ''}`} title={t('Insights')} onClick={() => navigate('/insights')}>
@@ -177,6 +192,10 @@ export default function App() {
         <header className="topbar">
           <span className="brand-sub">{t('AI Session Time Machine')}</span>
           <div className="topbar-right">
+            <button type="button" className={`sync sync-btn ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}
+              title={t('Sync now')} onClick={sync.runNow} disabled={sync.running}>
+              {sync.text}
+            </button>
             {liveInfo && atSession && (
               <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
@@ -205,8 +224,12 @@ export default function App() {
         </header>
 
         {atHome && (
-          <HomePage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
+          <HomeDashboard projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
+            onImport={() => setWizardOpen(true)} onRefresh={refresh} />
+        )}
+        {atProjects && (
+          <ProjectsPage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {atInsights && <InsightsPage />}

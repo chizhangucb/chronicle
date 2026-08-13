@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type JSX } from 'react';
+import React, { useEffect, useMemo, useState, type JSX } from 'react';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 import { api } from '../api.js';
 import { t } from '../i18n.js';
@@ -123,6 +123,26 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const [savingName, setSavingName] = useState(false);
   const [nameErr, setNameErr] = useState<string | null>(null);
   function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
+  // Honest, simple live signal (Task 17): this tab's own SSE connection
+  // (liveStatus — the same status the source-file zone below already uses),
+  // OR'd with an open live watcher for this session from ANY source (another
+  // tab, or a live stream this view hasn't auto-opened yet), polled from the
+  // existing /api/live/status endpoint — mirrors server/activity.ts's
+  // isLive() shape (open watcher OR recent activity) without a new endpoint.
+  const [watcherLive, setWatcherLive] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const list = await api.liveWatchers();
+        if (!cancelled) setWatcherLive(list.some((w) => w.sessionId === session.id));
+      } catch { /* leave last-known state on a transient fetch failure */ }
+    }
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [session.id]);
+  const live = liveStatus === 'live' || liveStatus === 'reconnecting' || watcherLive;
   async function saveRename() {
     if (savingName) return;
     setNameErr(null);
@@ -268,7 +288,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       <div className="ov-name-row">
         {editing ? (
           <>
-            <span className="ov-title-icon">⬚</span>
+            <span className="ov-title-icon">▤</span>
             <input className="ov-name-input" autoFocus value={draft} disabled={savingName}
               placeholder={sessionDisplayName(session)}
               onChange={(e) => setDraft(e.target.value)}
@@ -280,8 +300,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           </>
         ) : (
           <>
-            <h3 className="ov-title">⬚ {sessionDisplayName(session)}</h3>
-            <button className="btn tiny ghost" title={t('Rename session')} onClick={startRename}>✎</button>
+            <h3 className="ov-title">▤ {sessionDisplayName(session)}</h3>
+            {live && <span className="live-dot on" title={t('This session is live')} aria-hidden="true" />}
+            <button className="btn tiny ghost" onClick={startRename}>✎ {t('Rename')}</button>
+            <InfoTip text={t("Renames in Chronicle only — independent of Claude Code's /rename")} />
           </>
         )}
       </div>
@@ -293,9 +315,9 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       <div className="kpis">
         <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
         <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
-        <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('How long the agent was actively working, subagent activity included. Tool execution time (a tool result following its tool call) counts in full — a long build or test run shows up. Every other gap is capped at 10 minutes, and the pause before each of your real prompts is excluded entirely (your reading/typing/away time). Total Duration, by contrast, is the full wall-clock span from the first message to the last.')} /></div>
+        <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
-        <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged time approximates how long you were hands-on with this session: the sum of every gap between consecutive messages, each capped at 90 minutes. Unlike Agent Active, it makes no distinction between agent work and your own pauses — it is closer to the wall-clock time the session was in use.')} /></div>
+        <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.')} /></div>
           <div className="v">{fmtDur(engagedMs)}</div><div className="s">{t('your attention')}</div></div>
         <div className="kpi"><div className="l">{t('Messages')}</div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} {t('prompts')}</div></div>
         <div className={`kpi ${stats.errors > 0 ? 'warn' : ''}`}><div className="l">{t('Errors')}</div><div className="v">{stats.errors}</div><div className="s">{errorPct}% {t('of results')}</div></div>

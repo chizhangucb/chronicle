@@ -83,6 +83,9 @@ export interface ProjectListItem extends Project {
   last_active: string | null;
   sources: string | null;
   git: RepoInfo;
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
 }
 
 export interface ProjectSessionSummary {
@@ -345,6 +348,26 @@ export interface InsightsResult {
 export interface LaneCModel { model: string; spend: number; requests: number; tokens: number; }
 export interface LaneCSpend { totalSpend: number; requests: number; byModel: LaneCModel[]; }
 
+// ---- Home dashboard activity feed (Task 13) — mirrors server/activity.ts ----
+// Every token figure is a per-model CELL; the client prices it via
+// models.ts costOf (the price table stays client-side — hard constraint).
+export interface ActivityTokenCell { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number; }
+export type ActivityTokensByModel = Record<string, ActivityTokenCell>;
+export interface ActivitySessionLite {
+  id: string; name: string; projectName: string; source: string;
+  live: boolean; endedAt: string | null;
+  tokensByModel: ActivityTokensByModel; errorCount: number;
+}
+export interface ActivityBurn {
+  windowSpendTokensByModel: ActivityTokensByModel;
+  baselineTokensByModel: ActivityTokensByModel;
+  topSessionId: string | null; topSessionName: string | null;
+  topSessionTokensByModel: ActivityTokensByModel;
+}
+export interface ActivityResult {
+  live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;
+}
+
 // ---- Explore / Content (Task 5e-0 backend engine) ----
 // These interfaces mirror server/explore.ts and server/content.ts VERBATIM —
 // keep them in sync if the server types change.
@@ -370,10 +393,20 @@ export interface ExploreCell {
 export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
-  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | null;
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | null;
   calibrated: boolean; rows: ExploreRow[];
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
+}
+
+export type CharacteristicKey = 'eightHourSessions' | 'workflowRuns' | 'subagentTurns'
+  | 'highContextAbs' | 'highContextRel' | 'cacheEfficiency' | 'autonomousShare';
+
+export interface Characteristic {
+  key: CharacteristicKey;
+  share: number;
+  count?: number;
+  exact: boolean;
 }
 
 export interface ContentResult {
@@ -382,6 +415,8 @@ export interface ContentResult {
   skills: { key: string; count: number; tokens: number }[];
   subagents: { key: string; runs: number; tokens: number }[];
   callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
+  // The 7 independent usage characteristics (spec §2.5) — see server/content.ts.
+  characteristics: Characteristic[];
   calibratedTotalTokens: number;
   // composition, toolResultsByTool, and skills[].tokens are calibrated
   // (text-length→billed); subagents[].tokens are exact.
@@ -391,8 +426,8 @@ export interface ContentResult {
 export interface ExploreQueryParams {
   scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
   metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
-  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour';
-  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'; topN?: number;
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'; topN?: number;
   rollup?: ExploreRollup;
 }
 
@@ -425,6 +460,13 @@ export function exploreUrl(q: ExploreQueryParams): string {
   if (q.topN) p.set('topN', String(q.topN));
   if (q.rollup && q.rollup !== 'total') p.set('rollup', q.rollup);
   return '/api/explore?' + p.toString();
+}
+export function activityUrl(since?: string | null, days?: number | null): string {
+  const p = new URLSearchParams();
+  if (since) p.set('since', since);
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/activity' + (qs ? `?${qs}` : '');
 }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
@@ -470,6 +512,12 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
+  runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
+  // Open live-watcher list (server/live.ts liveStatus()) — used to detect "a
+  // session in this project/view is live" from state that didn't necessarily
+  // originate from THIS tab's own EventSource (another tab, or a test's raw
+  // EventSource against the same session).
+  liveWatchers: (): Promise<{ sessionId: string; file?: string; clients: number; offset?: number }[]> => j('/api/live/status'),
   resolveSession: (id: string): Promise<ResolveSessionResult> => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project: number | string, ts: string): Promise<GitAtResult> =>
     j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),

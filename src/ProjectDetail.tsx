@@ -383,7 +383,6 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         <ProjectPicker current={project} color={projectColor} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
         <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} prefetchUrl={projectUrl(id, days ?? undefined)} />
-        <button className="btn ghost small" style={{ marginLeft: 'auto' }} onClick={onBack}>← {t('Projects')}</button>
       </div>
 
       <div className="project-head">

@@ -23,6 +23,7 @@ import path from 'node:path';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { generateBigSession } from '../fixtures/gen-big-session.mjs';
+import { writeMiniSession } from '../fixtures/gen-mini-session.mjs';
 
 // Reference viewport widths the overflow smoke check runs at (spec §5.1,
 // step 2d): a laptop, a common desktop, and a wide desktop.
@@ -41,6 +42,16 @@ export interface SeedState {
   fixtureDir: string;
   sessionId: string;
   pid: number;
+  // Task 14 (select.spec.ts): 3 small extra sessions seeded alongside the big
+  // fixture — the big fixture is deliberately ONE session on ONE day, which
+  // can't exercise day-group tri-state selection or a filtered multi-row
+  // "Select all". miniAlpha/miniBravo land on the same (second) day as each
+  // other — a 2-row day-group — while miniMinor is a sub-10-message session
+  // on a third day that the noise gate routes into the minor-sessions bucket
+  // instead of the main ledger. See gen-mini-session.mjs.
+  miniAlphaId: string;
+  miniBravoId: string;
+  miniMinorId: string;
 }
 
 export function readSeedState(): SeedState {
@@ -112,6 +123,28 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-fixture-'));
   const { sessionId } = generateBigSession(fixtureDir);
 
+  // Task 14: 3 small extra sessions in the SAME munged project dir as the big
+  // fixture (writeMiniSession defaults to the big fixture's cwd), so they
+  // scan as more sessions of the one seeded project. Noon-UTC timestamps give
+  // a wide margin either side of local midnight so the day-group bucketing
+  // (client-side, in the browser's timezone) lands on the intended calendar
+  // day regardless of the machine running the suite.
+  const miniAlphaId = 'minifix-alpha';
+  const miniBravoId = 'minifix-bravo';
+  const miniMinorId = 'minifix-minor';
+  writeMiniSession(fixtureDir, {
+    sessionId: miniAlphaId, dateISO: '2026-08-05T10:00:00.000Z', turns: 8,
+    promptText: 'Mini fixture Alpha: review the auth flow.',
+  });
+  writeMiniSession(fixtureDir, {
+    sessionId: miniBravoId, dateISO: '2026-08-05T14:00:00.000Z', turns: 8,
+    promptText: 'Mini fixture Bravo: investigate the billing bug.',
+  });
+  writeMiniSession(fixtureDir, {
+    sessionId: miniMinorId, dateISO: '2026-08-06T10:00:00.000Z', turns: 2, // <10 messages -> minor
+    promptText: 'Mini fixture Charlie: quick tweak.',
+  });
+
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-data-'));
   const port = await findFreePort();
   const baseURL = `http://127.0.0.1:${port}`;
@@ -139,16 +172,24 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
     throw new Error(`Fixture session not found in scan result: ${JSON.stringify(scanJson)}`);
   }
 
+  const miniFiles = [miniAlphaId, miniBravoId, miniMinorId].map((id) => {
+    const f = project.sessions?.find((s) => s.id === id)?.file;
+    if (!f) throw new Error(`Mini fixture session not found in scan result: ${id}`);
+    return f;
+  });
+
   const importRes = await fetch(`${baseURL}/api/import`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ source: 'claude-code', logDir: project.logDir, files: [sessionFile] }),
+    body: JSON.stringify({ source: 'claude-code', logDir: project.logDir, files: [sessionFile, ...miniFiles] }),
   });
   if (!importRes.ok) throw new Error(`Seed import failed (${importRes.status}): ${await importRes.text()}`);
   const importJson = (await importRes.json()) as ImportResponse;
-  if (!importJson.imported) throw new Error(`Seed import reported 0 sessions imported: ${JSON.stringify(importJson)}`);
+  if (!importJson.imported || importJson.imported < 4) {
+    throw new Error(`Seed import reported ${importJson.imported ?? 0} sessions imported, expected 4: ${JSON.stringify(importJson)}`);
+  }
 
-  return { baseURL, dataDir, fixtureDir, sessionId, pid: proc.pid ?? -1, proc };
+  return { baseURL, dataDir, fixtureDir, sessionId, miniAlphaId, miniBravoId, miniMinorId, pid: proc.pid ?? -1, proc };
 }
 
 export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir'>): void {

@@ -121,16 +121,11 @@ export default function InsightsPage(): JSX.Element {
   );
 }
 
-// ---- Overview body (everything the page showed before the 5e-1 tab split)
-// — factored out so InsightsPage can switch between it and ExploreTab without
-// re-fetching /api/insights on every tab click. ----
-function InsightsOverview({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
-  const [, navigate] = useLocation();
-  const rangeLabel = days ? `${days}d` : t('All');
-
-  const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
-  const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
-
+// ---- KPI strip (the "Today strip" core, reused by the Home dashboard —
+// Task 13). Computes the headline aggregates from an InsightsResult and renders
+// the `.kpis` tile row. Exported so `/` and `/insights` show the identical
+// strip from the same code, never a fork. ----
+export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   // ---- KPI aggregates ----
   const kpis = useMemo(() => {
     let cost = 0, tokens = 0, input = 0, cacheRead = 0, agentActiveMs = 0, engagedMs = 0;
@@ -157,6 +152,88 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
       sessionCount: result.sessions.length, projectCount: projectsTouched.size, commits: result.commits,
     };
   }, [result]);
+
+  // Lane C proxy-lane billed spend — a standalone tile shown only when the
+  // LiteLLM log actually has spend in range (so it never clutters a machine
+  // with no proxy usage). Tiny sub-cent values get 4 decimals so they read as
+  // non-zero. Model names are stripped of the noisy "openrouter/" prefix.
+  const laneC = result.laneC;
+  const hasLaneC = laneC.requests > 0;
+  const fmtLaneC = (v: number): string => {
+    if (v <= 0) return fmtMoney(0, 2);
+    if (v < 0.0001) return '<$0.0001';
+    if (v < 0.01) return `$${v.toFixed(4)}`;
+    return fmtMoney(v, 2);
+  };
+  const stripModel = (m: string): string => m.replace(/^openrouter\//, '');
+  const laneCTip = laneC.byModel.map((m) => `${stripModel(m.model)}: ${fmtLaneC(m.spend)} · ${m.requests} ${t('req')}`).join('; ')
+    + `. ${t('Billed by the LiteLLM proxy lane — authoritative $, not session-linked.')}`;
+  const laneCSub = laneC.byModel.length === 1
+    ? `${stripModel(laneC.byModel[0].model)} · ${laneC.requests} ${t('req')}`
+    : `${laneC.byModel.length} ${t('models')} · ${laneC.requests} ${t('req')}`;
+
+  return (
+    <div className="kpis">
+      <div className="kpi">
+        <div className="l">{t('Spend')}</div>
+        <div className="v">{fmtMoney(kpis.cost, 0)}</div>
+        <div className="s">{kpis.sessionCount} {t('sessions')}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Sessions')}</div>
+        <div className="v">{kpis.sessionCount}</div>
+        <div className="s">{kpis.projectCount} {t('projects')}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Tokens')}</div>
+        <div className="v">{fmtTok(kpis.tokens)}</div>
+        <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
+        <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
+        <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Your engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.')} /></div>
+        <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
+        <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Tool calls')} <InfoTip text={t('Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.')} /></div>
+        <div className="v">{fmtCount(kpis.toolCalls)}</div>
+        <div className="s">{kpis.topTool ? `${kpis.topTool}-${t('heavy')}` : '—'}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Error rate')} <InfoTip text={t('Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.')} /></div>
+        <div className="v">{kpis.errorRate.toFixed(1)}<span className="u">%</span></div>
+        <div className="s">{result.errors} {t('errors')}</div>
+      </div>
+      <div className="kpi">
+        <div className="l">{t('Commits')}</div>
+        <div className="v">{kpis.commits}</div>
+        <div className="s">{t('linked')}</div>
+      </div>
+      {hasLaneC && (
+        <div className="kpi">
+          <div className="l">{t('Proxy lane (billed)')} <InfoTip text={laneCTip} /></div>
+          <div className="v">{fmtLaneC(laneC.totalSpend)}</div>
+          <div className="s">{laneCSub}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Overview body (everything the page showed before the 5e-1 tab split)
+// — factored out so InsightsPage can switch between it and ExploreTab without
+// re-fetching /api/insights on every tab click. ----
+function InsightsOverview({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
+  const [, navigate] = useLocation();
+  const rangeLabel = days ? `${days}d` : t('All');
+
+  const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
+  const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
   // ---- Spend over time · stacked by project (client-side, per the days= range) ----
   // Which 5 projects get an individual bar is chosen by TOTAL SPEND in range
@@ -268,79 +345,9 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
       .slice(0, 15);
   }, [result]);
 
-  // Lane C proxy-lane billed spend — a standalone tile shown only when the
-  // LiteLLM log actually has spend in range (so it never clutters a machine
-  // with no proxy usage). Tiny sub-cent values get 4 decimals so they read as
-  // non-zero. Model names are stripped of the noisy "openrouter/" prefix.
-  const laneC = result.laneC;
-  const hasLaneC = laneC.requests > 0;
-  // Authoritative billed $, so never round a non-zero spend down to a
-  // misleading "$0.00": floor tiny values to "<$0.0001", else 4 decimals
-  // under a cent, else normal money.
-  const fmtLaneC = (v: number): string => {
-    if (v <= 0) return fmtMoney(0, 2);
-    if (v < 0.0001) return '<$0.0001';
-    if (v < 0.01) return `$${v.toFixed(4)}`;
-    return fmtMoney(v, 2);
-  };
-  const stripModel = (m: string): string => m.replace(/^openrouter\//, '');
-  const laneCTip = laneC.byModel.map((m) => `${stripModel(m.model)}: ${fmtLaneC(m.spend)} · ${m.requests} ${t('req')}`).join('; ')
-    + `. ${t('Billed by the LiteLLM proxy lane — authoritative $, not session-linked.')}`;
-  const laneCSub = laneC.byModel.length === 1
-    ? `${stripModel(laneC.byModel[0].model)} · ${laneC.requests} ${t('req')}`
-    : `${laneC.byModel.length} ${t('models')} · ${laneC.requests} ${t('req')}`;
-
   return (
     <>
-      <div className="kpis">
-        <div className="kpi">
-          <div className="l">{t('Spend')}</div>
-          <div className="v">{fmtMoney(kpis.cost, 0)}</div>
-          <div className="s">{kpis.sessionCount} {t('sessions')}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Sessions')}</div>
-          <div className="v">{kpis.sessionCount}</div>
-          <div className="s">{kpis.projectCount} {t('projects')}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Tokens')}</div>
-          <div className="v">{fmtTok(kpis.tokens)}</div>
-          <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Agent active')} <InfoTip text={t('Time the agent was working: every inter-message gap counts except the gap leading into a genuine typed human prompt. Background waits (builds, notifications) count as active.')} /></div>
-          <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
-          <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Your engaged')} <InfoTip text={t("Your attention time: gaps around your typed prompts and interactions, capped so idle walk-aways don't inflate it. Leverage = agent-active ÷ engaged.")} /></div>
-          <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
-          <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Tool calls')} <InfoTip text={t('Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.')} /></div>
-          <div className="v">{fmtCount(kpis.toolCalls)}</div>
-          <div className="s">{kpis.topTool ? `${kpis.topTool}-${t('heavy')}` : '—'}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Error rate')} <InfoTip text={t('Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.')} /></div>
-          <div className="v">{kpis.errorRate.toFixed(1)}<span className="u">%</span></div>
-          <div className="s">{result.errors} {t('errors')}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">{t('Commits')}</div>
-          <div className="v">{kpis.commits}</div>
-          <div className="s">{t('linked')}</div>
-        </div>
-        {hasLaneC && (
-          <div className="kpi">
-            <div className="l">{t('Proxy lane (billed)')} <InfoTip text={laneCTip} /></div>
-            <div className="v">{fmtLaneC(laneC.totalSpend)}</div>
-            <div className="s">{laneCSub}</div>
-          </div>
-        )}
-      </div>
+      <KpiStrip result={result} />
 
       <div className="grid2">
         <div className="card">

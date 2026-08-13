@@ -9,41 +9,25 @@
 // left to a follow-up since those two files aren't in this PR's touch list.
 export { fmtMoney } from './format.ts';
 
-// Static per-model context-window table (tokens), cached from the Anthropic
-// model catalog (platform.claude.com, 2026-06) plus common non-Claude models
-// Chronicle can import. Pure lookup — never fetched at runtime, preserving the
-// offline guarantee. Ordered: more specific prefixes must come first.
-const CONTEXT_WINDOWS: [string, number][] = [
-  // Claude — 1M-context generation
-  ['claude-fable-5', 1_000_000],
-  ['claude-mythos', 1_000_000],
-  ['claude-opus-4-8', 1_000_000],
-  ['claude-opus-4-7', 1_000_000],
-  ['claude-opus-4-6', 1_000_000],
-  ['claude-sonnet-5', 1_000_000],
-  ['claude-sonnet-4-6', 1_000_000],
-  // Claude — 200K models (Haiku 4.5/3.x, Opus 4.5/4.1/4.0/3, Sonnet 4.5/4.0/3.x)
-  ['claude-haiku', 200_000],
-  ['claude-opus', 200_000],
-  ['claude-sonnet', 200_000],
-  ['claude', 200_000],
-  // Non-Claude sources (Codex, Gemini CLI, Copilot)
-  ['gpt-5', 400_000],
-  ['gpt-4', 128_000],
-  ['o3', 200_000],
-  ['o4', 200_000],
-  ['gemini', 1_000_000],
-];
-
-// Longest-prefix-style lookup by substring; returns tokens or null if unknown.
-export function contextWindowFor(model: string | null | undefined): number | null {
-  if (!model) return null;
-  const m = String(model).toLowerCase();
-  for (const [prefix, window] of CONTEXT_WINDOWS) {
-    if (m.includes(prefix)) return window;
-  }
-  return null;
-}
+// Context-window table (tokens) now lives in `shared/contextWindows.ts` — both
+// this client module and server/content.ts need it (Content tab's
+// highContextRel characteristic), so it's mirrored into `shared/` once
+// instead of two hand-synced copies. Windows are model CONSTANTS, not
+// prices — the price table below stays client-only, per CLAUDE.md's rule
+// that pricing is never duplicated server-side. Re-exported here so existing
+// importers (e.g. src/session/OverviewMode.tsx) don't need to change their
+// import path.
+//
+// Relative path, NOT the `@shared` alias: every other `@shared` import in
+// this codebase is `import type` (erased entirely at build/strip time, so it
+// never needs real module resolution). This is a VALUE re-export, and
+// `@shared` is only wired up as a resolvable specifier in vite.config.js's
+// bundler alias + tsconfig's type-check `paths` — plain `node --test` (how
+// this module's consumers, e.g. test/session-stats.test.mjs, actually run)
+// has neither, so a value-level `from '@shared/...'` throws
+// ERR_MODULE_NOT_FOUND at runtime outside Vite. The relative path resolves
+// correctly under both Vite and plain Node.
+export { contextWindowFor } from '../shared/contextWindows.ts';
 
 // Per-model list price in USD per 1M tokens, from the Anthropic pricing table
 // (platform.claude.com). 5m and 1h cache writes are priced separately — Claude
