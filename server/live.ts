@@ -334,3 +334,10 @@ export function liveStatus(): { sessionId: string; file: string | undefined; cli
     sessionId: w.sessionId, file: w.filePath, clients: w.clients.size, offset: w.offset,
   }));
 }
+
+// Session ids with an active live watcher (an open SSE stream) right now. Used
+// by /api/activity to mark a session "live" even if its stored ended_at is
+// older than the 5-min window — a client is actively streaming it.
+export function liveWatcherSessionIds(): Set<string> {
+  return new Set(live.watchers.keys());
+}
