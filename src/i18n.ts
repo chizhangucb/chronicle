@@ -151,6 +151,7 @@ const zh = {
   'syncing…': '同步中…',
   'synced': '已同步',
   'sync failed': '同步失败',
+  'Sync now': '立即同步',
   'never': '从未',
   's ago': '秒前',
   'm ago': '分钟前',
@@ -434,6 +435,7 @@ const zh = {
   'Recent sessions': '最近会话',
   'Filter sessions… (title, project, content)': '筛选会话…（标题、项目、内容）',
   'needs association': '需要关联',
+  'A session in this project is live': '此项目中有会话正在直播',
   'Yesterday': '昨天',
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': '子智能体',
@@ -690,6 +692,7 @@ const ja = {
   'syncing…': '同期中…',
   'synced': '同期済み',
   'sync failed': '同期失敗',
+  'Sync now': '今すぐ同期',
   'never': '未',
   's ago': '秒前',
   'm ago': '分前',
@@ -980,6 +983,7 @@ const ja = {
   'Recent sessions': '最近のセッション',
   'Filter sessions… (title, project, content)': 'セッションを絞り込み…（タイトル・プロジェクト・内容）',
   'needs association': '関連付けが必要',
+  'A session in this project is live': 'このプロジェクトでセッションがライブ中です',
   'Yesterday': '昨日',
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': 'サブエージェント',

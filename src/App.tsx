@@ -12,6 +12,7 @@ import ProjectsPage from './ProjectsPage.jsx';
 import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
+import { useSyncStatus } from './useSyncStatus.js';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
@@ -33,6 +34,9 @@ export interface ProjectListItem extends Project {
   last_active: string | null;
   sources: string | null;
   git: { isRepo: boolean; commitCount?: number; branch?: string | null };
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
 }
 
 // Navigation is now driven by real URL routes (wouter): `/` (Home),
@@ -75,6 +79,9 @@ export default function App() {
   // collapse pattern above). Ignored while collapsed — the fixed 56px width
   // wins there, so a persisted width never fights the collapse state.
   const sidebar = useResizable({ storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right' });
+  // Passive sync indicator + click-to-sync-now, rendered in the topbar so it's
+  // visible on EVERY page (Task 17) — previously only shown on /projects.
+  const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
@@ -185,6 +192,10 @@ export default function App() {
         <header className="topbar">
           <span className="brand-sub">{t('AI Session Time Machine')}</span>
           <div className="topbar-right">
+            <button type="button" className={`sync sync-btn ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}
+              title={t('Sync now')} onClick={sync.runNow} disabled={sync.running}>
+              {sync.text}
+            </button>
             {liveInfo && atSession && (
               <span className={`pill live-pill ${liveInfo.status}`} title="Live streaming from the session log">
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}

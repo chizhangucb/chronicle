@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { api } from './api.js';
 import { t } from './i18n.js';
-import { useSyncStatus } from './useSyncStatus.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
@@ -18,20 +17,24 @@ export interface ProjectSummary extends Project {
   last_active: string | null;
   sources: string | null;
   git: RepoInfo;
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
 }
 
 interface ProjectMenuProps {
   project: ProjectSummary;
-  onOpenProject: (id: number | string) => void;
   onRefresh: () => void;
 }
 
-// Per-project options (Sync / Details / Rename / Remove). Every destructive or
+// Per-project options (Sync / Rename / Remove). Every destructive or
 // text-input step is an INLINE affordance inside the dropdown, never
 // window.confirm/prompt — those silently no-op in embedded/preview browsers
 // (see CLAUDE.md). `open` is controlled so a click-away resets the confirm
 // state. Moved here from the old HomePage with the project grid (Task 13).
-function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
+// "View Details" was removed (Task 17) — the card itself is already a click
+// target that navigates to the project.
+function ProjectMenu({ project, onRefresh }: ProjectMenuProps) {
   const [syncing, setSyncing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -41,7 +44,7 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
   const [savingName, setSavingName] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function run(action: 'sync' | 'details' | 'remove') {
+  async function run(action: 'sync' | 'remove') {
     setErr(null);
     try {
       if (action === 'sync') {
@@ -49,8 +52,6 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
         await api.syncProject(project.id);
         invalidateClientCache();
         onRefresh();
-      } else if (action === 'details') {
-        onOpenProject(project.id);
       } else if (action === 'remove') {
         setRemoving(true);
         await api.deleteProject(project.id);
@@ -119,7 +120,6 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
             ) : (
               <>
                 <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => run('details')}>ⓘ {t('View Details')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={(e) => { e.preventDefault(); setNameDraft(project.name); setErr(null); setRenaming(true); }}>✎ {t('Rename')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="menu-sep" />
                 <DropdownMenu.Item className="menu-item danger" onSelect={(e) => { e.preventDefault(); setConfirmRemove(true); }}>
@@ -160,7 +160,6 @@ export interface ProjectsPageProps {
 // `/projects` — the project grid, moved off Home (Task 13). Each card opens the
 // project's analytics; its gear menu carries Sync/Rename/Remove.
 export default function ProjectsPage({ projects, onOpenProject, onImport, onRefresh }: ProjectsPageProps) {
-  const sync = useSyncStatus();
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
 
   if (projects === null) return <div className="page center muted">Loading…</div>;
@@ -170,16 +169,19 @@ export default function ProjectsPage({ projects, onOpenProject, onImport, onRefr
     <div className="page projects-page">
       <div className="page-title-row">
         <h1 className="page-title">{t('Projects')}</h1>
-        <span className={`sync ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}>{sync.text}</span>
       </div>
       <div className="projects-grid">
         {projects.map((p) => (
           <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
             <div className="n">
-              <span><span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</span>
+              <span>
+                <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
+                {p.name}
+                {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
+              </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className="c num">{p.session_count}</span>
-                <ProjectMenu project={p} onOpenProject={onOpenProject} onRefresh={onRefresh} />
+                <ProjectMenu project={p} onRefresh={onRefresh} />
               </span>
             </div>
             <div className="meta">

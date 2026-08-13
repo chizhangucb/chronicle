@@ -83,6 +83,9 @@ export interface ProjectListItem extends Project {
   last_active: string | null;
   sources: string | null;
   git: RepoInfo;
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
 }
 
 export interface ProjectSessionSummary {
@@ -509,6 +512,7 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
+  runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
   resolveSession: (id: string): Promise<ResolveSessionResult> => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project: number | string, ts: string): Promise<GitAtResult> =>
     j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),

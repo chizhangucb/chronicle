@@ -576,6 +576,14 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 
 /* Topbar right cluster + language dropdown */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
+/* Sync status, click-to-sync-now (Task 17) — passive text promoted to a ghost
+   button; shows on every page via App.tsx's topbar (previously /projects only). */
+.sync-btn {
+  background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px;
+  cursor: pointer; transition: border-color var(--ease-hover), background var(--ease-hover);
+}
+.sync-btn:hover:not(:disabled) { background: var(--bg2); border-color: var(--border); }
+.sync-btn:disabled { cursor: default; }
 .lang-select {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   background: var(--bg2); color: var(--ink); border: 1px solid var(--border);
@@ -1326,13 +1334,16 @@ h4 { margin: 6px 0; }
 .home-stream { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 26px; }
 .home-rail { width: 264px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--bg1); overflow-y: auto; padding: 16px 14px; }
 .rail-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-.rail-head .sync { font: 11px var(--mono); color: var(--ink-3); }
-.rail-head .sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
-.rail-head .sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
+/* Sync status indicator — unscoped (was duplicated per-surface); Task 17 moved
+   its only render site to the topbar (`.topbar-right .sync`), so this is the
+   one shared rule. */
+.sync { font: 11px var(--mono); color: var(--ink-3); }
+.sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
+.sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
 /* Post-review addition (5d-0's useSyncStatus grew a `failed` field after this
    task's brief was written) — distinguishes "sync failed" from "synced" so a
    red dot doesn't read as a healthy green one. */
-.rail-head .sync.failed::before { color: var(--danger); animation: none; }
+.sync.failed::before { color: var(--danger); animation: none; }
 .rail-proj { padding: 10px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; }
 .rail-proj:hover { background: var(--bg2); border-color: var(--border); }
 .rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
@@ -1447,8 +1458,11 @@ h4 { margin: 6px 0; }
 .activity-card .eyebrow { margin-bottom: var(--gap-1); }
 .activity-row { display: flex; align-items: center; gap: var(--gap-3); padding: 6px 8px; border-radius: 6px; cursor: pointer; font: 12px var(--mono); }
 .activity-row:hover { background: var(--bg2); }
-.activity-row .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
-.activity-row .live-dot.on { background: var(--ok); animation: pulse 1.6s infinite; }
+/* Unscoped so any surface can drop a `.live-dot` in (activity rows, project
+   cards, the session Overview header) — Task 17 reused this beyond .activity-row. */
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; display: inline-block; }
+.live-dot.on { background: var(--ok); animation: pulse 1.6s infinite; }
+.rail-proj .n .live-dot { margin-left: 6px; }
 .ar-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .ar-proj { flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-err { flex: none; color: var(--warn); font-variant-numeric: tabular-nums; }
@@ -1480,7 +1494,3 @@ h4 { margin: 6px 0; }
 .projects-page .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--gap-3); }
 .projects-page .projects-grid .rail-proj { margin-bottom: 0; border: 1px solid var(--border); background: var(--bg1); }
 .projects-page .projects-grid .rail-proj:hover { background: var(--bg2); border-color: var(--border-strong); }
-.projects-page .sync { font: 11px var(--mono); color: var(--ink-3); }
-.projects-page .sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
-.projects-page .sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
-.projects-page .sync.failed::before { color: var(--danger); animation: none; }
