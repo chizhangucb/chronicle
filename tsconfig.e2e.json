@@ -1,0 +1,17 @@
+{
+  // Playwright E2E harness: root playwright.config.ts + test/e2e/**. Kept as
+  // its own project (not folded into tsconfig.server.json's `test/**/*.ts`)
+  // because `page.evaluate()` callbacks reference DOM globals (`document`,
+  // `window`) which the server project's tsconfig deliberately omits — see
+  // tsconfig.server.json's `exclude`. `npm run typecheck` (`tsc -b`) picks
+  // this project up via tsconfig.json's `references`.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2023", "dom"],
+    "types": ["node", "@playwright/test"],
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/e2e.tsbuildinfo"
+  },
+  "include": ["playwright.config.ts", "test/e2e/**/*.ts"]
+}

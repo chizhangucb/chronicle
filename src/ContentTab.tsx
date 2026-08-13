@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState, type JSX } from 'react';
-import { api, type ContentResult } from './api.ts';
+import React, { useMemo, type JSX } from 'react';
+import { contentUrl, type ContentResult } from './api.ts';
 import { t } from './i18n.ts';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { shakespeareMultiple } from './insights/stats.ts';
 import InfoTip from './InfoTip.tsx';
 import type { Scope } from './ExploreTab.tsx';
+import { useCachedFetch } from './useCachedFetch.ts';
 
 // Mounted by both InsightsPage (5e-2, scope {type:'all'}) and ProjectDetail
 // (5e-4, scope {type:'project'|'session', id}) — generic from day one, same
@@ -34,14 +35,7 @@ const COMPOSITION_LABELS: Record<string, string> = {
 };
 
 export default function ContentTab({ scope, days }: ContentTabProps): JSX.Element {
-  const [result, setResult] = useState<ContentResult | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setResult(null);
-    api.content(scope.type, scope.id, days ?? undefined).then((r) => { if (!cancelled) setResult(r); }).catch(() => { if (!cancelled) setResult(null); });
-    return () => { cancelled = true; };
-  }, [scope.type, scope.id, days]);
+  const { data: result } = useCachedFetch<ContentResult>(contentUrl(scope.type, scope.id, days ?? undefined));
 
   const rangeLabel = days ? `${days}d` : t('All');
 

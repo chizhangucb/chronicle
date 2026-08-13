@@ -11,6 +11,7 @@ import { costOf, type ModelUsageInput } from './models.js';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
 import { useResizable } from './useResizable.ts';
+import { invalidateClientCache } from './useCachedFetch.ts';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 import type { SearchResultItem } from './api.js';
@@ -58,12 +59,18 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
       if (action === 'sync') {
         setSyncing(true);
         await api.syncProject(project.id);
+        // A sync can add/change sessions this project's cached detail/list
+        // entries already reflect elsewhere (e.g. ProjectDetail's own SWR
+        // cache if it's been opened this session) — drop it all rather than
+        // let a stale copy linger.
+        invalidateClientCache();
         onRefresh();
       } else if (action === 'details') {
         onOpenProject(project.id);
       } else if (action === 'remove') {
         setRemoving(true);
         await api.deleteProject(project.id);
+        invalidateClientCache(); // the removed project must not reappear from a stale ProjectPicker/list cache
         onRefresh();
       }
     } catch (e) {
@@ -80,7 +87,11 @@ function ProjectMenu({ project, onOpenProject, onRefresh }: ProjectMenuProps) {
     if (!name) { setRenaming(false); return; } // blank cancels (folder name required)
     setErr(null);
     setSavingName(true);
-    try { await api.renameProject(project.id, name); setRenaming(false); setOpen(false); onRefresh(); }
+    try {
+      await api.renameProject(project.id, name);
+      invalidateClientCache(); // see ProjectDetail.saveRename's comment — same stale-name risk via ProjectPicker
+      setRenaming(false); setOpen(false); onRefresh();
+    }
     catch (e) { setErr(String((e as Error).message)); }
     finally { setSavingName(false); }
   }

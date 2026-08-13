@@ -5,7 +5,7 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { api } from './api.js';
+import { api, projectUrl, projectsUrl } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
@@ -14,6 +14,7 @@ import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
+import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -160,7 +161,6 @@ interface Stats {
 type ProjectTab = 'overview' | 'explore' | 'content' | 'sessions';
 
 export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
-  const [data, setData] = useState<ProjectDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assocPath, setAssocPath] = useState('');
   const [range, setRange] = useState('all');
@@ -177,8 +177,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // Per-project identity color: assigned in the SAME fixed order as Home
   // (projectColorMap over all project ids), so the head/breadcrumb dot matches
   // Home's rail + ledger pill for this project.
-  const [allProjects, setAllProjects] = useState<PickableProject[] | null>(null);
-  useEffect(() => { api.projects().then(setAllProjects).catch(() => setAllProjects([])); }, []);
+  const { data: allProjects } = useCachedFetch<PickableProject[]>(projectsUrl());
   const projectColor = useMemo(
     () => projectColorMap((allProjects ?? []).map((p) => p.id)).get(Number(id)),
     [allProjects, id]);
@@ -202,11 +201,17 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (def?.today) { const d = new Date(); d.setHours(0, 0, 0, 0); return (Date.now() - d.getTime()) / 86400000; }
     return def?.days ?? null;
   }, [range]);
-  // `days` is `number | null` (null = no range limit); api.project's `days`
+  // `days` is `number | null` (null = no range limit); projectUrl's `days`
   // param is `number | string | undefined` — null and undefined mean the same
   // thing here (omit the query param), so convert honestly at the call site.
-  const refresh = () => api.project(id, days ?? undefined).then(setData).catch((e: Error) => setError(String(e.message)));
-  useEffect(() => { refresh(); }, [id, range]);
+  // The URL doubles as the SWR cache key (Task 5): re-landing on this exact
+  // id+range combo (tab switch, breadcrumb back-nav) renders the last-seen
+  // data immediately instead of a blank page, then refreshes in place.
+  // `loadError` is the hook's fetch-failure signal — only rendered as a hard
+  // error banner below when `data` is still null (a true cold-load failure,
+  // e.g. a deleted project's 404): a background revalidation failure on an
+  // already-populated pane must not blank/replace working data.
+  const { data, error: loadError, refresh } = useCachedFetch<ProjectDetailData>(projectUrl(id, days ?? undefined));
 
   // Project-level LIVE pill: light up when any session log is being written right now.
   useEffect(() => {
@@ -229,7 +234,17 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     setSavingName(true);
     // catch → inline error (mirrors HomePage): without it a rejected rename is
     // a silently-dropped unhandled promise rejection.
-    try { await api.renameProject(id, name); setRenaming(false); refresh(); }
+    try {
+      await api.renameProject(id, name);
+      // The renamed name is now stale everywhere it's cached client-side
+      // (ProjectPicker's list, this project's own detail payload, etc.) —
+      // drop the whole SWR cache so the next read of any of those URLs goes
+      // back to the server instead of replaying the old name for the rest
+      // of the session.
+      invalidateClientCache();
+      setRenaming(false);
+      refresh();
+    }
     catch (e) { setNameErr(String((e as Error).message)); }
     finally { setSavingName(false); }
   }
@@ -239,11 +254,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     const r = await fetch(`/api/projects/${id}/associate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: assocPath }) });
     const body = await r.json();
     if (!r.ok) return setError(body.error);
+    invalidateClientCache(); // project may have merged/moved — every cached list/detail is now suspect
     onBack(); // project may have merged into another — go back to the list
   }
 
   async function unlink(source: string) {
     await fetch(`/api/projects/${id}/unlink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+    invalidateClientCache(); // unlinking spins off a new project — the cached project list is stale
     setConfirmUnlink(null);
     refresh();
   }
@@ -348,6 +365,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const sessionSelect = useSessionSelect(selectableSessions, refresh, pendingUndo);
 
   if (error) return <div className="page center error-banner">{error}</div>;
+  // A true cold-load failure (no data has ever rendered for this hook
+  // instance — e.g. a deleted project's 404) surfaces the hook's error
+  // instead of sticking on "Loading…" forever. Once `data` exists, a later
+  // background-refresh failure is deliberately NOT shown here — see
+  // `loadError`'s definition above.
+  if (loadError && !data) return <div className="page center error-banner">{loadError}</div>;
   if (!data || !stats) return <div className="page center muted">Loading…</div>;
   const { project, sessions, git } = data;
   const liveSession = sessions.find((s) => s.liveCandidate);
@@ -359,7 +382,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       <div className="crumbs">
         <ProjectPicker current={project} color={projectColor} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
-        <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} />
+        <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} prefetchUrl={projectUrl(id, days ?? undefined)} />
         <button className="btn ghost small" style={{ marginLeft: 'auto' }} onClick={onBack}>← {t('Projects')}</button>
       </div>
 
@@ -685,8 +708,10 @@ export interface ProjectPickerProps {
 export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [projects, setProjects] = useState<PickableProject[] | null>(null);
-  useEffect(() => { if (open && !projects) api.projects().then(setProjects).catch(() => setProjects([])); }, [open]);
+  // Task 5: SWR-cached list, keyed on the same '/api/projects' URL the hover
+  // prefetch below warms — so by the time this popover opens the data is
+  // usually already resolved (no "Loading…" flash).
+  const { data: projects } = useCachedFetch<PickableProject[]>(projectsUrl());
   const list = (projects || []).filter((p) => !q
     || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
   // Per-item identity dots, same fixed order as Home's rail/ledger.
@@ -695,7 +720,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="crumb on">
+        <button className="crumb on" onMouseEnter={() => prefetch(projectsUrl())}>
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
             : '◫ '}
@@ -741,10 +766,17 @@ export interface SessionPickerProps {
   current: PickableSession | null | undefined;
   onPick: (id: string) => void;
   loading?: boolean;
+  // URL that supplies this picker's `sessions` prop in the caller's context
+  // (there's no dedicated session-list endpoint — sessions arrive embedded in
+  // GET /api/projects/:id) — hover-prefetched into the shared SWR cache so
+  // navigating there next (or back to it) renders instantly. Optional: not
+  // every mounting context has one to offer (e.g. SessionView's own picker,
+  // out of scope for Task 5).
+  prefetchUrl?: string;
 }
 
 // Session dropdown: shows on both project and session pages.
-export function SessionPicker({ sessions, current, onPick, loading }: SessionPickerProps) {
+export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl }: SessionPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const title = (s: PickableSession) => sessionDisplayName(s).slice(0, 48);
@@ -753,7 +785,7 @@ export function SessionPicker({ sessions, current, onPick, loading }: SessionPic
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`}>
+        <button className={`crumb ${current ? 'on' : ''}`} onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
           ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>

@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState, type JSX } from 'react';
+import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { api, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
+import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
 import { t } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
@@ -12,6 +12,7 @@ import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
 import { groupShowsTokenColumn } from './explore/tokenColumns.ts';
+import { useCachedFetch } from './useCachedFetch.ts';
 
 // Mounted by both InsightsPage (5e-1, scope {type:'all'}) and ProjectDetail
 // (5e-4, scope {type:'project', id}) — kept generic from day one so 5e-4
@@ -99,24 +100,22 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   const [pivot, setPivot] = useState<PivotState>({
     metric: 'spend', group: 'model', subgroup: 'none', rollup: 'total', topN: 10,
   });
-  const [result, setResult] = useState<ExploreResult | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setResult(null);
-    const params: ExploreQueryParams = {
-      scope: scope.type, id: scope.id, days: days ?? undefined,
-      metric: pivot.metric, group: pivot.group,
-      // 'none' is a UI-only sentinel (ExploreQueryParams has no 'none' subgroup)
-      // — omit the param. Also omit while a rollup is active: the time-series
-      // stack already carries the group series (Subgroup is disabled in the UI).
-      subgroup: pivot.subgroup === 'none' || pivot.rollup !== 'total' ? undefined : pivot.subgroup,
-      topN: pivot.topN,
-      rollup: pivot.rollup,
-    };
-    api.explore(params).then((r) => { if (!cancelled) setResult(r); }).catch(() => { if (!cancelled) setResult(null); });
-    return () => { cancelled = true; };
-  }, [scope.type, scope.id, days, pivot.metric, pivot.group, pivot.subgroup, pivot.topN, pivot.rollup]);
+  // Same query-param construction as before (now pure — `exploreUrl` just
+  // stringifies it); the fetch/cache/error lifecycle moved into
+  // `useCachedFetch`, which renders cached data for this exact URL
+  // immediately (e.g. flipping Metric/Group back to a combo already visited)
+  // instead of the old `setResult(null)`-on-every-change blank.
+  const params: ExploreQueryParams = {
+    scope: scope.type, id: scope.id, days: days ?? undefined,
+    metric: pivot.metric, group: pivot.group,
+    // 'none' is a UI-only sentinel (ExploreQueryParams has no 'none' subgroup)
+    // — omit the param. Also omit while a rollup is active: the time-series
+    // stack already carries the group series (Subgroup is disabled in the UI).
+    subgroup: pivot.subgroup === 'none' || pivot.rollup !== 'total' ? undefined : pivot.subgroup,
+    topN: pivot.topN,
+    rollup: pivot.rollup,
+  };
+  const { data: result } = useCachedFetch<ExploreResult>(exploreUrl(params));
 
   const rangeLabel = days ? `${days}d` : t('All');
   const metricChipLabel = useMemo(() => metricOptions().find((o) => o.key === pivot.metric)?.label ?? pivot.metric, [pivot.metric]);

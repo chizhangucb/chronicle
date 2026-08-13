@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { computeExplore, type ExploreMetric, type ExploreGroup, type ExploreRollup } from '../explore.ts';
 import type { Scope } from '../scope.ts';
+import { cached } from '../cache.ts';
 
 const SCOPE_TYPES: Scope['type'][] = ['all', 'project', 'session'];
 const METRICS: ExploreMetric[] = ['spend', 'tokens', 'requests', 'active', 'sessions', 'errors'];
@@ -39,13 +40,13 @@ export function mountExplore(app: Express): void {
 
     const scope: Scope = { type: scopeType as Scope['type'], id: req.query.id as string | undefined };
     try {
-      res.json(computeExplore({
+      res.json(cached(req.originalUrl, () => computeExplore({
         scope, days: Number(req.query.days) || null,
         metric: metric as ExploreMetric,
         group: group as ExploreGroup,
         subgroup: (subgroupRaw as ExploreGroup) || undefined,
         rollup: rollup as ExploreRollup, topN: Number(req.query.topN) || 10,
-      }));
+      })));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

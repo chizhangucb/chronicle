@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { computeContent } from '../content.ts';
 import type { Scope } from '../scope.ts';
+import { cached } from '../cache.ts';
 
 const SCOPE_TYPES: Scope['type'][] = ['all', 'project', 'session'];
 
@@ -15,7 +16,7 @@ export function mountContent(app: Express): void {
     }
     const scope: Scope = { type: scopeType as Scope['type'], id: req.query.id as string | undefined };
     try {
-      res.json(computeContent(scope, Number(req.query.days) || null));
+      res.json(cached(req.originalUrl, () => computeContent(scope, Number(req.query.days) || null)));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

@@ -5,6 +5,7 @@ import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from './errors.ts';
+import { invalidateCache } from './cache.ts';
 import type { Event, SessionInput, Project } from '../shared/types.ts';
 
 export type ProjectRow = Project;
@@ -48,6 +49,8 @@ export interface MessageRow {
   model: string | null;
   is_sidechain: number;
   agent_type: string | null;
+  workflow_id: string | null;
+  agent_id: string | null;
   skill: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
@@ -142,6 +145,11 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN engaged_ms INTEGER'); } catch {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN minor INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN is_sidechain INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN agent_type TEXT'); } catch {}
+// `wf_*` folder name for a subagent transcript nested under
+// subagents/workflows/wf_*/ (null for a direct subagent or non-sidechain row).
+try { db.exec('ALTER TABLE messages ADD COLUMN workflow_id TEXT'); } catch {}
+// Per-RUN id (distinct from agent_type, which is per-KIND) — see shared/types.ts Event.agent_id.
+try { db.exec('ALTER TABLE messages ADD COLUMN agent_id TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN skill TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN input_tokens INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN output_tokens INTEGER'); } catch {}
@@ -195,7 +203,7 @@ db.exec(`
 DROP VIEW IF EXISTS contract_message_metrics;
 CREATE VIEW contract_message_metrics AS
 SELECT m.session_id, m.seq, m.ts, m.kind, m.model,
-       m.is_sidechain, m.agent_type, m.skill,
+       m.is_sidechain, m.agent_type, m.workflow_id, m.agent_id, m.skill,
        m.tool_name,
        CASE WHEN m.tool_name LIKE 'mcp__%'
             THEN substr(m.tool_name, 6, instr(substr(m.tool_name, 6), '__') - 1)
@@ -297,11 +305,11 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
            session.summary ?? null, session.usage ?? null,
            sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor, resultCount, errorCount);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
-                                                  is_sidechain, agent_type, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                                  is_sidechain, agent_type, workflow_id, agent_id, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     events.forEach((e, i) => ins.run(session.id, i, e.uuid ?? null, e.ts ?? null, e.kind,
       e.text ?? null, e.tool_name ?? null, e.tool_input ?? null, e.tool_use_id ?? null, e.model ?? null,
-      e.is_sidechain ? 1 : 0, e.agent_type ?? null, e.skill ?? null,
+      e.is_sidechain ? 1 : 0, e.agent_type ?? null, e.workflow_id ?? null, e.agent_id ?? null, e.skill ?? null,
       e.input_tokens ?? null, e.output_tokens ?? null, e.cache_read_tokens ?? null,
       e.cache_w5m_tokens ?? null, e.cache_w1h_tokens ?? null));
     if (ftsAvailable) {
@@ -314,4 +322,7 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     db.exec('ROLLBACK');
     throw err;
   }
+  // Sessions/messages changed — every cached analytics result (insights,
+  // explore, content, per-project analytics) may now be stale.
+  invalidateCache();
 }

@@ -4,6 +4,7 @@ import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { analyzeCausality } from '../causality.ts';
+import { invalidateCache } from '../cache.ts';
 import { PER_FILE_SOURCES, backupDbBeforeDelete } from './_shared.ts';
 
 type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
@@ -38,6 +39,7 @@ export function mountSessions(app: Express): void {
     const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
     if (!session) return res.status(404).json({ error: 'Not found' });
     db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run((req.params.id as string));
+    invalidateCache();
     res.json({ ok: true });
   });
 
@@ -64,6 +66,7 @@ export function mountSessions(app: Express): void {
     if (req.body.name !== undefined) {
       const name = (req.body.name || '').trim() || null; // empty clears back to the default
       db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, (req.params.id as string));
+      invalidateCache();
     }
     res.json(db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?').get((req.params.id as string)));
   });
@@ -127,6 +130,7 @@ export function mountSessions(app: Express): void {
     // import/sync/auto-sync of the same source log never resurrects it —
     // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.
     tombstoneSession(session.source, session.id);
+    invalidateCache();
     res.json({ ok: true, sourceDeleted, source: session.source, projectId: session.project_id });
   });
 
