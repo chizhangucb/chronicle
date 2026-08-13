@@ -397,7 +397,8 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
 - **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they are
   blocked (silently return null) in embedded/preview browser contexts, so the action
   no-ops with no error. Use an inline edit-in-place field / inline confirm bar instead
-  (see `OverviewMode` in `SessionView.tsx` and the `HomePage` multi-select flow).
+  (see `OverviewMode` in `SessionView.tsx`, the `RecentLedger`/`useSessionSelect` session
+  multi-select flow, and `ProjectsPage.tsx`'s `ProjectMenu` per-project inline confirm).
 - **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD.** `InfoTip` (`src/InfoTip.tsx`) uses
   Radix Popover with `side="bottom"` + `avoidCollisions={false}` — the
   `avoidCollisions={false}` is load-bearing, not optional: Radix's default collision-flip
