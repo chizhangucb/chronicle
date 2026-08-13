@@ -484,6 +484,47 @@ const zh = {
   ' min between your turns': ' 分钟（在你的两次对话之间）',
   'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
     '基于同模型对话间隔估算。在该窗口内保持任务推进可以避免缓存冷却后的重写。',
+  // Content tab (Task C3-T15: 7 usage characteristics, spec §2.5)
+  'Usage characteristics': '使用特征',
+  'of usage came from marathon sessions (8h+ active)': '的使用来自马拉松式会话（活跃 8 小时以上）',
+  'Sessions where the agent was actively working — not just open — for 8 hours or more.':
+    '智能体持续活跃工作（而不仅仅是打开着）达到 8 小时或以上的会话。',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours.':
+    '智能体活跃时间累加消息之间的每一段间隔，但不包括等待你输入提示的时间；每段间隔上限为 10 分钟，除非是被一次长时间运行的工具调用占满——当总时长达到 8 小时时，该会话即计入此项。',
+  'marathon session': '个马拉松式会话', 'marathon sessions': '个马拉松式会话',
+  'of usage ran inside a multi-agent workflow': '的使用发生在多智能体工作流中',
+  'Tokens spent on groups of subagents launched together to divide one task.':
+    '花费在一组为拆分同一任务而一起启动的子智能体上的词元。',
+  "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.":
+    '工作流运行是指嵌套在同一个共享工作流文件夹下的一组子智能体——这里显示的是它们在计费词元中的精确占比，而非基于文本长度的估算。',
+  'workflow run': '次工作流运行', 'workflow runs': '次工作流运行',
+  'of usage came from subagent turns': '的使用来自子智能体轮次',
+  'Work delegated to Task-launched subagents rather than answered on the main thread.':
+    '委托给通过 Task 启动的子智能体完成的工作，而非在主线程中直接回答。',
+  "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.":
+    '统计子智能体产生的每一次回复，数据精确来自 Chronicle 逐条消息的旁链词元字段——同时包含工作流内和独立运行的子智能体。',
+  'subagent turn': '次子智能体轮次', 'subagent turns': '次子智能体轮次',
+  'of usage ran above 150k context tokens': '的使用发生在上下文超过 15 万词元时',
+  "Sessions carrying a large context regardless of the model's window size.":
+    '无论模型窗口大小如何，都携带较大上下文的会话。',
+  "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use.":
+    '标记存储的上下文大小超过 150,000 词元的会话——这是一个绝对阈值，与所用模型或上下文窗口大小无关。',
+  "of usage ran past 70% of the model's context window": '的使用超过了模型上下文窗口的 70%',
+  "Chronicle's own heuristic threshold — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 自定的启发式阈值——并非 Claude Code 官方文档记载的自动压缩触发点。',
+  "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%.":
+    '将每个会话存储的上下文大小与其模型的上下文窗口进行比较。70% 是 Chronicle 为提示成本上升而选择的启发式阈值，并非官方公布的自动压缩触发点——Claude Code 并未为 20 万词元窗口公布固定默认值，而 100 万词元窗口的自动压缩点约在 97% 左右，远高于 70%。',
+  'of input tokens were served from cache': '的输入词元由缓存提供',
+  'Higher is cheaper — a cache read costs a fraction of a fresh input token.':
+    '数值越高越省钱——缓存读取的成本只是全新输入词元的一小部分。',
+  "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.":
+    '输入侧词元（全新输入加缓存读取）中来自缓存读取的占比，直接根据每个会话的计费用量计算得出。',
+  'session with cache activity': '个有缓存活动的会话', 'sessions with cache activity': '个有缓存活动的会话',
+  'of usage ran mostly unattended': '的使用大部分是在无人值守下进行的',
+  'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.':
+    '参与（实际经过的）时间不到活跃时间的四分之一——智能体大部分时间都是在无人盯着的情况下工作的。',
+  'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away.':
+    '标记参与时间（你实际在场的时间）低于智能体活跃时间（智能体工作的时间）25% 的会话——例如你离开时仍在运行的一次长时间构建或工具调用。',
   'Token composition · what fills the context': '词元构成 · 上下文都花在哪里',
   'Tool results': '工具结果',
   'Your prompts': '你的提问',
@@ -989,6 +1030,47 @@ const ja = {
   ' min between your turns': ' 分間、あなたのターンの間で温存されます',
   'Estimated from same-model turn gaps. Keeping a task moving inside that window avoids cold-cache rewrites.':
     '同一モデルのターン間隔から推定しています。この時間内にタスクを継続すると、キャッシュが冷えて再書き込みされるのを避けられます。',
+  // Content tab (Task C3-T15: 7 usage characteristics, spec §2.5)
+  'Usage characteristics': '利用特性',
+  'of usage came from marathon sessions (8h+ active)': 'の利用がマラソン型セッション（8時間以上アクティブ）から発生',
+  'Sessions where the agent was actively working — not just open — for 8 hours or more.':
+    'エージェントが単に開いていただけでなく、8時間以上継続してアクティブに作業していたセッション。',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours.':
+    'エージェントのアクティブ時間は、あなたがプロンプトを入力するのを待っていた時間を除く、メッセージ間のすべての間隔を合計したものです。各間隔は10分を上限としますが、長時間実行されるツール呼び出しで埋まっている場合は例外です — 合計が8時間に達すると、このセッションはここにカウントされます。',
+  'marathon session': '件のマラソン型セッション', 'marathon sessions': '件のマラソン型セッション',
+  'of usage ran inside a multi-agent workflow': 'の利用がマルチエージェント・ワークフロー内で発生',
+  'Tokens spent on groups of subagents launched together to divide one task.':
+    '1つのタスクを分割するために一緒に起動されたサブエージェント群に費やされたトークン。',
+  "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.":
+    'ワークフロー実行とは、1つの共有ワークフローフォルダーの下にネストされたサブエージェント群のことです — これは請求対象トークンにおける正確な割合であり、テキスト長からの推定ではありません。',
+  'workflow run': '件のワークフロー実行', 'workflow runs': '件のワークフロー実行',
+  'of usage came from subagent turns': 'の利用がサブエージェントのターンから発生',
+  'Work delegated to Task-launched subagents rather than answered on the main thread.':
+    'メインスレッドで直接応答するのではなく、Task で起動されたサブエージェントに委任された作業。',
+  "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.":
+    'サブエージェントが生成したすべての返信をカウントし、Chronicle のメッセージ単位のサイドチェーン・トークン列から正確に取得しています — ワークフロー内・単独実行の両方のサブエージェント実行を含みます。',
+  'subagent turn': '件のサブエージェント・ターン', 'subagent turns': '件のサブエージェント・ターン',
+  'of usage ran above 150k context tokens': 'の利用がコンテキスト15万トークンを超えて発生',
+  "Sessions carrying a large context regardless of the model's window size.":
+    'モデルのウィンドウサイズに関わらず、大きなコンテキストを抱えているセッション。',
+  "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use.":
+    '保存されたコンテキストサイズが150,000トークンを超えたセッションにフラグを立てます — これはモデルやコンテキストウィンドウサイズに関係のない絶対的なしきい値です。',
+  "of usage ran past 70% of the model's context window": 'の利用がモデルのコンテキストウィンドウの70%を超えて発生',
+  "Chronicle's own heuristic threshold — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 独自の経験則によるしきい値であり、Claude Code の公式ドキュメントに記載された自動圧縮のトリガーではありません。',
+  "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%.":
+    '各セッションの保存されたコンテキストサイズを、そのモデルのコンテキストウィンドウと比較します。70% はコスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値であり、公式に文書化された自動圧縮ポイントではありません — Claude Code は20万トークンウィンドウの固定デフォルト値を公表しておらず、100万トークンウィンドウは70%を大きく超えた約97%で自動圧縮されます。',
+  'of input tokens were served from cache': 'の入力トークンがキャッシュから提供',
+  'Higher is cheaper — a cache read costs a fraction of a fresh input token.':
+    '数値が高いほど安価です — キャッシュ読み取りのコストは新規入力トークンのごく一部です。',
+  "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.":
+    '入力側トークン（新規入力とキャッシュ読み取りの合計）のうち、キャッシュ読み取りから来た割合を、各セッションの請求対象利用量から直接計算しています。',
+  'session with cache activity': '件のキャッシュ活動があるセッション', 'sessions with cache activity': '件のキャッシュ活動があるセッション',
+  'of usage ran mostly unattended': 'の利用がほぼ無人状態で発生',
+  'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.':
+    '関与時間（実時間）がアクティブ時間の4分の1未満にとどまりました — エージェントはあなたが見ていない間にほとんどの作業を行いました。',
+  'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away.':
+    '関与時間（あなたが実際に在席していた時間）がエージェントのアクティブ時間（エージェントの作業時間）の25%未満のセッションにフラグを立てます — 例えば、あなたが離席している間に実行されていた長時間のビルドやツール呼び出しなどです。',
   'Token composition · what fills the context': 'トークン構成 · コンテキストの内訳',
   'Tool results': 'ツール結果',
   'Your prompts': 'あなたのプロンプト',

@@ -396,12 +396,24 @@ export interface ExploreResult {
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
 
+export type CharacteristicKey = 'eightHourSessions' | 'workflowRuns' | 'subagentTurns'
+  | 'highContextAbs' | 'highContextRel' | 'cacheEfficiency' | 'autonomousShare';
+
+export interface Characteristic {
+  key: CharacteristicKey;
+  share: number;
+  count?: number;
+  exact: boolean;
+}
+
 export interface ContentResult {
   composition: { key: string; tokens: number }[];
   toolResultsByTool: { key: string; tokens: number }[];
   skills: { key: string; count: number; tokens: number }[];
   subagents: { key: string; runs: number; tokens: number }[];
   callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
+  // The 7 independent usage characteristics (spec §2.5) — see server/content.ts.
+  characteristics: Characteristic[];
   calibratedTotalTokens: number;
   // composition, toolResultsByTool, and skills[].tokens are calibrated
   // (text-length→billed); subagents[].tokens are exact.
