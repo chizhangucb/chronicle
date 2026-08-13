@@ -938,7 +938,7 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .refine-bulk .btn:hover { color: var(--ink); }
 /* Delete-by-type toggles: one chip per message kind present in the session.
    "on" = kept (click to delete all of that kind); "off" = all deleted (click to restore). */
-.refine-bytype { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; }
+.refine-bytype { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--gap-2); }
 .bytype-label { margin-right: 2px; }
 .bytype-chip { font-size: 11px; padding: 2px 9px; letter-spacing: 0.3px; }
 .bytype-chip.off { opacity: 0.5; text-decoration: line-through; }
