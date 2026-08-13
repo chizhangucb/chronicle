@@ -149,12 +149,31 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
 // deliberately the same underlying metric surfaced in two different UI
 // shapes, a narrative sentence vs. a scannable stat row; sharing the
 // computation keeps them from ever silently disagreeing).
+//
+// Each of eightHour/highAbs/highRel/autonomous carries its OWN `denom`
+// (code-review fix), not a shared `stats.totalTokens` — `agent_active_ms`/
+// `engaged_ms`/`context_tokens` are computed at import for claude-code
+// sessions but can be genuinely NULL (a pre-migration row that hasn't been
+// re-imported, or — for context_tokens specifically — a source whose parser
+// doesn't populate it). Treating a NULL as 0 (`?? 0`) would silently count
+// that session as "doesn't qualify" in the numerator while still counting
+// its full tokens in the denominator, deflating the share without any sign
+// something was missing. Instead, a session with NULL data for a given
+// characteristic is excluded from BOTH that characteristic's numerator AND
+// its denominator — each share is "% of the sessions that HAVE this data",
+// stated as such in the UI copy, so the result stays honestly `exact: true`
+// rather than quietly wrong. (workflowRuns/subagentTurns/cacheEfficiency
+// don't need this: a session with no subagents or no cache reads has a
+// TRUE zero there — sidechain/cache fields aren't a "not yet computed"
+// signal the way active/engaged/context_tokens are.)
+interface CharBucket { tokens: number; count: number; denom: number }
+function newBucket(): CharBucket { return { tokens: 0, count: 0, denom: 0 }; }
 interface SessionCharStats {
   totalTokens: number;
-  eightHour: { tokens: number; count: number };
-  highAbs: { tokens: number; count: number };
-  highRel: { tokens: number; count: number };
-  autonomous: { tokens: number; count: number };
+  eightHour: CharBucket;
+  highAbs: CharBucket;
+  highRel: CharBucket;
+  autonomous: CharBucket;
   cacheRead: number;
   cacheInput: number;
   cacheSessionCount: number;
@@ -167,10 +186,10 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
      { ctx: number|null; usage: string|null; active: number|null; engaged: number|null }[];
   const stats: SessionCharStats = {
     totalTokens: 0,
-    eightHour: { tokens: 0, count: 0 },
-    highAbs: { tokens: 0, count: 0 },
-    highRel: { tokens: 0, count: 0 },
-    autonomous: { tokens: 0, count: 0 },
+    eightHour: newBucket(),
+    highAbs: newBucket(),
+    highRel: newBucket(),
+    autonomous: newBucket(),
     cacheRead: 0,
     cacheInput: 0,
     cacheSessionCount: 0,
@@ -182,15 +201,31 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
     const tok = models.reduce((n, mdl) => n + (usage[mdl].input ?? 0) + (usage[mdl].output ?? 0), 0);
     stats.totalTokens += tok;
 
-    const active = s.active ?? 0;
-    const engaged = s.engaged ?? 0;
-    if (active >= EIGHT_HOUR_ACTIVE_MS) { stats.eightHour.tokens += tok; stats.eightHour.count++; }
-    if (active > 0 && engaged < AUTONOMOUS_ENGAGED_RATIO * active) { stats.autonomous.tokens += tok; stats.autonomous.count++; }
+    // agent_active_ms / engaged_ms: NULL means "not computed for this
+    // session" (pre-migration row), not "zero duration" — exclude from
+    // both eightHour and autonomous entirely when either is missing.
+    if (s.active != null && s.engaged != null) {
+      const active = s.active;
+      const engaged = s.engaged;
+      stats.eightHour.denom += tok;
+      if (active >= EIGHT_HOUR_ACTIVE_MS) { stats.eightHour.tokens += tok; stats.eightHour.count++; }
+      stats.autonomous.denom += tok;
+      if (active > 0 && engaged < AUTONOMOUS_ENGAGED_RATIO * active) { stats.autonomous.tokens += tok; stats.autonomous.count++; }
+    }
 
-    const ctx = s.ctx ?? 0;
-    if (ctx > HIGH_CONTEXT_ABS_TOKENS) { stats.highAbs.tokens += tok; stats.highAbs.count++; }
-    const win = models.map((m) => contextWindowFor(m) ?? 0).reduce((a, b) => Math.max(a, b), 0) || 200000;
-    if (ctx > HIGH_CONTEXT_REL_RATIO * win) { stats.highRel.tokens += tok; stats.highRel.count++; }
+    // context_tokens: NULL means "no stored context size" (non-claude-code
+    // source, or a claude-code session imported before this column existed)
+    // — exclude from both highAbs and highRel entirely, rather than treating
+    // it as ctx=0 (which would just never qualify but still dilute the
+    // denominator).
+    if (s.ctx != null) {
+      const ctx = s.ctx;
+      stats.highAbs.denom += tok;
+      if (ctx > HIGH_CONTEXT_ABS_TOKENS) { stats.highAbs.tokens += tok; stats.highAbs.count++; }
+      const win = models.map((m) => contextWindowFor(m) ?? 0).reduce((a, b) => Math.max(a, b), 0) || 200000;
+      stats.highRel.denom += tok;
+      if (ctx > HIGH_CONTEXT_REL_RATIO * win) { stats.highRel.tokens += tok; stats.highRel.count++; }
+    }
 
     let sessCacheRead = 0;
     for (const mdl of models) sessCacheRead += usage[mdl].cacheRead ?? 0;
@@ -208,32 +243,56 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
 // (sidechain usage is real spend already folded into sessions.usage — see
 // the parser's "sidechain usage INCLUDED" comment — so these shares are
 // directly comparable against stats.totalTokens without any calibration).
+//
+// kind IN ('assistant','tool_use'), NOT kind='assistant' alone (code-review
+// fix): per-message usage attaches to the FIRST event of an assistant API
+// line (`attachPerEventUsage` in the parser), and when that line's content
+// starts with a tool_use block and no preceding text (a bare tool-call turn
+// — common for subagents), the usage lands on a 'tool_use' kind row, not
+// 'assistant'. The pre-existing `subagents` query above (no kind filter at
+// all) already accounts for this; a plain 'assistant' filter here silently
+// zeroed out every subagent turn whose only content was a tool call. Usage
+// can ONLY ever land on 'assistant' or 'tool_use' rows (never 'tool_result'/
+// 'user' — those come from a separate JSONL line type that never carries
+// `.message.usage`), so this IN-list is exactly equivalent to "no kind
+// filter" for token attribution while still excluding tool_result/user rows
+// from the TURN COUNT (an unfiltered count would inflate "turns" into a raw
+// message-row count, since one API turn's tool_result confirmation is a
+// separate row that never carries its own tokens).
 function computeCharacteristics(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }, stats: SessionCharStats): Characteristic[] {
   const bind = () => [cutoff, ...sc.params];
   const base = `JOIN sessions s ON s.id = m.session_id
     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`;
+  // workflowRuns/subagentTurns denominator is stats.totalTokens (ALL in-scope
+  // sessions) — sidechain fields aren't a "not yet computed" signal like
+  // active/context (see the SessionCharStats comment), so no sessions need
+  // excluding here.
   const share = (tok: number) => (stats.totalTokens ? Math.round((tok / stats.totalTokens) * 100) : 0);
+  // eightHour/highAbs/highRel/autonomous each divide by THEIR OWN bucket's
+  // `denom` (Σ tokens of only the sessions that HAVE the underlying data) —
+  // NOT stats.totalTokens (code-review fix, see SessionCharStats comment).
+  const bucketShare = (b: CharBucket) => (b.denom ? Math.round((b.tokens / b.denom) * 100) : 0);
 
   const wf = db.prepare(`SELECT COUNT(DISTINCT m.workflow_id) AS runs,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
-     FROM messages m ${base} AND m.is_sidechain=1 AND m.kind='assistant' AND m.workflow_id IS NOT NULL`)
+     FROM messages m ${base} AND m.is_sidechain=1 AND m.kind IN ('assistant','tool_use') AND m.workflow_id IS NOT NULL`)
     .get(...bind()) as unknown as { runs: number; tokens: number };
 
   const sub = db.prepare(`SELECT COUNT(*) AS turns,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
-     FROM messages m ${base} AND m.is_sidechain=1 AND m.kind='assistant'`)
+     FROM messages m ${base} AND m.is_sidechain=1 AND m.kind IN ('assistant','tool_use')`)
     .get(...bind()) as unknown as { turns: number; tokens: number };
 
   const cacheDenom = stats.cacheRead + stats.cacheInput;
 
   return [
-    { key: 'eightHourSessions', share: share(stats.eightHour.tokens), count: stats.eightHour.count, exact: true },
+    { key: 'eightHourSessions', share: bucketShare(stats.eightHour), count: stats.eightHour.count, exact: true },
     { key: 'workflowRuns', share: share(wf.tokens), count: wf.runs, exact: true },
     { key: 'subagentTurns', share: share(sub.tokens), count: sub.turns, exact: true },
-    { key: 'highContextAbs', share: share(stats.highAbs.tokens), count: stats.highAbs.count, exact: true },
-    { key: 'highContextRel', share: share(stats.highRel.tokens), count: stats.highRel.count, exact: true },
+    { key: 'highContextAbs', share: bucketShare(stats.highAbs), count: stats.highAbs.count, exact: true },
+    { key: 'highContextRel', share: bucketShare(stats.highRel), count: stats.highRel.count, exact: true },
     { key: 'cacheEfficiency', share: cacheDenom ? Math.round((stats.cacheRead / cacheDenom) * 100) : 0, count: stats.cacheSessionCount, exact: true },
-    { key: 'autonomousShare', share: share(stats.autonomous.tokens), count: stats.autonomous.count, exact: true },
+    { key: 'autonomousShare', share: bucketShare(stats.autonomous), count: stats.autonomous.count, exact: true },
   ];
 }
 
@@ -262,7 +321,11 @@ function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params
   gaps.sort((a, b) => a - b);
   const cacheWarmthMinutes = gaps.length ? Math.round(gaps[Math.floor(gaps.length / 2)]) : 0;
   return {
-    contextPressureShare: stats.totalTokens ? Math.round((stats.highRel.tokens / stats.totalTokens) * 100) : 0,
+    // Same bucket, same denom as the highContextRel characteristic (see the
+    // SessionCharStats comment) — sessions without a stored context_tokens
+    // value are excluded from both numerator and denominator here too, so
+    // this callout and that characteristic can never silently disagree.
+    contextPressureShare: stats.highRel.denom ? Math.round((stats.highRel.tokens / stats.highRel.denom) * 100) : 0,
     subagentHeavyShare: heavyTotal ? Math.round((heavyTokens / heavyTotal) * 100) : 0,
     cacheWarmthMinutes,
   };

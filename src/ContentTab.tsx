@@ -35,7 +35,7 @@ const CHARACTERISTIC_META: Record<CharacteristicKey, {
   eightHourSessions: {
     label: 'of usage came from marathon sessions (8h+ active)',
     why: 'Sessions where the agent was actively working — not just open — for 8 hours or more.',
-    info: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours.',
+    info: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
     countOne: 'marathon session', countMany: 'marathon sessions',
   },
   workflowRuns: {
@@ -53,13 +53,13 @@ const CHARACTERISTIC_META: Record<CharacteristicKey, {
   highContextAbs: {
     label: 'of usage ran above 150k context tokens',
     why: "Sessions carrying a large context regardless of the model's window size.",
-    info: "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use.",
+    info: "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
     countOne: 'session', countMany: 'sessions',
   },
   highContextRel: {
     label: "of usage ran past 70% of the model's context window",
     why: "Chronicle's own heuristic threshold — not a documented Claude Code auto-compact trigger.",
-    info: "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%.",
+    info: "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
     countOne: 'session', countMany: 'sessions',
   },
   cacheEfficiency: {
@@ -71,7 +71,7 @@ const CHARACTERISTIC_META: Record<CharacteristicKey, {
   autonomousShare: {
     label: 'of usage ran mostly unattended',
     why: 'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.',
-    info: 'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away.',
+    info: 'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
     countOne: 'session', countMany: 'sessions',
   },
 };
