@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type JSX } from 'react';
+import React, { useEffect, useMemo, useState, type JSX } from 'react';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 import { api } from '../api.js';
 import { t } from '../i18n.js';
@@ -123,10 +123,26 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const [savingName, setSavingName] = useState(false);
   const [nameErr, setNameErr] = useState<string | null>(null);
   function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
-  // Honest, simple live signal: the same SSE watcher status the source-file
-  // zone below already uses (live.status === 'live' or actively reconnecting
-  // counts — a temporary drop shouldn't flicker the dot off).
-  const live = liveStatus === 'live' || liveStatus === 'reconnecting';
+  // Honest, simple live signal (Task 17): this tab's own SSE connection
+  // (liveStatus — the same status the source-file zone below already uses),
+  // OR'd with an open live watcher for this session from ANY source (another
+  // tab, or a live stream this view hasn't auto-opened yet), polled from the
+  // existing /api/live/status endpoint — mirrors server/activity.ts's
+  // isLive() shape (open watcher OR recent activity) without a new endpoint.
+  const [watcherLive, setWatcherLive] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const list = await api.liveWatchers();
+        if (!cancelled) setWatcherLive(list.some((w) => w.sessionId === session.id));
+      } catch { /* leave last-known state on a transient fetch failure */ }
+    }
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [session.id]);
+  const live = liveStatus === 'live' || liveStatus === 'reconnecting' || watcherLive;
   async function saveRename() {
     if (savingName) return;
     setNameErr(null);

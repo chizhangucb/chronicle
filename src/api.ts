@@ -513,6 +513,11 @@ export const api = {
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
+  // Open live-watcher list (server/live.ts liveStatus()) — used to detect "a
+  // session in this project/view is live" from state that didn't necessarily
+  // originate from THIS tab's own EventSource (another tab, or a test's raw
+  // EventSource against the same session).
+  liveWatchers: (): Promise<{ sessionId: string; file?: string; clients: number; offset?: number }[]> => j('/api/live/status'),
   resolveSession: (id: string): Promise<ResolveSessionResult> => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project: number | string, ts: string): Promise<GitAtResult> =>
     j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
