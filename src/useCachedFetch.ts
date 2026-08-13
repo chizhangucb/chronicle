@@ -38,14 +38,46 @@ function fetchDeduped<T>(url: string): Promise<T> {
 // for the rest of the session, cache-clear or not.
 const listeners = new Set<() => void>();
 
+// Bumped by every `invalidateClientCache()` call. `load()` and `prefetch()`
+// each snapshot this at request-start and refuse to commit their response to
+// `cache`/component state if it's moved on by the time the response lands —
+// see the long comment on `invalidateClientCache()` for why this (not just
+// `inflight.clear()`, and not just the per-instance `epochRef`) is what
+// makes the "no pre-invalidation payload can land after it" invariant hold
+// for EVERY write path, including `prefetch()` (which has no epoch of its
+// own to be superseded by).
+let generation = 0;
+
 // Called from mutation paths (rename/delete/associate/unlink/…) that change
-// server state this cache might be holding stale copies of. Clearing the
-// whole map is deliberately simple/blunt — the server's own result cache
-// (Task 3) makes any resulting refill cheap, so there's no need for
-// per-entry/prefix invalidation bookkeeping. Every currently-mounted
-// `useCachedFetch` is also told to reload right away (see `listeners` above)
-// so already-open surfaces (not just future ones) pick up the change.
+// server state this cache might be holding stale copies of.
+//
+// This has to do three things, in this order, to be airtight against a
+// specific race: a GET for this same URL that was ALREADY in flight before
+// the mutation (e.g. ProjectDetail's `allProjects` fetch and ProjectPicker's
+// list fetch, both firing unconditionally on mount and deduped via
+// `fetchDeduped` to one shared, possibly-slow, Promise) must not be allowed
+// to land its PRE-mutation payload into the cache/UI after this call returns
+// — even though, thanks to `inflight` dedup, more than one live consumer may
+// already be chained onto that one Promise.
+//
+//  1. `generation++` — every in-flight request's `gen` snapshot (taken at
+//     its own `load`/`prefetch` call) is now stale, so its `.then` becomes a
+//     no-op no matter which Promise it happens to be chained to.
+//  2. `inflight.clear()` — forces every reload the `listeners` loop below
+//     triggers to issue a BRAND NEW request instead of `fetchDeduped` handing
+//     it the same pre-mutation Promise from step-0 (that Promise is now an
+//     orphan: still resolving, but nothing new attaches to it after this
+//     point, and everything already attached is covered by #1 and by each
+//     instance's own `epochRef`, bumped the moment its listener re-runs
+//     `load()`).
+//  3. `cache.clear()` + notify `listeners` — the actual refetch.
+//
+// Clearing the whole map (rather than per-URL bookkeeping) is deliberately
+// simple/blunt — the server's own result cache (Task 3) makes any resulting
+// refill cheap.
 export function invalidateClientCache(): void {
+  generation++;
+  inflight.clear();
   cache.clear();
   for (const notify of listeners) notify();
 }
@@ -82,6 +114,13 @@ export function useCachedFetch<T>(url: string): CachedFetchResult<T> {
 
   function load(forUrl: string) {
     const epoch = ++epochRef.current;
+    // Snapshot the invalidation generation at request-start (see
+    // `invalidateClientCache()`) — the response is only committed below if
+    // NEITHER guard has fired: `epoch` covers this instance being superseded
+    // by a newer/different load, `generation` covers the whole cache having
+    // been invalidated (and a new request already issued) while this
+    // specific request was still in flight.
+    const gen = generation;
     const hasSomethingToShow = cache.has(forUrl) || dataRef.current !== null;
     if (cache.has(forUrl)) {
       // A cache hit for the NEW url — show it immediately.
@@ -97,14 +136,14 @@ export function useCachedFetch<T>(url: string): CachedFetchResult<T> {
     setError(null);
     fetchDeduped<T>(forUrl)
       .then((json) => {
-        if (epochRef.current !== epoch) return; // superseded — ignore
+        if (epochRef.current !== epoch || generation !== gen) return; // superseded or invalidated mid-flight — ignore
         cache.set(forUrl, json);
         dataRef.current = json;
         setData(json);
         setStale(false);
       })
       .catch((err: unknown) => {
-        if (epochRef.current !== epoch) return; // superseded — ignore
+        if (epochRef.current !== epoch || generation !== gen) return; // superseded or invalidated mid-flight — ignore
         setStale(false);
         setError(err instanceof Error ? err.message : 'Failed to load');
       });
@@ -138,9 +177,17 @@ export function useCachedFetch<T>(url: string): CachedFetchResult<T> {
 // already in flight, via `fetchDeduped`); errors are swallowed since there's
 // no caller waiting on the result — the next real `useCachedFetch`/`prefetch`
 // call for this URL will just try again.
+//
+// `prefetch` has no per-call instance to own an `epochRef`, so it's the one
+// write path with nothing to supersede it on its own — the `generation`
+// snapshot/check is what stops a prefetch that was already in flight before
+// a rename/delete from writing that stale payload into the cache after the
+// fact (e.g. hover-prefetching the project list, then renaming before the
+// hover's GET resolves).
 export function prefetch(url: string): void {
   if (cache.has(url)) return;
+  const gen = generation;
   fetchDeduped(url)
-    .then((json) => { cache.set(url, json); })
+    .then((json) => { if (generation === gen) cache.set(url, json); })
     .catch(() => {});
 }
