@@ -132,6 +132,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [debounced, setDebounced] = useState('');
   const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
+  const [commitLoading, setCommitLoading] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
   // Which subagent's transcript the 'subagent' drill-in mode is showing (set by
   // OverviewMode's Subagents card; null when not drilled in). NOT part of the
@@ -253,15 +254,25 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
   const selected = messages.find((m) => m.seq === selectedSeq) || null;
 
-  // FR-TT-4: snapshot = nearest preceding commit for the selected message's time
+  // FR-TT-4: snapshot = nearest preceding commit for the selected message's
+  // time. `commitLoading` is set synchronously the moment a NEW selection
+  // starts a fetch and cleared only by the (non-stale) fetch that owns it —
+  // gitAt/gitTree/gitFile each shell out to `git` synchronously
+  // (server/git.ts execFileSync, blocking the whole Node event loop for the
+  // subprocess's duration), so on a big/busy repo a snapshot fetch can take
+  // a perceptible moment. Without this, the panel shows the PREVIOUS
+  // snapshot with no indication a new one is even coming — indistinguishable
+  // from "selecting a message doesn't drive the panel" (the reported P0).
   useEffect(() => {
     if (!data || !selected?.ts) return;
     let stale = false;
+    setCommitLoading(true);
     api.gitAt(data.project.id, selected.ts).then((r: { noRepo?: boolean; commit?: CommitInfo | null }) => {
       if (stale) return;
       if (r.noRepo) { setNoRepo(true); setCommit(null); }
       else { setNoRepo(false); setCommit(r.commit ?? null); }
-    }).catch(() => {});
+      setCommitLoading(false);
+    }).catch(() => { if (!stale) setCommitLoading(false); });
     return () => { stale = true; };
   }, [data, selectedSeq]);
 
@@ -377,7 +388,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             )}
             messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
             onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
-          <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} />
+          <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
         <Timeline messages={messages} commits={data.commits}
           currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />

@@ -30,11 +30,18 @@ export interface CodePanelProps {
   projectId: number;
   commit: Commit | null;
   noRepo?: boolean;
+  // True while SessionView's commit-fetch effect has an in-flight request
+  // for the CURRENT selection (see the effect's comment in SessionView.tsx):
+  // gitAt/gitTree/gitFile each block on a synchronous `git` subprocess, so a
+  // snapshot change can take a perceptible moment on a big/busy repo. Shown
+  // as a small spinner so the panel visibly acknowledges the click instead
+  // of silently sitting on the previous snapshot.
+  loading?: boolean;
 }
 
 // Code Snapshot Panel (FR-TT-3/4): file tree at the snapshot commit,
 // file content, diff toggle (toolbar + `D`), changed-file highlighting.
-export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps) {
+export default function CodePanel({ projectId, commit, noRepo, loading }: CodePanelProps) {
   const [tree, setTree] = useState<GitTree>({ files: [], changed: [] });
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [file, setFile] = useState<GitFile | null>(null);
@@ -107,8 +114,9 @@ export default function CodePanel({ projectId, commit, noRepo }: CodePanelProps)
             <span className="commit-subject">{commit.subject}</span>
             <span className="muted small commit-date">{new Date(commit.date).toLocaleString()}</span>
             {commit.beforeHistory && <span className="pill warn-pill">before first commit</span>}
+            {loading && <span className="muted small spin" title="Loading this snapshot…">◌</span>}
           </span>
-        ) : <span className="muted small">Select a message to load its code snapshot</span>}
+        ) : <span className="muted small">{loading ? 'Loading snapshot…' : 'Select a message to load its code snapshot'}</span>}
         <button className={`btn small ${diffMode ? 'primary' : ''}`}
           onClick={() => setDiffMode(!diffMode)} title="Toggle diff view (D)">± Diff</button>
       </div>

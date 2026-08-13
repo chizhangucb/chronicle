@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Kind } from '@shared/types.ts';
 
 // A timeline dot/tick — the minimal fields the ruler reads off a normalized
@@ -46,6 +46,25 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [dragging, setDragging] = useState(false);
+  // The playhead's rendered position while/after a click or drag ON THIS
+  // TRACK — a fraction 0..1, independent of which message ends up selected.
+  //
+  // Root cause this fixes (Task 7): `onSeek` always resolves to the NEAREST
+  // available message in time (seekTs in SessionView.tsx), which is
+  // unavoidable — you can't select a message that doesn't exist. But real
+  // sessions routinely have multi-hour gaps in activity (confirmed on
+  // Chronicle's own repo session 2391e843: a genuine 5h48m pause), and
+  // rendering the cursor at `pct(currentTs)` (the SELECTED message's own
+  // timestamp) means every click anywhere inside such a gap collapses onto
+  // whichever boundary message is nearest — a large, contiguous span of the
+  // track visually "stuck" regardless of where within it you click/drag.
+  // Tracking the raw interaction position instead makes the playhead follow
+  // the pointer across the WHOLE track, exactly like a normal scrubber;
+  // `scrubFrac` is cleared (falling back to the selected message's actual
+  // position) whenever the selection changes some OTHER way — e.g. clicking
+  // a message card in the chat pane — via the self-caused-update guard below.
+  const [scrubFrac, setScrubFrac] = useState<number | null>(null);
+  const selfCausedRef = useRef(false);
 
   const range: Range | null = useMemo(() => {
     const times = messages.map((m) => m.ts).filter((v): v is string => Boolean(v)).map((ts) => new Date(ts).getTime());
@@ -55,9 +74,17 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
     return { min, max: max === min ? min + 1 : max };
   }, [messages, commits]);
 
+  // currentTs changing WITHOUT this component having caused it (see `seek`
+  // below) means the selection moved via some other path — defer back to
+  // the newly selected message's own position.
+  useEffect(() => {
+    if (selfCausedRef.current) { selfCausedRef.current = false; return; }
+    setScrubFrac(null);
+  }, [currentTs]);
+
   if (!range) return null;
   const pct = (t: string | number) => ((new Date(t).getTime() - range.min) / (range.max - range.min)) * 100;
-  const cur = currentTs ? pct(currentTs) : 0;
+  const cur = scrubFrac !== null ? scrubFrac * 100 : (currentTs ? pct(currentTs) : 0);
 
   // Decimate ticks on huge sessions: keep every user dot visible up to 600,
   // thin AI/tool ticks to ~600 — commits always render.
@@ -66,15 +93,23 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   const thin = <T,>(arr: T[], cap: number): T[] => arr.length <= cap ? arr : arr.filter((_, i) => i % Math.ceil(arr.length / cap) === 0);
   const ticks = [...thin(users, 600), ...thin(others, 600)];
 
-  function tsFromEvent(e: { clientX: number }): number {
+  function fracFromEvent(e: { clientX: number }): number {
     const rect = ref.current!.getBoundingClientRect();
-    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    return range!.min + frac * (range!.max - range!.min);
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  }
+
+  // The one path every click/drag/keyboard seek on this track goes through:
+  // records the raw fraction for the playhead AND tells the parent which
+  // timestamp to resolve a message for.
+  function seek(frac: number): void {
+    selfCausedRef.current = true;
+    setScrubFrac(frac);
+    onSeek(range!.min + frac * (range!.max - range!.min));
   }
 
   function nudge(fraction: number) {
-    const cur = currentTs ? new Date(currentTs).getTime() : range!.min;
-    onSeek(Math.min(range!.max, Math.max(range!.min, cur + fraction * (range!.max - range!.min))));
+    const curFrac = scrubFrac !== null ? scrubFrac : (currentTs ? (new Date(currentTs).getTime() - range!.min) / (range!.max - range!.min) : 0);
+    seek(Math.min(1, Math.max(0, curFrac + fraction)));
   }
 
   return (
@@ -83,19 +118,20 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
       <div ref={ref} className="timeline" tabIndex={0} role="slider"
         aria-valuemin={range.min} aria-valuemax={range.max}
         aria-valuenow={currentTs ? new Date(currentTs).getTime() : range.min}
-        onPointerDown={(e) => { setDragging(true); e.currentTarget.setPointerCapture(e.pointerId); onSeek(tsFromEvent(e)); }}
+        onPointerDown={(e) => { setDragging(true); e.currentTarget.setPointerCapture(e.pointerId); seek(fracFromEvent(e)); }}
         onPointerMove={(e) => {
           const rect = ref.current!.getBoundingClientRect();
-          setHover({ x: e.clientX - rect.left, ts: tsFromEvent(e) });
-          if (dragging) onSeek(tsFromEvent(e));
+          const frac = fracFromEvent(e);
+          setHover({ x: e.clientX - rect.left, ts: range.min + frac * (range.max - range.min) });
+          if (dragging) seek(frac);
         }}
         onPointerUp={() => setDragging(false)}
         onPointerLeave={() => { setHover(null); setDragging(false); }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-0.01); }
           else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(0.01); }
-          else if (e.key === 'Home') { e.preventDefault(); onSeek(range.min); }
-          else if (e.key === 'End') { e.preventDefault(); onSeek(range.max); }
+          else if (e.key === 'Home') { e.preventDefault(); seek(0); }
+          else if (e.key === 'End') { e.preventDefault(); seek(1); }
         }}>
         <div className="tl-track" />
         {ticks.map((m) => (
