@@ -9,7 +9,11 @@ import { fileURLToPath } from 'node:url';
 // touched views never reintroduce a native dialog call.
 const FILES = [
   '../src/ProjectDetail.tsx',
-  '../src/HomePage.tsx',
+  // Home's ledger + project multi-select/rename were split out of the old
+  // HomePage into these files (Task 13); the inline-affordance guard follows.
+  '../src/RecentLedger.tsx',
+  '../src/ProjectsPage.tsx',
+  '../src/HomeDashboard.tsx',
   '../src/session/OverviewMode.tsx',
   '../src/SessionView.tsx',
 ];

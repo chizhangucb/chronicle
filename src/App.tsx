@@ -7,7 +7,8 @@ import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
-import HomePage from './HomePage.jsx';
+import HomeDashboard from './HomeDashboard.jsx';
+import ProjectsPage from './ProjectsPage.jsx';
 import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -46,6 +47,7 @@ export interface ProjectListItem extends Project {
 export default function App() {
   const [, navigate] = useLocation();
   const [atHome] = useRoute('/');
+  const [atProjects] = useRoute('/projects');
   const [atProject, projectParams] = useRoute('/project/:id');
   // Project sub-tabs (5e-4): Explore/Content are deep-linkable routes, but
   // ProjectDetail owns the actual tab logic (it re-reads these same routes
@@ -77,7 +79,7 @@ export default function App() {
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
-  useEffect(() => { if (atHome) refresh(); }, [atHome, refresh]);
+  useEffect(() => { if (atHome || atProjects) refresh(); }, [atHome, atProjects, refresh]);
 
   // Deep link: a `#session=<id>` hash resolves the owning project and
   // navigates to that session (used by external openers linking into the app).
@@ -115,7 +117,9 @@ export default function App() {
     });
   }
 
-  const inProjects = atHome || atProject || atSession || atProjExplore || atProjContent;
+  // Sidebar "Projects" highlights across every project-scoped route (the grid,
+  // a project's analytics, a session opened from one) — but not on Home.
+  const inProjectArea = atProjects || atProject || atSession || atProjExplore || atProjContent;
 
   return (
     <Toast.Provider swipeDirection="right">
@@ -128,8 +132,12 @@ export default function App() {
         </div>
 
         <nav className="sb-top">
-          <button className={`sb-item ${inProjects && !rail ? 'on' : ''}`} title={t('Projects')}
+          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title={t('Home')}
             onClick={() => navigate('/')}>
+            <span className="sb-icon">⌂</span><span className="sb-label">{t('Home')}</span>
+          </button>
+          <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title={t('Projects')}
+            onClick={() => navigate('/projects')}>
             <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
           </button>
           <button className={`sb-item ${atInsights ? 'on' : ''}`} title={t('Insights')} onClick={() => navigate('/insights')}>
@@ -205,8 +213,12 @@ export default function App() {
         </header>
 
         {atHome && (
-          <HomePage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
+          <HomeDashboard projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
+            onImport={() => setWizardOpen(true)} onRefresh={refresh} />
+        )}
+        {atProjects && (
+          <ProjectsPage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {atInsights && <InsightsPage />}

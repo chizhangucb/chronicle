@@ -1420,3 +1420,59 @@ h4 { margin: 6px 0; }
 .callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
 .callout.warn { border-left-color: var(--warn); }
 .note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
+
+/* ---- Home dashboard (Task 13): Insights-overview landing (`/`) ---- */
+/* The `.home-dash` zone (Today strip → Activity → Burn) sits above the reused
+   Recent-sessions ledger; the whole `.home-dashboard` is a `.page` scroll
+   container, so the dashboard zone stays compact and the ledger flows below. */
+.home-dashboard .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-4); margin-bottom: var(--gap-3); flex-wrap: wrap; }
+.home-dashboard .dash-head .page-title { margin: 0; }
+.home-dashboard .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.home-dashboard .rangebar button { border: 0; background: none; color: var(--ink-3); font: 12px var(--mono); padding: 3px 10px; border-radius: 6px; cursor: pointer; min-height: 24px; }
+.home-dashboard .rangebar button:hover { color: var(--ink); }
+.home-dashboard .rangebar button.on { background: var(--bg2); color: var(--brass-text); }
+.home-dashboard .recent-ledger { margin-top: var(--gap-5); border-top: 1px solid var(--border); padding-top: var(--gap-4); }
+
+/* Activity block: live now + since-you-left rows. */
+.activity-card { margin-top: 10px; }
+.activity-group + .activity-group { margin-top: var(--gap-3); }
+.activity-card .eyebrow { margin-bottom: var(--gap-1); }
+.activity-row { display: flex; align-items: center; gap: var(--gap-3); padding: 6px 8px; border-radius: 6px; cursor: pointer; font: 12px var(--mono); }
+.activity-row:hover { background: var(--bg2); }
+.activity-row .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.activity-row .live-dot.on { background: var(--ok); animation: pulse 1.6s infinite; }
+.ar-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ar-proj { flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-err { flex: none; color: var(--warn); font-variant-numeric: tabular-nums; }
+.ar-when { flex: none; }
+.ar-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Burn tile: current window spend vs baseline, with a comparison bar. */
+.burn-card { margin-top: 10px; }
+.burn-head { display: flex; align-items: center; gap: var(--gap-2); margin-bottom: var(--gap-2); }
+.burn-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-4); }
+.burn-now .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.burn-now .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.burn-card.warn .burn-now .v { color: var(--warn); }
+.burn-ratio { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); flex: none; }
+.burn-ratio.hot { color: var(--warn); }
+.burn-flag { font-size: 11px; font-weight: 500; }
+.burn-bar { position: relative; height: 6px; background: var(--bg2); border-radius: 3px; margin-top: var(--gap-3); }
+.burn-fill { height: 100%; border-radius: 3px; background: var(--brass); max-width: 100%; }
+.burn-fill.hot { background: var(--warn); }
+.burn-baseline { position: absolute; top: -2px; bottom: -2px; right: 0; width: 2px; background: var(--border-strong); }
+.burn-top { display: flex; align-items: center; gap: var(--gap-2); margin-top: var(--gap-3); padding-top: var(--gap-3); border-top: 1px solid var(--border); cursor: pointer; font: 12px var(--mono); }
+.burn-top:hover .bt-name { color: var(--brass-text); }
+.burn-top .eyebrow { flex: none; }
+.bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Projects grid (`/projects`) — the project cards moved off Home. Reuses the
+   `.rail-proj` card look in a responsive grid. */
+.projects-page .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--gap-3); }
+.projects-page .projects-grid .rail-proj { margin-bottom: 0; border: 1px solid var(--border); background: var(--bg1); }
+.projects-page .projects-grid .rail-proj:hover { background: var(--bg2); border-color: var(--border-strong); }
+.projects-page .sync { font: 11px var(--mono); color: var(--ink-3); }
+.projects-page .sync::before { content: "●"; color: var(--ok); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
+.projects-page .sync.running::before { color: var(--warn); animation: pulse 1.6s infinite; }
+.projects-page .sync.failed::before { color: var(--danger); animation: none; }

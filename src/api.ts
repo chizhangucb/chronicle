@@ -345,6 +345,26 @@ export interface InsightsResult {
 export interface LaneCModel { model: string; spend: number; requests: number; tokens: number; }
 export interface LaneCSpend { totalSpend: number; requests: number; byModel: LaneCModel[]; }
 
+// ---- Home dashboard activity feed (Task 13) — mirrors server/activity.ts ----
+// Every token figure is a per-model CELL; the client prices it via
+// models.ts costOf (the price table stays client-side — hard constraint).
+export interface ActivityTokenCell { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number; }
+export type ActivityTokensByModel = Record<string, ActivityTokenCell>;
+export interface ActivitySessionLite {
+  id: string; name: string; projectName: string; source: string;
+  live: boolean; endedAt: string | null;
+  tokensByModel: ActivityTokensByModel; errorCount: number;
+}
+export interface ActivityBurn {
+  windowSpendTokensByModel: ActivityTokensByModel;
+  baselineTokensByModel: ActivityTokensByModel;
+  topSessionId: string | null; topSessionName: string | null;
+  topSessionTokensByModel: ActivityTokensByModel;
+}
+export interface ActivityResult {
+  live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;
+}
+
 // ---- Explore / Content (Task 5e-0 backend engine) ----
 // These interfaces mirror server/explore.ts and server/content.ts VERBATIM —
 // keep them in sync if the server types change.
@@ -425,6 +445,13 @@ export function exploreUrl(q: ExploreQueryParams): string {
   if (q.topN) p.set('topN', String(q.topN));
   if (q.rollup && q.rollup !== 'total') p.set('rollup', q.rollup);
   return '/api/explore?' + p.toString();
+}
+export function activityUrl(since?: string | null, days?: number | null): string {
+  const p = new URLSearchParams();
+  if (since) p.set('since', since);
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/activity' + (qs ? `?${qs}` : '');
 }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
