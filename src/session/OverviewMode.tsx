@@ -123,6 +123,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const [savingName, setSavingName] = useState(false);
   const [nameErr, setNameErr] = useState<string | null>(null);
   function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
+  // Honest, simple live signal: the same SSE watcher status the source-file
+  // zone below already uses (live.status === 'live' or actively reconnecting
+  // counts — a temporary drop shouldn't flicker the dot off).
+  const live = liveStatus === 'live' || liveStatus === 'reconnecting';
   async function saveRename() {
     if (savingName) return;
     setNameErr(null);
@@ -268,7 +272,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       <div className="ov-name-row">
         {editing ? (
           <>
-            <span className="ov-title-icon">⬚</span>
+            <span className="ov-title-icon">▤</span>
             <input className="ov-name-input" autoFocus value={draft} disabled={savingName}
               placeholder={sessionDisplayName(session)}
               onChange={(e) => setDraft(e.target.value)}
@@ -280,8 +284,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           </>
         ) : (
           <>
-            <h3 className="ov-title">⬚ {sessionDisplayName(session)}</h3>
-            <button className="btn tiny ghost" title={t('Rename session')} onClick={startRename}>✎</button>
+            <h3 className="ov-title">▤ {sessionDisplayName(session)}</h3>
+            {live && <span className="live-dot on" title={t('This session is live')} aria-hidden="true" />}
+            <button className="btn tiny ghost" onClick={startRename}>✎ {t('Rename')}</button>
+            <InfoTip text={t("Renames in Chronicle only — independent of Claude Code's /rename")} />
           </>
         )}
       </div>
