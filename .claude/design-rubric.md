@@ -98,7 +98,11 @@ marked "layout-independent." Tag findings with the Batch B 8-category rubric AND
   are the only money/number formatters — 0dp grouped (`fmtMoney(n, 0)`) for KPIs/axes/summaries/
   bar labels, 2dp grouped (`fmtMoney(n, 2)`) for detail tables/tooltips/per-row cost. A raw
   `` `$${v}` `` template literal or a bare `.toFixed()` call on a money value anywhere in `src/`
-  is a P0 finding by construction (grep for it).
+  is a P0 finding by construction (grep for it) — **documented exception:** `fmtLaneC` in
+  `src/InsightsPage.tsx` (proxy-lane billed spend), which deliberately falls back to raw
+  `.toFixed(4)`/a literal `<$0.0001` string for sub-cent values, per its inline comment ("never
+  round a non-zero spend down to a misleading $0.00"); this is a known, comment-documented
+  carve-out, not a new finding — mirrors the `--heat-axis-offset` token carve-out below.
 - **`font:` shorthand trap.** Any CSS rule that sets the `font:` shorthand resets
   `font-variant-numeric` to `normal`; a rule combining `font:` with a numeric column MUST re-state
   `font-variant-numeric: tabular-nums;` as a trailing declaration in the same rule. Checkable by
@@ -220,9 +224,17 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Zero `window.prompt/confirm/alert`** in app code (`test/no-window-dialogs.test.mjs` guards
   it) — inline edit/confirm patterns only.
 - **Exactly one magnifier glyph `⌕`** across the app.
-- **One mono glyph vocabulary, no colored emoji** in chrome or page content: `⌕`=search
+- **Mono glyph vocabulary, no colored emoji, in chrome or page content.** The canonical set
+  (extend this list when adding a new one, don't invent a parallel vocabulary): `⌕`=search
   `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights `⚙`=settings
-  `⌫`=destructive; `✕`=close is distinct from `⌫`.
+  `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓`=causality (`src/session/MessageRow.tsx`)
+  `↶`/`↷`=undo/redo (`src/RefineMode.tsx`). This list is canonical but not exhaustive — any
+  other MONO glyph used consistently for one meaning is legitimate; a COLORED emoji is not, full
+  stop. **Known open item:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use`
+  to colored emoji (👤/💭/🔧), rendered in every Playback row via `src/session/MessageRow.tsx`
+  — a known, tracked gap (not a fix for this task; the C4 walk adjudicates whether to mono-ify
+  `KIND_ICON`, since it's a product call, not a rubric call). A walk judge should treat this as
+  the KNOWN gap, not report it as a novel finding, unless re-triaging it at C4.
 - **Design tokens only** — never re-tone `:root` (`--bg0/1/2`, `--border(-strong)`, `--ink/-2/-3`,
   `--brass(-text)`, `--ok/--warn/--danger`, `--c1..--c5`); a genuinely new token (like
   `--heat-axis-offset`) is a documented layout offset, not a color re-tone.
