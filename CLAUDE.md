@@ -18,12 +18,23 @@ npm run standalone # headless production server (npm run build + node server/sta
 npm run build      # vite build → dist/
 npm run typecheck  # tsc -b  (type gate — MUST exit 0)
 npm test           # node --test 'test/**/*.test.mjs'
+npm run test:e2e   # playwright test — E2E gate (function/overflow/data-scale/perf smoke)
+npm run walk       # node test/e2e/walk.mjs — release-walk capture (screenshots + probe JSON)
 ```
 
 `npx chronicle-cli` runs the published build (see **npm / npx** below). CI
-(`.github/workflows/ci.yml`) gates `main` + every PR on typecheck + test + build, on Node 24.
-Parsers are validated against fixtures in `test/fixtures/` plus real data end-to-end (see
-Verification below).
+(`.github/workflows/ci.yml`) gates `main` + every PR on typecheck + test + build, AND a
+Playwright E2E job (`npm run test:e2e`), on Node 24. The E2E job seeds a temp standalone
+server from a big fixture (120 subagents, 5000 messages —
+`test/fixtures/gen-big-session.mjs`) via `test/e2e/global-setup.ts`, then runs
+`test/e2e/*.spec.ts`: function smoke, the permanent Subagents=120 data-scale guard (the
+Overview Subagents card must show the RUN count, not the distinct-agent-type count), no
+horizontal overflow at the 3 reference widths (1024/1366/1728 — laptop / common desktop /
+wide desktop, `test/e2e/helpers.ts` `WIDTHS`), and a warm `/api/insights` perf floor. Run it
+locally the same way (`npm run test:e2e`); it builds `dist/` if missing, so first run is
+slower. `npm run walk` is a separate, non-assertive counterpart (see the design-QA section)
+for a full route walk against a real (not seeded) Chronicle instance. Parsers are validated
+against fixtures in `test/fixtures/` plus real data end-to-end (see Verification below).
 
 ## npm / npx
 
@@ -119,11 +130,18 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
 - **Top-bar Search + Import are global, not Home-only.** The `.topbar-right` 🔍 Search
   (⌘K palette) and "+ Import Sessions" render in EVERY view; import/search work from
   anywhere and refresh projects. Only the LIVE pill stays session-scoped.
-- **Home multi-select delete uses an inline confirm, never `window.confirm`.** `HomePage`
-  has a "Select" mode: cards become checkboxes (`selectMode`/`selected` Set), with
-  Select-all/Clear/Cancel + a danger "Remove (N)". Deletion is a two-step INLINE confirm
-  bar (`confirming` state) — NOT `window.confirm`, which is blocked in embedded/preview
-  browsers. It loops `api.deleteProject` (source logs untouched) then refreshes.
+- **Session multi-select delete uses an inline confirm, never `window.confirm`.** One shared
+  hook, `useSessionSelect` (`src/SessionSelect.tsx`), is mounted in BOTH the Home
+  recent-sessions ledger (`src/RecentLedger.tsx`, the last section of the `/` dashboard,
+  `src/HomeDashboard.tsx`) and the project session list (`src/ProjectDetail.tsx`). Rows become
+  checkboxes (`selectMode`/`selected` Set) with Select-all/Clear/Cancel + a danger
+  "Remove (N)"; deletion is a two-step INLINE confirm bar (`confirming` state) — NOT
+  `window.confirm`, which is blocked in embedded/preview browsers. It tombstones each
+  selected session server-side, then surfaces a 10s Undo toast that just forgets the
+  tombstone(s) and re-syncs the owning project(s) — the source log is never touched.
+  Per-project delete is separate and NOT bulk: a project card's dropdown menu
+  (`ProjectMenu` in `src/ProjectsPage.tsx`, the `/projects` grid) has its own one-at-a-time
+  inline-confirm "Remove from Chronicle" (`api.deleteProject`).
 - **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
   repo move keep the old path in early JSONL records; scanner and parser use the last
   seen cwd (where the repo and its Git history live now) and collapse subdirectory
@@ -250,8 +268,32 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   + Engaged (90-min cap), stored on sessions at import.
 - `server/scope.ts` · `explore.ts` · `content.ts` · `calibrate.ts` · `insights.ts` — the
   Insights engine (see the Insights/Explore/Content section above).
-- `src/App.tsx` — global sidebar (collapse in localStorage), URL routing (wouter), LIVE
-  pill, always-on top-bar Search/Import, `HomePage` multi-select delete flow.
+- `src/App.tsx` — global sidebar (collapse in localStorage), URL routing (wouter: `/`
+  `/projects` `/project/:id[/explore|/content]` `/session/:id` `/insights`), LIVE pill, the
+  topbar sync-status pill (`useSyncStatus` — "synced Xm ago" / "syncing…" / "sync failed
+  Xm ago", click-to-sync-now), always-on top-bar Search/Import.
+- `src/HomeDashboard.tsx` — the `/` home (Task 13, replaced the old `HomePage`): an
+  Insights-overview dashboard — Today/7d/30d KPI strip (shared `KpiStrip`), a Today-only
+  Activity block (live sessions + "since you left", via `server/routes/activity.ts`), a
+  Burn tile, then `RecentLedger` last. The project grid moved to its own route/component,
+  `/projects` (`src/ProjectsPage.tsx`).
+- `src/RecentLedger.tsx` — the recent-sessions ledger extracted from the old `HomePage`:
+  search box, day-grouping, lazy infinite scroll (`IntersectionObserver`), the
+  minor-sessions bucket, and session multi-select (`useSessionSelect`, see the Session
+  multi-select decision above). Mounted at the bottom of `HomeDashboard`.
+- `src/useCachedFetch.ts` — client stale-while-revalidate fetch layer (Task 5): a
+  module-level cache keyed by URL so a pane never blanks on a tab/param switch;
+  `invalidateClientCache()` (called from every mutation path) bumps a generation counter so
+  no pre-mutation response already in flight can land stale after it returns.
+- `server/cache.ts` — generation-keyed result cache for the heavy analytics routes
+  (insights/explore/content/per-project analytics); no TTL — correctness comes from
+  `invalidateCache()`, called at the end of every DB write path, not expiry.
+- `server/routes/activity.ts` — `/api/activity`, the Home dashboard feed (live +
+  since-you-left rows, the Burn tile), cached via `server/cache.ts`.
+- `shared/contextWindows.ts` — per-model context-window (max token) table, mirrored into
+  `shared/` (like `shared/types.ts`) so both the client (session Overview's context-used
+  gauge) and server (Content's `highContextRel` characteristic) compare against the same
+  numbers without hand-copy-pasted duplication.
 - `src/SessionView.tsx` — the core session view; registers modes (overview/playback/refine
   + Security Check, ⌘1–⌘3) into the sidebar via `onRailChange`; owns filtering, windowing,
   live SSE, causality panels, the breadcrumb session switcher, the `⇧⌘U` per-session sync
@@ -293,11 +335,14 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   don't render unbounded arrays (sessions reach 5k+ messages).
 - **npm-publish checklist** (order matters): bump `package.json` version FIRST → commit +
   push (a branch + PR) → merge, return to `main` → confirm `main` green
-  (`npm run typecheck && npm test && npm run build`) → `npm publish` (`prepublishOnly` gates
-  on typecheck+test; `prepack` builds `dist/` + `dist-server/`) → verify
-  `npm view chronicle-cli version` → clean-dir npx smoke (see npm / npx) → tag the bump
-  commit `git tag vX.Y.Z <commit> && git push origin vX.Y.Z` → `gh release create vX.Y.Z`.
-  Tag = `package.json` version = published version.
+  (`npm run typecheck && npm test && npm run build`) → run `npm run walk` against real data
+  (a real `~/.chronicle/chronicle.db`, not the seeded E2E fixture) and judge the captured
+  screenshots/probe JSON against `.claude/design-rubric.md`; **publish is blocked while any
+  P0/P1 finding is open** (fix or explicitly defer as P2 first) → `npm publish`
+  (`prepublishOnly` gates on typecheck+test; `prepack` builds `dist/` + `dist-server/`) →
+  verify `npm view chronicle-cli version` → clean-dir npx smoke (see npm / npx) → tag the
+  bump commit `git tag vX.Y.Z <commit> && git push origin vX.Y.Z` → `gh release create
+  vX.Y.Z`. Tag = `package.json` version = published version.
 - **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight to
   `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
   direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
@@ -439,6 +484,18 @@ aesthetic issues on a surface.
   them with real Playwright clicks or verify the underlying logic another way. Uncommon glyphs:
   confirm they render (not tofu) by pixel-signature diff against a private-use missing char (width
   fails on a monospace font — every glyph is one cell wide).
+- **Two scripted counterparts to the manual loop above, for when you're not hand-driving
+  Playwright.** `npm run test:e2e` (`test/e2e/*.spec.ts`, gated in CI on every PR — see
+  Commands) is the PERMANENT regression suite: function smoke, the Subagents=120 data-scale
+  guard, and no-overflow assertions at the 3 reference widths, all against the seeded big
+  fixture — it fails the build, it doesn't just report. `npm run walk`
+  (`test/e2e/walk.mjs`) is the opposite shape: a standalone (non-Playwright-test) script that
+  walks every route/mode at the same 3 widths against a REAL Chronicle instance (your own
+  `~/.chronicle/chronicle.db`, not the seeded fixture) and writes a screenshot +
+  overflow/popover-clip/tabular-nums/console-error probe report per page plus one aggregate
+  `walk-report.json` — it never asserts/fails, it captures evidence for a human (or an
+  agent) to JUDGE against `.claude/design-rubric.md` before a release (see the npm-publish
+  checklist).
 - **App-wide invariants (must not regress; grep to confirm):** ZERO `window.prompt/confirm/alert` in
   app code (blocked in embedded browsers — use inline edit/confirm; `test/no-window-dialogs.test.mjs`
   guards it) · exactly ONE magnifier glyph `⌕` · one mono glyph vocabulary, no colored emoji in chrome
@@ -447,7 +504,16 @@ aesthetic issues on a surface.
   policy via `src/format.ts` (`fmtInt`/`fmtMoney(dp)`/`pluralize`): 0dp grouped for KPIs/axes/
   summaries/bar labels, 2dp grouped for detail tables/tooltips/per-row cost — never a raw
   `` `$${v}` ``/`toFixed` money template · design tokens only (never re-tone `:root`; the only new var
-  the batch added was `--heat-axis-offset`, a layout offset not a color).
+  the batch added was `--heat-axis-offset`, a layout offset not a color). **`▤` vs `⬚`
+  (post-C3 clarification):** `▤` now means session/chat everywhere on the content side (search
+  results, session pickers, the `▤ N sessions` import-wizard summary — `src/ImportWizard.tsx`,
+  `src/ProjectDetail.tsx`, `src/SearchModal.tsx`); `⬚` is reserved ONLY as the sidebar's
+  Overview mode icon (`src/SessionView.tsx`) — don't reuse `⬚` elsewhere, and don't use `▤`
+  for the sidebar Overview item. **Known tracked gap, not fixed here:** `src/kinds.ts`
+  `KIND_ICON` still maps `user`/`thinking`/`tool_use` to colored emoji (👤/💭/🔧), rendered
+  in every Playback row (`src/session/MessageRow.tsx`) — mono-ifying it is a product call on
+  the replacement glyphs (not a rubric violation to silently fix), tracked as CHI-192 and
+  deliberately deferred past this program.
 - **CSS-cascade traps that are invisible to typecheck/tests/build (a rendering click-through won't
   catch them either — only a combined-diff read does):** (1) the `font:` shorthand RESETS
   `font-variant-numeric` to `normal`, silently killing `tabular-nums` on any rule that sets `font: …`
