@@ -139,6 +139,7 @@ const zh = {
   'sessions removed': '个会话已移除',
   'From Chronicle only — source logs untouched.': '仅从 Chronicle 中移除——源日志不受影响。',
   'Minor sessions': '次要会话',
+  'Select minor sessions': '选择次要会话',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '简短、活跃度低的会话不会出现在主列表中——可以提升以恢复，或忽略以永久移除。',
   'Promote': '提升',
@@ -636,6 +637,7 @@ const ja = {
   'sessions removed': '件のセッションを削除しました',
   'From Chronicle only — source logs untouched.': 'Chronicle からのみ削除されました — 元のログは変更されません。',
   'Minor sessions': 'マイナーセッション',
+  'Select minor sessions': 'マイナーセッションを選択',
   'Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.':
     '短くて活動の少ないセッションはメインリストに表示されません — 昇格で復元、または無視で完全に削除できます。',
   'Promote': '昇格',

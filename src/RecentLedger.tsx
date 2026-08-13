@@ -171,6 +171,20 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
   const groups = useMemo(() => groupByDay(recentSessions ?? []), [recentSessions]);
 
+  // Minor (noise-gated) sessions never appear in `recentSessions` above (the
+  // "recent" search branch excludes them — server/routes/search.ts), so the
+  // count lives up here too: it drives BOTH the "Select minor sessions"
+  // quick-select and the bucket panel below, off one shared fetch/refresh.
+  const [minorItems, setMinorItems] = useState<MinorSession[] | null>(null);
+  const loadMinor = () => api.minorSessions().then(setMinorItems).catch(() => setMinorItems([]));
+  useEffect(() => { loadMinor(); }, []);
+
+  function selectMinorSessions() {
+    if (!minorItems || !minorItems.length) return;
+    if (!recentSelect.selectMode) recentSelect.enterSelect();
+    recentSelect.setMany(minorItems.map((m) => m.id), true);
+  }
+
   return (
     <section className="recent-ledger">
       <div className="home-search">
@@ -181,6 +195,11 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
       <div className="page-title-row">
         <h2 className="page-title">{t('Recent sessions')}</h2>
         <div className="page-title-actions">
+          {!!minorItems?.length && (
+            <button className="btn small ghost minor-quick-select" onClick={selectMinorSessions}>
+              {t('Select minor sessions')} ({minorItems.length})
+            </button>
+          )}
           {recentSelect.Bar}
         </div>
       </div>
@@ -189,36 +208,51 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
         <span>{t('Session')}</span><span>{t('Project')}</span><span className="num-col">{t('Cost')}</span>
         <span className="num-col">{t('Active')}</span><span className="num-col">{t('Msgs')}</span><span className="ts-col">{t('When')}</span>
       </div>
-      {groups.map((g) => (
-        <section className="day" key={g.label}>
-          <div className="day-head"><span className="d">{g.label}</span>
-            {g.sum && (
-              <span className="sum">
-                {pluralize(g.sum.count, t('session'), t('sessions'))}{g.sum.cost != null && ` · ${fmtMoney(g.sum.cost, 2)}`}
-              </span>
-            )}</div>
-          {g.rows.map((s) => (
-            <div key={s.id} className={`row ${recentSelect.selectMode ? 'selectable' : ''} ${recentSelect.isSelected(s.id) ? 'selected' : ''}`}
-              onClick={() => (recentSelect.selectMode ? recentSelect.toggle(s.id) : onOpenSession?.(s.id, s.project_id))}>
+      {groups.map((g) => {
+        const ids = g.rows.map((r) => r.id);
+        const selectedCount = ids.filter((id) => recentSelect.isSelected(id)).length;
+        const dayAllSelected = ids.length > 0 && selectedCount === ids.length;
+        const dayIndeterminate = selectedCount > 0 && !dayAllSelected;
+        return (
+          <section className="day" key={g.label}>
+            <div className="day-head">
               {recentSelect.selectMode && (
-                <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" checked={recentSelect.isSelected(s.id)}
-                    onChange={() => recentSelect.toggle(s.id)} aria-label={t('Select session')} />
-                </div>
+                <label className="daycheck" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={dayAllSelected}
+                    ref={(el) => { if (el) el.indeterminate = dayIndeterminate; }}
+                    onChange={() => recentSelect.setMany(ids, !dayAllSelected)}
+                    aria-label={`${t('Select')} ${g.label}`} />
+                </label>
               )}
-              <div className="title"><div className="t">{sessionDisplayName(s)}</div>
-                <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
-              <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
-              <div className="m num-col"><b>{costLabel(s)}</b></div>
-              <div className="m num-col">{activeLabel(s)}</div>
-              <div className="m num-col"><b>{msgsLabel(s)}</b></div>
-              <div className="m ts-col">{whenLabel(s)}</div>
-            </div>
-          ))}
-        </section>
-      ))}
+              <span className="d">{g.label}</span>
+              {g.sum && (
+                <span className="sum">
+                  {pluralize(g.sum.count, t('session'), t('sessions'))}{g.sum.cost != null && ` · ${fmtMoney(g.sum.cost, 2)}`}
+                </span>
+              )}</div>
+            {g.rows.map((s) => (
+              <div key={s.id} className={`row ${recentSelect.selectMode ? 'selectable' : ''} ${recentSelect.isSelected(s.id) ? 'selected' : ''}`}
+                onClick={() => (recentSelect.selectMode ? recentSelect.toggle(s.id) : onOpenSession?.(s.id, s.project_id))}>
+                {recentSelect.selectMode && (
+                  <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={recentSelect.isSelected(s.id)}
+                      onChange={() => recentSelect.toggle(s.id)} aria-label={t('Select session')} />
+                  </div>
+                )}
+                <div className="title"><div className="t">{sessionDisplayName(s)}</div>
+                  <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
+                <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
+                <div className="m num-col"><b>{costLabel(s)}</b></div>
+                <div className="m num-col">{activeLabel(s)}</div>
+                <div className="m num-col"><b>{msgsLabel(s)}</b></div>
+                <div className="m ts-col">{whenLabel(s)}</div>
+              </div>
+            ))}
+          </section>
+        );
+      })}
       {isRecentMode && hasMore && <div ref={sentinelRef} className="ledger-sentinel" aria-hidden="true" />}
-      <MinorSessionsBucket onRefresh={onRefresh} />
+      <MinorSessionsBucket items={minorItems} onRefresh={() => { loadMinor(); onRefresh(); }} />
       {recentSelect.Toast}
     </section>
   );
@@ -242,21 +276,20 @@ interface MinorSession {
   project_name: string;
 }
 
-function MinorSessionsBucket({ onRefresh }: { onRefresh: () => void }) {
+// `items`/`onRefresh` are owned by RecentLedger (shared with the "Select
+// minor sessions" quick-select above, which needs the same list/count) —
+// this component is just the expand/promote/ignore panel over them.
+function MinorSessionsBucket({ items, onRefresh }: { items: MinorSession[] | null; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<MinorSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-
-  const load = () => api.minorSessions().then(setItems).catch(() => setItems([]));
-  useEffect(() => { load(); }, []);
 
   async function promote(id: string) {
     setBusy(id);
-    try { await api.promoteSession(id); await load(); onRefresh(); } finally { setBusy(null); }
+    try { await api.promoteSession(id); onRefresh(); } finally { setBusy(null); }
   }
   async function ignore(id: string) {
     setBusy(id);
-    try { await api.deleteSession(id); await load(); onRefresh(); } finally { setBusy(null); }
+    try { await api.deleteSession(id); onRefresh(); } finally { setBusy(null); }
   }
 
   if (!items || !items.length) return null;

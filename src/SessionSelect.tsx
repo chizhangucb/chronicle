@@ -34,6 +34,11 @@ export interface UseSessionSelect {
   isSelected: (id: string) => boolean;
   toggle: (id: string) => void;
   enterSelect: () => void;
+  // Bulk add/remove a whole set of ids at once — e.g. a day-group header
+  // checkbox (select/clear exactly that day's visible rows) or a quick-select
+  // shortcut (e.g. Home's "Select minor sessions"). Generic on purpose so it
+  // stays reusable beyond the ids in the `sessions` list passed in above.
+  setMany: (ids: string[], value: boolean) => void;
   Bar: React.ReactNode;
   Toast: React.ReactNode;
 }
@@ -70,6 +75,14 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setConfirming(false);
+  }
+  function setMany(ids: string[], value: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) { if (value) next.add(id); else next.delete(id); }
       return next;
     });
     setConfirming(false);
@@ -162,5 +175,5 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     </Toast.Root>
   ) : null;
 
-  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, Bar, Toast: UndoToast };
+  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, setMany, Bar, Toast: UndoToast };
 }
