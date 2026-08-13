@@ -29,6 +29,14 @@
   --overlay-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   --ease-hover: 120ms ease-out;
   --ease-overlay: 200ms ease-out;
+
+  /* Spacing scale (C2 layout system, .claude/design-rubric.md) — label↔value
+     and item↔item gaps draw from these 5 steps, not arbitrary px values. */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
 }
 
 /* Light twin — authored so a future light theme is cheap to wire (a
@@ -58,6 +66,15 @@ body {
 /* PR1 tabular-nums utility — use on any numeric cell not already covered by
    `.num`/`.mono` or one of the specific selectors extended below. */
 .tabnum { font-variant-numeric: tabular-nums; }
+
+/* C2 layout-system policy classes (.claude/design-rubric.md § Alignment /
+   Container policy). Use these instead of hand-rolling the same rules at a
+   call site. NOTE the `font:` shorthand trap: if a rule combining `font:`
+   with one of these needs tabular-nums, re-declare `font-variant-numeric`
+   as a TRAILING declaration in that rule (the shorthand resets it). */
+.num-col { text-align: right; font-variant-numeric: tabular-nums; }
+.ts-col { text-align: right; width: 9ch; overflow: hidden; white-space: nowrap; }
+.pane { min-width: 0; overflow: auto; }
 .eyebrow {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--ink-3);

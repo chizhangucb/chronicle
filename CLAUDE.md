@@ -400,6 +400,27 @@ aesthetic issues on a surface.
   typography), `dataviz` (charts/heatmaps/stat tiles), and `ui-ux-pro-max` are good at *producing*
   UI, but they're generic — they don't know Chronicle's house style and won't catch Chronicle
   regressions. The house style + the checks below are what keep a change on-system.
+- **Canonical rubric: `.claude/design-rubric.md`.** Checked-in (repo-local, NOT `docs/` — that
+  publishes to the public site), distilled once (C2 Task 11) from the three design skills above +
+  this section's 8 categories + the quality-pass spec's **4 lenses** — function, responsiveness,
+  data-scale, product completeness (does it work? does it hold up at every width? does it survive
+  a big/real dataset? does it deliver what the spec promised?). It is the judge input for release
+  product walks (C4 Task 19 scores screenshots/probes against it) and holds, in full, checkable
+  form: a per-surface checklist, the alignment/container/popover policies, the spacing scale
+  (`--gap-1..--gap-5` = 4/8/12/16/24px; shared classes `.num-col`/`.ts-col`/`.pane` in
+  `src/styles.css`), chart rules, and the P0/P1/P2 severity rubric (publish blocks on open
+  P0/P1). Reach for it instead of re-deriving these rules ad hoc; extend IT when a new rule is
+  needed, not a one-off call site.
+- **Three reference widths — 1024 / 1366 / 1728** (`test/e2e/helpers.ts` `WIDTHS`, spec §4): every
+  surface must show no horizontal scroll, no element crossing the viewport, no clipped popover at
+  all three. **Popover policy** (validated against Radix `Popover.Content` docs, Task 9 — see
+  `src/InfoTip.tsx`): `avoidCollisions` is a single switch for BOTH axes, not align-only, so it
+  stays `false` always with `side="bottom"` always; horizontal shift-to-stay-in-viewport is done
+  manually (an unanimated clamp wrapper, since the entrance animation's `transform` would
+  otherwise outrank an inline one on the same element) — never let Radix flip a popover upward.
+  Full policy detail (alignment: numerics right + tabular-nums, timestamps in a fixed `.ts-col`;
+  container: no fixed-px content panes, `min-width: 0` on scrollable flex/grid children) lives in
+  the rubric file above.
 - **The 8-category design-QA rubric** (tag every finding with one; most fixes are cross-cutting):
   **NUM** numeric alignment/format (right-aligned + `tabular-nums`, one currency/precision) ·
   **DEDUP** no stat shown twice with unclear difference · **SPACE** no run-together label+value,
