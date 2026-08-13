@@ -36,7 +36,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { readSeedState, WIDTHS } from './helpers.ts';
 
 const state = readSeedState();
 
@@ -296,4 +296,98 @@ test('selecting via the timeline also updates the code-snapshot panel', async ({
 
   await clickTrackAt(page, rect, 0.98);
   await expect(commitPill).not.toHaveText(commitBefore ?? '');
+});
+
+// ── Task 8: right-panel clipping + resizable panes (spec §2.3) ────────────
+//
+// Pre-fix, the chat pane's `width: 44%` + the code pane's fixed-250px file
+// tree + the code-view `<pre>`'s unconstrained intrinsic width (no
+// `min-width: 0` on any of the three flex/grid items) push the code-view
+// past the right edge of the viewport at narrower reference widths — it's
+// clipped, not scrollable. The fix moves `.panes` to a CSS Grid
+// (`minmax(280px,1fr) minmax(200px,0.6fr) minmax(320px,1.6fr)`, nested so
+// the file-tree/code-view ratio lives inside `.code-body`) with
+// `min-width: 0` on every pane so overflow is absorbed by each pane's own
+// scrollbar instead of pushing the layout wider than the window.
+
+async function overflowingElements(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const vw = window.innerWidth;
+    return [...document.querySelectorAll('.session-view *')]
+      .filter((el) => el.getBoundingClientRect().right > vw + 0.5)
+      .map((el) => {
+        const cls = typeof el.className === 'string' ? el.className : '';
+        return `${el.tagName.toLowerCase()}${cls ? '.' + cls.split(' ').join('.') : ''}`;
+      });
+  });
+}
+
+for (const width of WIDTHS) {
+  test(`no element in the playback view overflows the viewport at ${width}px wide`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await gotoFixturePlayback(page);
+    const overflowing = await overflowingElements(page);
+    expect(overflowing, `elements clipped past the ${width}px viewport edge: ${overflowing.join(', ')}`).toEqual([]);
+  });
+}
+
+test('dragging the chat/right-group divider resizes the chat pane and the split persists across reload', async ({ page }) => {
+  await gotoFixturePlayback(page);
+
+  const handle = page.locator('.pane-handle');
+  await expect(handle).toBeVisible();
+  const handleBox = await handle.boundingBox();
+  if (!handleBox) throw new Error('drag handle has no bounding box');
+  // House-rule check: the handle's own interactive box must meet the ≥24px
+  // target minimum (its visible line is much thinner; the hit area is
+  // widened via CSS, not by fattening the visible divider).
+  expect(handleBox.width, 'drag handle interactive width must be >= 24px').toBeGreaterThanOrEqual(24);
+
+  const convBefore = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+
+  const startX = handleBox.x + handleBox.width / 2;
+  const startY = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 160, startY, { steps: 5 });
+  await page.mouse.up();
+
+  const convAfterDrag = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(convAfterDrag - convBefore, 'dragging the handle right must widen the chat pane').toBeGreaterThan(100);
+
+  // Persistence: a fresh navigation (simulating a reload) must restore the
+  // dragged split from localStorage rather than resetting to the default.
+  await page.reload();
+  await page.locator('button[title^="Playback"]').click();
+  await expect(page.locator('.timeline')).toBeVisible();
+  const convAfterReload = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(Math.abs(convAfterReload - convAfterDrag), 'persisted split must survive reload').toBeLessThan(5);
+});
+
+test('dragging the divider down to its floor does not reopen the clipping bug', async ({ page }) => {
+  // Regression guard for a bug caught in self-review: `.conv-pane`'s base
+  // rule carries an explicit `min-width: 360px` (for the non-grid subagent
+  // layout), which — unlike an *automatic* min-width — is NOT zeroed by
+  // `overflow: auto` and so would fight the grid track's own
+  // `minmax(280px, …)` floor if left in place for the playback grid,
+  // overflowing the track (and the viewport) once a drag took the chat
+  // column below 360px. `.pb-grid > .conv-pane` explicitly resets
+  // `min-width: 0` to fix this; this test drags well past that boundary.
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await gotoFixturePlayback(page);
+  const handle = page.locator('.pane-handle');
+  const handleBox = await handle.boundingBox();
+  if (!handleBox) throw new Error('drag handle has no bounding box');
+
+  const startX = handleBox.x + handleBox.width / 2;
+  const startY = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 400, startY, { steps: 5 }); // clamped down to the 280px floor
+  await page.mouse.up();
+
+  const overflowing = await overflowingElements(page);
+  expect(overflowing, `elements clipped after dragging to the split floor: ${overflowing.join(', ')}`).toEqual([]);
+  const convWidth = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(convWidth, 'chat pane must clamp at its 280px floor, not overflow past it').toBeLessThan(300);
 });
