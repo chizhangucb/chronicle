@@ -152,6 +152,8 @@ export interface Message {
   model: string | null;
   is_sidechain: 0 | 1;
   agent_type: string | null;
+  workflow_id: string | null;
+  agent_id: string | null;
   skill: string | null;
   input_tokens: number | null;
   output_tokens: number | null;

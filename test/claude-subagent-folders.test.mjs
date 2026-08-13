@@ -22,6 +22,7 @@ import {
   FIXTURE_DIRECT_SUBAGENT_COUNT,
 } from './fixtures/gen-big-session.mjs';
 import { parseClaudeSession, scanClaudeProjects } from '../server/parsers/claudeCode.ts';
+import { subagentRunCount } from '../src/session/stats.ts';
 
 const tmpDirs = [];
 function makeTmpDir() {
@@ -184,6 +185,45 @@ describe('parseClaudeSession — subagent folder ingestion (big fixture, 120 age
   });
 });
 
+describe('parseClaudeSession — per-run agent_id (Overview Subagents card header is run-level, not type-level)', () => {
+  test('every file-based subagent event carries a non-null agent_id, and the fixture yields exactly 120 distinct ids', async () => {
+    const dir = makeTmpDir();
+    const { mainFile } = generateBigSession(dir);
+    const { events } = await parseClaudeSession(mainFile);
+    const sidechainEvents = events.filter((e) => e.is_sidechain === 1);
+    assert.ok(sidechainEvents.length > 0);
+    for (const e of sidechainEvents) assert.ok(e.agent_id, `sidechain event uuid=${e.uuid} missing agent_id`);
+    const distinctIds = new Set(sidechainEvents.map((e) => e.agent_id));
+    assert.equal(distinctIds.size, FIXTURE_SUBAGENT_COUNT);
+  });
+
+  test('agent_id is the hex id from the file name (agent-<hex>.jsonl), not the meta.json agentType', async () => {
+    const dir = makeTmpDir();
+    const { mainFile, sessionId } = generateBigSession(dir);
+    const sessionDir = path.join(path.dirname(mainFile), sessionId);
+    const workflowDir = path.join(sessionDir, 'subagents', 'workflows', 'wf_fixture01');
+    const oneFile = findFiles(workflowDir, /^agent-.*\.jsonl$/)[0];
+    const expectedId = path.basename(oneFile).replace(/^agent-/, '').replace(/\.jsonl$/, '');
+    const firstUuid = firstLineJSON(oneFile).uuid;
+
+    const { events } = await parseClaudeSession(mainFile);
+    const e = events.find((ev) => ev.uuid === firstUuid);
+    assert.ok(e);
+    assert.equal(e.agent_id, expectedId);
+  });
+
+  test('stats-level: subagentRunCount (the Overview Subagents card header source) returns 120 for the fixture session', async () => {
+    const dir = makeTmpDir();
+    const { mainFile } = generateBigSession(dir);
+    const { events } = await parseClaudeSession(mainFile);
+    // subagentRunCount is exactly what OverviewMode.tsx feeds the card
+    // header — testing it directly against the parser's real output is the
+    // "without a browser" equivalent of the UI assertion.
+    assert.equal(subagentRunCount(events), FIXTURE_SUBAGENT_COUNT);
+    assert.equal(subagentRunCount(events), 120);
+  });
+});
+
 describe('parseClaudeSession — dedup by uuid against inline sidechain entries', () => {
   test('a subagent-file line whose uuid already appeared in the main file is not double-counted', async () => {
     const dir = makeTmpDir();
@@ -197,8 +237,10 @@ describe('parseClaudeSession — dedup by uuid against inline sidechain entries'
     const mainLines = [
       { type: 'user', sessionId, cwd: '/tmp/dedup-proj', uuid: 'u0', timestamp: '2026-08-01T00:00:00.000Z', message: { role: 'user', content: 'hi' } },
       // Inline sidechain entry that ALSO exists (duplicated) in the agent file below.
+      // Carries the same agentId 'ag1' the file's own name will resolve to, matching
+      // real Claude Code logs where a duplicated line keeps its agentId either place.
       {
-        type: 'assistant', sessionId, isSidechain: true, uuid: 'dup1', timestamp: '2026-08-01T00:00:05.000Z',
+        type: 'assistant', sessionId, isSidechain: true, agentId: 'ag1', uuid: 'dup1', timestamp: '2026-08-01T00:00:05.000Z',
         message: { model: 'm', content: [{ type: 'text', text: 'duplicated sidechain line' }] },
       },
     ];
@@ -225,6 +267,12 @@ describe('parseClaudeSession — dedup by uuid against inline sidechain entries'
     assert.ok(events.some((e) => e.uuid === 'new1'), 'genuinely new subagent line must still be ingested');
     const sidechainEvents = events.filter((e) => e.is_sidechain === 1);
     assert.equal(sidechainEvents.length, 2, 'exactly 2 distinct sidechain events (dup1 once + new1)');
+
+    // Run-count must not be inflated by the dedup: 'dup1' (kept from the main
+    // file, stamped agent_id 'ag1' via its own inline agentId field) and
+    // 'new1' (kept from the agent file, stamped agent_id 'ag1' from the file
+    // name) both belong to the SAME run — subagentRunCount must report 1, not 2.
+    assert.equal(subagentRunCount(events), 1);
   });
 });
 

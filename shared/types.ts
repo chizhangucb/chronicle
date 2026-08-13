@@ -60,6 +60,14 @@ export interface Event {
   // (subagents/workflows/wf_*/agent-*.jsonl); null for a direct subagent
   // (subagents/agent-*.jsonl) or a non-sidechain event.
   workflow_id?: string | null;
+  // Per-RUN identifier for a sidechain event: the hex id in a subagent
+  // file's own name (agent-<hex>.jsonl) for file-based subagents, or the
+  // line's own `agentId` field for an inline sidechain entry. Distinct from
+  // `agent_type`, which only names the KIND of subagent (many runs can share
+  // one type) — this is what the Overview Subagents card header counts.
+  // Null for a non-sidechain event, or an older import that predates this
+  // column.
+  agent_id?: string | null;
   skill?: string | null;
   // Per-message token usage (one API call's numbers on the first event of the line).
   input_tokens?: number | null;

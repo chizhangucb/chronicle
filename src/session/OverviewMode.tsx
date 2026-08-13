@@ -10,7 +10,7 @@ import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWrite
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
   FRIENDLY_CALL, DELETABLE_SOURCES, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
-  fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput, subagentRuns,
+  fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
 import type { PlaybackMessage } from './MessageRow.tsx';
 import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
@@ -235,7 +235,12 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   // (this component's prop) already has sidechain rows stripped out by
   // SessionView, but subagent turns ARE sidechain rows, so the raw
   // `data.messages` is the only place they still exist.
+  // Detail rows still group by agent_type (subagents), but the header count
+  // is run-level (subagentRunCount, distinct agent_id) — many runs can share
+  // one agent_type, so a type-group count understates how many subagents
+  // actually ran.
   const subagents = useMemo(() => subagentRuns(data.messages), [data.messages]);
+  const subagentRunTotal = useMemo(() => subagentRunCount(data.messages), [data.messages]);
 
   const costSeries = useMemo(() => cumulativeCostSeries(messages, usageByModel), [messages, usageByModel]);
   const toolMix = useMemo(() => toolMixSorted(messages), [messages]);
@@ -470,7 +475,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
         {subagents.length > 0 && (
           <div className="card">
-            <h3>{t('Subagents')} · {subagents.length}</h3>
+            <h3>{t('Subagents')} · {subagentRunTotal}</h3>
             {subagents.map((r) => (
               <div key={r.agentType} className="trow subagent-row"
                 role="button" tabIndex={0}

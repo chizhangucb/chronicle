@@ -58,6 +58,10 @@ interface ClaudeLine {
   message?: ClaudeMessage;
   customTitle?: string;
   summary?: string;
+  // Per-agent id Claude Code stamps on inline sidechain lines (matches the
+  // hex id in a subagent file's own name, agent-<hex>.jsonl, when that agent
+  // was ALSO written to its own file).
+  agentId?: string;
 }
 
 // Sidecar written next to a subagent transcript file (agent-<hex>.meta.json).
@@ -232,6 +236,15 @@ function readAgentMeta(agentFile: string): AgentMeta | null {
   }
 }
 
+// The per-run identifier for a subagent transcript file: the hex id in
+// agent-<hex>.jsonl. This is the run-level key the Overview Subagents card
+// header counts (distinct agent_id), as opposed to agent_type which only
+// distinguishes the KIND of subagent, not each individual run.
+function agentIdFromFile(agentFile: string): string | null {
+  const m = path.basename(agentFile).match(/^agent-(.+)\.jsonl$/);
+  return m ? m[1] : null;
+}
+
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
 export function parseClaudeLine(o: ClaudeLine): Event[] {
   const events: Event[] = [];
@@ -374,6 +387,10 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       }
       uuidAgentType.set(o.uuid as string, at ?? null);
       if (at) for (const e of lineEvents) e.agent_type = at;
+      // Run-level id: stamp straight from the line's own `agentId` field when
+      // present (no propagation needed — Claude Code writes it on every line
+      // of a given run). Left null when absent (older logs).
+      if (o.agentId) for (const e of lineEvents) e.agent_id = o.agentId;
     }
     let usageAttached = o.type !== 'assistant' || !o.message?.usage;
     for (const e of lineEvents) {
@@ -423,6 +440,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
   for (const ref of listAgentFiles(subagentsDir)) {
     const meta = readAgentMeta(ref.file);
     const metaAgentType = typeof meta?.agentType === 'string' && meta.agentType ? meta.agentType : null;
+    const fileAgentId = agentIdFromFile(ref.file);
     let agentType: string | null | undefined;
     const subEvents: Event[] = [];
     const srl = readline.createInterface({ input: fs.createReadStream(ref.file), crlfDelay: Infinity });
@@ -447,6 +465,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       for (const e of lineEvents) {
         e.is_sidechain = 1;
         e.workflow_id = ref.workflowId;
+        e.agent_id = fileAgentId; // run-level id, from the file's own name — not the line's agentId field
         if (agentType) e.agent_type = agentType;
         if (!usageAttached && o.message?.usage) {
           attachPerEventUsage(e, o.message.usage);

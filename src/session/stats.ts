@@ -23,9 +23,10 @@ export interface StatMessage {
   tool_use_id?: string | null;
   model?: string | null;
   seq?: number;
-  // Sidechain (subagent) rows — see subagentRuns() below.
+  // Sidechain (subagent) rows — see subagentRuns()/subagentRunCount() below.
   is_sidechain?: 0 | 1;
   agent_type?: string | null;
+  agent_id?: string | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
 }
@@ -182,6 +183,26 @@ function subagentRuns(messages: StatMessage[]): { agentType: string; turns: numb
   return [...map.values()].sort((a, b) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens));
 }
 
+// The Overview Subagents card HEADER count: distinct subagent RUNS, not
+// distinct agent_type kinds (subagentRuns() above groups by kind — many runs
+// of "workflow-subagent" collapse to one row there; that's still right for
+// the detail rows, just wrong for "how many subagents ran"). Counts distinct
+// non-null `agent_id` across every sidechain row (any kind — the parser
+// stamps agent_id on every event of a run, not just assistant turns, so no
+// kind gate is needed the way subagentRuns() needs one for `turns`).
+// Falls back to the agent_type-group count when every sidechain row has a
+// null agent_id — sessions imported before this column existed. Operates
+// only on the passed-in `messages` (already deduped by uuid at import time),
+// so a run is never double-counted between an inline sidechain entry and its
+// file-based duplicate.
+function subagentRunCount(messages: StatMessage[]): number {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    if (m.is_sidechain && m.agent_id) ids.add(m.agent_id);
+  }
+  return ids.size > 0 ? ids.size : subagentRuns(messages).length;
+}
+
 function engagedDurationMs(messages: StatMessage[]): number {
   const ts = messages.map((m) => (m.ts ? new Date(m.ts).getTime() : NaN))
     .filter(Number.isFinite).sort((a, b) => a - b);
@@ -208,4 +229,5 @@ export {
   activeDurationMs,
   engagedDurationMs,
   subagentRuns,
+  subagentRunCount,
 };
