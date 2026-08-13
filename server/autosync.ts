@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { db, upsertProject, replaceSession } from './db.ts';
-import { scanClaudeProjects, parseClaudeSession, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.ts';
+import { scanClaudeProjects, parseClaudeSession, claudeSessionMtimeMs, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.ts';
 import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.ts';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
@@ -95,15 +95,9 @@ function mtimeOf(file: string): number | null {
   try { return fs.statSync(file).mtime.getTime(); } catch { return null; }
 }
 
-// A Claude Code session's effective mtime includes its subagents dir.
-function claudeMtime(file: string): number | null {
-  let m = mtimeOf(file) ?? 0;
-  const sub = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents');
-  try {
-    for (const f of fs.readdirSync(sub)) m = Math.max(m, mtimeOf(path.join(sub, f)) ?? 0);
-  } catch {}
-  return m || null;
-}
+// A Claude Code session's effective mtime includes its subagents tree
+// (direct + workflows/*, recursively) — see claudeSessionMtimeMs.
+const claudeMtime = claudeSessionMtimeMs;
 
 // One incremental pass over every source. Imports sessions that are NEW in an
 // already-imported project, or whose source file changed since their import.

@@ -56,6 +56,10 @@ export interface Event {
   // Parsers set this to 1 for sidechain rows; the DB stores 0/1.
   is_sidechain?: 0 | 1;
   agent_type?: string | null;
+  // The `wf_*` folder name a subagent transcript was nested under
+  // (subagents/workflows/wf_*/agent-*.jsonl); null for a direct subagent
+  // (subagents/agent-*.jsonl) or a non-sidechain event.
+  workflow_id?: string | null;
   skill?: string | null;
   // Per-message token usage (one API call's numbers on the first event of the line).
   input_tokens?: number | null;

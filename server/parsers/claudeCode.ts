@@ -60,6 +60,13 @@ interface ClaudeLine {
   summary?: string;
 }
 
+// Sidecar written next to a subagent transcript file (agent-<hex>.meta.json).
+// Only agentType is consumed today; other fields (description, toolUseId,
+// spawnDepth) are read but not yet surfaced.
+interface AgentMeta {
+  agentType?: string;
+}
+
 // Scan ~/.claude/projects for importable projects with session/message estimates.
 export function scanClaudeProjects(baseDir: string = CLAUDE_PROJECTS_DIR): ScannedProject[] {
   if (!fs.existsSync(baseDir)) return [];
@@ -79,11 +86,12 @@ export function scanClaudeProjects(baseDir: string = CLAUDE_PROJECTS_DIR): Scann
       messageEstimate += est;
       const head = sniffHead(full);
       if (!physicalPath && head.cwd) physicalPath = head.cwd;
+      const mtimeMs = claudeSessionMtimeMs(full) ?? stat.mtime.getTime();
       sessions.push({
         id: path.basename(f, '.jsonl'),
         file: full,
         label: head.summary,
-        modifiedAt: stat.mtime.toISOString(),
+        modifiedAt: new Date(mtimeMs).toISOString(),
         messageEstimate: est,
       });
     }
@@ -148,6 +156,80 @@ function reduceCwd(pick: string, seen: Set<string>): string {
     if (c && c !== out && out.startsWith(c + '/')) out = c;
   }
   return out;
+}
+
+// A Claude Code session's effective source mtime for freshness checks — the
+// newer of the main file and every file under its subagents tree (direct
+// agent-*.jsonl/.meta.json plus subagents/workflows/wf_*/agent-*.jsonl), so a
+// new or updated subagent transcript triggers re-sync even when the main file
+// itself hasn't changed. Used by scanClaudeProjects' `modifiedAt` above and by
+// server/autosync.ts's incremental-sync mtime pre-filter. Returns null only
+// when the main file itself can't be stat'd (the caller falls back).
+export function claudeSessionMtimeMs(file: string): number | null {
+  let m: number;
+  try { m = fs.statSync(file).mtime.getTime(); } catch { return null; }
+  const subagentsDir = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents');
+  return Math.max(m, maxMtimeRecursive(subagentsDir));
+}
+
+function maxMtimeRecursive(dir: string): number {
+  let m = 0;
+  let entries: fs.Dirent[];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return 0; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      m = Math.max(m, maxMtimeRecursive(full));
+    } else {
+      try { m = Math.max(m, fs.statSync(full).mtime.getTime()); } catch {}
+    }
+  }
+  return m;
+}
+
+// One subagent transcript file to ingest, with its workflow attribution
+// (null for a direct subagents/agent-*.jsonl file; the `wf_*` folder name for
+// one nested under subagents/workflows/wf_*/agent-*.jsonl). Sorted by full
+// path for deterministic ingestion order.
+interface AgentFileRef {
+  file: string;
+  workflowId: string | null;
+}
+
+function listAgentFiles(subagentsDir: string): AgentFileRef[] {
+  const out: AgentFileRef[] = [];
+  if (!fs.existsSync(subagentsDir)) return out;
+  for (const f of fs.readdirSync(subagentsDir)) {
+    if (f.endsWith('.jsonl') && f.startsWith('agent-')) {
+      out.push({ file: path.join(subagentsDir, f), workflowId: null });
+    }
+  }
+  const workflowsDir = path.join(subagentsDir, 'workflows');
+  try {
+    for (const wf of fs.readdirSync(workflowsDir, { withFileTypes: true })) {
+      if (!wf.isDirectory()) continue;
+      const wfDir = path.join(workflowsDir, wf.name);
+      for (const f of fs.readdirSync(wfDir)) {
+        if (f.endsWith('.jsonl') && f.startsWith('agent-')) {
+          out.push({ file: path.join(wfDir, f), workflowId: wf.name });
+        }
+      }
+    }
+  } catch {}
+  out.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  return out;
+}
+
+// Best-effort read of a subagent's agent-<hex>.meta.json sidecar. Missing or
+// malformed sidecars are treated as absent — meta.agentType is only a
+// fallback, never required.
+function readAgentMeta(agentFile: string): AgentMeta | null {
+  try {
+    const raw = fs.readFileSync(agentFile.replace(/\.jsonl$/, '.meta.json'), 'utf8');
+    return JSON.parse(raw) as AgentMeta;
+  } catch {
+    return null;
+  }
 }
 
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
@@ -235,11 +317,13 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
   const taskPromptType = new Map<string, string>(); // Task prompt head → subagent_type (sidechain pairing)
   const uuidAgentType = new Map<string, string | null>();  // sidechain uuid → agent_type (parent-chain propagation)
   let pendingCommandSkill: string | null = null;   // set by a <command-name> turn, consumed by the next assistant event
+  const mainUuids = new Set<string>(); // every uuid seen in the main file, for dedup against subagent-folder files
 
   for await (const line of rl) {
     if (!line.trim()) continue;
     let o: ClaudeLine;
     try { o = JSON.parse(line); } catch { skipped++; continue; }
+    if (o.uuid) mainUuids.add(o.uuid);
     if (o.sessionId) sessionId = o.sessionId;
     // Claude Code stores a user rename as `{"type":"custom-title","customTitle":"…"}`
     // (the /rename-session title). The LAST one wins — a session can be renamed
@@ -320,47 +404,64 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
   }
 
   // Sidechains: current Claude Code writes subagent transcripts to separate
-  // files (<logDir>/<sessionId>/subagents/agent-*.jsonl) rather than inline
-  // isSidechain lines. Import them as sidechain rows: usage aggregates into the
-  // session totals (real spend), context_tokens stays main-chain. agent_type is
-  // paired via the main chain's Task/Agent tool_use prompt; unmatched → NULL.
-  // Sidechain events are appended after the main chain (UI excludes them by
+  // files rather than inline isSidechain lines —
+  //   <logDir>/<sessionId>/subagents/agent-*.jsonl                       (direct)
+  //   <logDir>/<sessionId>/subagents/workflows/wf_*/agent-*.jsonl        (workflow)
+  // Import them as sidechain rows: usage aggregates into the session totals
+  // (real spend), context_tokens stays main-chain. Each event's agent_type is
+  // resolved by (1) pairing the subagent's first user message against the main
+  // chain's Task/Agent tool_use prompt, falling back to (2) the sibling
+  // agent-*.meta.json's `agentType` (workflow agents are spawned by
+  // orchestration, not a matching inline Task call, so they rely on the
+  // meta.json fallback). `workflow_id` is the `wf_*` folder name, or null for a
+  // direct agent. Lines whose uuid already appeared in the main file are
+  // skipped (some Claude Code versions duplicate an inline sidechain entry
+  // into its own agent file). Sidechain events are appended after the main
+  // chain, each agent's block internally ts-ordered (UI excludes them by
   // default; consumers order by ts).
   const subagentsDir = path.join(path.dirname(file), sessionId, 'subagents');
-  if (fs.existsSync(subagentsDir)) {
-    for (const sf of fs.readdirSync(subagentsDir).filter((f) => f.endsWith('.jsonl'))) {
-      let agentType: string | null | undefined;
-      const subEvents: Event[] = [];
-      const srl = readline.createInterface({ input: fs.createReadStream(path.join(subagentsDir, sf)), crlfDelay: Infinity });
-      for await (const line of srl) {
-        if (!line.trim()) continue;
-        let o: ClaudeLine;
-        try { o = JSON.parse(line); } catch { skipped++; continue; }
-        if (o.type === 'assistant' && o.message?.usage) {
-          const u = o.message.usage;
-          const model = o.message.model || 'unknown';
-          accumulateUsage(usageByModel, model, u);
-        }
-        const lineEvents = parseClaudeLine(o);
-        if (agentType === undefined && o.type === 'user') {
-          const content = o.message?.content;
-          const txt = typeof content === 'string' ? content
-            : Array.isArray(content) ? content.find((b) => b.type === 'text')?.text : undefined;
-          if (txt) agentType = taskPromptType.get(txt.slice(0, 300)) ?? null;
-        }
-        let usageAttached = o.type !== 'assistant' || !o.message?.usage;
-        for (const e of lineEvents) {
-          e.is_sidechain = 1;
-          if (agentType) e.agent_type = agentType;
-          if (!usageAttached && o.message?.usage) {
-            attachPerEventUsage(e, o.message.usage);
-            usageAttached = true;
-          }
-          subEvents.push(e);
-        }
+  for (const ref of listAgentFiles(subagentsDir)) {
+    const meta = readAgentMeta(ref.file);
+    const metaAgentType = typeof meta?.agentType === 'string' && meta.agentType ? meta.agentType : null;
+    let agentType: string | null | undefined;
+    const subEvents: Event[] = [];
+    const srl = readline.createInterface({ input: fs.createReadStream(ref.file), crlfDelay: Infinity });
+    for await (const line of srl) {
+      if (!line.trim()) continue;
+      let o: ClaudeLine;
+      try { o = JSON.parse(line); } catch { skipped++; continue; }
+      if (o.uuid && mainUuids.has(o.uuid)) continue; // dedup against inline main-file entries
+      if (o.type === 'assistant' && o.message?.usage) {
+        const u = o.message.usage;
+        const model = o.message.model || 'unknown';
+        accumulateUsage(usageByModel, model, u);
       }
-      events.push(...subEvents);
+      const lineEvents = parseClaudeLine(o);
+      if (agentType === undefined && o.type === 'user') {
+        const content = o.message?.content;
+        const txt = typeof content === 'string' ? content
+          : Array.isArray(content) ? content.find((b) => b.type === 'text')?.text : undefined;
+        if (txt) agentType = taskPromptType.get(txt.slice(0, 300)) ?? null;
+      }
+      let usageAttached = o.type !== 'assistant' || !o.message?.usage;
+      for (const e of lineEvents) {
+        e.is_sidechain = 1;
+        e.workflow_id = ref.workflowId;
+        if (agentType) e.agent_type = agentType;
+        if (!usageAttached && o.message?.usage) {
+          attachPerEventUsage(e, o.message.usage);
+          usageAttached = true;
+        }
+        subEvents.push(e);
+      }
     }
+    // Fallback: meta.json's agentType fills any of this agent's events that
+    // pairing didn't resolve (e.g. every workflow agent — no matching inline
+    // Task prompt to pair against).
+    if (metaAgentType) {
+      for (const e of subEvents) if (!e.agent_type) e.agent_type = metaAgentType;
+    }
+    events.push(...subEvents);
   }
 
   const timestamps = events.map((e) => e.ts).filter(Boolean).sort() as string[];
