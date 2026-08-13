@@ -46,6 +46,10 @@ interface AutoSyncState {
   running: boolean;
   lastRun: string | null;
   lastResult: SyncResult | null;
+  // Timestamp (ms) of the first fs-watch event in the current pending burst,
+  // or null when no sync is currently debounced. Lets scheduleDebounced cap
+  // how long continuous churn can keep pushing the run out — see nextDelay.
+  firstPendingAt: number | null;
 }
 
 declare global {
@@ -56,7 +60,22 @@ declare global {
 const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 const CONFIG_PATH = path.join(CHRONICLE_DIR, 'config.json');
 const DEBOUNCE_MS = 30 * 1000;       // a streaming JSONL isn't re-imported per line
+const MAXWAIT_MS = 2 * 60 * 1000;    // continuous churn can't starve a sync past this
 const BACKSTOP_MS = 30 * 60 * 1000;  // catches missed fs events (macOS drops them across sleep)
+
+// Pure scheduling decision, extracted so it can be unit-tested without fake
+// timers: how long should the NEXT debounce wait be, given the current time
+// and when the pending burst started (null = no burst pending yet, i.e. this
+// event starts one)? Every fs-watch event resets a plain setTimeout(DEBOUNCE_MS)
+// to the same DEBOUNCE_MS, so under continuous file activity the timer never
+// fires and a sync is starved until the 30-min backstop. Clamping the delay to
+// what's left of MAXWAIT_MS (measured from the START of the burst, which
+// doesn't move) guarantees the first pending event still gets synced within
+// MAXWAIT_MS regardless of how many more events arrive after it.
+export function nextDelay(nowMs: number, firstPendingAtMs: number | null): number {
+  const first = firstPendingAtMs === null ? nowMs : firstPendingAtMs;
+  return Math.min(DEBOUNCE_MS, Math.max(0, first + MAXWAIT_MS - nowMs));
+}
 
 export function readConfig(): ChronicleConfig {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
@@ -86,7 +105,7 @@ export function autoSyncPaused(): boolean {
 
 function state(): AutoSyncState {
   if (!globalThis.__chronicleAutoSync) {
-    globalThis.__chronicleAutoSync = { watchers: [], timer: null, debounce: null, running: false, lastRun: null, lastResult: null };
+    globalThis.__chronicleAutoSync = { watchers: [], timer: null, debounce: null, running: false, lastRun: null, lastResult: null, firstPendingAt: null };
   }
   return globalThis.__chronicleAutoSync;
 }
@@ -168,19 +187,22 @@ export async function runIncrementalSync(): Promise<SyncResult> {
   } finally {
     st.lastRun = new Date().toISOString();
     st.running = false;
+    st.firstPendingAt = null; // this run (whatever triggered it) has caught up any pending burst
   }
   return st.lastResult as SyncResult;
 }
 
-export function autoSyncStatus(): { enabled: boolean; running: boolean; lastRun: string | null; lastResult: SyncResult | null } {
+export function autoSyncStatus(): { enabled: boolean; running: boolean; lastRun: string | null; lastResult: SyncResult | null; firstPendingAt: number | null } {
   const st = state();
-  return { enabled: autoSyncEnabled(), running: st.running, lastRun: st.lastRun, lastResult: st.lastResult };
+  return { enabled: autoSyncEnabled(), running: st.running, lastRun: st.lastRun, lastResult: st.lastResult, firstPendingAt: st.firstPendingAt };
 }
 
-function scheduleDebounced(): void {
+export function scheduleDebounced(): void {
   const st = state();
+  const now = Date.now();
+  if (st.firstPendingAt === null) st.firstPendingAt = now; // this event starts a new burst
   clearTimeout(st.debounce ?? undefined);
-  st.debounce = setTimeout(() => { runIncrementalSync(); }, DEBOUNCE_MS);
+  st.debounce = setTimeout(() => { runIncrementalSync(); }, nextDelay(now, st.firstPendingAt));
 }
 
 export function startAutoSync(): void {
