@@ -85,8 +85,15 @@ export function mountImportSync(app: Express): void {
       try { return res.json({ [source]: annotateScan(scanners[source](dir)) }); }
       catch (err) { return res.status(500).json({ error: errMessage(err) }); }
     }
+    // Test-only: the E2E harness (test/e2e/helpers.ts) points the DEFAULT
+    // claude-code scan at a generated fixture dir instead of the real
+    // CLAUDE_PROJECTS_DIR, so it can seed a big fixture session without
+    // touching the machine's real Claude Code logs. `dir` alone (no `source`)
+    // is a no-op unless CHRONICLE_E2E=1 — airtight in production, where the
+    // env var is never set.
+    const e2eClaudeDir = process.env.CHRONICLE_E2E === '1' && dir ? dir : undefined;
     res.json({
-      'claude-code': annotateScan(scanClaudeProjects()),
+      'claude-code': annotateScan(scanClaudeProjects(e2eClaudeDir)),
       codex: annotateScan(scanCodexProjects()),
       cursor: annotateScan(scanCursorProjects()),
       opencode: annotateScan(scanOpencodeProjects()),
@@ -142,7 +149,15 @@ export function mountImportSync(app: Express): void {
 
   app.post('/import', async (req: Request, res: Response) => {
     try {
-      res.json(importParsed(await gatherParsed(req.body)));
+      const body: GatherParsedParams = { ...req.body };
+      // Test-only: same CHRONICLE_E2E-gated `?dir=` override as GET /scan
+      // above, so the E2E harness can seed an import without a body `logDir`
+      // — a plain `POST /import` with `?dir=<fixtureDir>` is enough. Only
+      // fills a MISSING body.logDir; a caller-supplied logDir always wins.
+      if (process.env.CHRONICLE_E2E === '1' && !body.logDir && typeof req.query.dir === 'string') {
+        body.logDir = req.query.dir;
+      }
+      res.json(importParsed(await gatherParsed(body)));
     } catch (err) {
       res.status(errStatus(err)).json({ error: errMessage(err) });
     }

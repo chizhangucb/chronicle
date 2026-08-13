@@ -1,11 +1,14 @@
-# Gate `main` on typecheck, tests, and build success.
+# Gate `main` on typecheck, tests, build, and E2E success.
 #
-# This workflow runs the TypeScript type gate (tsc -b), the full test suite
-# (66 tests via node --test), and the Vite production build on every push to
-# `main` and every pull request targeting `main`. It enforces that:
+# This workflow runs the TypeScript type gate (tsc -b), the full unit test
+# suite (via node --test), the Vite production build, and the Playwright E2E
+# smoke suite (a seeded big fixture — 120 subagents, 5000 messages — driven
+# through a real Chromium) on every push to `main` and every pull request
+# targeting `main`. It enforces that:
 # - All TypeScript compiles without errors (the type gate)
-# - All 66 tests pass (test suite)
+# - All unit tests pass (test suite)
 # - The Vite client bundle builds without errors
+# - The E2E smoke suite passes (function, overflow, data-scale, perf floor)
 #
 # Node 24 is REQUIRED — the server + tests run .ts natively via Node's
 # type-stripping, which requires Node 24+.
@@ -46,3 +49,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright's Chromium (+ OS deps)
+        run: npx playwright install chromium --with-deps
+
+      - name: Build client
+        run: npm run build
+
+      - name: Run E2E smoke suite
+        run: npm run test:e2e

@@ -8,5 +8,8 @@
     "types": ["node"],
     "tsBuildInfoFile": "./node_modules/.cache/tsc/server.tsbuildinfo"
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts", "test/**/*.ts"]
+  "include": ["server/**/*.ts", "shared/**/*.ts", "test/**/*.ts"],
+  // test/e2e/** is its own project (tsconfig.e2e.json) — it needs the "dom"
+  // lib for page.evaluate() callbacks, which this project deliberately omits.
+  "exclude": ["test/e2e/**"]
 }
