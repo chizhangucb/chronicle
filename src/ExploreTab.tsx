@@ -328,11 +328,22 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 {ranked.map(({ row, value }, i) => {
                   const share = (value / totalValue) * 100;
                   const perSession = row.sessions ? rowSpend(row) / row.sessions : 0;
+                  // group=session rows carry the session id as `key` — link
+                  // straight to that session's own view, independent of the
+                  // project-scope-only fallback below ('Other' has no single
+                  // session id, so it stays unclickable). Takes precedence
+                  // over the project-scope link since it's strictly more
+                  // specific (one session, not "coming soon" filtered list).
+                  const isSessionRow = pivot.group === 'session' && row.key !== 'Other';
+                  const rowClickable = isSessionRow || canRowLink;
+                  const onRowClick = isSessionRow
+                    ? () => navigate(`/session/${row.key}`)
+                    : (canRowLink ? () => navigate(`/project/${scope.id}`) : undefined);
                   return (
                     <tr key={row.key}
-                      className={canRowLink ? 'rowlink' : ''}
-                      title={rowLinkTitle}
-                      onClick={canRowLink ? () => navigate(`/project/${scope.id}`) : undefined}
+                      className={rowClickable ? 'rowlink' : ''}
+                      title={isSessionRow ? undefined : rowLinkTitle}
+                      onClick={onRowClick}
                     >
                       <td><span className="dot" style={{ background: rowColor(row, i) }} />{row.label}</td>
                       {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}

@@ -70,7 +70,13 @@ interface SessionRowLite {
   error_count: number | null;
 }
 
-function displayName(r: SessionRowLite): string {
+// Exported so other engines can align their own session-name fallback with
+// this one instead of re-deriving it (explore.ts's group=session label uses
+// this exact precedence — see server/explore.ts). Typed against the minimal
+// field set rather than SessionRowLite so callers with a narrower row shape
+// (e.g. an id/name/summary/first_prompt-only query) can pass it directly.
+export interface NamedSessionRow { id: string; name: string | null; summary: string | null; first_prompt: string | null; }
+export function displayName(r: NamedSessionRow): string {
   return r.name || r.summary || r.first_prompt || r.id;
 }
 

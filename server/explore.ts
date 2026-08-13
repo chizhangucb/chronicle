@@ -12,9 +12,12 @@ import { calibrateByBucket } from './calibrate.ts';
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
 import { ERROR_RE } from './errors.ts';
+// group=session's label uses the SAME name → summary → first_prompt → id
+// precedence as the Task 13 Activity route, instead of re-deriving it here.
+import { displayName } from './activity.ts';
 
 export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
+export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
 // 'total' collapses time (ranked bars). The four time rollups bucket the range
 // into a stacked time-series; 'total' output is byte-identical to before this
 // feature (plus the two scalar rollup fields on the result). See
@@ -115,8 +118,9 @@ const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill'];
 // requests/sessions/errors/activeMs for these groups STAY per-message (their
 // natural units); only tokensByModel is overridden. hour/subagent are NOT here
 // — they are inherently message-level (usage has no hour/agent_type split) and
-// stay per-message by design.
-const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source'];
+// stay per-message by design. session is EXACT trivially: a session's own
+// sessions.usage IS its group value's usage, no aggregation needed.
+const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'session'];
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
 // project name + source so a single scan feeds model/project/source grouping.
@@ -164,6 +168,10 @@ function groupExpr(g: ExploreGroup): { col: string; where: string } {
   switch (g) {
     case 'project': return { col: 'p.name', where: '' };
     case 'source': return { col: 's.source', where: '' };
+    // gk = session id (drives row-click navigation to /session/:id); the
+    // human-readable label is resolved separately below (name → summary →
+    // first_prompt → id), since a raw id is never what should be displayed.
+    case 'session': return { col: 's.id', where: '' };
     case 'model': return { col: 'm.model', where: "AND m.kind='assistant' AND m.model IS NOT NULL" };
     case 'tool': return { col: 'm.tool_name', where: "AND m.kind='tool_use' AND m.tool_name IS NOT NULL" };
     case 'skill': return { col: 'm.skill', where: 'AND m.skill IS NOT NULL' };
@@ -182,6 +190,7 @@ function errorGroupCol(g: ExploreGroup): string {
   switch (g) {
     case 'project': return 'p.name';
     case 'source': return 's.source';
+    case 'session': return 's.id';
     case 'model': return 'u.model';
     case 'tool': return 'u.tool_name';
     case 'skill': return 'u.skill';
@@ -296,7 +305,8 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     const acc = new Map<string, Record<string, ModelUsageCell>>();
     for (const u of usageRows) {
       for (const [model, cell] of Object.entries(u.models)) {
-        const rowKey = q.group === 'model' ? model : q.group === 'project' ? u.project : u.source;
+        const rowKey = q.group === 'model' ? model : q.group === 'project' ? u.project
+          : q.group === 'session' ? u.id : u.source;
         let byModel = acc.get(rowKey);
         if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
         addCell(byModel, model, cell);
@@ -311,6 +321,21 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
         if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
       }
     }
+  }
+
+  // group=session: key IS the session id (so the client can navigate to
+  // /session/:id on row click), but the raw id is a bad label — resolve the
+  // display label with the same name → summary → first_prompt → id
+  // precedence as the Task 13 Activity route (server/activity.ts
+  // displayName). Runs after the usage override above so it also covers any
+  // usage-only rows materialized there.
+  if (q.group === 'session') {
+    const labelRows = db.prepare(`
+      SELECT s.id AS id, s.name AS name, s.summary AS summary, s.first_prompt AS first_prompt
+      FROM sessions s JOIN projects p ON p.id = s.project_id
+      WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}
+    `).all(cutoff, ...sc.params) as unknown as { id: string; name: string | null; summary: string | null; first_prompt: string | null }[];
+    for (const l of labelRows) { const r = rowMap.get(l.id); if (r) r.label = displayName(l); }
   }
 
   let rows = [...rowMap.values()];
@@ -465,7 +490,7 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   const bs = bucketExpr(effective, 's.started_at');
   // Session scan (used by usage-sourced token magnitude + calibrated billed),
   // bucketed by started_at — a session lands wholly in one bucket.
-  const sessionSql = `SELECT ${bs} AS bkt, p.name AS project, s.source AS source, s.usage AS usage
+  const sessionSql = `SELECT ${bs} AS bkt, s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
     FROM sessions s JOIN projects p ON p.id = s.project_id
     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}`;
 
@@ -484,11 +509,12 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
 
   if (q.metric === 'tokens' || q.metric === 'spend') {
     if (EXACT_USAGE_GROUPS.includes(q.group)) {
-      // model/project/source magnitude from sessions.usage, bucketed by started_at.
-      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; project: string; source: string; usage: string|null }[];
+      // model/project/source/session magnitude from sessions.usage, bucketed by started_at.
+      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; id: string; project: string; source: string; usage: string|null }[];
       for (const r of srows) {
         for (const [model, u] of Object.entries(parseUsageCells(r.usage))) {
-          const gv = q.group === 'model' ? model : q.group === 'project' ? r.project : r.source;
+          const gv = q.group === 'model' ? model : q.group === 'project' ? r.project
+            : q.group === 'session' ? r.id : r.source;
           addCell(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
         }
       }

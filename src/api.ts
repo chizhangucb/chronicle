@@ -390,8 +390,8 @@ export interface ExploreCell {
 export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour';
-  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | null;
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | null;
   calibrated: boolean; rows: ExploreRow[];
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
@@ -423,8 +423,8 @@ export interface ContentResult {
 export interface ExploreQueryParams {
   scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
   metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
-  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour';
-  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'; topN?: number;
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'; topN?: number;
   rollup?: ExploreRollup;
 }
 
