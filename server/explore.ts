@@ -123,8 +123,14 @@ const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill'];
 const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'session'];
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
-// project name + source so a single scan feeds model/project/source grouping.
-interface SessionUsageParsed { id: string; project: string; source: string; models: Record<string, ModelUsageCell>; }
+// project name + source so a single scan feeds model/project/source grouping,
+// and its name/summary/first_prompt so the same scan also resolves
+// group=session's display label (see the session-label step below) without a
+// second sessions×projects query.
+interface SessionUsageParsed {
+  id: string; project: string; source: string; models: Record<string, ModelUsageCell>;
+  name: string | null; summary: string | null; first_prompt: string | null;
+}
 // The raw JSON shape stored in sessions.usage (field names are
 // cacheWrite5m/cacheWrite1h/cacheRead; legacy `cacheWrite` = a 5m write).
 interface RawUsageCell { input?: number; output?: number; cacheRead?: number; cacheWrite5m?: number; cacheWrite1h?: number; cacheWrite?: number; }
@@ -148,11 +154,15 @@ function parseUsageCells(usage: string | null): Record<string, ModelUsageCell> {
 // COALESCE(minor,0)=0 gate the message queries use.
 function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }, scope: Scope): SessionUsageParsed[] {
   const rows = db.prepare(`
-    SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
+    SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage,
+           s.name AS name, s.summary AS summary, s.first_prompt AS first_prompt
     FROM sessions s JOIN projects p ON p.id = s.project_id
     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}
-  `).all(cutoff, ...sc.params) as unknown as { id: string; project: string; source: string; usage: string|null }[];
-  return rows.map((r) => ({ id: r.id, project: r.project, source: r.source, models: parseUsageCells(r.usage) }));
+  `).all(cutoff, ...sc.params) as unknown as { id: string; project: string; source: string; usage: string|null; name: string|null; summary: string|null; first_prompt: string|null }[];
+  return rows.map((r) => ({
+    id: r.id, project: r.project, source: r.source, models: parseUsageCells(r.usage),
+    name: r.name, summary: r.summary, first_prompt: r.first_prompt,
+  }));
 }
 
 function addCell(target: Record<string, ModelUsageCell>, model: string, cell: ModelUsageCell): void {
@@ -300,8 +310,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // the only metrics that read tokensByModel, and running the override for
   // requests/sessions/errors/active would materialize spurious zero-count rows
   // for usage-only models (no per-message rows), skewing those metrics.
+  // Hoisted so the group=session label step below can reuse this same scan
+  // (name/summary/first_prompt are already selected alongside usage) instead
+  // of re-querying sessions×projects with the identical scope/cutoff/minorGate
+  // filters a second time.
+  let usageRows: SessionUsageParsed[] = [];
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
-    const usageRows = loadSessionUsage(cutoff, sc, q.scope);
+    usageRows = loadSessionUsage(cutoff, sc, q.scope);
     const acc = new Map<string, Record<string, ModelUsageCell>>();
     for (const u of usageRows) {
       for (const [model, cell] of Object.entries(u.models)) {
@@ -312,7 +327,23 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
         addCell(byModel, model, cell);
       }
     }
-    for (const row of rowMap.values()) row.tokensByModel = acc.get(row.key) ?? {};
+    for (const row of rowMap.values()) {
+      const usageCells = acc.get(row.key);
+      if (usageCells) { row.tokensByModel = usageCells; continue; }
+      // No sessions.usage for this group value. For model/project/source this
+      // means genuinely zero billed usage in scope — blank to {} as before.
+      // For session it more often means the session's SOURCE never populates
+      // sessions.usage at all (codex/cursor/opencode — only claudeCode writes
+      // it at import): blanking to {} would show Tokens=0/$0.00 next to a
+      // real nonzero Requests count on the SAME row, reading as a bug. Keep
+      // the per-message tokensByModel cellRows already built above instead —
+      // the same non-exact-but-unmarked path hour/subagent already use (see
+      // groupShowsTokenColumn / EXP-02): real numbers for codex (which does
+      // carry per-message input_tokens/output_tokens), and an honest 0 for
+      // cursor/opencode (which carry no token telemetry at all, per-message
+      // or per-session — nothing to fall back to).
+      if (q.group !== 'session') row.tokensByModel = {};
+    }
     // Only materialize usage-only rows (a model billed but with no per-message
     // rows) when the displayed metric actually reads token magnitude — else
     // they'd show as spurious zero-request/zero-session rows under other metrics.
@@ -327,15 +358,16 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // /session/:id on row click), but the raw id is a bad label — resolve the
   // display label with the same name → summary → first_prompt → id
   // precedence as the Task 13 Activity route (server/activity.ts
-  // displayName). Runs after the usage override above so it also covers any
-  // usage-only rows materialized there.
+  // displayName), reusing the `usageRows` scan above (session ∈
+  // EXACT_USAGE_GROUPS, so it's already populated whenever this runs) rather
+  // than a second sessions×projects query with the same filters. Covers
+  // usage-only rows materialized above too, since usageRows enumerates every
+  // in-scope session regardless of whether it has usage.
   if (q.group === 'session') {
-    const labelRows = db.prepare(`
-      SELECT s.id AS id, s.name AS name, s.summary AS summary, s.first_prompt AS first_prompt
-      FROM sessions s JOIN projects p ON p.id = s.project_id
-      WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(q.scope)} ${sc.sql}
-    `).all(cutoff, ...sc.params) as unknown as { id: string; name: string | null; summary: string | null; first_prompt: string | null }[];
-    for (const l of labelRows) { const r = rowMap.get(l.id); if (r) r.label = displayName(l); }
+    for (const u of usageRows) {
+      const r = rowMap.get(u.id);
+      if (r) r.label = displayName({ id: u.id, name: u.name, summary: u.summary, first_prompt: u.first_prompt });
+    }
   }
 
   let rows = [...rowMap.values()];

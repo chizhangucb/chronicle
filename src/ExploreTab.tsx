@@ -337,7 +337,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                   const isSessionRow = pivot.group === 'session' && row.key !== 'Other';
                   const rowClickable = isSessionRow || canRowLink;
                   const onRowClick = isSessionRow
-                    ? () => navigate(`/session/${row.key}`)
+                    ? () => navigate(`/session/${encodeURIComponent(row.key)}`)
                     : (canRowLink ? () => navigate(`/project/${scope.id}`) : undefined);
                   return (
                     <tr key={row.key}
