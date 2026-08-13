@@ -1289,7 +1289,7 @@ h4 { margin: 6px 0; }
    the 3rd) would leave column 2 empty — let it span the full row instead. Only
    fires for the odd-count case, so the even 2-col layout is untouched. */
 .two .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
+.trow { display: flex; gap: var(--gap-2); align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
 .trow:last-child { border: 0; }
 .trow .k { color: var(--brass-text); white-space: nowrap; width: 52px; flex-shrink: 0; }
 .trow .t { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
