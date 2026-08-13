@@ -364,6 +364,45 @@ test('dragging the chat/right-group divider resizes the chat pane and the split 
   expect(Math.abs(convAfterReload - convAfterDrag), 'persisted split must survive reload').toBeLessThan(5);
 });
 
+// Must match SessionView.tsx's PLAYBACK_SPLIT_KEY (not exported — the split
+// is an internal implementation detail; this is the one place a test needs
+// the literal key, to assert directly on what `useResizable`'s `reset()`
+// does to storage rather than inferring it from pixel widths alone).
+const PLAYBACK_SPLIT_STORAGE_KEY = 'chronicle-playback-split';
+
+test('double-clicking the divider resets the split to its default and clears the persisted override', async ({ page }) => {
+  await gotoFixturePlayback(page);
+  const handle = page.locator('.pane-handle');
+  const handleBox = await handle.boundingBox();
+  if (!handleBox) throw new Error('drag handle has no bounding box');
+
+  // Drag away from the default first so there's something for the reset to undo.
+  const startX = handleBox.x + handleBox.width / 2;
+  const startY = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 160, startY, { steps: 5 });
+  await page.mouse.up();
+  const convDragged = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  const storedAfterDrag = await page.evaluate((k) => localStorage.getItem(k), PLAYBACK_SPLIT_STORAGE_KEY);
+  expect(storedAfterDrag, 'a completed drag must persist a value').not.toBeNull();
+
+  await handle.dblclick();
+
+  const convReset = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(Math.abs(convReset - convDragged), 'double-click must visibly undo the drag').toBeGreaterThan(50);
+  const storedAfterReset = await page.evaluate((k) => localStorage.getItem(k), PLAYBACK_SPLIT_STORAGE_KEY);
+  expect(storedAfterReset, 'double-click must clear the persisted override, not just visually reset').toBeNull();
+
+  // The reset must itself survive a reload (i.e. it really cleared storage,
+  // not just live React state) — re-dragging would restore a stale value.
+  await page.reload();
+  await page.locator('button[title^="Playback"]').click();
+  await expect(page.locator('.timeline')).toBeVisible();
+  const convAfterReload = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(Math.abs(convAfterReload - convReset), 'reset split must still be the default after a reload').toBeLessThan(5);
+});
+
 test('dragging the divider down to its floor does not reopen the clipping bug', async ({ page }) => {
   // Regression guard for a bug caught in self-review: `.conv-pane`'s base
   // rule carries an explicit `min-width: 360px` (for the non-grid subagent
@@ -390,4 +429,71 @@ test('dragging the divider down to its floor does not reopen the clipping bug', 
   expect(overflowing, `elements clipped after dragging to the split floor: ${overflowing.join(', ')}`).toEqual([]);
   const convWidth = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
   expect(convWidth, 'chat pane must clamp at its 280px floor, not overflow past it').toBeLessThan(300);
+});
+
+test('unrealistically long commit subjects and unwrapped code lines still do not overflow, even at the split floor', async ({ page }) => {
+  // Review finding: is CONTENT-driven overflow (as opposed to the
+  // dimension-driven bug the previous test guards) cheaply reproducible in a
+  // committed test? Investigated and found NOT reproducible by design: every
+  // pane already has `overflow: auto`/`overflow-y: auto`, and per the
+  // flexbox/grid spec an item's AUTOMATIC minimum size (unlike an explicit
+  // one — see the previous test) resolves to zero once its own overflow is
+  // non-`visible`. Confirmed empirically pre-fix too (ad hoc probe, not
+  // committed — a 220-char unbroken line plus a long commit subject at
+  // 1024/1366/1728px, zero overflowing elements even on main). This test
+  // commits that same adversarial content into the fixture repo and
+  // combines it with the OTHER, real overflow mode (dragging to the split
+  // floor) as the strongest committed guard available — if content-driven
+  // clipping ever becomes possible (e.g. an `overflow: auto` gets dropped
+  // in a future edit), this is positioned to catch it.
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await gotoFixturePlayback(page);
+
+  // Pick the exact seq the test is about to click FIRST, then date the new
+  // commit at THAT message's exact `ts` (looked up by seq, not by array
+  // index) — the DOM's visible `.msg` order can differ from
+  // `fetchPlaybackMessages()`'s (default chip/kind filters, sidechain
+  // handling), so indexing the two arrays in lockstep is fragile; matching
+  // by seq is exact regardless.
+  const messages = await fetchPlaybackMessages();
+  const domSeqs = await page.evaluate(() => [...document.querySelectorAll('.msg')].map((e) => Number(e.getAttribute('data-seq'))).sort((a, b) => a - b));
+  const targetSeq = domSeqs[Math.min(305, domSeqs.length - 1)];
+  const targetTs = messages.find((m) => m.seq === targetSeq)?.ts;
+  if (!targetTs) throw new Error(`no ts found for seq ${targetSeq}`);
+
+  execFileSync('git', ['-C', FIXTURE_REPO_DIR, 'config', 'user.email', 'fixture@chronicle.test']);
+  execFileSync('git', ['-C', FIXTURE_REPO_DIR, 'config', 'user.name', 'Chronicle Fixture']);
+  fs.writeFileSync(
+    path.join(FIXTURE_REPO_DIR, 'a.txt'),
+    `import { someReallyLongModuleNameThatGoesOnForever } from './some/very/deeply/nested/module/path/that/keeps/going/and/going.ts';\n${'x'.repeat(240)}\n`,
+  );
+  execFileSync('git', ['-C', FIXTURE_REPO_DIR, 'add', '-A']);
+  execFileSync('git', ['-C', FIXTURE_REPO_DIR, 'commit', '-q', '-m',
+    'a much longer, realistic commit subject describing a real multi-file refactor across the session/ and server/ directories, well past any reasonable ellipsis width'],
+  {
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'Chronicle Fixture', GIT_AUTHOR_EMAIL: 'fixture@chronicle.test',
+      GIT_COMMITTER_NAME: 'Chronicle Fixture', GIT_COMMITTER_EMAIL: 'fixture@chronicle.test',
+      GIT_AUTHOR_DATE: targetTs, GIT_COMMITTER_DATE: targetTs,
+    },
+  });
+
+  const handle = page.locator('.pane-handle');
+  const handleBox = await handle.boundingBox();
+  if (!handleBox) throw new Error('drag handle has no bounding box');
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x - 400, handleBox.y + handleBox.height / 2, { steps: 5 });
+  await page.mouse.up();
+
+  await page.locator(`[data-seq="${targetSeq}"]`).click();
+  await expect(page.locator('.commit-info .git-pill')).toBeVisible();
+  // Confirm the long-content commit is really what's showing, not a stale
+  // earlier one still resolving to the same (short) content — otherwise the
+  // overflow assertion below would pass trivially without exercising it.
+  await expect(page.locator('.code-content')).toContainText('x'.repeat(240));
+
+  const overflowing = await overflowingElements(page);
+  expect(overflowing, `elements clipped by long content at the split floor: ${overflowing.join(', ')}`).toEqual([]);
 });

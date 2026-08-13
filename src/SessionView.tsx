@@ -10,6 +10,7 @@ import { type PlaybackMessage, type MessageCausality } from './session/MessageRo
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
 import ContentTab from './ContentTab.tsx';
+import { useResizable } from './useResizable.ts';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 import type { DeletedEntry } from './SessionSelect.tsx';
 
@@ -90,13 +91,30 @@ export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
 export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'content';
 
-// Playback's chat/right-group drag handle (spec §2.3 task-8) — persisted
-// split width + the min-width floors it clamps against, matching
-// `.panes.pb-grid`'s `minmax(280px, …)` chat column and the combined
-// handle(24px)+file-tree(200px)+code-view(320px) floors from styles.css.
+// Playback's chat/right-group drag handle (spec §2.3 task-8) — reuses
+// `useResizable` (App.tsx's sidebar / HomePage.tsx's project rail already
+// use it) for the persisted width + all the drag robustness it already
+// hardened: parseInt/NaN-guarded/clamped/try-caught localStorage
+// read+write, pointer capture, pointercancel handling, a `buttons===0`
+// self-heal, and unmount-safe teardown — see useResizable.ts's header
+// comment for exactly which failure modes each guards against. A bespoke
+// reimplementation here would either skip those guards or duplicate them
+// with a second chance to get them wrong.
+//
+// `min`/`max` are static, like the two existing callers' — the REAL,
+// viewport-relative ceiling (so a huge persisted width from a wide monitor
+// can't reopen the clipping bug on a narrow one, and so a live window
+// resize is safe even without a fresh drag) is enforced by the `min()` /
+// `calc()` in the inline `gridTemplateColumns` below, not by JS measuring
+// `.panes`' DOM rect — `.panes` isn't mounted yet at the hook's first
+// render, so a live-measurement-based dynamic max can't run at init time
+// anyway. `PLAYBACK_SPLIT_RESERVED` = the handle (24px) + the right
+// group's own floor (200px file-tree + 320px code-view, from
+// `.pb-grid .code-body`'s `minmax()`s below) — the chat column may never
+// eat into that reserve, at any width, dragged or not.
 const PLAYBACK_SPLIT_KEY = 'chronicle-playback-split';
 const PLAYBACK_SPLIT_MIN = 280;
-const PLAYBACK_RIGHT_MIN = 544;
+const PLAYBACK_SPLIT_RESERVED = 544;
 
 export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
@@ -155,8 +173,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const esRef = useRef<EventSource | null>(null);
   const atBottomRef = useRef(true);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const panesRef = useRef<HTMLDivElement | null>(null);
-  const [splitDragging, setSplitDragging] = useState(false);
+  const chatSplit = useResizable({ storageKey: PLAYBACK_SPLIT_KEY, fallback: 420, min: PLAYBACK_SPLIT_MIN, max: 900, edge: 'right' });
   const searchRef = useRef<HTMLInputElement | null>(null);
   const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
   // Whether the CURRENT selectedSeq was set via the Timeline's own scrub/seek,
@@ -170,55 +187,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // reset it never fired — the NEXT genuinely external change then
   // misread the stale flag and left the playhead frozen).
   const selectionFromTimelineRef = useRef(false);
-
-  // Restore a persisted chat/right-group split whenever playback mode
-  // (re)mounts `.panes` — the CSS var lives on that DOM node directly (see
-  // onSplitPointerDown below), so it's lost across a mode switch and must
-  // be re-applied rather than relying on React state to survive.
-  useEffect(() => {
-    if (mode !== 'playback') return;
-    const saved = localStorage.getItem(PLAYBACK_SPLIT_KEY);
-    if (saved && panesRef.current) panesRef.current.style.setProperty('--playback-split', `${saved}px`);
-  }, [mode]);
-
-  function clampSplit(px: number): number {
-    const total = panesRef.current?.getBoundingClientRect().width ?? 0;
-    const max = Math.max(PLAYBACK_SPLIT_MIN, total - PLAYBACK_RIGHT_MIN);
-    return Math.min(Math.max(px, PLAYBACK_SPLIT_MIN), max);
-  }
-
-  // Pointer-driven drag of the chat/right-group divider (spec §2.3 task-8).
-  // Writes the pixel width straight to the DOM (`--playback-split`) on every
-  // move for zero-lag dragging, rather than routing through React state;
-  // only the pointerup commit is persisted to localStorage.
-  function onSplitPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
-    const pane = panesRef.current;
-    if (!pane) return;
-    e.preventDefault();
-    const rect = pane.getBoundingClientRect();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setSplitDragging(true);
-    const move = (ev: PointerEvent): void => {
-      pane.style.setProperty('--playback-split', `${clampSplit(ev.clientX - rect.left)}px`);
-    };
-    const up = (ev: PointerEvent): void => {
-      const px = clampSplit(ev.clientX - rect.left);
-      pane.style.setProperty('--playback-split', `${px}px`);
-      localStorage.setItem(PLAYBACK_SPLIT_KEY, String(Math.round(px)));
-      setSplitDragging(false);
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  }
-
-  // Double-click resets to the default proportional split (removes the
-  // override so `.pb-grid`'s `minmax(280px, 1fr)` default takes back over).
-  function onSplitReset(): void {
-    panesRef.current?.style.removeProperty('--playback-split');
-    localStorage.removeItem(PLAYBACK_SPLIT_KEY);
-  }
 
   useEffect(() => {
     api.sessionMessages(sessionId).then((d: SessionData) => {
@@ -444,7 +412,19 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       </div>
 
       {mode === 'playback' && <>
-        <div className="panes pb-grid" ref={panesRef}>
+        {/* `gridTemplateColumns` is inline (not the static CSS default) so the
+            chat column can be BOTH the drag-resized pixel width from
+            `chatSplit` AND capped against the CURRENT viewport at all times —
+            `min(${chatSplit.width}px, calc(100% - ${PLAYBACK_SPLIT_RESERVED}px))`
+            re-evaluates on every browser layout (including a plain window
+            resize, no drag needed), so a huge persisted width from a wider
+            monitor — or the window simply shrinking — can never push the
+            file-tree/code-view group below its own floor. See the
+            PLAYBACK_SPLIT_RESERVED comment above for the 544 = handle(24) +
+            file-tree(200) + code-view(320) breakdown. */}
+        <div className="panes pb-grid" style={{
+          gridTemplateColumns: `minmax(${PLAYBACK_SPLIT_MIN}px, min(${chatSplit.width}px, calc(100% - ${PLAYBACK_SPLIT_RESERVED}px))) 24px minmax(520px, 2.2fr)`,
+        }}>
           <WindowedConvPane className="" paneRef={listRef}
             onScroll={(e) => {
               const el = e.currentTarget;
@@ -459,9 +439,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             )}
             messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
             onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
-          <div className={`pane-handle ${splitDragging ? 'active' : ''}`} role="separator" aria-orientation="vertical"
+          <div className="pane-handle" role="separator" aria-orientation="vertical"
             aria-label={t('Resize chat / code panels')} tabIndex={0} title={t('Drag to resize · double-click to reset')}
-            onPointerDown={onSplitPointerDown} onDoubleClick={onSplitReset} />
+            onPointerDown={chatSplit.onHandlePointerDown} onDoubleClick={chatSplit.reset} />
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
         <Timeline messages={messages} commits={data.commits}
