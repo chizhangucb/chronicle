@@ -468,30 +468,41 @@ function InsightsOverview({ result, days }: { result: InsightsResult; days: numb
 
       <div className="card" style={{ marginTop: 10 }}>
         <h3>{t('Top sessions by cost')} · {rangeLabel}</h3>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left' }}>{t('Session')}</th>
-              <th style={{ textAlign: 'left' }}>{t('Project')}</th>
-              <th>{t('Cost')}</th>
-              <th>{t('Tokens')}</th>
-              <th>{t('Active')}</th>
-              <th>{t('When')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topSessions.map(({ session, cost, tokens }) => (
-              <tr key={session.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(session.id)}`)}>
-                <td>{sessionDisplayName(session)}</td>
-                <td style={{ textAlign: 'left', color: projectColors.get(session.project_id) ?? 'var(--brass-text)' }}>{session.project_name}</td>
-                <td className="cost">{fmtMoney(cost, 2)}</td>
-                <td>{fmtTok(tokens)}</td>
-                <td>{fmtActive(session.agent_active_ms || 0)}</td>
-                <td>{session.started_at ? fmtDayLabel(session.started_at.slice(0, 10)) : '—'}</td>
+        {/* `.pane` (min-width:0 + overflow:auto — C2 Task 12 container policy):
+            the Session column has no width cap and `.tbl td` is nowrap, so a
+            long real-world session title can force the table wider than its
+            card. Without this wrapper that widens the whole page (a
+            document-level horizontal scrollbar) instead of just this table
+            scrolling internally. Not reproducible on the short fixture
+            display names (RED never triggers here — see task-12-report.md),
+            so this is a defensive Container-policy fix, verified via the
+            wrapper's class presence rather than a scrollWidth probe. */}
+        <div className="pane">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>{t('Session')}</th>
+                <th style={{ textAlign: 'left' }}>{t('Project')}</th>
+                <th>{t('Cost')}</th>
+                <th>{t('Tokens')}</th>
+                <th>{t('Active')}</th>
+                <th>{t('When')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {topSessions.map(({ session, cost, tokens }) => (
+                <tr key={session.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(session.id)}`)}>
+                  <td>{sessionDisplayName(session)}</td>
+                  <td style={{ textAlign: 'left', color: projectColors.get(session.project_id) ?? 'var(--brass-text)' }}>{session.project_name}</td>
+                  <td className="cost">{fmtMoney(cost, 2)}</td>
+                  <td>{fmtTok(tokens)}</td>
+                  <td>{fmtActive(session.agent_active_ms || 0)}</td>
+                  <td>{session.started_at ? fmtDayLabel(session.started_at.slice(0, 10)) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {!topSessions.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
       </div>
     </>

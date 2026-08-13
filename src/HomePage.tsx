@@ -199,19 +199,17 @@ function msgsLabel(s: SearchResultItem): string {
   return s.message_count != null ? String(s.message_count) : '—';
 }
 
-// Always an ABSOLUTE local timestamp — `MMM D HH:MM` 24-hour (e.g. `Aug 11
-// 23:47`). Relative time ("2h ago") is ambiguous once a day-head already
-// groups by calendar day, so the When column is always a fixed clock stamp.
-const WHEN_FMT = new Intl.DateTimeFormat('en-US', {
-  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-});
+// Absolute local clock time, 24-hour (e.g. `23:47`). The row is always
+// grouped under a day-head (Today/Yesterday/`Weekday · Mon D`) that already
+// carries the date — repeating month/day per row was redundant AND too wide
+// for the fixed-width `.ts-col` slot (`MMM D HH:MM` can run to 12 characters,
+// overflowing the 9ch policy width — see the C2 Task 12 layout audit).
+const WHEN_FMT = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 function whenLabel(s: SearchResultItem): string {
   if (!s.ts) return '';
   const d = new Date(s.ts);
   if (Number.isNaN(d.getTime())) return '';
-  // en-US month/day/24h formatting; strip the ", " between date and time to
-  // read `Aug 11 23:47` rather than `Aug 11, 23:47`.
-  return WHEN_FMT.format(d).replace(', ', ' ');
+  return WHEN_FMT.format(d);
 }
 
 interface DayGroup {
@@ -401,8 +399,8 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
           </div>
           <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
             {recentSelect.selectMode && <span aria-hidden="true" />}
-            <span>{t('Session')}</span><span>{t('Project')}</span><span>{t('Cost')}</span>
-            <span>{t('Active')}</span><span>{t('Msgs')}</span><span>{t('When')}</span>
+            <span>{t('Session')}</span><span>{t('Project')}</span><span className="num-col">{t('Cost')}</span>
+            <span className="num-col">{t('Active')}</span><span className="num-col">{t('Msgs')}</span><span className="ts-col">{t('When')}</span>
           </div>
           {groups.map((g) => (
             <section className="day" key={g.label}>
@@ -424,10 +422,10 @@ export default function HomePage({ projects, onOpenProject, onOpenSession, onImp
                   <div className="title"><div className="t">{sessionDisplayName(s)}</div>
                     <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
                   <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
-                  <div className="m"><b>{costLabel(s)}</b></div>
-                  <div className="m">{activeLabel(s)}</div>
-                  <div className="m"><b>{msgsLabel(s)}</b></div>
-                  <div className="m">{whenLabel(s)}</div>
+                  <div className="m num-col"><b>{costLabel(s)}</b></div>
+                  <div className="m num-col">{activeLabel(s)}</div>
+                  <div className="m num-col"><b>{msgsLabel(s)}</b></div>
+                  <div className="m ts-col">{whenLabel(s)}</div>
                 </div>
               ))}
             </section>

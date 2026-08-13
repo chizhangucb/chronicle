@@ -29,6 +29,14 @@
   --overlay-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   --ease-hover: 120ms ease-out;
   --ease-overlay: 200ms ease-out;
+
+  /* Spacing scale (C2 layout system, .claude/design-rubric.md) — label↔value
+     and item↔item gaps draw from these 5 steps, not arbitrary px values. */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
 }
 
 /* Light twin — authored so a future light theme is cheap to wire (a
@@ -58,6 +66,15 @@ body {
 /* PR1 tabular-nums utility — use on any numeric cell not already covered by
    `.num`/`.mono` or one of the specific selectors extended below. */
 .tabnum { font-variant-numeric: tabular-nums; }
+
+/* C2 layout-system policy classes (.claude/design-rubric.md § Alignment /
+   Container policy). Use these instead of hand-rolling the same rules at a
+   call site. NOTE the `font:` shorthand trap: if a rule combining `font:`
+   with one of these needs tabular-nums, re-declare `font-variant-numeric`
+   as a TRAILING declaration in that rule (the shorthand resets it). */
+.num-col { text-align: right; font-variant-numeric: tabular-nums; }
+.ts-col { text-align: right; width: 9ch; overflow: hidden; white-space: nowrap; }
+.pane { min-width: 0; overflow: auto; }
 .eyebrow {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--ink-3);
@@ -245,6 +262,17 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
      the bordered `.row`s below it (was drifting 2px without a matching box). */
   border: 1px solid transparent;
 }
+/* `.ts-col`'s `width: 9ch` is relative to the element's OWN font — the
+   `.colhead` labels otherwise inherit `body`'s sans-serif 13px, while the
+   `.row .m` cells below them are `font: 12px var(--mono)`. Different fonts'
+   "0" glyph is a different width, so the same `9ch` resolves to a different
+   pixel width in each context and the header/row right edges drift. Match
+   the row's exact font recipe on the numeric header cells so `ch` (and thus
+   the column's pixel width) is identical top to bottom. */
+.colhead .num-col, .colhead .ts-col {
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums; /* `font:` shorthand above resets it — restore, trailing */
+}
 .row {
   display: grid; grid-template-columns: minmax(0,1fr) 90px 70px 70px 56px 64px; gap: 12px;
   align-items: center; padding: 8px 12px; margin: 2px 0;
@@ -252,9 +280,15 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 }
 .row:hover { border-color: var(--border-strong); background: var(--bg2); }
 .row .m {
-  font: 12px var(--mono); text-align: right; color: var(--ink-2); white-space: nowrap;
+  font: 12px var(--mono); color: var(--ink-2); white-space: nowrap;
   /* PR1: `font` shorthand above resets font-variant-numeric to `normal`,
-     overriding `body`'s global tabular-nums — restore it explicitly. */
+     overriding `body`'s global tabular-nums — restore it explicitly. (Kept
+     here rather than relying solely on `.num-col` because `.num-col` has
+     lower specificity than `.row .m` — see the design-rubric's `font:`
+     shorthand trap.) Alignment itself is NOT set here: the Project cell (also
+     `.m`) is left-aligned text, not a number — Cost/Active/Msgs/When opt into
+     right-align individually via the shared `.num-col`/`.ts-col` classes
+     (C2 Task 12), not a blanket rule on every `.m`. */
   font-variant-numeric: tabular-nums;
 }
 .row .m b { color: var(--ink); font-weight: 500; }
@@ -276,9 +310,6 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 .row.selectable, .colhead.selectable {
   grid-template-columns: 28px minmax(0,1fr) 90px 70px 70px 56px 64px;
 }
-/* The prepended header cell pushes Project into the base `nth-child(n+3)`
-   right-align band; keep it left (matching the non-select header). */
-.colhead.selectable span:nth-child(3) { text-align: left; }
 .rowcheck { display: flex; align-items: center; justify-content: center; }
 
 /* Lazy-scroll trip wire at the ledger bottom; IntersectionObserver watches it
@@ -311,8 +342,9 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
    the `font`-shorthand cascade finding. ---- */
 .day-head .sum, .hbar .v, .bytype-count, .msg-ts { font-variant-numeric: tabular-nums; }
 
-/* right-align numeric column HEADERS to match right-aligned values (Home) */
-.colhead span:nth-child(n+3) { text-align: right; }
+/* Home's colhead Cost/Active/Msgs/When headers carry explicit `.num-col`/
+   `.ts-col` classes (C2 Task 12) matching the row cells below them — no
+   nth-child one-off needed. */
 
 /* control min-height >=24px + branded focus ring */
 .btn.tiny, .btn.ghost.small, .rangebar button { min-height: 24px; }
@@ -906,7 +938,7 @@ mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding:
 .refine-bulk .btn:hover { color: var(--ink); }
 /* Delete-by-type toggles: one chip per message kind present in the session.
    "on" = kept (click to delete all of that kind); "off" = all deleted (click to restore). */
-.refine-bytype { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; }
+.refine-bytype { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--gap-2); }
 .bytype-label { margin-right: 2px; }
 .bytype-chip { font-size: 11px; padding: 2px 9px; letter-spacing: 0.3px; }
 .bytype-chip.off { opacity: 0.5; text-decoration: line-through; }
@@ -1257,7 +1289,7 @@ h4 { margin: 6px 0; }
    the 3rd) would leave column 2 empty — let it span the full row instead. Only
    fires for the odd-count case, so the even 2-col layout is untouched. */
 .two .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.trow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
+.trow { display: flex; gap: var(--gap-2); align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
 .trow:last-child { border: 0; }
 .trow .k { color: var(--brass-text); white-space: nowrap; width: 52px; flex-shrink: 0; }
 .trow .t { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
