@@ -114,6 +114,33 @@ test.describe('bulk select — Home ledger', () => {
     await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
   });
 
+  test('quick-select minor sessions composes with "Select all" (union, not replace)', async ({ page }) => {
+    await gotoHome(page);
+    // Unfiltered: big fixture + Alpha + Bravo are all visible in the ledger.
+    const totalRows = await page.locator('.recent-ledger .row').count();
+    expect(totalRows).toBeGreaterThanOrEqual(3);
+
+    await page.locator('.recent-ledger .minor-quick-select').click();
+    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+
+    // "Select all" must UNION the visible ids into the selection, not replace
+    // it — a naive `setSelected(new Set(visibleIds))` would silently drop the
+    // minor id here (the regression this test guards against).
+    await page.getByRole('button', { name: /^Select all$/ }).click();
+    await expect(page.locator('.select-toolbar .muted.small', { hasText: `${totalRows + 1} selected` })).toBeVisible();
+    const checkboxes = page.locator('.recent-ledger .rowcheck input[type="checkbox"]');
+    expect(await checkboxes.count()).toBe(totalRows);
+    for (let i = 0; i < totalRows; i++) await expect(checkboxes.nth(i)).toBeChecked();
+    // The button itself must key off "are all VISIBLE ids selected", not a
+    // raw Set-size comparison (which the extra minor id would always fail).
+    await expect(page.getByRole('button', { name: /^Clear$/ })).toBeVisible();
+
+    // Clear SUBTRACTS only the visible ids — the invisible minor id survives.
+    await page.getByRole('button', { name: /^Clear$/ }).click();
+    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+    for (let i = 0; i < totalRows; i++) await expect(checkboxes.nth(i)).not.toBeChecked();
+  });
+
   // Destructive — runs LAST so earlier tests can still rely on Alpha existing.
   test('Remove uses the inline confirm bar (never a native dialog) and completes', async ({ page }) => {
     await gotoHome(page);
