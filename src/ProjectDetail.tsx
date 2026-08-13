@@ -5,7 +5,7 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { api } from './api.js';
+import { api, projectUrl, projectsUrl } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
@@ -14,6 +14,7 @@ import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
+import { useCachedFetch, prefetch } from './useCachedFetch.js';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -160,7 +161,6 @@ interface Stats {
 type ProjectTab = 'overview' | 'explore' | 'content' | 'sessions';
 
 export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
-  const [data, setData] = useState<ProjectDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assocPath, setAssocPath] = useState('');
   const [range, setRange] = useState('all');
@@ -177,8 +177,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // Per-project identity color: assigned in the SAME fixed order as Home
   // (projectColorMap over all project ids), so the head/breadcrumb dot matches
   // Home's rail + ledger pill for this project.
-  const [allProjects, setAllProjects] = useState<PickableProject[] | null>(null);
-  useEffect(() => { api.projects().then(setAllProjects).catch(() => setAllProjects([])); }, []);
+  const { data: allProjects } = useCachedFetch<PickableProject[]>(projectsUrl());
   const projectColor = useMemo(
     () => projectColorMap((allProjects ?? []).map((p) => p.id)).get(Number(id)),
     [allProjects, id]);
@@ -202,11 +201,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (def?.today) { const d = new Date(); d.setHours(0, 0, 0, 0); return (Date.now() - d.getTime()) / 86400000; }
     return def?.days ?? null;
   }, [range]);
-  // `days` is `number | null` (null = no range limit); api.project's `days`
+  // `days` is `number | null` (null = no range limit); projectUrl's `days`
   // param is `number | string | undefined` — null and undefined mean the same
   // thing here (omit the query param), so convert honestly at the call site.
-  const refresh = () => api.project(id, days ?? undefined).then(setData).catch((e: Error) => setError(String(e.message)));
-  useEffect(() => { refresh(); }, [id, range]);
+  // The URL doubles as the SWR cache key (Task 5): re-landing on this exact
+  // id+range combo (tab switch, breadcrumb back-nav) renders the last-seen
+  // data immediately instead of a blank page, then refreshes in place.
+  const { data, refresh } = useCachedFetch<ProjectDetailData>(projectUrl(id, days ?? undefined));
 
   // Project-level LIVE pill: light up when any session log is being written right now.
   useEffect(() => {
@@ -359,7 +360,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       <div className="crumbs">
         <ProjectPicker current={project} color={projectColor} onPick={onOpenProject} />
         <span className="crumb-sep">›</span>
-        <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} />
+        <SessionPicker sessions={sessions} current={null} onPick={onOpenSession} prefetchUrl={projectUrl(id, days ?? undefined)} />
         <button className="btn ghost small" style={{ marginLeft: 'auto' }} onClick={onBack}>← {t('Projects')}</button>
       </div>
 
@@ -685,8 +686,10 @@ export interface ProjectPickerProps {
 export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [projects, setProjects] = useState<PickableProject[] | null>(null);
-  useEffect(() => { if (open && !projects) api.projects().then(setProjects).catch(() => setProjects([])); }, [open]);
+  // Task 5: SWR-cached list, keyed on the same '/api/projects' URL the hover
+  // prefetch below warms — so by the time this popover opens the data is
+  // usually already resolved (no "Loading…" flash).
+  const { data: projects } = useCachedFetch<PickableProject[]>(projectsUrl());
   const list = (projects || []).filter((p) => !q
     || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
   // Per-item identity dots, same fixed order as Home's rail/ledger.
@@ -695,7 +698,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="crumb on">
+        <button className="crumb on" onMouseEnter={() => prefetch(projectsUrl())}>
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
             : '◫ '}
@@ -741,10 +744,17 @@ export interface SessionPickerProps {
   current: PickableSession | null | undefined;
   onPick: (id: string) => void;
   loading?: boolean;
+  // URL that supplies this picker's `sessions` prop in the caller's context
+  // (there's no dedicated session-list endpoint — sessions arrive embedded in
+  // GET /api/projects/:id) — hover-prefetched into the shared SWR cache so
+  // navigating there next (or back to it) renders instantly. Optional: not
+  // every mounting context has one to offer (e.g. SessionView's own picker,
+  // out of scope for Task 5).
+  prefetchUrl?: string;
 }
 
 // Session dropdown: shows on both project and session pages.
-export function SessionPicker({ sessions, current, onPick, loading }: SessionPickerProps) {
+export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl }: SessionPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const title = (s: PickableSession) => sessionDisplayName(s).slice(0, 48);
@@ -753,7 +763,7 @@ export function SessionPicker({ sessions, current, onPick, loading }: SessionPic
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`}>
+        <button className={`crumb ${current ? 'on' : ''}`} onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
           ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>

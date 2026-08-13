@@ -15,6 +15,13 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Exported for `useCachedFetch.ts` (Task 5, client SWR layer): the hook takes
+// a plain URL string, not an `api.*` call, so it needs the same fetch+error-
+// message-extraction behavior every `api.*` function already gets from `j`
+// — reusing it (rather than a bare `fetch`) keeps error shape identical to
+// pre-hook code (e.g. ProjectDetail's rename/associate error banners).
+export const fetchJson = j;
+
 // ---- Scan / import (Import wizard) ----
 
 export interface AnnotatedScannedSession extends ScannedSession {
@@ -394,6 +401,35 @@ export type GitFileResult =
   | { content: string | null; previous: string | null; prevCommit: string | null; changedInCommit: boolean }
   | { noRepo: true };
 
+// ---- Pure URL builders (Task 5) ----
+// Kept separate from the fetching `api.*` functions below so `useCachedFetch`
+// (which takes a URL string, not a promise-returning call) can build the
+// exact same query string each surface already builds, then let the hook own
+// the fetch/cache/error lifecycle. `api.insights`/`explore`/`content`/`project`
+// below delegate to these so the two never drift.
+export function projectsUrl(): string { return '/api/projects'; }
+export function projectUrl(id: number | string, days?: number | string): string {
+  return `/api/projects/${id}${days ? `?days=${days}` : ''}`;
+}
+export function insightsUrl(days?: number): string {
+  return '/api/insights' + (days ? `?days=${days}` : '');
+}
+export function exploreUrl(q: ExploreQueryParams): string {
+  const p = new URLSearchParams({ scope: q.scope, metric: q.metric, group: q.group });
+  if (q.id != null) p.set('id', String(q.id));
+  if (q.days) p.set('days', String(q.days));
+  if (q.subgroup) p.set('subgroup', q.subgroup);
+  if (q.topN) p.set('topN', String(q.topN));
+  if (q.rollup && q.rollup !== 'total') p.set('rollup', q.rollup);
+  return '/api/explore?' + p.toString();
+}
+export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
+  const p = new URLSearchParams({ scope });
+  if (id != null) p.set('id', String(id));
+  if (days) p.set('days', String(days));
+  return '/api/content?' + p.toString();
+}
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -402,14 +438,14 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
-  projects: (): Promise<ProjectListItem[]> => j('/api/projects'),
+  projects: (): Promise<ProjectListItem[]> => j(projectsUrl()),
   renameProject: (id: number | string, name: string): Promise<Project> => j(`/api/projects/${id}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
   }),
   deleteProject: (id: number | string): Promise<{ ok: true }> => j(`/api/projects/${id}`, { method: 'DELETE' }),
   syncProject: (id: number | string): Promise<SyncResult> => j(`/api/projects/${id}/sync`, { method: 'POST' }),
   project: (id: number | string, days?: number | string): Promise<ProjectDetail> =>
-    j(`/api/projects/${id}${days ? `?days=${days}` : ''}`),
+    j(projectUrl(id, days)),
   search: (params: SearchParams): Promise<SearchResponse> =>
     j('/api/search?' + new URLSearchParams(params as Record<string, string>)),
   sessionMessages: (id: string): Promise<SessionMessagesResult> => j(`/api/sessions/${encodeURIComponent(id)}/messages`),
@@ -438,20 +474,8 @@ export const api = {
     j(`/api/git/tree?project=${project}&commit=${commit}`),
   gitFile: (project: number | string, commit: string, path: string): Promise<GitFileResult> =>
     j(`/api/git/file?project=${project}&commit=${commit}&path=${encodeURIComponent(path)}`),
-  insights: (days?: number): Promise<InsightsResult> => j('/api/insights' + (days ? `?days=${days}` : '')),
-  explore: (q: ExploreQueryParams): Promise<ExploreResult> => {
-    const p = new URLSearchParams({ scope: q.scope, metric: q.metric, group: q.group });
-    if (q.id != null) p.set('id', String(q.id));
-    if (q.days) p.set('days', String(q.days));
-    if (q.subgroup) p.set('subgroup', q.subgroup);
-    if (q.topN) p.set('topN', String(q.topN));
-    if (q.rollup && q.rollup !== 'total') p.set('rollup', q.rollup);
-    return j('/api/explore?' + p.toString());
-  },
-  content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> => {
-    const p = new URLSearchParams({ scope });
-    if (id != null) p.set('id', String(id));
-    if (days) p.set('days', String(days));
-    return j('/api/content?' + p.toString());
-  },
+  insights: (days?: number): Promise<InsightsResult> => j(insightsUrl(days)),
+  explore: (q: ExploreQueryParams): Promise<ExploreResult> => j(exploreUrl(q)),
+  content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
+    j(contentUrl(scope, id, days)),
 };

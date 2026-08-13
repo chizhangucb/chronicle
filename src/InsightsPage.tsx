@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState, type JSX } from 'react';
+import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { api, type InsightsResult, type InsightsSessionRow } from './api.ts';
+import { insightsUrl, type InsightsResult, type InsightsSessionRow } from './api.ts';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import { t, lang } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
@@ -12,6 +12,7 @@ import { costOf, type ModelUsageInput } from './models.ts';
 import { fmtInt, fmtMoney } from './format.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
+import { useCachedFetch } from './useCachedFetch.ts';
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -78,21 +79,12 @@ function sessionTokens(json: string | null): number {
 export default function InsightsPage(): JSX.Element {
   const [days, setDays] = useState<number | null>(30);
   const [tab, setTab] = useState<Tab>('overview');
-  const [result, setResult] = useState<InsightsResult | null>(null);
-  // True while a range change is refetching. The previous result stays on
-  // screen (dimmed via .range-refreshing) instead of blanking — a slow
-  // response must never look like a dead range bar.
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setRefreshing(true);
-    api.insights(days ?? undefined)
-      .then((r) => { if (!cancelled) setResult(r); })
-      .catch(() => { if (!cancelled) setResult(null); })
-      .finally(() => { if (!cancelled) setRefreshing(false); });
-    return () => { cancelled = true; };
-  }, [days]);
+  // `stale` (renamed `refreshing` at the call site below) is true while a
+  // range change — or a tab remount that finds this URL already cached — is
+  // revalidating in the background. The previous result stays on screen
+  // (dimmed via .range-refreshing) instead of blanking, and on repeat visits
+  // it's already there instantly (Task 5 SWR layer).
+  const { data: result, stale: refreshing } = useCachedFetch<InsightsResult>(insightsUrl(days ?? undefined));
 
   return (
     <div className="page insights-page">
