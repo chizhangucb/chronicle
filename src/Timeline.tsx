@@ -27,6 +27,15 @@ export interface TimelineProps {
   currentTs?: string | null;
   currentCommit?: TimelineCommit | null;
   onSeek: (ts: number) => void;
+  // Whether the CURRENT `currentTs` was set via this Timeline's own
+  // scrub/seek, vs some other path (message card click, window-jump
+  // button). The parent (SessionView) overwrites this synchronously on
+  // EVERY selection change, right alongside the state that produces
+  // `currentTs` — so, unlike a locally-owned "did I just cause this" latch,
+  // it can never go stale: it always reflects the true cause of the most
+  // recent change, not a one-shot flag that a skipped effect run could fail
+  // to reset.
+  selectionFromTimeline?: boolean;
 }
 
 interface Range {
@@ -42,7 +51,7 @@ interface Hover {
 // TimberLine (FR-TT-5): blue dots = user messages, green squares = git commits,
 // gray ticks = AI/tool events. Drag/click to seek, hover previews timestamp,
 // arrow keys fine-tune (1%), Home/End jump when focused.
-export default function Timeline({ messages, commits, currentTs, currentCommit, onSeek }: TimelineProps) {
+export default function Timeline({ messages, commits, currentTs, currentCommit, onSeek, selectionFromTimeline }: TimelineProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -62,9 +71,19 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   // the pointer across the WHOLE track, exactly like a normal scrubber;
   // `scrubFrac` is cleared (falling back to the selected message's actual
   // position) whenever the selection changes some OTHER way — e.g. clicking
-  // a message card in the chat pane — via the self-caused-update guard below.
+  // a message card in the chat pane. That "some other way" check reads the
+  // `selectionFromTimeline` PROP (see its doc comment) rather than a ref
+  // this component owns itself — an earlier version used a local
+  // `selfCausedRef` boolean set in `seek()`, but that latch only got reset
+  // when THIS effect fired, which only happens when `currentTs` actually
+  // changes. A seek that resolves to the already-selected message (two
+  // clicks in the same dead zone, or most drags) never changes `currentTs`,
+  // so the effect never fires and never resets the flag — it leaks `true`
+  // into the NEXT, genuinely external, selection change, which then wrongly
+  // keeps the stale `scrubFrac` and freezes the playhead. Reading a prop the
+  // parent overwrites unconditionally on every selection avoids that: there
+  // is nothing to "consume", so nothing can go stale.
   const [scrubFrac, setScrubFrac] = useState<number | null>(null);
-  const selfCausedRef = useRef(false);
 
   const range: Range | null = useMemo(() => {
     const times = messages.map((m) => m.ts).filter((v): v is string => Boolean(v)).map((ts) => new Date(ts).getTime());
@@ -74,17 +93,25 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
     return { min, max: max === min ? min + 1 : max };
   }, [messages, commits]);
 
-  // currentTs changing WITHOUT this component having caused it (see `seek`
-  // below) means the selection moved via some other path — defer back to
-  // the newly selected message's own position.
+  // currentTs changing while `selectionFromTimeline` is false means the
+  // selection moved via some other path — defer back to the newly selected
+  // message's own position.
   useEffect(() => {
-    if (selfCausedRef.current) { selfCausedRef.current = false; return; }
-    setScrubFrac(null);
-  }, [currentTs]);
+    if (!selectionFromTimeline) setScrubFrac(null);
+  }, [currentTs, selectionFromTimeline]);
 
   if (!range) return null;
   const pct = (t: string | number) => ((new Date(t).getTime() - range.min) / (range.max - range.min)) * 100;
-  const cur = scrubFrac !== null ? scrubFrac * 100 : (currentTs ? pct(currentTs) : 0);
+  // The fraction the playhead should sit at right now: the raw scrub
+  // position if one is active, else wherever the selected message's own
+  // timestamp falls. Shared by the rendered cursor and `nudge` (arrow keys)
+  // so both agree on "where are we right now".
+  function curFrac(): number {
+    if (scrubFrac !== null) return scrubFrac;
+    if (!currentTs) return 0;
+    return (new Date(currentTs).getTime() - range!.min) / (range!.max - range!.min);
+  }
+  const cur = curFrac() * 100;
 
   // Decimate ticks on huge sessions: keep every user dot visible up to 600,
   // thin AI/tool ticks to ~600 — commits always render.
@@ -102,14 +129,12 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   // records the raw fraction for the playhead AND tells the parent which
   // timestamp to resolve a message for.
   function seek(frac: number): void {
-    selfCausedRef.current = true;
     setScrubFrac(frac);
     onSeek(range!.min + frac * (range!.max - range!.min));
   }
 
   function nudge(fraction: number) {
-    const curFrac = scrubFrac !== null ? scrubFrac : (currentTs ? (new Date(currentTs).getTime() - range!.min) / (range!.max - range!.min) : 0);
-    seek(Math.min(1, Math.max(0, curFrac + fraction)));
+    seek(Math.min(1, Math.max(0, curFrac() + fraction)));
   }
 
   return (

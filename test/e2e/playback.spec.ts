@@ -213,6 +213,46 @@ test('dragging the timeline through the gap tracks the pointer the whole way (no
   }
 });
 
+test('a track-seek that resolves to the already-selected message does not freeze the playhead on the next external selection', async ({ page }) => {
+  // Regression test for a bug found in review: an earlier version of the
+  // fix used a local `selfCausedRef` boolean in Timeline.tsx, set to `true`
+  // in `seek()` and reset to `false` only inside the effect watching
+  // `currentTs`. That reset never ran for a seek that resolves to the
+  // ALREADY-selected message (two clicks at the same spot, or — since a
+  // drag samples many pointermove events — nearly any drag), because
+  // `currentTs` doesn't change and the effect never fires. The stale `true`
+  // then leaked into the NEXT, genuinely external, selection (a message
+  // card click), which wrongly kept the stale `scrubFrac` and froze the
+  // playhead — the original P0 resurfacing via a different path. The fix
+  // (SessionView's `selectionFromTimelineRef`, overwritten unconditionally
+  // on every selection) has no "consume" step, so nothing can go stale.
+  await gotoFixturePlayback(page);
+  const rect = await timelineRect(page);
+
+  // Click once, then click the IDENTICAL pixel again: seekTs's
+  // nearest-message search is deterministic given the same input, so the
+  // second click is guaranteed to resolve to the SAME message as the
+  // first — currentTs does not change, reproducing the exact precondition
+  // that broke the old latch, without depending on message density.
+  const selfSeekFrac = 0.02;
+  await clickTrackAt(page, rect, selfSeekFrac);
+  const seqAfterFirstClick = await page.locator('.msg.selected').getAttribute('data-seq');
+  await clickTrackAt(page, rect, selfSeekFrac);
+  await expect(page.locator('.msg.selected')).toHaveAttribute('data-seq', seqAfterFirstClick ?? '');
+  const leftAfterSelfSeek = await cursorLeftPct(page);
+  expect(Math.abs(leftAfterSelfSeek - selfSeekFrac * 100), 'self-resolving seek should still land at the clicked fraction').toBeLessThan(2);
+
+  // Now select a DIFFERENT message directly (a message card click, not the
+  // timeline) — exactly the reported P0's second symptom.
+  const seqs = await page.evaluate(() => [...document.querySelectorAll('.msg')].map((e) => Number(e.getAttribute('data-seq'))).sort((a, b) => a - b));
+  const farSeq = seqs[Math.min(300, seqs.length - 1)];
+  await page.locator(`[data-seq="${farSeq}"]`).click();
+  await expect(page.locator('.msg.selected')).toHaveAttribute('data-seq', String(farSeq));
+
+  const leftAfterCardClick = await cursorLeftPct(page);
+  expect(Math.abs(leftAfterCardClick - leftAfterSelfSeek), 'playhead must not stay frozen at the earlier scrub position').toBeGreaterThan(2);
+});
+
 // ── Symptom 2: selection doesn't drive the file tree / code panel ─────────
 
 test('selecting a message card updates the code-snapshot panel across a commit boundary', async ({ page }) => {

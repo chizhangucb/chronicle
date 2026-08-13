@@ -149,6 +149,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const listRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
+  // Whether the CURRENT selectedSeq was set via the Timeline's own scrub/seek,
+  // vs some other path (message card click, window-jump button). Overwritten
+  // synchronously by every `selectMessage` call, right alongside
+  // `setSelectedSeq` — never a one-shot flag that needs separate consumption,
+  // so it can't go stale the way a "did I just cause this" latch can (see
+  // Timeline.tsx's comment on `selectionFromTimeline` for the bug this
+  // replaced: a latch set in Timeline itself stayed true forever if a seek
+  // resolved to the already-selected message, since the effect that would
+  // reset it never fired — the NEXT genuinely external change then
+  // misread the stale flag and left the playhead frozen).
+  const selectionFromTimelineRef = useRef(false);
 
   useEffect(() => {
     api.sessionMessages(sessionId).then((d: SessionData) => {
@@ -291,7 +302,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  function selectMessage(seq: number, scroll = false): void {
+  function selectMessage(seq: number, scroll = false, fromTimeline = false): void {
+    selectionFromTimelineRef.current = fromTimeline;
     setSelectedSeq(seq);
     if (scroll) {
       requestAnimationFrame(() => {
@@ -309,7 +321,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       const d = Math.abs(new Date(m.ts).getTime() - tsMillis);
       if (d < bestD) { bestD = d; best = m; }
     }
-    if (best) selectMessage(best.seq, true);
+    if (best) selectMessage(best.seq, true, true);
   }
 
   // Rename this session (optimistically patches the shared session object so the
@@ -391,7 +403,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
         <Timeline messages={messages} commits={data.commits}
-          currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs} />
+          currentTs={selected?.ts} currentCommit={commit} onSeek={seekTs}
+          selectionFromTimeline={selectionFromTimelineRef.current} />
       </>}
 
       {mode === 'overview' && (
