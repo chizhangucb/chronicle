@@ -422,7 +422,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       {confirmUnlink && (
         <div className="inline-confirm">
           <span className="muted small">{confirmUnlink} — {t('Unlink into its own project?')}</span>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 'var(--gap-2)' }}>
             <button className="btn tiny ghost" onClick={() => setConfirmUnlink(null)}>{t('Cancel')}</button>
             <button className="btn tiny danger-btn" onClick={() => unlink(confirmUnlink)}>⛓✕ {t('Unlink')}</button>
           </div>
@@ -430,7 +430,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       )}
 
       {project.path.includes('#') && (
-        <form className="error-banner" style={{ display: 'flex', gap: 8, alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
+        <form className="error-banner" style={{ display: 'flex', gap: 'var(--gap-2)', alignItems: 'center', borderColor: 'var(--warn)', color: 'var(--warn)' }}
           onSubmit={associate}>
           <span>Needs association — this source doesn't report a real project path. Point it at the code folder:</span>
           <input className="search" style={{ flex: 1 }} placeholder="/path/to/project" value={assocPath}
