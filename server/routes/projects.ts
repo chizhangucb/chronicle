@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
 import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
-import { liveCandidatesForSessions, liveWatcherSessionIds } from '../live.ts';
+import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 import { overlapGate, windowedUsage, type WindowedUsageCell } from '../windowUsage.ts';
@@ -55,6 +55,25 @@ export function mountProjects(app: Express): void {
       const placeholders = watcherIds.map(() => '?').join(',');
       const rows = db.prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
       for (const r of rows) liveProjectIds.add(r.project_id);
+    }
+    // Source-log freshness (Task 16): an active CLI session that nobody has
+    // open in Chronicle has neither an open live watcher nor a recent
+    // ended_at (that only updates on import), so the two checks above miss
+    // it entirely. A running session keeps writing its source log though —
+    // fall back to statting the file mtime of each project's MOST RECENT
+    // session (SQLite's documented bare-column behavior: with exactly one
+    // MAX() aggregate in the query, the non-aggregated columns are taken
+    // from the row that produced the max — see sqlite.org/lang_select.html
+    // #bare_columns_in_an_aggregate_query), so this is one cheap stat per
+    // project, not per session.
+    const latestFiles = db.prepare(`
+      SELECT project_id, file_path, MAX(started_at) AS started_at
+      FROM sessions WHERE COALESCE(minor, 0) = 0
+      GROUP BY project_id`).all() as unknown as { project_id: number; file_path: string | null }[];
+    for (const r of latestFiles) {
+      if (!liveProjectIds.has(r.project_id) && r.file_path && isLiveCandidate(r.file_path)) {
+        liveProjectIds.add(r.project_id);
+      }
     }
     res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) })));
   });
