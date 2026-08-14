@@ -119,10 +119,16 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   regexes, Insights calibration) — no LLM calls, no outbound network anywhere, preserving
   the offline guarantee.
 - **Repo is flat** (Chi's global preference): app code at root, PRD in `docs/`.
-- **Navigation is real URL routes (wouter).** `/` (Home), `/project/:id`, `/session/:id`.
-  The URL IS the persisted state, so any reload (including the language switch's
-  `location.reload()`) restores the current view for free — no `sessionStorage` hack.
-  There is one collapsible left sidebar (in `App.tsx`, collapse state in `localStorage`);
+- **Navigation is real URL routes (wouter).** `/` (Home = the ONE Insights hub, tabs
+  Overview/Explore/Content), `/projects` (dense rail-list), `/project/:id[/explore|/content]`,
+  `/session/:id`, and `/insights` = a redirect-only route → `/` (preserving a `?tab=` deep-link).
+  Home and the old separate Insights page were MERGED into one hub (`InsightsPage.tsx` deleted) —
+  there is exactly one KPI strip and one `/api/insights` fetch, never two surfaces showing the
+  same aggregates. **The agreed surface shape is frozen in `.claude/product-contract.md`; changing
+  a route/surface/enumerable requires a matching contract edit + Chi's sign-off (see the
+  plan-fidelity gate in Patterns).** The URL IS the persisted state, so any reload (including the
+  language switch's `location.reload()`) restores the current view for free — no `sessionStorage`
+  hack. There is one collapsible left sidebar (in `App.tsx`, collapse state in `localStorage`);
   SessionView doesn't render its own rail — it publishes `{modes, active, select,
   securityOpen}` up via the `onRailChange` prop while mounted, and App renders those as
   sidebar items. SessionView is keyed by session id so the breadcrumb session switcher
@@ -140,7 +146,7 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   selected session server-side, then surfaces a 10s Undo toast that just forgets the
   tombstone(s) and re-syncs the owning project(s) — the source log is never touched.
   Per-project delete is separate and NOT bulk: a project card's dropdown menu
-  (`ProjectMenu` in `src/ProjectsPage.tsx`, the `/projects` grid) has its own one-at-a-time
+  (`ProjectMenu` in `src/ProjectsPage.tsx`, the `/projects` rail-list) has its own one-at-a-time
   inline-confirm "Remove from Chronicle" (`api.deleteProject`).
 - **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
   repo move keep the old path in early JSONL records; scanner and parser use the last
@@ -268,15 +274,18 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   + Engaged (90-min cap), stored on sessions at import.
 - `server/scope.ts` · `explore.ts` · `content.ts` · `calibrate.ts` · `insights.ts` — the
   Insights engine (see the Insights/Explore/Content section above).
-- `src/App.tsx` — global sidebar (collapse in localStorage), URL routing (wouter: `/`
-  `/projects` `/project/:id[/explore|/content]` `/session/:id` `/insights`), LIVE pill, the
-  topbar sync-status pill (`useSyncStatus` — "synced Xm ago" / "syncing…" / "sync failed
-  Xm ago", click-to-sync-now), always-on top-bar Search/Import.
-- `src/HomeDashboard.tsx` — the `/` home (Task 13, replaced the old `HomePage`): an
-  Insights-overview dashboard — Today/7d/30d KPI strip (shared `KpiStrip`), a Today-only
-  Activity block (live sessions + "since you left", via `server/routes/activity.ts`), a
-  Burn tile, then `RecentLedger` last. The project grid moved to its own route/component,
-  `/projects` (`src/ProjectsPage.tsx`).
+- `src/App.tsx` — global sidebar (collapse in localStorage; sb-top = Home + Projects only, plus
+  the session-mode rail while a session is open), URL routing (wouter: `/` `/projects`
+  `/project/:id[/explore|/content]` `/session/:id`, and `/insights` = redirect→`/`), LIVE pill
+  (session-scoped), the topbar sync-status pill (`useSyncStatus` — "synced Xm ago" / "syncing…" /
+  "sync failed Xm ago", click-to-sync-now), always-on top-bar Search/Import.
+- `src/HomeDashboard.tsx` — the `/` home = the ONE Insights hub (F1 merge; replaced the old
+  `HomePage` AND absorbed the deleted `InsightsPage.tsx`): tabs Overview / Explore / Content, a
+  five-option window toggle (Today/7d/30d/90d/All), and (on Overview, in this order) a KPI strip
+  (shared `KpiStrip`, ONE `/api/insights` fetch) → a Today-only Activity block (live + "since you
+  left", via `server/routes/activity.ts`) → a Burn tile → the Insights Overview charts →
+  `RecentLedger` last. `fmtLaneC` (proxy-lane sub-cent spend carve-out) lives here now. The
+  project grid moved to its own route/component, `/projects` (`src/ProjectsPage.tsx`, a rail-list).
 - `src/RecentLedger.tsx` — the recent-sessions ledger extracted from the old `HomePage`:
   search box, day-grouping, lazy infinite scroll (`IntersectionObserver`), the
   minor-sessions bucket, and session multi-select (`useSessionSelect`, see the Session
@@ -298,9 +307,10 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   + Security Check, ⌘1–⌘3) into the sidebar via `onRailChange`; owns filtering, windowing,
   live SSE, causality panels, the breadcrumb session switcher, the `⇧⌘U` per-session sync
   shortcut, the Subagents drill-in, and the Overview stats page.
-- `src/InsightsPage.tsx` · `src/ExploreTab.tsx` · `src/ContentTab.tsx` — the tabbed Insights
-  hub (Overview / Explore / Content) that consumes the `/api/insights|explore|content`
-  engine routes.
+- `src/ExploreTab.tsx` · `src/ContentTab.tsx` — the Explore / Content tab bodies (consume the
+  `/api/explore|content` engine routes). Reused at `scope={all}` by the `/` hub (`HomeDashboard`)
+  and per-project by `ProjectDetail`. (The old `InsightsPage.tsx` was DELETED in the F1
+  Home/Insights merge — its Overview body is now inline in `HomeDashboard.tsx`.)
 - `src/ProjectDetail.tsx` — project analytics home with Overview/Explore/Content/Sessions
   tabs; also exports `sessionDisplayName()`, `ProjectPicker`, `SessionPicker`. The `days`
   for "Today" is fractional-days-since-local-midnight, memoized on `range`.
@@ -337,12 +347,30 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   push (a branch + PR) → merge, return to `main` → confirm `main` green
   (`npm run typecheck && npm test && npm run build`) → run `npm run walk` against real data
   (a real `~/.chronicle/chronicle.db`, not the seeded E2E fixture) and judge the captured
-  screenshots/probe JSON against `.claude/design-rubric.md`; **publish is blocked while any
-  P0/P1 finding is open** (fix or explicitly defer as P2 first) → `npm publish`
+  screenshots/probe JSON against BOTH `.claude/design-rubric.md` AND
+  `.claude/product-contract.md` — **product-contract conformance is a 5th lens** (does every
+  surface still match the frozen product shape / IA?) on top of the rubric's four (function,
+  responsiveness, data-scale, product completeness). **Any IA drift — a surface deviating from
+  `.claude/product-contract.md` without a matching, Chi-signed-off contract edit — is a P0
+  (publish-blocking).** **Publish is blocked while any P0/P1 finding is open** (fix or explicitly
+  defer as P2 first) → `npm publish`
   (`prepublishOnly` gates on typecheck+test; `prepack` builds `dist/` + `dist-server/`) →
   verify `npm view chronicle-cli version` → clean-dir npx smoke (see npm / npx) → tag the
   bump commit `git tag vX.Y.Z <commit> && git push origin vX.Y.Z` → `gh release create
   vX.Y.Z`. Tag = `package.json` version = published version.
+- **Plan-fidelity gate (drift prevention).** Before executing ANY implementation plan derived
+  from a spec/brainstorm, run a dedicated conformance pass diffing the plan against the source
+  agreement sentence-by-sentence. Any divergence — the plan compressing, dropping, or reshaping a
+  decision Chi confirmed — goes to Chi BEFORE Task 1, not after the surface ships. Task briefs for
+  product-shaping tasks (a surface's routes/blocks/enumerables) MUST carry the relevant spec
+  section VERBATIM, not only the plan's compression of it — reviews then judge against the source,
+  not a lossy paraphrase. (This is the class of failure that produced the Home/Insights + Projects
+  drift: the plan compressed the spec, briefs inherited the compression, reviews/walk never saw
+  the product shape. `.claude/product-contract.md` is the durable capture of that shape.)
+- **Screenshot checkpoint (surface reshaping is a spec-level decision).** Any task that reshapes a
+  top-level surface — a NEW, MERGED, MOVED, or REDESIGNED page — produces a screenshot for Chi
+  BEFORE its batch merges. Surface reshaping crosses the authorization boundary (it changes agreed
+  product shape), so it is never green-lit by passing gates alone; Chi sees the pixels first.
 - **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight to
   `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
   direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local

@@ -3,7 +3,7 @@
 // cover the engine math on hand-built ground truth; this probe just confirms
 // the block actually renders on a real imported session's Content tab —
 // exactly 7 rows, each with a bold "N% ..." lead-in and an InfoTip trigger —
-// at both the Insights-hub (scope=all) and per-project Content tabs.
+// at both the Home-hub (scope=all) and per-project Content tabs.
 import { test, expect } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
@@ -19,9 +19,12 @@ function characteristicRows(page: import('@playwright/test').Page) {
   return page.locator('.card', { has: page.getByRole('heading', { name: 'Usage characteristics' }) }).locator('.callout');
 }
 
-test('Insights Content tab (scope=all) renders exactly 7 usage-characteristic rows', async ({ page }) => {
-  await page.goto(`${state.baseURL}/insights`);
+test('Home hub Content tab (scope=all) renders exactly 7 usage-characteristic rows', async ({ page }) => {
+  await page.goto(`${state.baseURL}/`);
   await expect(page.locator('.kpis').first()).toBeVisible();
+  // The fixture is pinned to fixed early-August dates; the default Today window
+  // would exclude it, so pick All (no cutoff) before opening Content.
+  await page.locator('.home-dashboard .rangebar button', { hasText: /^All$/ }).click();
   await page.locator('.tabs .tab', { hasText: 'Content' }).click();
 
   const rows = characteristicRows(page);

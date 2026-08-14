@@ -157,8 +157,13 @@ export interface ProjectsPageProps {
   onRefresh: () => void;
 }
 
-// `/projects` — the project grid, moved off Home (Task 13). Each card opens the
-// project's analytics; its gear menu carries Sync/Rename/Remove.
+// `/projects` — a dense rail-style list, moved off Home (Task 13). This is
+// the Chi-confirmed contract: the SAME row anatomy as the pre-Batch-C
+// `.rail-proj` sidebar rows (pdot · name · live dot … session count · gear
+// menu, meta line = branch/"needs association" · relative time), just laid
+// out as a page instead of a 264px sidebar — never the bordered card grid
+// Batch C shipped instead (F2 restore). Each row opens the project's
+// analytics; its gear menu carries Sync/Rename/Remove.
 export default function ProjectsPage({ projects, onOpenProject, onImport, onRefresh }: ProjectsPageProps) {
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
 
@@ -170,7 +175,7 @@ export default function ProjectsPage({ projects, onOpenProject, onImport, onRefr
       <div className="page-title-row">
         <h1 className="page-title">{t('Projects')}</h1>
       </div>
-      <div className="projects-grid">
+      <div className="projects-list">
         {projects.map((p) => (
           <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
             <div className="n">

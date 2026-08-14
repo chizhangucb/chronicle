@@ -8,7 +8,7 @@ import InfoTip from './InfoTip.tsx';
 import type { Scope } from './ExploreTab.tsx';
 import { useCachedFetch } from './useCachedFetch.ts';
 
-// Mounted by both InsightsPage (5e-2, scope {type:'all'}) and ProjectDetail
+// Mounted by both HomeDashboard (the Home hub, scope {type:all}) and ProjectDetail
 // (5e-4, scope {type:'project'|'session', id}) — generic from day one, same
 // convention as ExploreTab.tsx (5e-1).
 export interface ContentTabProps {

@@ -14,7 +14,7 @@ import PivotControls, {
 import { groupShowsTokenColumn } from './explore/tokenColumns.ts';
 import { useCachedFetch } from './useCachedFetch.ts';
 
-// Mounted by both InsightsPage (5e-1, scope {type:'all'}) and ProjectDetail
+// Mounted by both HomeDashboard (the Home hub, scope {type:all}) and ProjectDetail
 // (5e-4, scope {type:'project', id}) — kept generic from day one so 5e-4
 // doesn't need a second pass on this file.
 export interface Scope {

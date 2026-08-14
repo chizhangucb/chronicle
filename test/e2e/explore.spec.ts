@@ -32,7 +32,7 @@ import { readSeedState } from './helpers.ts';
 const state = readSeedState();
 
 async function gotoExploreHourly(page: Page): Promise<void> {
-  await page.goto(`${state.baseURL}/insights`);
+  await page.goto(`${state.baseURL}/`);
   await page.locator('.tabs button:has-text("Explore")').click();
   await page.locator('.rangebar button:has-text("All")').click();
   await page.locator('.pivot button.pv:has-text("Metric")').click();
@@ -146,7 +146,7 @@ test.describe('Explore "Other" fold-in segment (Task 10 step 4)', () => {
 
 test.describe('Explore session group (Task 16)', () => {
   test('Group=Session renders the Detail table, and clicking a row opens that session', async ({ page }) => {
-    await page.goto(`${state.baseURL}/insights`);
+    await page.goto(`${state.baseURL}/`);
     await page.locator('.tabs button:has-text("Explore")').click();
     await page.locator('.rangebar button:has-text("All")').click();
 
