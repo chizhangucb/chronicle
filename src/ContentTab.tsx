@@ -210,12 +210,6 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
         <div className="card">
           <h3>
             {t('Subagents')}
-            {result.calibrated && (
-              <>
-                {' ≈'}
-                <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
-              </>
-            )}
           </h3>
           {subagentsView.rows.map((s, i) => (
             <div className="rank nopct" key={s.key}>

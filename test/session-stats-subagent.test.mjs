@@ -130,3 +130,34 @@ test('subagentRunList: unknown type or no messages → empty', () => {
   assert.deepEqual(subagentRunList([], 'general-purpose'), []);
   assert.deepEqual(subagentRunList([{ kind: 'assistant', is_sidechain: 1, agent_type: 'Explore', agent_id: 'x' }], 'general-purpose'), []);
 });
+
+// Regression (mirrors the sWorkflowB fixture in test/content-characteristics.test.mjs):
+// the parser attaches per-message usage to the FIRST event of an API line, so a
+// bare tool-call turn (no leading text — common for subagents) lands its
+// input_tokens/output_tokens on a `kind: 'tool_use'` row, never 'assistant'.
+// Summing tokens off `kind === 'assistant'` alone silently drops that run's
+// spend entirely. `turns` must stay assistant-only (its established meaning).
+test('subagentRuns: tokens attached to a bare tool_use row (no assistant row) still count', () => {
+  const messages = [
+    { kind: 'user', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1' },
+    { kind: 'tool_use', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1', input_tokens: 70, output_tokens: 30 },
+    { kind: 'tool_result', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1' },
+  ];
+  const gp = subagentRuns(messages).find((r) => r.agentType === 'general-purpose');
+  assert.equal(gp.inputTokens, 70);
+  assert.equal(gp.outputTokens, 30);
+  assert.equal(gp.turns, 0); // no assistant row in this run
+});
+
+test('subagentRunList: tokens attached to a bare tool_use row (no assistant row) still count', () => {
+  const messages = [
+    { kind: 'user', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1', ts: '2026-08-01T00:00:00.000Z' },
+    { kind: 'tool_use', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1', ts: '2026-08-01T00:00:05.000Z', input_tokens: 70, output_tokens: 30 },
+    { kind: 'tool_result', is_sidechain: 1, agent_type: 'general-purpose', agent_id: 'a1', ts: '2026-08-01T00:00:06.000Z' },
+  ];
+  const runs = subagentRunList(messages, 'general-purpose');
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].inputTokens, 70);
+  assert.equal(runs[0].outputTokens, 30);
+  assert.equal(runs[0].turns, 0);
+});

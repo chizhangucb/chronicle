@@ -197,18 +197,27 @@ export interface SubagentTypeGroup {
 // out). Sorted desc by total tokens (input+output) so the busiest subagent
 // type leads. The parser stamps `agent_type`/`agent_id` on EVERY sidechain
 // event (user/tool_use/tool_result/thinking/assistant), not just assistant
-// turns — so `turns` (and tokens, which only assistant rows carry) must be
-// gated to `kind === 'assistant'` or turns double/triple-counts each real
-// turn via its accompanying tool_use/tool_result rows; `agent_id` collection
-// for `runCount` does NOT need that gate (any kind carries it).
+// turns — so `turns` must be gated to `kind === 'assistant'` or it
+// double/triple-counts each real turn via its accompanying
+// tool_use/tool_result rows; `agent_id` collection for `runCount` does NOT
+// need that gate (any kind carries it). Tokens are DIFFERENT: per-message
+// usage attaches to the FIRST event of an API line (`attachPerEventUsage` in
+// the parser), and a bare tool-call turn (no leading text — common for
+// subagents) lands its usage on a `kind: 'tool_use'` row, not 'assistant' —
+// server/content.ts's `computeCharacteristics` sums subagent tokens with
+// `kind IN ('assistant','tool_use')` for exactly this reason. Summing tokens
+// off `kind === 'assistant'` alone silently drops every subagent turn whose
+// only content was a tool call, so token sums here use the same two-kind
+// gate; `turns` stays assistant-only (its established meaning — see the
+// Subagents card InfoTip: "Turns are that type's assistant messages").
 function subagentRuns(messages: StatMessage[]): SubagentTypeGroup[] {
   const map = new Map<string, { agentType: string; turns: number; inputTokens: number; outputTokens: number; agentIds: Set<string> }>();
   for (const m of messages) {
     if (!m.is_sidechain || !m.agent_type) continue;
     const cur = map.get(m.agent_type) ?? { agentType: m.agent_type, turns: 0, inputTokens: 0, outputTokens: 0, agentIds: new Set<string>() };
     if (m.agent_id) cur.agentIds.add(m.agent_id);
-    if (m.kind === 'assistant') {
-      cur.turns++;
+    if (m.kind === 'assistant') cur.turns++;
+    if (m.kind === 'assistant' || m.kind === 'tool_use') {
       cur.inputTokens += m.input_tokens ?? 0;
       cur.outputTokens += m.output_tokens ?? 0;
     }
@@ -234,10 +243,13 @@ export interface SubagentRunInfo {
 // distinct `agent_id`, sorted by start time. `startTs`/`endTs` are the
 // min/max ts seen across ALL of that run's rows (any kind), so a run with no
 // assistant turn (rare, but possible for a very short-lived agent) still gets
-// a start time. `turns`/tokens are assistant-gated for the same reason
-// subagentRuns() gates them. `description` is the first non-null
-// `agent_desc` seen for the run (the parser stamps it on every event of a
-// file-based run, so any row has it if the sidecar had one).
+// a start time. `turns` stays assistant-gated (see subagentRuns() above);
+// tokens are gated to `kind IN ('assistant','tool_use')` — a bare tool-call
+// turn (no leading text) carries its usage on a 'tool_use' row, not
+// 'assistant' (same reason subagentRuns() gates tokens that way; mirrors
+// server/content.ts's `computeCharacteristics`). `description` is the first
+// non-null `agent_desc` seen for the run (the parser stamps it on every
+// event of a file-based run, so any row has it if the sidecar had one).
 function subagentRunList(messages: StatMessage[], agentType: string): SubagentRunInfo[] {
   const map = new Map<string, SubagentRunInfo>();
   for (const m of messages) {
@@ -251,8 +263,8 @@ function subagentRunList(messages: StatMessage[], agentType: string): SubagentRu
       if (!cur.startTs || m.ts < cur.startTs) cur.startTs = m.ts;
       if (!cur.endTs || m.ts > cur.endTs) cur.endTs = m.ts;
     }
-    if (m.kind === 'assistant') {
-      cur.turns++;
+    if (m.kind === 'assistant') cur.turns++;
+    if (m.kind === 'assistant' || m.kind === 'tool_use') {
       cur.inputTokens += m.input_tokens ?? 0;
       cur.outputTokens += m.output_tokens ?? 0;
     }

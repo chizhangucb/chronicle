@@ -451,6 +451,20 @@ const zh = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': '子智能体',
   'back to session': '返回会话',
+  // Subagent run list drill-in (Task 11 D3)
+  'Subagent runs': '子智能体运行记录',
+  'back to run list': '返回运行列表',
+  'No runs found for this subagent type.': '未找到该类型子智能体的运行记录。',
+  "Open this run's transcript": '打开此次运行的对话记录',
+  'Open the run list for this subagent type': '打开该类型子智能体的运行列表',
+  'Start': '开始时间',
+  'Turns': '轮次',
+  'Description': '描述',
+  'run': '次运行',
+  'runs': '次运行',
+  'tok': '词元',
+  "A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type's assistant messages across all its runs. Tokens are input + output across all its runs.":
+    '一次运行对应一次子智能体调用（agent_id）；一种类型（如 general-purpose）可以有多次运行。轮次是该类型在所有运行中的助手消息数。词元是该类型在所有运行中的输入 + 输出总和。',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': '内容',
@@ -1045,6 +1059,20 @@ const ja = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': 'サブエージェント',
   'back to session': 'セッションに戻る',
+  // Subagent run list drill-in (Task 11 D3)
+  'Subagent runs': 'サブエージェントの実行履歴',
+  'back to run list': '実行一覧に戻る',
+  'No runs found for this subagent type.': 'このタイプのサブエージェントの実行履歴が見つかりません。',
+  "Open this run's transcript": 'この実行のトランスクリプトを開く',
+  'Open the run list for this subagent type': 'このタイプのサブエージェントの実行一覧を開く',
+  'Start': '開始',
+  'Turns': 'ターン数',
+  'Description': '説明',
+  'run': '回',
+  'runs': '回',
+  'tok': 'トークン',
+  "A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type's assistant messages across all its runs. Tokens are input + output across all its runs.":
+    '1回の実行は1回のサブエージェント呼び出し（agent_id）を指し、1つのタイプ（例: general-purpose）は複数回実行されることがあります。ターン数はそのタイプの全実行にわたるアシスタントメッセージ数です。トークン数はそのタイプの全実行にわたる入力+出力の合計です。',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': 'コンテンツ',
