@@ -97,20 +97,27 @@ export function fmtDayLabel(key: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(y, mo - 1, d));
 }
 
+// Internal: formats a given hour (0–23) using locale-appropriate Intl.DateTimeFormat.
+// Shared by both fmtHourLabel and fmtHourOfDay to avoid duplication of the
+// "9 AM" / "10 PM" rendering logic.
+function formatHourWith(hour: number, locale: string): string {
+  // Use a dummy date (1970-01-01); only the hour matters for formatting.
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(1970, 0, 1, hour));
+}
+
 // Local hour-key formatter, compact + mono-friendly per the brief: "9 AM" /
 // "10 PM". Built from the key's own local numeric parts, same rule as
 // fmtDayLabel above.
 export function fmtHourLabel(key: string, locale: string): string {
   const { y, mo, d, h } = parseHourKey(key);
-  return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(y, mo - 1, d, h));
+  return formatHourWith(h, locale);
 }
 
 // Hour-of-day formatter for subgroup labels (0–23 → "9 AM" / "10 PM").
 // Takes the raw hour number as a string (e.g., "9", "10", "22") and formats
-// it using Intl.DateTimeFormat with a dummy date (1970-01-01) — the date is
-// irrelevant; only the hour matters.
+// it using the shared formatHourWith() logic.
 export function fmtHourOfDay(hourStr: string, locale: string): string {
   const h = Number(hourStr);
   if (Number.isNaN(h) || h < 0 || h > 23) return hourStr;
-  return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(1970, 0, 1, h));
+  return formatHourWith(h, locale);
 }
