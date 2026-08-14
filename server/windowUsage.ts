@@ -143,34 +143,60 @@ function loadSessions(db: DatabaseSync, whereSql: string, binds: (string | numbe
 // is ONE ratio per model (Global constraints), applied alike to every field of that
 // model's billed cell, so the ratio math only ever needs a single combined number, not
 // a per-field breakdown.
-const TOTAL_EXPR = `COALESCE(SUM(
+const TOKEN_SUM_EXPR = `(
   COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0) + COALESCE(m.cache_read_tokens,0) +
   COALESCE(m.cache_w5m_tokens,0) + COALESCE(m.cache_w1h_tokens,0)
-),0)`;
+)`;
+const TOTAL_EXPR = `COALESCE(SUM(${TOKEN_SUM_EXPR}),0)`;
 
-function loadTotals(db: DatabaseSync, sql: string, binds: (string | number)[]): Map<string, Map<string, number>> {
-  const rows = db.prepare(sql).all(...binds) as unknown as { sessionId: string; model: string; total: number }[];
-  const out = new Map<string, Map<string, number>>();
+interface WholeWindowRow { sessionId: string; model: string; whole: number; windowed: number; }
+
+// Loads BOTH the whole-session and in-window combined totals per (session, model) from
+// ONE scan of `messages` (conditional aggregation: the in-window column is a `SUM(CASE
+// WHEN m.ts >= ? THEN ... ELSE 0 END)` alongside the unconditional whole-session SUM in
+// the same GROUP BY s.id, model query) — not two separate CROSS JOIN queries differing
+// only by an added `m.ts >= ?` filter, which would scan `messages` twice for the exact
+// same rows.
+function loadWholeAndWindowTotals(db: DatabaseSync, sql: string, binds: (string | number)[]): Map<string, Map<string, WholeWindowRow>> {
+  const rows = db.prepare(sql).all(...binds) as unknown as WholeWindowRow[];
+  const out = new Map<string, Map<string, WholeWindowRow>>();
   for (const r of rows) {
     let inner = out.get(r.sessionId);
     if (!inner) { inner = new Map(); out.set(r.sessionId, inner); }
-    inner.set(r.model, r.total);
+    inner.set(r.model, r);
   }
   return out;
 }
 
-// One level deeper than loadTotals: session -> model -> bucket -> total.
-function loadBucketedTotals(db: DatabaseSync, sql: string, binds: (string | number)[]): Map<string, Map<string, Map<string, number>>> {
-  const rows = db.prepare(sql).all(...binds) as unknown as { sessionId: string; model: string; bucket: string; total: number }[];
-  const out = new Map<string, Map<string, Map<string, number>>>();
+interface WholeBucketRow { sessionId: string; model: string; bucket: string | null; total: number; }
+
+// Same one-scan idea as loadWholeAndWindowTotals, generalized to buckets: the bucket key
+// expression is wrapped in `CASE WHEN m.ts >= ? THEN <bucketExpr> END`, so an
+// out-of-window message's row lands in one NULL-bucket group per (session, model)
+// instead of a real bucket. That NULL-bucket row's total still feeds the whole-session
+// denominator (`whole`, summed across ALL groups incl. the NULL one below) but is
+// skipped when building the per-bucket map — so one scan yields both the ratio
+// denominator AND the per-bucket numerators, instead of a separate whole-sums query plus
+// a separate bucketed-sums query.
+function loadWholeAndBucketedTotals(db: DatabaseSync, sql: string, binds: (string | number)[]): {
+  whole: Map<string, Map<string, number>>;
+  buckets: Map<string, Map<string, Map<string, number>>>;
+} {
+  const rows = db.prepare(sql).all(...binds) as unknown as WholeBucketRow[];
+  const whole = new Map<string, Map<string, number>>();
+  const buckets = new Map<string, Map<string, Map<string, number>>>();
   for (const r of rows) {
-    let bySession = out.get(r.sessionId);
-    if (!bySession) { bySession = new Map(); out.set(r.sessionId, bySession); }
-    let byModel = bySession.get(r.model);
-    if (!byModel) { byModel = new Map(); bySession.set(r.model, byModel); }
-    byModel.set(r.bucket, r.total);
+    let wInner = whole.get(r.sessionId);
+    if (!wInner) { wInner = new Map(); whole.set(r.sessionId, wInner); }
+    wInner.set(r.model, (wInner.get(r.model) ?? 0) + r.total);
+    if (r.bucket == null) continue; // out-of-window group: counted above, no bucket to attribute to
+    let bBySession = buckets.get(r.sessionId);
+    if (!bBySession) { bBySession = new Map(); buckets.set(r.sessionId, bBySession); }
+    let bByModel = bBySession.get(r.model);
+    if (!bByModel) { bByModel = new Map(); bBySession.set(r.model, bByModel); }
+    bByModel.set(r.bucket, r.total);
   }
-  return out;
+  return { whole, buckets };
 }
 
 // Per-session per-model in-window billed token cells. `scopeWhere`/`binds` are a
@@ -202,33 +228,29 @@ export function windowedUsage(
   const sessions = loadSessions(db, whereSql, whereBinds);
   if (sessions.length === 0) return [];
 
-  // One pass each (mirrors server/insights.ts: `sessions CROSS JOIN messages` so
-  // idx_messages_agg(session_id, kind, ts, tool_name, model) serves the scan) — never a
-  // per-session query loop, regardless of how many sessions are in scope.
-  const wholeSums = loadTotals(db, `
-    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model, ${TOTAL_EXPR} AS total
+  // ONE pass over `messages` (mirrors server/insights.ts: `sessions CROSS JOIN messages`
+  // so idx_messages_agg(session_id, kind, ts, tool_name, model) serves the scan): the
+  // whole-session and in-window totals are two columns of the SAME conditionally-
+  // aggregated query, not two separate CROSS JOIN scans differing only by an added
+  // `m.ts >= ?` filter — never a per-session query loop either way.
+  const totals = loadWholeAndWindowTotals(db, `
+    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model,
+      ${TOTAL_EXPR} AS whole,
+      COALESCE(SUM(CASE WHEN m.ts >= ? THEN ${TOKEN_SUM_EXPR} ELSE 0 END),0) AS windowed
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${whereSql}
     GROUP BY s.id, model
-  `, whereBinds);
-  const windowSums = loadTotals(db, `
-    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model, ${TOTAL_EXPR} AS total
-    FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-    WHERE ${whereSql} AND m.ts >= ?
-    GROUP BY s.id, model
-  `, [...whereBinds, cutoffIso]);
+  `, [cutoffIso, ...whereBinds]);
 
   const out: WindowedUsageCell[] = [];
   for (const s of sessions) {
     for (const [model, cell] of Object.entries(parseUsage(s.usage))) {
-      const whole = wholeSums.get(s.sessionId)?.get(model);
+      const t = totals.get(s.sessionId)?.get(model);
       // No per-message rows (or they all summed to zero) → no signal to scale from:
       // fall back to the model's full billed cell. The session already overlaps the
       // window (loadSessions filtered on overlapGate above), so this is not an
       // overcount — it's the Global constraints fallback rule.
-      const ratio = !whole
-        ? 1
-        : Math.max(0, Math.min(1, (windowSums.get(s.sessionId)?.get(model) ?? 0) / whole));
+      const ratio = !t || !t.whole ? 1 : Math.max(0, Math.min(1, t.windowed / t.whole));
       out.push({ sessionId: s.sessionId, projectId: s.projectId, model, source: s.source, cells: scaleCell(cell, ratio) });
     }
   }
@@ -255,25 +277,26 @@ export function bucketedUsage(
   const sessions = loadSessions(db, whereSql, whereBinds);
   if (sessions.length === 0) return [];
 
-  const wholeSums = loadTotals(db, `
-    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model, ${TOTAL_EXPR} AS total
+  // ONE pass over `messages`: the bucket key is `CASE WHEN m.ts >= ? THEN <bucketExpr>
+  // END`, so an out-of-window message's row collapses into a single NULL-bucket group
+  // per (session, model) instead of a real bucket — its total still feeds the
+  // whole-session ratio denominator (loadWholeAndBucketedTotals sums it into `whole`)
+  // but is excluded from the per-bucket map. No separate whole-sums query needed.
+  const bucketExpr = bucketKeyExpr(bucket, 'm.ts');
+  const { whole, buckets } = loadWholeAndBucketedTotals(db, `
+    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model,
+      CASE WHEN m.ts >= ? THEN ${bucketExpr} END AS bucket,
+      ${TOTAL_EXPR} AS total
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${whereSql}
-    GROUP BY s.id, model
-  `, whereBinds);
-  const bucketExpr = bucketKeyExpr(bucket, 'm.ts');
-  const bucketSums = loadBucketedTotals(db, `
-    SELECT s.id AS sessionId, COALESCE(m.model,'') AS model, ${bucketExpr} AS bucket, ${TOTAL_EXPR} AS total
-    FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-    WHERE ${whereSql} AND m.ts >= ? AND m.ts IS NOT NULL
     GROUP BY s.id, model, bucket
-  `, [...whereBinds, effectiveCutoff]);
+  `, [effectiveCutoff, ...whereBinds]);
 
   const out: BucketedUsageCell[] = [];
   for (const s of sessions) {
     for (const [model, cell] of Object.entries(parseUsage(s.usage))) {
-      const whole = wholeSums.get(s.sessionId)?.get(model);
-      if (!whole) {
+      const wholeTotal = whole.get(s.sessionId)?.get(model);
+      if (!wholeTotal) {
         // Fallback: no per-message rows to bucket by — the whole billed cell lands on
         // the session's own started_at-derived local bucket. Without a started_at
         // there's no basis for a bucket key at all (sessions always carry one in
@@ -285,10 +308,10 @@ export function bucketedUsage(
         });
         continue;
       }
-      const perBucket = bucketSums.get(s.sessionId)?.get(model);
+      const perBucket = buckets.get(s.sessionId)?.get(model);
       if (!perBucket) continue; // whole>0 but nothing fell in-window: no bucket to attribute to
       for (const [bkey, bsum] of perBucket) {
-        const ratio = Math.max(0, Math.min(1, bsum / whole));
+        const ratio = Math.max(0, Math.min(1, bsum / wholeTotal));
         out.push({ sessionId: s.sessionId, projectId: s.projectId, model, source: s.source, bucket: bkey, cells: scaleCell(cell, ratio) });
       }
     }
