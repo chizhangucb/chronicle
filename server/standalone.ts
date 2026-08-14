@@ -13,7 +13,11 @@ export function startServer(port = 41730, distDir?: string): Promise<Server> {
   const dist = distDir ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
   app.use('/api', api);
   app.use(express.static(dist));
-  app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
+  // SPA fallback: use relative path + root form to check dot segments relative to
+  // root only. Direct path.join() form fails under dot-segment install paths
+  // (e.g. npx _npx/<hash>, .claude/worktrees/…) because express/send's default
+  // dotfiles: 'ignore' treats dot segments as dotfiles. Root form bypasses this.
+  app.get(/^\/(?!api).*/, (req, res) => res.sendFile('index.html', { root: dist }));
   return new Promise((resolve, reject) => {
     const server = app.listen(port, '127.0.0.1', () => resolve(server));
     server.on('error', reject);
