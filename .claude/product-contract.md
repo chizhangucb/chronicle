@@ -65,6 +65,16 @@ drag-resizable when expanded. Contents, top to bottom:
 
 - **Window toggle** (`/` hub `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
   in this order. Default = Today. Today = fractional-days-since-local-midnight; All = no cutoff.
+- **Project rangebar** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
+  `90d` · `All`. Same exact five, same order, same labels as the hub window toggle above — ONE
+  shared vocabulary, sourced from ONE component (`src/RangeBar.tsx`) both surfaces mount, so the
+  option sets/labels cannot drift independently again. Default = All (unchanged from before this
+  unification — only the vocabulary/labels changed, not the default). **D10 sign-off (2026-08-14
+  feedback round, Task 17): Chi approved unifying ProjectDetail's prior
+  `Today`/`7 Days`/`30 Days`/`1 Year`/`All time` set onto the hub's `Today`/`7d`/`30d`/`90d`/`All`
+  — `1 Year` is REMOVED (90d replaces it), `All time` → `All`.** Guard:
+  `test/e2e/window-matrix.spec.ts` — "the rangebar on /project/:id has exactly the same Today /
+  7d / 30d / 90d / All set as the / hub".
 - **Hub tabs** (`/`): `Overview` · `Explore` · `Content`. Exactly three; Overview default.
 - **Project tabs** (`/project/:id`): `Overview` · `Explore` · `Content` · `Sessions`.
 - **Session modes rail**: `Overview` · `Playback` · `Refine` + `Security Check` (four rail items).

@@ -729,7 +729,10 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    language as .filter-chips/.chip elsewhere in the app. Scoped to
    `.project-detail` (Project analytics' root class) because Insights (below)
    independently authored its own `.rangebar` with a different active-state
-   color; deduped at the 5d Wave-2 integration pass — see styles.css history. ---- */
+   color; deduped at the 5d Wave-2 integration pass — see styles.css history.
+   The OPTION SET/LABELS are unified across both scopes via the shared
+   RangeBar.tsx component (D10, Task 17) — only this visual (chip color) stays
+   scope-specific. ---- */
 .project-detail .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .project-detail .rangebar button {
   background: none; border: none; border-radius: 6px; padding: 5px 10px;

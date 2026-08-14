@@ -18,6 +18,7 @@ import { sumByModel, sumByKeyModel, costOfCells, tokensOfCells } from './windowe
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
+import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 import type { Project, SourceId } from '@shared/types.ts';
 
 // Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
@@ -107,23 +108,6 @@ const FRIENDLY_CALL: Record<string, string> = {
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
 
-interface RangeDef {
-  key: string;
-  days: number | null;
-  label: string;
-  today?: boolean;
-}
-// Order matches the `.rangebar` segmented control's left-to-right layout
-// (Today → 7d → 30d → 1yr → All); the underlying days/refetch logic is
-// unchanged from the old <select> version, only the display order.
-const RANGES: RangeDef[] = [
-  { key: 'today', days: null, label: 'Today', today: true },
-  { key: '7', days: 7, label: '7 Days' },
-  { key: '30', days: 30, label: '30 Days' },
-  { key: '365', days: 365, label: '1 Year' },
-  { key: 'all', days: null, label: 'All time' },
-];
-
 // Display name for a session: user-set name → tool summary → first prompt → id.
 export function sessionDisplayName(s: NamedSession): string {
   return (s.name && s.name.trim()) || (s.summary && s.summary.trim())
@@ -172,7 +156,7 @@ type ProjectTab = 'overview' | 'explore' | 'content' | 'sessions';
 export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject, onLiveChange, pendingUndo }: ProjectDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [assocPath, setAssocPath] = useState('');
-  const [range, setRange] = useState('all');
+  const [range, setRange] = useState<RangeKey>('all');
   const [sortKey, setSortKey] = useState('recent');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [listLimit, setListLimit] = useState(SESSION_WINDOW);
@@ -204,11 +188,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   }
 
   // "Today" = fractional days since local midnight, computed once per range change
-  // (a stable value avoids a Date.now()-driven refetch loop).
+  // (a stable value avoids a Date.now()-driven refetch loop). `rangeDays` is the
+  // shared resolver (RangeBar.tsx, D10) — same option set + semantics as the `/`
+  // hub's window toggle so the two vocabularies cannot drift again.
   const days = useMemo(() => {
-    const def = RANGES.find((r) => r.key === range);
-    if (def?.today) { const d = new Date(); d.setHours(0, 0, 0, 0); return (Date.now() - d.getTime()) / 86400000; }
-    return def?.days ?? null;
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    const daysToday = (Date.now() - d.getTime()) / 86400000;
+    return rangeDays(range, daysToday);
   }, [range]);
   // `days` is `number | null` (null = no range limit); projectUrl's `days`
   // param is `number | string | undefined` — null and undefined mean the same
@@ -416,11 +402,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             <button key={src} className="btn tiny ghost" title={`Unlink ${src} into its own project`}
               onClick={() => setConfirmUnlink(src)}>⛓✕ {src}</button>
           ))}
-        <div className="rangebar" style={{ marginLeft: 'auto' }} title={t('Time range')}>
-          {RANGES.map((r) => (
-            <button key={r.key} className={range === r.key ? 'on' : ''} onClick={() => setRange(r.key)}>{t(r.label)}</button>
-          ))}
-        </div>
+        <RangeBar value={range} onChange={setRange} style={{ marginLeft: 'auto' }} />
       </div>
 
       {confirmUnlink && (

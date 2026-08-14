@@ -155,11 +155,32 @@ test.describe('window-matrix: Home hub (/) — Today/7d/30d × Overview/Explore/
   }
 });
 
-// ---- Project detail (/project/:id) — rangebar buttons are Today/7 Days/30 Days/1 Year/All time (ProjectDetail RANGES) ----
+// ---- Project detail (/project/:id) — rangebar buttons are Today/7d/30d/90d/All
+// (unified with the hub's vocabulary via the shared RangeBar.tsx, D10, Task 17) ----
+
+// Drift-pin: the project rangebar's option set + labels must equal the hub's
+// exactly (same 5 options, same order) — this is the regression the D10
+// unification (shared RangeBar.tsx) exists to prevent. Before Task 17 this
+// rendered Today/7 Days/30 Days/1 Year/All time, a fully independent
+// vocabulary from the hub's Today/7d/30d/90d/All.
+test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the / hub', async ({ page }) => {
+  const projectId = await fixtureProjectId();
+  await page.goto(`${state.baseURL}/`);
+  const hubOpts = page.locator('.home-dashboard .rangebar button');
+  await expect(hubOpts).toHaveCount(5);
+  const hubLabels = await hubOpts.allTextContents();
+
+  await page.goto(`${state.baseURL}/project/${projectId}`);
+  const projectOpts = page.locator('.project-detail .rangebar button');
+  await expect(projectOpts).toHaveCount(5);
+  await expect(projectOpts).toHaveText(['Today', '7d', '30d', '90d', 'All']);
+  expect(await projectOpts.allTextContents()).toEqual(hubLabels);
+});
+
 const PROJECT_WINDOWS: { click: string; label: string }[] = [
   { click: 'Today', label: 'Today' },
-  { click: '7 Days', label: '7d' },
-  { click: '30 Days', label: '30d' },
+  { click: '7d', label: '7d' },
+  { click: '30d', label: '30d' },
 ];
 
 test.describe('window-matrix: project detail (/project/:id) — Today/7d/30d × Overview/Explore/Content', () => {

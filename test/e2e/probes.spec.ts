@@ -212,7 +212,7 @@ async function gotoHomeExploreDaily7d(page: Page): Promise<void> {
 async function gotoProjectOverview7d(page: Page, projectId: number): Promise<void> {
   await page.goto(`${state.baseURL}/project/${projectId}`);
   await expect(page.locator('.project-detail .kpis').first()).toBeVisible();
-  await page.locator('.project-detail .rangebar button', { hasText: /^7 Days$/ }).click();
+  await page.locator('.project-detail .rangebar button', { hasText: /^7d$/ }).click();
   await expect(page.locator('.trend-card .recharts-bar-rectangle').first()).toBeVisible();
 }
 
@@ -224,7 +224,7 @@ async function gotoProjectExploreDaily7d(page: Page, projectId: number): Promise
   // `.rangebar` is rendered above the sub-tabs, before the tab-specific
   // branch, so it's present on every project subview.
   await expect(page.locator('.project-detail .rangebar').first()).toBeVisible();
-  await page.locator('.project-detail .rangebar button', { hasText: /^7 Days$/ }).click();
+  await page.locator('.project-detail .rangebar button', { hasText: /^7d$/ }).click();
   await page.locator('.pivot button.pv:has-text("Rollup")').click();
   await page.locator('.menu-pop .menu-item:has-text("Daily")').click();
   await expect(page.locator('.recharts-bar-rectangle').first()).toBeVisible();

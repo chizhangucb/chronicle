@@ -21,6 +21,7 @@ import { sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, s
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
+import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
@@ -37,24 +38,11 @@ import ContentTab from './ContentTab.tsx';
 type Tab = 'overview' | 'explore' | 'content';
 
 // Window toggle: all five options live on this ONE surface (spec §2.2a). Today =
-// fractional-days-since-local-midnight; All = no cutoff (days omitted).
-type WindowKey = 'today' | '7d' | '30d' | '90d' | 'all';
-const WINDOWS: { key: WindowKey; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-  { key: '90d', label: '90d' },
-  { key: 'all', label: 'All' },
-];
-function windowDays(win: WindowKey, daysToday: number): number | null {
-  switch (win) {
-    case 'today': return daysToday;
-    case '7d': return 7;
-    case '30d': return 30;
-    case '90d': return 90;
-    case 'all': return null;
-  }
-}
+// fractional-days-since-local-midnight; All = no cutoff (days omitted). The
+// option set + labels + `days` resolution are shared with ProjectDetail via
+// RangeBar.tsx (D10, Task 17) so the two vocabularies cannot drift again.
+type WindowKey = RangeKey;
+const windowDays = rangeDays;
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -162,14 +150,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
               {t('Content')}
             </button>
           </div>
-          <div className="rangebar" role="tablist" aria-label={t('Time range')}>
-            {WINDOWS.map((w) => (
-              <button key={w.key} type="button" role="tab" aria-selected={win === w.key}
-                className={win === w.key ? 'on' : ''} onClick={() => setWin(w.key)}>
-                {w.key === 'today' ? t('Today') : w.key === 'all' ? t('All') : w.label}
-              </button>
-            ))}
-          </div>
+          <RangeBar value={win} onChange={setWin} />
         </div>
       </div>
 
