@@ -31,11 +31,33 @@ const WIDTH = 1366;
 
 // ── (a) SPACE probe: known label/value row classes must keep >=4px of ──────
 // horizontal gap to their paired sibling, and never overflow their own box.
+// The last rule is the brief's generic scan (not one of the 3 known
+// classes above): any APP-AUTHORED element whose class contains "label"
+// (`.sb-label`, `.wiz-step-label`, `.wiz-sess-label`, `.bytype-label`,
+// `.ctx-label`, …), checked against whatever immediately follows it in the
+// DOM — the exact `[class*=label] + *` shape from the brief. Reuses the same
+// selector+sibling mechanism as the 3 known-class rules (not a separate
+// implementation), so a single shared skip/gap/overflow logic covers both.
+//
+// `:not([class*="recharts"])` excludes Recharts' OWN internal SVG classes —
+// verified live: Recharts 3.x renders each x/y-axis tick as its own
+// `<g class="recharts-xAxis-tick-labels">…<text>12:40 PM</text></g>` (one
+// such element PER TICK, sharing that class name across ticks), which
+// contains "label" as a substring and matched this rule before the
+// exclusion. That's a library-internal axis-tick wrapper with its own
+// Recharts-computed spacing algorithm, not an app-authored label/value UI
+// pair (the SPACE category this probe targets — see the design rubric's
+// "no run-together label+value" — and TIME-AXIS above already separately
+// audits chart-tick correctness, just for bucketing, not pixel gaps). Without
+// the exclusion this rule flagged real charts (e.g. the session Overview
+// "Cost over session" chart) for Recharts' own occasionally-tight adjacent
+// tick spacing, which the app has no direct authorship over.
 interface SpaceRule { selector: string; sibling: 'next' | 'prev'; }
 const SPACE_RULES: SpaceRule[] = [
   { selector: '.trow .k', sibling: 'next' }, // label -> .t (value)
   { selector: '.sel-check', sibling: 'next' }, // checkbox -> row title
   { selector: '.day-head .sum', sibling: 'prev' }, // .d (day label) -> .sum (value)
+  { selector: '[class*="label"]:not([class*="recharts"])', sibling: 'next' }, // generic label-class scan (brief's [class*=label] + *)
 ];
 
 async function probeSpace(page: Page): Promise<string[]> {
@@ -44,11 +66,20 @@ async function probeSpace(page: Page): Promise<string[]> {
     for (const { selector, sibling } of rules) {
       for (const el of Array.from(document.querySelectorAll(selector)) as HTMLElement[]) {
         const other = (sibling === 'next' ? el.nextElementSibling : el.previousElementSibling) as HTMLElement | null;
-        if (other) {
+        // Skip pairs with no adjacent sibling, or where the sibling carries
+        // no text (e.g. a bare icon/dot next to a label) — there's no
+        // label/value gap to police when the "value" side is empty.
+        if (other && (other.textContent || '').trim()) {
           const a = el.getBoundingClientRect();
           const b = other.getBoundingClientRect();
           const gap = sibling === 'next' ? b.left - a.right : a.left - b.right;
-          if (gap < 4) {
+          // Only meaningful for elements laid out on the same row — a label
+          // stacked ABOVE/BELOW its sibling (block layout, e.g. a label on
+          // its own line above a wrapped value) has a legitimate vertical
+          // gap, not a horizontal one; skip those rather than flag a bogus
+          // negative/huge "gap".
+          const sameRow = Math.abs(a.top - b.top) < Math.max(a.height, b.height, 1);
+          if (sameRow && gap < 4) {
             problems.push(`SPACE ${selector}: gap=${gap.toFixed(1)}px to ${sibling} sibling (< 4px) — "${(el.textContent || '').trim().slice(0, 30)}"`);
           }
         }

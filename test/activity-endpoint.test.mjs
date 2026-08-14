@@ -218,19 +218,47 @@ test('burn window spend + baseline (7d): current 7d vs prior 7d', async () => {
 test('burn window spend (10d, P0 regression): a session that started before the cutoff but ended inside it contributes its in-window share, not zero and not its full usage', async () => {
   const r = await getActivity({ days: 10, since: iso(now - 30 * 60000) });
   // The 10d window also picks up the other fixture sessions that overlap it: s_live(1000)
-  // + s_left(5000) + d1..d6,d8,d9,d10 (d7/d11-14 fall outside — see the daily-fixture
-  // comment above) = (1+2+3+4+5+6+8+9+10)*1000 = 48000, so "spanner10d excluded" = 54000.
+  // + s_left(5000) + d1..d6,d8,d9 (d7/d11-14 fall outside — see the daily-fixture comment
+  // above) = (1+2+3+4+5+6+8+9)*1000 = 38000 + 6000 = 44000, UNAMBIGUOUSLY (comfortable
+  // margin either side of the 10-day cutoff, like every other day used elsewhere in this
+  // file). d10 is the one exception: it's excluded from that fixed sum and handled
+  // dynamically below.
+  //
+  // TIME-OF-DAY FLAKE (review finding, feedback-round round 2): `dayAt(d)` anchors the
+  // daily fixtures to UTC MIDNIGHT (`todayMidnight - d*DAY + 12h`, needed for the
+  // calendar-day median-baseline bucketing other tests in this file rely on), while the
+  // production `days:10` cutoff used by the route under test is a ROLLING window anchored
+  // to real `Date.now()` (`now - 10*DAY` — server/activity.ts computeActivity). These two
+  // anchors diverge by up to ±12h depending on wall-clock time-of-day. Every OTHER day
+  // offset used in this file (d1..d9, d11..d14) has enough margin from its own window
+  // boundary that the ±12h drift never flips its inclusion — d10 is the only one placed
+  // EXACTLY on the days:10 boundary, so whether it's in or out of the window is genuinely
+  // ambiguous at the instant this test runs (confirmed live: this assertion read 46000 at
+  // 12:31 UTC and would read 56000 before ~12:00 UTC, a deterministic — not random —
+  // divergence tied to time-of-day, not flakiness in the underlying overlapGate logic).
+  //
+  // Fix: mirror the EXACT production comparison (server/windowUsage.ts `overlapGate`:
+  // `COALESCE(ended_at, started_at, '9') >= cutoff`) to decide d10's inclusion dynamically,
+  // instead of hardcoding a snapshot that only holds on one side of UTC noon. d10's own
+  // session is a tight 22-minute span (see rhythmEvents above), so unlike spanner10d it is
+  // essentially always all-in or all-out, never partially scaled — except in the residual
+  // ~22-minutes-out-of-24-hours edge where the cutoff itself lands inside that span, which
+  // is accepted here as the same class of low-probability risk already accepted elsewhere
+  // in this codebase (e.g. helpers.ts's "first 35 minutes after local midnight" comment).
+  const d10EndedAtMs = dayAt(10) + 22 * 60000;
+  const cutoff10Ms = now - 10 * DAY;
+  const d10Included = d10EndedAtMs >= cutoff10Ms;
+  const baselineExcludingSpanner = 44000 + (d10Included ? 10000 : 0);
   // spanner10d: billed input=4000; 12 messages @10 tokens each (120 total), 6 before the
-  // 10d cutoff and 6 after → in-window ratio 6/12 = 0.5 → windowed cell = 2000, so the
-  // true total is 54000 + 2000 = 56000.
-  //   - Old `s.started_at >= cutoff` gate (started 15d ago): spanner10d excluded entirely
-  //     → total would read 54000 (the P0 bug this pins against).
-  //   - A naive overlap-only gate with no per-message scaling would count spanner10d's
-  //     FULL billed 4000 → total would read 58000 (over-count, also wrong).
+  // 10d cutoff and 6 after → in-window ratio 6/12 = 0.5 → windowed cell = 2000 (this split
+  // is itself anchored to real `now`, same as the route's cutoff, so it's never ambiguous).
   const total = tok(r.burn.windowSpendTokensByModel);
-  assert.equal(total, 56000, 'must equal baseline(54000) + spanner10d\'s scaled in-window share(2000)');
-  assert.ok(total > 54000, 'spanner10d must not be dropped entirely (the P0 bug: old gate excluded it)');
-  assert.ok(total < 58000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-window share)');
+  assert.equal(
+    total, baselineExcludingSpanner + 2000,
+    `must equal baseline(${baselineExcludingSpanner}, d10Included=${d10Included}) + spanner10d's scaled in-window share(2000)`,
+  );
+  assert.ok(total > baselineExcludingSpanner, 'spanner10d must not be dropped entirely (the P0 bug: old gate excluded it)');
+  assert.ok(total < baselineExcludingSpanner + 4000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-window share)');
 });
 
 test('minor sessions are excluded from the window aggregates', async () => {

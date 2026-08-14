@@ -79,6 +79,42 @@ async function assertContentNoFloatDayLeak(page: Page, label: string): Promise<v
   expect(text, `${label}: composition footer leaked a raw float day count: "${text}"`).not.toMatch(/\d\.\d+d/i);
 }
 
+// Isolation pin for the overlapGate P0 (item 1 in the header comment): the
+// page-wide "renders non-empty" checks above pass even under the OLD
+// `started_at >= cutoff` gate, because `todayOnlySessionId` (entirely inside
+// the last 40 minutes) satisfies even the naive gate on its own — they never
+// actually exercise the fix. Only `spanningSessionId` (started 26h ago,
+// ended 5 minutes ago) requires the overlap fix to be counted, since its
+// `started_at` predates "Today"'s cutoff. So isolate its presence with an
+// exact count, not just "some data exists": the Sessions KPI
+// (`kpis.sessionCount = result.sessions.length` in src/HomeDashboard.tsx,
+// `sessions.length` in src/ProjectDetail.tsx — both driven by a server query
+// gated with `overlapGate`, see server/insights.ts / server/routes/projects.ts)
+// must read exactly 2 for "Today" — spanningSessionId + todayOnlySessionId.
+// A regression back to the naive gate drops spanningSessionId and the count
+// reads 1. Every OTHER fixture session (the big fixture + the 3 Task-14 mini
+// sessions) is pinned to a fixed 2026-08 calendar date, so none of them ever
+// overlap "Today" regardless of what real date this suite runs on.
+async function assertTodaySessionCountIsTwo(page: Page, label: string): Promise<void> {
+  const kpi = page.locator('.kpis .kpi').filter({ has: page.locator('.l', { hasText: /^Sessions$/ }) }).first();
+  await expect(kpi, `${label}: no Sessions KPI tile rendered`).toBeVisible();
+  // Auto-retrying assertion, not a one-shot `.textContent()` read: ProjectDetail.tsx
+  // defaults `range` to 'all' (unlike Home, which defaults straight to 'today'), so
+  // clicking "Today" is a REAL all→today transition — useCachedFetch's
+  // stale-while-revalidate (src/useCachedFetch.ts) keeps rendering the previous
+  // (all-time, unwindowed) KPI value while the new windowed fetch is in flight, and
+  // `waitSettled` above (no "Loading…" text) doesn't catch that transition (documented
+  // in its own comment: SWR can render cached data immediately with nothing to wait
+  // on). A one-shot read raced ahead and caught the stale all-time count (4 — every
+  // non-minor session in the fixture project, not just today's) instead of the fresh
+  // windowed one; `toHaveText` polls until the DOM settles on the real value.
+  await expect(
+    kpi.locator('.v'),
+    `${label}: Sessions KPI must read exactly 2 (spanningSessionId + todayOnlySessionId) — ` +
+    `a count of 1 means the overlap-gate P0 regressed and dropped the midnight-spanning session`,
+  ).toHaveText('2');
+}
+
 async function fixtureProjectId(): Promise<number> {
   const res = await fetch(`${state.baseURL}/api/sessions/${encodeURIComponent(state.sessionId)}/resolve`);
   const body = (await res.json()) as { project_id: number };
@@ -110,6 +146,9 @@ test.describe('window-matrix: Home hub (/) — Today/7d/30d × Overview/Explore/
         } else {
           await assertNonEmpty(page, label);
         }
+        // Overview is where the Sessions KPI renders (Explore/Content hide
+        // .kpis) — see the overlapGate isolation comment above.
+        if (win === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
       });
     }
   }
@@ -143,6 +182,7 @@ test.describe('window-matrix: project detail (/project/:id) — Today/7d/30d × 
         } else {
           await assertNonEmpty(page, label);
         }
+        if (win.label === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
       });
     }
   }
