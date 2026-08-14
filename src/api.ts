@@ -164,6 +164,7 @@ export interface Message {
   agent_type: string | null;
   workflow_id: string | null;
   agent_id: string | null;
+  agent_desc: string | null;
   skill: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
@@ -423,13 +424,26 @@ export interface ExploreResult {
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
 
-export type CharacteristicKey = 'eightHourSessions' | 'workflowRuns' | 'subagentTurns'
-  | 'highContextAbs' | 'highContextRel' | 'cacheEfficiency' | 'autonomousShare';
+// D4 (feedback-round Task 12): the client never branches on `key` — every
+// field a row needs to render (label/why/info/format/value) travels on the
+// Characteristic itself, mirroring server/content.ts's Characteristic
+// contract exactly (this type is intentionally NOT imported from the server
+// module — the client/server split is the existing convention in this file,
+// see e.g. ExploreResult above).
+export type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
 
 export interface Characteristic {
-  key: CharacteristicKey;
-  share: number;
+  key: string;
+  label: string;
+  why: string;
+  info: string;
+  format: CharacteristicFormat;
+  value: number;
+  value2?: number;
+  warn?: boolean;
   count?: number;
+  countOne?: string;
+  countMany?: string;
   exact: boolean;
 }
 
@@ -438,8 +452,10 @@ export interface ContentResult {
   toolResultsByTool: { key: string; tokens: number }[];
   skills: { key: string; count: number; tokens: number }[];
   subagents: { key: string; runs: number; tokens: number }[];
-  callouts: { contextPressureShare: number; subagentHeavyShare: number; cacheWarmthMinutes: number };
-  // The 7 independent usage characteristics (spec §2.5) — see server/content.ts.
+  // At 'all'/'project' scope: 7 token-share characteristics. At 'session'
+  // scope: 6 absolute session facts (threshold predicates that collapse to
+  // 0%/100% at N=1 are replaced — see server/content.ts).
+  characteristicsScope: 'all' | 'project' | 'session';
   characteristics: Characteristic[];
   calibratedTotalTokens: number;
   // composition, toolResultsByTool, and skills[].tokens are calibrated

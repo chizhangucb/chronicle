@@ -233,10 +233,9 @@ const zh = {
   // Sidebar
   'Feedback': '反馈',
   // Project home
-  'All time': '全部时间',
-  '7 Days': '7 天',
-  '30 Days': '30 天',
-  '1 Year': '1 年',
+  '7d': '7天',
+  '30d': '30天',
+  '90d': '90天',
   'Time range': '时间范围',
   'Active Days': '活跃天数',
   'Error Rate': '错误率',
@@ -452,6 +451,20 @@ const zh = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': '子智能体',
   'back to session': '返回会话',
+  // Subagent run list drill-in (Task 11 D3)
+  'Subagent runs': '子智能体运行记录',
+  'back to run list': '返回运行列表',
+  'No runs found for this subagent type.': '未找到该类型子智能体的运行记录。',
+  "Open this run's transcript": '打开此次运行的对话记录',
+  'Open the run list for this subagent type': '打开该类型子智能体的运行列表',
+  'Start': '开始时间',
+  'Turns': '轮次',
+  'Description': '描述',
+  'run': '次运行',
+  'runs': '次运行',
+  'tok': '词元',
+  "A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type's assistant messages across all its runs. Tokens are input + output across all its runs.":
+    '一次运行对应一次子智能体调用（agent_id）；一种类型（如 general-purpose）可以有多次运行。轮次是该类型在所有运行中的助手消息数。词元是该类型在所有运行中的输入 + 输出总和。',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': '内容',
@@ -555,8 +568,40 @@ const zh = {
   '+{n} more': '还有 {n} 项',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     '校准后词元数 {range}：{total} —— 约为莎士比亚全集的 {n} 倍。',
+  // Content tab merge (feedback-round Task 12, D4): narrative callouts folded
+  // into the top characteristic rows; session-scope replaces the four
+  // threshold predicates that collapse to 0/100 at N=1 with absolute facts.
+  "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.":
+    'Chronicle 自定的启发式阈值——并非 Claude Code 官方文档记载的自动压缩触发点；即使命中缓存，长会话的成本也更高，拆分任务或在任务中途压缩上下文可以降低缓存写入花费。',
+  "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.":
+    '委托给通过 Task 启动的子智能体完成的工作，而非在主线程中直接回答——每个子智能体都会占用自己的上下文，用于并行任务是值得的，简单任务中要留意。',
+  'active — crossed the 8-hour marathon threshold': '活跃时长——已超过 8 小时马拉松阈值',
+  'active this session (marathon threshold: 8h)': '本次会话的活跃时长（马拉松阈值：8 小时）',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it.':
+    '智能体活跃时间累加消息之间的每一段间隔，但不包括等待你输入提示的时间；每段间隔上限为 10 分钟，除非是被一次长时间运行的工具调用占满。',
+  "The same agent-active computation used for the marathon-sessions share elsewhere in Chronicle, reported here as this session's actual hours rather than a 0%/100% flag.":
+    '与 Chronicle 其他位置计算马拉松式会话占比所用的智能体活跃时间算法相同，这里显示的是本次会话的实际小时数，而非 0%/100% 的标记。',
+  'peak context tokens reached': '达到的峰值上下文词元数',
+  "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 为提示成本上升而选择的启发式阈值是模型上下文窗口的 70%——并非 Claude Code 官方文档记载的自动压缩触发点。',
+  "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.":
+    '本次会话存储的最大上下文大小，以及它占其模型上下文窗口的比例。70% 是 Chronicle 为提示成本上升而选择的启发式阈值，并非官方记载的自动压缩触发点。',
+  'engaged time as a share of agent-active time': '参与时间占智能体活跃时间的比例',
+  'Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.':
+    '数值越低说明你在场的时间占智能体工作时间的比例越小——参与（实际经过的）时间不到活跃时间的四分之一，意味着这次会话大部分是在无人值守下进行的。',
+  "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import.":
+    '参与时间是你实际在场的时间；智能体活跃时间是智能体工作的时间。此项为本次会话的参与时间 ÷ 活跃时间，二者的上限规则与导入时相同。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': '查看上下文都花在哪里 →',
+  // Task 13: Burn tile reshuffle + KPI InfoTip sweep
+  'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
+    '范围内所有会话计费的输入 + 输出词元；不含缓存读写。缓存占比 = 缓存读取 ÷（缓存读取 + 新输入）。',
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+    '根据计费词元数按标价在本地估算，并非真实账单数据；窗口开始前就已运行、延续到窗口内的会话按其窗口内词元占比折算。',
+  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+    '此窗口内的 Git 提交数（原始 git log 计数）——不筛选是否由已跟踪会话触发。',
+  'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
+    '每一条标准化事件记录——用户、助手、思考、工具调用与工具结果——不仅限于人机对话轮次。',
 };
 
 const ja = {
@@ -785,10 +830,9 @@ const ja = {
   'Export': 'エクスポート',
   'Open the live session': 'ライブセッションを開く',
   'Feedback': 'フィードバック',
-  'All time': '全期間',
-  '7 Days': '7 日',
-  '30 Days': '30 日',
-  '1 Year': '1 年',
+  '7d': '7日間',
+  '30d': '30日間',
+  '90d': '90日間',
   'Time range': '期間',
   'Active Days': 'アクティブ日数',
   'Error Rate': 'エラー率',
@@ -1015,6 +1059,20 @@ const ja = {
   // Subagents (Task 5e-3: Overview card + drill-in)
   'Subagents': 'サブエージェント',
   'back to session': 'セッションに戻る',
+  // Subagent run list drill-in (Task 11 D3)
+  'Subagent runs': 'サブエージェントの実行履歴',
+  'back to run list': '実行一覧に戻る',
+  'No runs found for this subagent type.': 'このタイプのサブエージェントの実行履歴が見つかりません。',
+  "Open this run's transcript": 'この実行のトランスクリプトを開く',
+  'Open the run list for this subagent type': 'このタイプのサブエージェントの実行一覧を開く',
+  'Start': '開始',
+  'Turns': 'ターン数',
+  'Description': '説明',
+  'run': '回',
+  'runs': '回',
+  'tok': 'トークン',
+  "A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type's assistant messages across all its runs. Tokens are input + output across all its runs.":
+    '1回の実行は1回のサブエージェント呼び出し（agent_id）を指し、1つのタイプ（例: general-purpose）は複数回実行されることがあります。ターン数はそのタイプの全実行にわたるアシスタントメッセージ数です。トークン数はそのタイプの全実行にわたる入力+出力の合計です。',
   // Explore (Task 5e-1: Insights pivot tab)
   'Explore': '探索',
   'Content': 'コンテンツ',
@@ -1118,8 +1176,40 @@ const ja = {
   '+{n} more': '他 {n} 件',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     'キャリブレーション済みトークン数 {range}：{total} —— シェイクスピア全集の約 {n} 倍。',
+  // Content tab merge (feedback-round Task 12, D4): narrative callouts folded
+  // into the top characteristic rows; session-scope replaces the four
+  // threshold predicates that collapse to 0/100 at N=1 with absolute facts.
+  "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.":
+    'Chronicle 独自の経験則によるしきい値であり、Claude Code の公式ドキュメントに記載された自動圧縮のトリガーではありません — キャッシュされていても長いセッションはコストが高くなり、タスクを分割する、または途中でコンテキストを圧縮するとキャッシュ書き込みのコストを削減できます。',
+  "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.":
+    'メインスレッドで直接応答するのではなく、Task で起動されたサブエージェントに委任された作業です — 各サブエージェントは独自のコンテキスト分のコストがかかります。並列作業には有効ですが、単純なタスクでは注意が必要です。',
+  'active — crossed the 8-hour marathon threshold': 'アクティブ時間 — 8時間のマラソンしきい値を超過',
+  'active this session (marathon threshold: 8h)': 'このセッションでのアクティブ時間（マラソンしきい値：8時間）',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it.':
+    'エージェントのアクティブ時間は、あなたがプロンプトを入力するのを待っていた時間を除く、メッセージ間のすべての間隔を合計したものです。各間隔は10分を上限としますが、長時間実行されるツール呼び出しで埋まっている場合は例外です。',
+  "The same agent-active computation used for the marathon-sessions share elsewhere in Chronicle, reported here as this session's actual hours rather than a 0%/100% flag.":
+    'Chronicle の他の箇所でマラソン型セッションの割合を計算するのに使われているのと同じアクティブ時間の計算方法で、このセッションの実際の時間数を表示しています（0%/100%のフラグではありません）。',
+  'peak context tokens reached': '到達したピークコンテキストトークン数',
+  "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.":
+    'コスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値は、モデルのコンテキストウィンドウの70%です — 公式に文書化された自動圧縮のトリガーではありません。',
+  "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.":
+    'このセッションで保存された最大のコンテキストサイズと、それがモデルのコンテキストウィンドウに占める割合です。70% はコスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値であり、公式に文書化された自動圧縮ポイントではありません。',
+  'engaged time as a share of agent-active time': 'エージェントのアクティブ時間に占める関与時間の割合',
+  'Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.':
+    '数値が低いほど、エージェントが作業していた時間のうちあなたが在席していた割合が小さいことを意味します — 関与時間（実時間）がアクティブ時間の4分の1未満の場合、そのセッションはほぼ無人状態で実行されたことになります。',
+  "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import.":
+    '関与時間はあなたの実際の在席時間、エージェントのアクティブ時間はエージェントの作業時間です。これはこのセッションにおける関与時間 ÷ アクティブ時間であり、どちらの時間もインポート時と同じ方法で上限が適用されます。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': 'コンテキストの内訳を見る →',
+  // Task 13: Burn tile reshuffle + KPI InfoTip sweep
+  'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
+    '範囲内の全セッションで課金された入力+出力トークン数（キャッシュの読み書きは含みません）。% cached = キャッシュ読み取り ÷（キャッシュ読み取り + 新規入力）。',
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+    '課金対象トークン数を表示価格でローカル推定した値であり、実際の請求データではありません。ウィンドウ開始前から続いていたセッションは、ウィンドウ内のトークン比率で按分されます。',
+  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+    'このウィンドウ内の Git コミット数（生の git log カウント）— 追跡対象セッションが引き起こしたものに限定されません。',
+  'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
+    'すべての正規化イベント行 — ユーザー、アシスタント、思考、ツール呼び出し、ツール結果 — 人間/アシスタントの会話ターンだけではありません。',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };

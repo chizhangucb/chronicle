@@ -51,6 +51,7 @@ export interface MessageRow {
   agent_type: string | null;
   workflow_id: string | null;
   agent_id: string | null;
+  agent_desc: string | null;
   skill: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
@@ -150,6 +151,10 @@ try { db.exec('ALTER TABLE messages ADD COLUMN agent_type TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN workflow_id TEXT'); } catch {}
 // Per-RUN id (distinct from agent_type, which is per-KIND) — see shared/types.ts Event.agent_id.
 try { db.exec('ALTER TABLE messages ADD COLUMN agent_id TEXT'); } catch {}
+// Per-RUN description, read from the run's agent-<hex>.meta.json sidecar
+// `description` field (was parsed but discarded — see shared/types.ts Event.agent_desc).
+// Existing imports backfill it on their next sync; no forced re-import.
+try { db.exec('ALTER TABLE messages ADD COLUMN agent_desc TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN skill TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN input_tokens INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN output_tokens INTEGER'); } catch {}
@@ -305,11 +310,11 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
            session.summary ?? null, session.usage ?? null,
            sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor, resultCount, errorCount);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
-                                                  is_sidechain, agent_type, workflow_id, agent_id, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                                  is_sidechain, agent_type, workflow_id, agent_id, agent_desc, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     events.forEach((e, i) => ins.run(session.id, i, e.uuid ?? null, e.ts ?? null, e.kind,
       e.text ?? null, e.tool_name ?? null, e.tool_input ?? null, e.tool_use_id ?? null, e.model ?? null,
-      e.is_sidechain ? 1 : 0, e.agent_type ?? null, e.workflow_id ?? null, e.agent_id ?? null, e.skill ?? null,
+      e.is_sidechain ? 1 : 0, e.agent_type ?? null, e.workflow_id ?? null, e.agent_id ?? null, e.agent_desc ?? null, e.skill ?? null,
       e.input_tokens ?? null, e.output_tokens ?? null, e.cache_read_tokens ?? null,
       e.cache_w5m_tokens ?? null, e.cache_w1h_tokens ?? null));
     if (ftsAvailable) {

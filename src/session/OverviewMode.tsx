@@ -3,7 +3,7 @@ import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, A
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import InfoTip from '../InfoTip.tsx';
-import { fmtMoney } from '../format.ts';
+import { fmtMoney, pluralize } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
@@ -316,13 +316,13 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       </div>
 
       <div className="kpis">
-        <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
-        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
+        <div className="kpi"><div className="l">{t('Cost')} <InfoTip text={t('Estimated from token counts × current list prices')} /></div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
+        <div className="kpi"><div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
         <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.')} /></div>
           <div className="v">{fmtDur(engagedMs)}</div><div className="s">{t('your attention')}</div></div>
-        <div className="kpi"><div className="l">{t('Messages')}</div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} {t('prompts')}</div></div>
+        <div className="kpi"><div className="l">{t('Messages')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} {t('prompts')}</div></div>
         <div className={`kpi ${stats.errors > 0 ? 'warn drill' : ''}`}
           role={stats.errors > 0 ? 'button' : undefined}
           tabIndex={stats.errors > 0 ? 0 : undefined}
@@ -441,7 +441,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                 <th title={t('5-minute TTL cache write')}>{t('Cache write 5m')}</th>
                 <th title={t('1-hour TTL cache write')}>{t('Cache write 1h')}</th>
                 <th>{t('Hit rate')} <InfoTip text={t('Cache read ÷ (cache read + input): the share of prompt-side tokens served from cache instead of re-sent at full input price. Higher = cheaper turns.')} /></th>
-                <th>{t('Msgs')}</th>
+                <th>{t('Msgs')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></th>
                 <th>{t('Cost')}</th>
               </tr>
             </thead>
@@ -507,15 +507,18 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
         {subagents.length > 0 && (
           <div className="card">
-            <h3>{t('Subagents')} · {subagentRunTotal}</h3>
+            <h3>{t('Subagents')} · {subagentRunTotal}
+              <InfoTip text={t('A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type\'s assistant messages across all its runs. Tokens are input + output across all its runs.')} />
+            </h3>
             {subagents.map((r) => (
               <div key={r.agentType} className="trow subagent-row"
                 role="button" tabIndex={0}
+                title={t('Open the run list for this subagent type')}
                 onClick={() => onOpenSubagent?.(r.agentType)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSubagent?.(r.agentType); } }}>
                 <span className="t" title={r.agentType}>{r.agentType}</span>
-                <span className="k num">×{r.turns}</span>
-                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)}</b>
+                <span className="k num">{pluralize(r.runCount, t('run'), t('runs'))}</span>
+                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)} {t('tok')}</b>
                 <span className="subagent-arrow">→</span>
               </div>
             ))}

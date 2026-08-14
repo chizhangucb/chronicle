@@ -82,11 +82,14 @@ test('computeContent: subagent token share is EXACT (per-message sidechain token
   assert.ok(gp);
   assert.equal(gp.tokens, 390); // 300 input + 90 output, exact
 });
-test('computeContent: callouts return numbers, never throw on sparse data', () => {
+// D4 (feedback-round Task 12): the old separate narrative `callouts` field
+// was merged into the characteristics list (see test/content-characteristics.test.mjs)
+// — this just confirms the merged shape never throws on sparse data.
+test('computeContent: characteristicsScope + characteristics never throw on sparse data', () => {
   const r = content.computeContent({ type: 'all' }, null);
-  assert.equal(typeof r.callouts.contextPressureShare, 'number');
-  assert.equal(typeof r.callouts.subagentHeavyShare, 'number');
-  assert.equal(typeof r.callouts.cacheWarmthMinutes, 'number');
+  assert.equal(r.characteristicsScope, 'all');
+  assert.ok(Array.isArray(r.characteristics));
+  for (const c of r.characteristics) assert.equal(typeof c.value, 'number');
 });
 // Locks Finding 3 (5e-0 review): ContentResult carries an explicit
 // `calibrated` marker so the UI can badge calibrated cells.

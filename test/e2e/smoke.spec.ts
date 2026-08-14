@@ -44,6 +44,28 @@ test('fixture session Overview Subagents card shows the run count (120)', async 
   await expect(heading).toContainText('120');
 });
 
+// D3 (Task 11): the Subagents card's two-level drill-in. Clicking a type row
+// opens a RUN LIST (one row per agent_id) — the fixture's 120 runs spread
+// across only 5 agent_types, so any type row's run list must show more than
+// one distinct run (guards against the drill-in regressing back to showing
+// one row per TYPE, which is exactly the bug this task fixed).
+test('Subagents card drill-in opens a run list with more than one distinct run', async ({ page }) => {
+  await gotoFixtureOverview(page);
+  const firstRow = page.locator('.subagent-row').first();
+  await expect(firstRow).toBeVisible();
+  await firstRow.click();
+
+  const runRows = page.locator('.rowlink');
+  await expect(runRows.first()).toBeVisible();
+  const rowCount = await runRows.count();
+  expect(rowCount, 'run list must show more than one run for the clicked agent_type').toBeGreaterThan(1);
+
+  // Drilling into one run switches to that run's transcript (agent_id
+  // filter), not a whole-type dump.
+  await runRows.first().click();
+  await expect(page.locator('.subagent-conv')).toBeVisible();
+});
+
 test('global search returns a hit', async ({ page }) => {
   await gotoHome(page);
   await page.locator('button.icon-btn[title^="Search"]').click();

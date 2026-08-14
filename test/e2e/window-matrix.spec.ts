@@ -39,13 +39,14 @@ async function assertNonEmpty(page: Page, label: string): Promise<void> {
 }
 
 // Content-tab counterpart to assertNonEmpty: unlike Overview/Explore (one
-// primary data view), Content (src/ContentTab.tsx) renders THREE
+// primary data view), Content (src/ContentTab.tsx) renders FOUR
 // independently-scoped sub-cards (usage characteristics, tool-results-by-tool,
-// skills & subagents) that each show their OWN "No sessions in range." when
-// there's no data of THAT specific kind in-window — e.g. the window-matrix
-// fixture's spanning/today mini sessions (test/e2e/helpers.ts) are plain
+// skills, subagents — split into separate Skills/Subagents cards in Task 14,
+// D5/D7) that each show their OWN "No sessions in range." when there's no
+// data of THAT specific kind in-window — e.g. the window-matrix fixture's
+// spanning/today mini sessions (test/e2e/helpers.ts) are plain
 // user/assistant turns with no tool_use/subagent activity, so the
-// tool-results and skills&subagents cards legitimately render empty even
+// tool-results/skills/subagents cards legitimately render empty even
 // though the tab as a whole has real in-window session data. So instead of
 // asserting NO "No sessions in range." text anywhere on the page (too
 // strict — flags real, correct empty states), assert the one signal that's
@@ -154,11 +155,32 @@ test.describe('window-matrix: Home hub (/) — Today/7d/30d × Overview/Explore/
   }
 });
 
-// ---- Project detail (/project/:id) — rangebar buttons are Today/7 Days/30 Days/1 Year/All time (ProjectDetail RANGES) ----
+// ---- Project detail (/project/:id) — rangebar buttons are Today/7d/30d/90d/All
+// (unified with the hub's vocabulary via the shared RangeBar.tsx, D10, Task 17) ----
+
+// Drift-pin: the project rangebar's option set + labels must equal the hub's
+// exactly (same 5 options, same order) — this is the regression the D10
+// unification (shared RangeBar.tsx) exists to prevent. Before Task 17 this
+// rendered Today/7 Days/30 Days/1 Year/All time, a fully independent
+// vocabulary from the hub's Today/7d/30d/90d/All.
+test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the / hub', async ({ page }) => {
+  const projectId = await fixtureProjectId();
+  await page.goto(`${state.baseURL}/`);
+  const hubOpts = page.locator('.home-dashboard .rangebar button');
+  await expect(hubOpts).toHaveCount(5);
+  const hubLabels = await hubOpts.allTextContents();
+
+  await page.goto(`${state.baseURL}/project/${projectId}`);
+  const projectOpts = page.locator('.project-detail .rangebar button');
+  await expect(projectOpts).toHaveCount(5);
+  await expect(projectOpts).toHaveText(['Today', '7d', '30d', '90d', 'All']);
+  expect(await projectOpts.allTextContents()).toEqual(hubLabels);
+});
+
 const PROJECT_WINDOWS: { click: string; label: string }[] = [
   { click: 'Today', label: 'Today' },
-  { click: '7 Days', label: '7d' },
-  { click: '30 Days', label: '30d' },
+  { click: '7d', label: '7d' },
+  { click: '30d', label: '30d' },
 ];
 
 test.describe('window-matrix: project detail (/project/:id) — Today/7d/30d × Overview/Explore/Content', () => {

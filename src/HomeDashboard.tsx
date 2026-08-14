@@ -21,6 +21,7 @@ import { sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, s
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
+import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
@@ -37,24 +38,11 @@ import ContentTab from './ContentTab.tsx';
 type Tab = 'overview' | 'explore' | 'content';
 
 // Window toggle: all five options live on this ONE surface (spec §2.2a). Today =
-// fractional-days-since-local-midnight; All = no cutoff (days omitted).
-type WindowKey = 'today' | '7d' | '30d' | '90d' | 'all';
-const WINDOWS: { key: WindowKey; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-  { key: '90d', label: '90d' },
-  { key: 'all', label: 'All' },
-];
-function windowDays(win: WindowKey, daysToday: number): number | null {
-  switch (win) {
-    case 'today': return daysToday;
-    case '7d': return 7;
-    case '30d': return 30;
-    case '90d': return 90;
-    case 'all': return null;
-  }
-}
+// fractional-days-since-local-midnight; All = no cutoff (days omitted). The
+// option set + labels + `days` resolution are shared with ProjectDetail via
+// RangeBar.tsx (D10, Task 17) so the two vocabularies cannot drift again.
+type WindowKey = RangeKey;
+const windowDays = rangeDays;
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -162,14 +150,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
               {t('Content')}
             </button>
           </div>
-          <div className="rangebar" role="tablist" aria-label={t('Time range')}>
-            {WINDOWS.map((w) => (
-              <button key={w.key} type="button" role="tab" aria-selected={win === w.key}
-                className={win === w.key ? 'on' : ''} onClick={() => setWin(w.key)}>
-                {w.key === 'today' ? t('Today') : w.key === 'all' ? t('All') : w.label}
-              </button>
-            ))}
-          </div>
+          <RangeBar value={win} onChange={setWin} />
         </div>
       </div>
 
@@ -251,7 +232,7 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   return (
     <div className="kpis">
       <div className="kpi">
-        <div className="l">{t('Spend')}</div>
+        <div className="l">{t('Spend')} <InfoTip text={t('Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.')} /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
         <div className="s">{kpis.sessionCount} {t('sessions')}</div>
       </div>
@@ -261,7 +242,7 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
         <div className="s">{kpis.projectCount} {t('projects')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tokens')}</div>
+        <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
         <div className="v">{fmtTok(kpis.tokens)}</div>
         <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
       </div>
@@ -286,7 +267,7 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
         <div className="s">{result.errors} {t('errors')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Commits')}</div>
+        <div className="l">{t('Commits')} <InfoTip text={t('Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.')} /></div>
         <div className="v">{kpis.commits}</div>
         <div className="s">{t('linked')}</div>
       </div>
@@ -383,16 +364,17 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
       </div>
       <div className="burn-row">
         <div className="burn-now">
-          <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>
+          {/* D6: the ratio is the headline when a baseline exists (warn-tinted via
+              .burn-card.warn .burn-now .v, unchanged); the absolute window-vs-baseline
+              spend moves to the support line. No-baseline (All) case falls back to the
+              absolute spend headline, same as before. */}
+          {ratio != null
+            ? <div className="v">×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>}</div>
+            : <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>}
           {hasBaseline
-            ? <div className="s muted">{t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
+            ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} {t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
             : <div className="s muted">{t('all time · no baseline')}</div>}
         </div>
-        {ratio != null && (
-          <div className={`burn-ratio ${hot ? 'hot' : ''}`}>
-            ×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>}
-          </div>
-        )}
       </div>
       {hasBaseline && (
         <div className="burn-bar" aria-hidden="true">
@@ -631,7 +613,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               <th>{t('Cache Write')} <span className="ttl-tag">5m</span></th>
               <th>{t('Cache Write')} <span className="ttl-tag">1h</span></th>
               <th>{t('Hit rate')} <InfoTip text={t('Cache read ÷ (cache read + input): the share of prompt-side tokens served from cache instead of re-sent at full input price. Higher = cheaper turns.')} /></th>
-              <th>{t('Msgs')}</th>
+              <th>{t('Msgs')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></th>
               <th>{t('Cost')}</th>
             </tr>
           </thead>

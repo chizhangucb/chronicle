@@ -729,7 +729,10 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    language as .filter-chips/.chip elsewhere in the app. Scoped to
    `.project-detail` (Project analytics' root class) because Insights (below)
    independently authored its own `.rangebar` with a different active-state
-   color; deduped at the 5d Wave-2 integration pass — see styles.css history. ---- */
+   color; deduped at the 5d Wave-2 integration pass — see styles.css history.
+   The OPTION SET/LABELS are unified across both scopes via the shared
+   RangeBar.tsx component (D10, Task 17) — only this visual (chip color) stays
+   scope-specific. ---- */
 .project-detail .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .project-detail .rangebar button {
   background: none; border: none; border-radius: 6px; padding: 5px 10px;
@@ -1255,8 +1258,19 @@ h4 { margin: 6px 0; }
 .insights-page .range-refreshing { opacity: 0.5; transition: opacity 0.15s linear; }
 .ctlrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 14px; flex-wrap: wrap; }
 .ctlrow .rangebar { margin: 0; }
-.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: start; }
-.grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+/* D5 (feedback-round Task 14): align-items: stretch — cards in a row fill the
+   row's height instead of each sizing to its own content, so a short card
+   next to a tall one (e.g. Spend by model vs. Spend over time) doesn't leave
+   a visible height gap. `.card` has no explicit height, so it fills the
+   stretched grid cell naturally; bar-list cards may raise their top-N to use
+   the extra room (see ContentTab.tsx / HomeDashboard.tsx call sites). */
+.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: stretch; }
+.grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+/* Task 14 (D5/D7): Content tab's Tool results / Skills / Subagents row — three
+   equal cards that wrap to 2+1 (then 1-per-row) as the viewport narrows,
+   without a hardcoded breakpoint (auto-fit sizes columns from the available
+   width, matching the no-overflow-at-1024 policy). */
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px; align-items: stretch; }
 .legend { display: flex; gap: 14px; font: 11px var(--mono); color: var(--ink-2); margin-top: 6px; flex-wrap: wrap; }
 .legend .dot, .tbl .dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px;
@@ -1525,8 +1539,6 @@ h4 { margin: 6px 0; }
 .burn-now .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 .burn-now .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .burn-card.warn .burn-now .v { color: var(--warn); }
-.burn-ratio { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); flex: none; }
-.burn-ratio.hot { color: var(--warn); }
 .burn-flag { font-size: 11px; font-weight: 500; }
 .burn-bar { position: relative; height: 6px; background: var(--bg2); border-radius: 3px; margin-top: var(--gap-3); }
 .burn-fill { height: 100%; border-radius: 3px; background: var(--brass); max-width: 100%; }

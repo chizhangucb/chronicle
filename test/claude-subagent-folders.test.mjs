@@ -222,6 +222,41 @@ describe('parseClaudeSession — per-run agent_id (Overview Subagents card heade
     assert.equal(subagentRunCount(events), FIXTURE_SUBAGENT_COUNT);
     assert.equal(subagentRunCount(events), 120);
   });
+
+  // Task 11 (D3): the sidecar's `description` field, previously read then
+  // discarded (see the old AgentMeta comment), now flows onto every event of
+  // the run as agent_desc — the source for the run list's Description column.
+  test('agent_desc: every file-based subagent event carries its meta.json description', async () => {
+    const dir = makeTmpDir();
+    const { mainFile, sessionId } = generateBigSession(dir);
+    const sessionDir = path.join(path.dirname(mainFile), sessionId);
+    const workflowDir = path.join(sessionDir, 'subagents', 'workflows', 'wf_fixture01');
+    const oneFile = findFiles(workflowDir, /^agent-.*\.jsonl$/)[0];
+    const meta = JSON.parse(fs.readFileSync(oneFile.replace(/\.jsonl$/, '.meta.json'), 'utf8'));
+    assert.ok(meta.description, 'fixture meta.json must carry a description for this test to be meaningful');
+    const firstUuid = firstLineJSON(oneFile).uuid;
+
+    const { events } = await parseClaudeSession(mainFile);
+    const e = events.find((ev) => ev.uuid === firstUuid);
+    assert.ok(e);
+    assert.equal(e.agent_desc, meta.description);
+  });
+
+  // Distinct agent_types must each have MULTIPLE runs in the fixture (5 types,
+  // 120 runs) — this is what smoke.spec.ts's e2e run-list assertion relies on.
+  test('the fixture spreads 120 runs across only 5 agent_types, so every type has >1 run', async () => {
+    const dir = makeTmpDir();
+    const { mainFile } = generateBigSession(dir);
+    const { events } = await parseClaudeSession(mainFile);
+    const byType = new Map();
+    for (const e of events) {
+      if (!e.is_sidechain || !e.agent_type || !e.agent_id) continue;
+      if (!byType.has(e.agent_type)) byType.set(e.agent_type, new Set());
+      byType.get(e.agent_type).add(e.agent_id);
+    }
+    assert.ok(byType.size > 1);
+    for (const [type, ids] of byType) assert.ok(ids.size > 1, `agent_type ${type} has only ${ids.size} run(s)`);
+  });
 });
 
 describe('parseClaudeSession — dedup by uuid against inline sidechain entries', () => {
