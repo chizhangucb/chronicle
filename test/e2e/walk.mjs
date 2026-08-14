@@ -89,7 +89,7 @@ async function discoverContext(base) {
 
 // ---- Route list: the exact set from the task brief, resolved against the
 // discovered project/session ids. Selectors below are read from the current
-// source (src/App.tsx, src/SessionView.tsx, src/InsightsPage.tsx,
+// source (src/App.tsx, src/SessionView.tsx, src/HomeDashboard.tsx,
 // src/SessionSelect.tsx, src/RecentLedger.tsx) and mirror the stable
 // selectors test/e2e/*.spec.ts already uses for the same surfaces, so this
 // script stays in sync with what the E2E suite considers "the real markup".
@@ -163,7 +163,8 @@ function buildRoutes(base, ctx) {
   }
 
   const gotoInsights = async (page) => {
-    await page.goto(`${base}/insights`, { waitUntil: 'domcontentloaded' });
+    // The Insights hub is now the Home hub at `/` (Overview/Explore/Content tabs).
+    await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.tabs .tab', { timeout: NAV_TIMEOUT_MS });
   };
   routes.push({ slug: 'insights-overview', setup: gotoInsights });

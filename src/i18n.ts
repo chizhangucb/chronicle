@@ -17,6 +17,8 @@ const zh = {
   'typical day (14-day median)': '典型日（14 日中位数）',
   'prior 7 days': '前 7 天',
   'prior 30 days': '前 30 天',
+  'prior 90 days': '前 90 天',
+  'all time · no baseline': '全部时间 · 无基线',
   'high': '偏高',
   'Top session': '花费最高的会话',
   'MCP Hub': 'MCP 中心',
@@ -349,9 +351,7 @@ const zh = {
   'Toggle whole message types in or out': '整类消息一键保留或删除',
   'Delete all of this type': '删除该类型全部',
   'Keep all of this type': '保留该类型全部',
-  // Insights (Task 5d-4: global cross-project hub)
-  'Insights': '洞察',
-  'all projects · all sources': '全部项目 · 全部来源',
+  // Insights hub (merged into the Home hub at `/`)
   'Spend': '支出',
   'Agent active': '智能体活跃',
   'Your engaged': '你的参与时长',
@@ -565,6 +565,8 @@ const ja = {
   'typical day (14-day median)': '平常日（14日間の中央値）',
   'prior 7 days': '前の7日間',
   'prior 30 days': '前の30日間',
+  'prior 90 days': '前の90日間',
+  'all time · no baseline': '全期間 · ベースラインなし',
   'high': '高い',
   'Top session': '最も高額なセッション',
   'MCP Hub': 'MCP ハブ',
@@ -902,9 +904,7 @@ const ja = {
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
   'Delete all of this type': 'このタイプをすべて削除',
   'Keep all of this type': 'このタイプをすべて保持',
-  // Insights (Task 5d-4: global cross-project hub)
-  'Insights': 'インサイト',
-  'all projects · all sources': '全プロジェクト ・ 全ソース',
+  // Insights hub (merged into the Home hub at `/`)
   'Spend': '支出',
   'Agent active': 'エージェント稼働',
   'Your engaged': 'あなたの関与時間',

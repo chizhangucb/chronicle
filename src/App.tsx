@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation, useRoute } from 'wouter';
+import { useLocation, useRoute, useSearch } from 'wouter';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Toast from '@radix-ui/react-toast';
 import { api, type Settings } from './api.js';
@@ -9,7 +9,6 @@ import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
-import InsightsPage from './InsightsPage.jsx';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
@@ -59,7 +58,10 @@ export default function App() {
   const [atProjExplore, peParams] = useRoute('/project/:id/explore');
   const [atProjContent, pcParams] = useRoute('/project/:id/content');
   const [atSession, sessionParams] = useRoute('/session/:id');
+  // `/insights` is the OLD Insights URL (may be bookmarked). It now redirects to
+  // `/` (the merged Home/Insights hub), preserving a `?tab=` deep-link if present.
   const [atInsights] = useRoute('/insights');
+  const search = useSearch();
   const projectId = projectParams?.id ?? peParams?.id ?? pcParams?.id;
   const sessionId = sessionParams?.id;
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
@@ -87,6 +89,15 @@ export default function App() {
     api.projects().then(setProjects).catch(() => setProjects([]));
   }, []);
   useEffect(() => { if (atHome || atProjects) refresh(); }, [atHome, atProjects, refresh]);
+
+  // Redirect the old `/insights` URL to the merged hub at `/`, preserving a
+  // `?tab=` deep-link (`/insights?tab=explore` → `/?tab=explore`). `replace`
+  // keeps it out of history so Back doesn't bounce between the two.
+  useEffect(() => {
+    if (!atInsights) return;
+    const tab = new URLSearchParams(search).get('tab');
+    navigate(tab && tab !== 'overview' ? `/?tab=${tab}` : '/', { replace: true });
+  }, [atInsights, search, navigate]);
 
   // Deep link: a `#session=<id>` hash resolves the owning project and
   // navigates to that session (used by external openers linking into the app).
@@ -146,9 +157,6 @@ export default function App() {
           <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title={t('Projects')}
             onClick={() => navigate('/projects')}>
             <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
-          </button>
-          <button className={`sb-item ${atInsights ? 'on' : ''}`} title={t('Insights')} onClick={() => navigate('/insights')}>
-            <span className="sb-icon">∑</span><span className="sb-label">{t('Insights')}</span>
           </button>
           {rail && (
             <>
@@ -232,7 +240,6 @@ export default function App() {
           <ProjectsPage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
-        {atInsights && <InsightsPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}

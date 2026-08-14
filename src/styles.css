@@ -1446,6 +1446,8 @@ h4 { margin: 6px 0; }
    container, so the dashboard zone stays compact and the ledger flows below. */
 .home-dashboard .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-4); margin-bottom: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .dash-head .page-title { margin: 0; }
+/* Tabs + window toggle live together on the right of the hub head. */
+.home-dashboard .hub-ctl { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .home-dashboard .rangebar button { border: 0; background: none; color: var(--ink-3); font: 12px var(--mono); padding: 3px 10px; border-radius: 6px; cursor: pointer; min-height: 24px; }
 .home-dashboard .rangebar button:hover { color: var(--ink); }

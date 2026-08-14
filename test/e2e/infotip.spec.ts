@@ -6,7 +6,7 @@
 // leave a `.info-bubble` element mounted after the pointer/focus has moved
 // off every trigger.
 //
-// Surface: the Insights Overview KPI row (`/insights`) has 6-7 `.info-tip`
+// Surface: the merged Home/Insights hub KPI row (`/`) has 6-7 `.info-tip`
 // triggers (Agent active / Your engaged / Tool calls / Error rate / Proxy
 // lane) laid out in a `repeat(auto-fit, minmax(132px, 1fr))` grid — at
 // 1024px wide that wraps to several columns, so "right-most" is found by
@@ -17,7 +17,7 @@ import { readSeedState } from './helpers.ts';
 const state = readSeedState();
 
 async function gotoInsights(page: Page): Promise<void> {
-  await page.goto(`${state.baseURL}/insights`);
+  await page.goto(`${state.baseURL}/`);
   await expect(page.locator('.kpis .info-tip').first()).toBeVisible();
 }
 
@@ -102,7 +102,7 @@ test.describe('InfoTip stuck-open', () => {
       await tips.nth(i).hover({ force: true, timeout: 2000 });
     }
     // Move the pointer off every trigger onto neutral chrome.
-    await page.locator('.head').first().hover();
+    await page.locator('.dash-head').first().hover();
     await expect(page.locator('.info-bubble')).toHaveCount(0);
   });
 });

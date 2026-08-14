@@ -26,7 +26,7 @@ async function gotoFixtureRefine(page: Page): Promise<void> {
 }
 
 async function gotoInsights(page: Page): Promise<void> {
-  await page.goto(`${state.baseURL}/insights`);
+  await page.goto(`${state.baseURL}/`);
   await expect(page.locator('.kpis').first()).toBeVisible();
 }
 
