@@ -450,3 +450,32 @@ test('bucketExpr buckets in LOCAL time, not UTC (Task 18 review fix)', async (t)
   // so its Monday is 2026-08-03.
   assert.equal(bucketOf('weekly'), '2026-08-03');
 });
+
+test('computeExplore: group=hour (Group=Hour-of-day pivot) buckets in LOCAL time, not UTC (Task 18 sweep, round 2)', async (t) => {
+  // Same bug class as bucketExpr above, same file, found while fixing it:
+  // groupExpr's and errorGroupCol's 'hour' branches (server/explore.ts) fed
+  // strftime('%H', ts) the raw UTC ts with NO 'localtime' modifier. The
+  // client renders this group via fmtHourOfDay ("9 AM"/"10 PM"), which is
+  // only meaningful against the user's own clock hour.
+  //
+  // The shared fixture (this file's `before()`) seeds s1/s2/sDup all starting
+  // at 10:00 UTC = 03:00 PDT (see the comment on s2's T10:00Z choice above) —
+  // a clean single-value check: every message/error in scope should bucket
+  // to LOCAL hour '3', never the raw UTC hour '10'.
+  const prevTz = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  t.after(() => { process.env.TZ = prevTz; });
+
+  const byHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'hour', rollup: 'total', topN: 24 });
+  const hourKeys = byHour.rows.map((r) => r.key);
+  assert.ok(hourKeys.includes('3'), `expected LOCAL hour '3' (10:00 UTC = 03:00 PDT) among ${JSON.stringify(hourKeys)}`);
+  assert.ok(!hourKeys.includes('10'), `must NOT bucket by the raw UTC hour '10', got ${JSON.stringify(hourKeys)}`);
+
+  // errorGroupCol's 'hour' branch is a SEPARATE function, only reached via
+  // metric='errors' — s1's and sDup's erroring tool_results are also at
+  // 10:00 UTC / 03:00 PDT (see the `before()` fixture above).
+  const errByHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'hour', rollup: 'total', topN: 24 });
+  const errHourKeys = errByHour.rows.filter((r) => r.errors > 0).map((r) => r.key);
+  assert.ok(errHourKeys.includes('3'), `expected LOCAL hour '3' among erroring rows, got ${JSON.stringify(errHourKeys)}`);
+  assert.ok(!errHourKeys.includes('10'), `must NOT bucket errors by the raw UTC hour '10', got ${JSON.stringify(errHourKeys)}`);
+});

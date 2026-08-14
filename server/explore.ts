@@ -208,7 +208,11 @@ function groupExpr(g: ExploreGroup): { col: string; where: string } {
     case 'tool': return { col: 'm.tool_name', where: "AND m.kind='tool_use' AND m.tool_name IS NOT NULL" };
     case 'skill': return { col: 'm.skill', where: 'AND m.skill IS NOT NULL' };
     case 'subagent': return { col: 'm.agent_type', where: 'AND m.is_sidechain=1 AND m.agent_type IS NOT NULL' };
-    case 'hour': return { col: "CAST(strftime('%H', m.ts) AS INTEGER)", where: 'AND m.ts IS NOT NULL' };
+    // LOCAL hour-of-day (Task 18 sweep, round 2) — the client renders this via
+    // fmtHourOfDay ("9 AM"/"10 PM"), which is meaningless unless the hour is
+    // the user's own clock hour, not UTC. Same 'localtime' convention as
+    // bucketExpr above.
+    case 'hour': return { col: "CAST(strftime('%H', m.ts, 'localtime') AS INTEGER)", where: 'AND m.ts IS NOT NULL' };
     default: throw new Error(`explore.ts groupExpr: unknown group "${g as string}"`);
   }
 }
@@ -227,7 +231,7 @@ function errorGroupCol(g: ExploreGroup): string {
     case 'tool': return 'u.tool_name';
     case 'skill': return 'u.skill';
     case 'subagent': return 'u.agent_type';
-    case 'hour': return "CAST(strftime('%H', r.ts) AS INTEGER)";
+    case 'hour': return "CAST(strftime('%H', r.ts, 'localtime') AS INTEGER)";
     default: throw new Error(`explore.ts errorGroupCol: unknown group "${g as string}"`);
   }
 }
