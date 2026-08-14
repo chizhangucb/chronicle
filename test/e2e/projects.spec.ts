@@ -1,5 +1,6 @@
-// E2E for `/projects` (F2 restore, 2026-08-13, plus the 2026-08-14 feedback-round
-// reshape, D1+D2 — records/plans/2026-08-14-chronicle-feedback-round-plan.md).
+// E2E for `/projects` (F2 restore, 2026-08-13; the 2026-08-14 feedback-round
+// D1+D2 reshape; then the 2026-08-14 SECOND checkpoint reply's chrome-sidebar
+// redesign — Task 20, D14, records/plans/2026-08-14-chronicle-feedback-round-plan.md).
 //
 // F2 pinned a dense rail-style LIST reusing the exact pre-Batch-C `.rail-proj`
 // row anatomy (pdot · name · optional live dot … session count · gear menu,
@@ -7,20 +8,23 @@
 // bordered card-grid, which was an unagreed redesign — that guard against the
 // invented `.projects-grid` card treatment still applies below.
 //
-// D1 (Task 9) then reshaped the page again: the recent-sessions ledger — "the
-// list that's always moving is what people actually want to see" (Chi) — moved
-// here from `/` as the MAIN (left) column, with the `.rail-proj` project list
-// demoted to a compact ~300px sticky RAIL on the right.
+// D1 (Task 9) reshaped the page again: the recent-sessions ledger — "the list
+// that's always moving is what people actually want to see" (Chi) — moved
+// here from `/` as the MAIN (left) column.
 //
-// Task 19 (2026-08-14 PR-2 checkpoint amendments) then flipped/added several
-// things pinned below: (1) the ledger's filter box is lifted into a
-// full-width toolbar spanning both columns, the two column heads ("Recent
-// sessions" / "Projects · N") sit aligned on one row beneath it, and the page
-// `h1` is gone; (2) the project-row gear (`.gear`) rests visible (not
-// opacity:0) at all times; (3) below 1100px the LEDGER now stacks FIRST,
-// rail below (flips the F2/D1 rail-first order); (4) a project multi-select
-// mirroring session multi-select, with a bulk bar of exactly Sync (N) /
-// Remove (N).
+// Task 20 (D14, "the old design of adding projects as a sidebar on the right
+// side, similar to the left-side home sidebar") then reshaped it a THIRD
+// time into three vertical zones: the left app sidebar (untouched), a CENTER
+// content column (`.projects-content` — filter toolbar, the shared command
+// bar, "Recent sessions" + one small Select button, the ledger; scrolls
+// independently), and a RIGHT chrome sidebar (`.right-rail` — same
+// background tone as the left app sidebar, full height, flush to the window
+// edge at >=1100px; eyebrow `PROJECTS · N` + one small Select affordance;
+// borderless `.rail-proj` nav rows, no table headers). Both select flows
+// (sessions, projects) now render their controls into ONE shared full-width
+// `.command-bar` instead of two separate boxed toolbars, and are mutually
+// exclusive. Below 1100px the rail leaves the chrome and renders as a boxed
+// "Projects" section BELOW the ledger (ledger stays first, D1/D13).
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
@@ -58,9 +62,7 @@ test('project row is NOT rendered as a bordered card (no permanent border/backgr
     return { borderColor: cs.borderColor, borderStyle: cs.borderStyle };
   });
   // `.rail-proj`'s base rule sets `border: 1px solid transparent` (only
-  // turns visible ON HOVER) — never a permanent visible border, which is
-  // what the invented `.projects-page .projects-grid .rail-proj` override
-  // used to force.
+  // turns visible ON HOVER) — never a permanent visible border.
   expect(style.borderStyle).toBe('solid');
   expect(style.borderColor).toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
 });
@@ -89,11 +91,122 @@ test('project gear rests at a muted-but-visible opacity, not fully hidden', asyn
   expect(opacity).toBeLessThan(1);
 });
 
-// ── Task 19 (PR-2 checkpoint) drift-pin: project multi-select ─────────────────
-test('project multi-select: Select enters select mode, row click toggles instead of navigating, and the bulk bar shows exactly Sync (N) / Remove (N)', async ({ page }) => {
+test('meta line shows branch (⎇) or "needs association", plus a relative time', async ({ page }) => {
   await gotoProjects(page);
-  const rail = page.locator('.projects-page .projects-rail');
-  await rail.locator('.page-title-row').getByRole('button', { name: /Select/ }).click();
+  const meta = page.locator('.projects-page .rail-proj').first().locator('.meta');
+  const text = (await meta.textContent()) ?? '';
+  expect(/⎇ |needs association/.test(text)).toBe(true);
+});
+
+// ── D1 drift-pin: the recent-sessions ledger is the MAIN content column ───────
+test('recent-sessions ledger is the main content column, with day groups', async ({ page }) => {
+  await gotoProjects(page);
+  const ledger = page.locator('.projects-page .projects-content .recent-ledger');
+  await expect(ledger).toBeVisible();
+  await expect(ledger.getByText('Recent sessions')).toBeVisible();
+  await expect(ledger.locator('.day .row').first()).toBeVisible();
+});
+
+// The static fixture has a single big session, so the append-on-scroll PATH
+// can't be exercised here (covered by test/search-recent.test.mjs). This guards
+// that the ledger still renders its rows and scrolling doesn't tear it down —
+// at >=1100px the CONTENT column (not `.projects-page` itself) is what scrolls.
+test('ledger renders and survives a scroll to the bottom', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+  const rows = page.locator('.recent-ledger .day .row');
+  expect(await rows.count()).toBeGreaterThanOrEqual(1);
+  await page.locator('.projects-page .projects-content').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(rows.first()).toBeVisible();
+});
+
+// ── Task 20 (D14) drift-pin: chrome sidebar — same tone as the left app
+// sidebar, full height, flush to the window's right edge at >=1100px ─────────
+test('right rail renders as chrome: same background tone as the left app sidebar, flush to the viewport right edge', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+
+  const rail = page.locator('.projects-page .right-rail');
+  await expect(rail).toBeVisible();
+
+  const info = await page.evaluate(() => {
+    const rail = document.querySelector('.right-rail') as HTMLElement;
+    const sidebar = document.querySelector('.sidebar') as HTMLElement;
+    const railRect = rail.getBoundingClientRect();
+    return {
+      railBg: getComputedStyle(rail).backgroundColor,
+      sidebarBg: getComputedStyle(sidebar).backgroundColor,
+      railRight: railRect.right,
+      railTop: railRect.top,
+      railBottom: railRect.bottom,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+    };
+  });
+  // Computed background = the SAME tone as the left sidebar (not a literal
+  // hardcoded hex — matching the actual rendered chrome color is the point).
+  expect(info.railBg).toBe(info.sidebarBg);
+  // Flush to the window's right edge — no gap, no padding inset.
+  expect(Math.abs(info.railRight - info.innerWidth)).toBeLessThanOrEqual(1);
+  // Full height: spans from at/near the top of the viewport (below the
+  // topbar) to at/near the bottom — i.e. it is NOT a short sticky card.
+  expect(info.railBottom - info.railTop).toBeGreaterThan(info.innerHeight * 0.6);
+});
+
+test('right rail shows an eyebrow "PROJECTS · N" label and a small Select affordance, no table headers', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+  const head = page.locator('.projects-page .right-rail .right-rail-head');
+  await expect(head).toBeVisible();
+  // The DOM text is sentence-case ("Projects · N") — `.eyebrow`'s
+  // `text-transform: uppercase` (styles.css) renders it as "PROJECTS · N"
+  // visually without changing `textContent`, so the pin checks BOTH: the
+  // underlying text pattern, and that the uppercase transform is actually
+  // applied (the thing that makes it read as an eyebrow label at all).
+  const eyebrow = head.locator('.eyebrow');
+  await expect(eyebrow).toHaveText(/^Projects · \d+$/);
+  await expect(eyebrow).toHaveCSS('text-transform', 'uppercase');
+  await expect(head.getByRole('button', { name: /Select/ })).toBeVisible();
+
+  // Navigation, not a table — the rail must never contain a `.colhead` (or
+  // any other table-header element).
+  await expect(page.locator('.projects-page .right-rail .colhead')).toHaveCount(0);
+  await expect(page.locator('.projects-page .right-rail th')).toHaveCount(0);
+});
+
+// ── Task 20 (D14) drift-pin: filter toolbar lives in the content column only,
+// no page h1 ─────────────────────────────────────────────────────────────────
+test('filter toolbar sits in the content column (not spanning under the chrome rail), and there is no page h1', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+
+  const toolbar = page.locator('.projects-page .projects-content > .home-search');
+  await expect(toolbar).toBeVisible();
+  // It must NOT reach as far right as the chrome rail's left edge — i.e. it
+  // does not span under the sidebar (PR-2c supersedes the old PR-2
+  // "spans both columns" shape now that the right side is chrome, not a
+  // second content column).
+  const toolbarBox = await toolbar.boundingBox();
+  const railBox = await page.locator('.projects-page .right-rail').boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(railBox).not.toBeNull();
+  if (toolbarBox && railBox) {
+    expect(toolbarBox.x + toolbarBox.width).toBeLessThanOrEqual(railBox.x + 1);
+  }
+
+  await expect(page.locator('.projects-page h1')).toHaveCount(0);
+});
+
+// ── Task 20 (D14) drift-pin: ONE shared command bar for BOTH select flows,
+// mutually exclusive, replacing the old boxed toolbars ────────────────────────
+test('project multi-select: Select enters select mode via the shared command bar, row click toggles instead of navigating, bulk actions are exactly Sync (N) / Remove (N)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+
+  // The old in-rail boxed toolbar is gone.
+  await expect(page.locator('.projects-page .right-rail .select-toolbar')).toHaveCount(0);
+
+  await page.locator('.projects-page .right-rail .right-rail-head').getByRole('button', { name: /Select/ }).click();
 
   const firstRow = page.locator('.projects-page .rail-proj').first();
   await expect(firstRow).toHaveClass(/selectable/);
@@ -106,8 +219,11 @@ test('project multi-select: Select enters select mode, row click toggles instead
   await expect(firstRow.locator('.rowcheck input[type="checkbox"]')).toBeChecked();
   await expect(page).toHaveURL(/\/projects$/);
 
-  const bar = rail.locator('.select-toolbar');
+  // The command bar slides in under the filter toolbar, in the content
+  // column — directly under `.home-search`, above the ledger heading.
+  const bar = page.locator('.projects-page .projects-content > .command-bar');
   await expect(bar).toBeVisible();
+  await expect(bar).toContainText('1 projects selected');
   await expect(bar).toContainText('Sync (1)');
   await expect(bar).toContainText('Remove (1)');
 
@@ -120,120 +236,75 @@ test('project multi-select: Select enters select mode, row click toggles instead
   await bar.getByRole('button', { name: 'Cancel' }).click();
   await expect(firstRow).toBeVisible();
   await expect(firstRow).toHaveClass(/selected/);
+
+  // Selected rows read as checkbox + subtle tint — no heavy orange border.
+  const borderColor = await firstRow.evaluate((el) => getComputedStyle(el).borderColor);
+  expect(borderColor).not.toMatch(/192, 138, 30/);
 });
 
-test('meta line shows branch (⎇) or "needs association", plus a relative time', async ({ page }) => {
-  await gotoProjects(page);
-  const meta = page.locator('.projects-page .rail-proj').first().locator('.meta');
-  const text = (await meta.textContent()) ?? '';
-  expect(/⎇ |needs association/.test(text)).toBe(true);
-});
-
-// ── D1 drift-pin: the recent-sessions ledger is the MAIN column ───────────────
-test('recent-sessions ledger is the main column, with day groups', async ({ page }) => {
-  await gotoProjects(page);
-  const ledger = page.locator('.projects-page .projects-main .recent-ledger');
-  await expect(ledger).toBeVisible();
-  await expect(ledger.getByText('Recent sessions')).toBeVisible();
-  await expect(ledger.locator('.day .row').first()).toBeVisible();
-});
-
-// ── Task 19 (PR-2 checkpoint): full-width filter toolbar, no page h1, aligned
-// column heads on one row ──────────────────────────────────────────────────
-test('filter toolbar spans full width above the two columns, no page h1, and the two column heads align on one row', async ({ page }) => {
+test('entering session select exits an active project select, and vice versa — at most one command bar flow at a time', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
   await gotoProjects(page);
 
-  // The search box moved OUT of the ledger column into a toolbar that is a
-  // direct child of `.projects-page`, above `.projects-layout` — spans the
-  // full page width, not scoped to either column.
-  const toolbar = page.locator('.projects-page > .home-search');
-  await expect(toolbar).toBeVisible();
-  await expect(page.locator('.projects-page .recent-ledger > .home-search')).toHaveCount(0);
-  const toolbarBox = await toolbar.boundingBox();
-  const layoutBox = await page.locator('.projects-layout').boundingBox();
-  expect(toolbarBox).not.toBeNull();
-  expect(layoutBox).not.toBeNull();
-  if (toolbarBox && layoutBox) {
-    // Full-width: the toolbar's box spans (at least) as wide as the two-column
-    // layout beneath it, not just one column's worth.
-    expect(toolbarBox.width).toBeGreaterThanOrEqual(layoutBox.width - 2);
-  }
+  // Enter project select first.
+  await page.locator('.projects-page .right-rail .right-rail-head').getByRole('button', { name: /Select/ }).click();
+  const bar = page.locator('.projects-page .projects-content > .command-bar');
+  await expect(bar).toContainText('projects selected');
 
-  // The big page h1 is gone — sidebar nav already names the page, and the
-  // column heads below carry the titles instead.
-  await expect(page.locator('.projects-page h1')).toHaveCount(0);
-
-  // Column heads: "Recent sessions" (ledger, left) and "Projects · N" (rail,
-  // right) sit on one row — assert their top edges are within a couple px.
-  const ledgerHead = page.locator('.projects-page .projects-main .page-title-row').first();
-  const railHead = page.locator('.projects-page .projects-rail .page-title-row').first();
-  await expect(ledgerHead).toBeVisible();
-  await expect(railHead).toBeVisible();
-  await expect(railHead.getByText(/^Projects · \d+$/)).toBeVisible();
-  const ledgerBox = await ledgerHead.boundingBox();
-  const railBox = await railHead.boundingBox();
-  expect(ledgerBox).not.toBeNull();
-  expect(railBox).not.toBeNull();
-  if (ledgerBox && railBox) {
-    expect(Math.abs(ledgerBox.y - railBox.y)).toBeLessThanOrEqual(3);
-  }
+  // Now enter session select from the ledger heading — it must take over the
+  // ONE shared command bar and exit the project-select flow.
+  await page.locator('.projects-page .recent-ledger .page-title-row').getByRole('button', { name: '☑ Select', exact: true }).click();
+  await expect(bar).toContainText('sessions selected');
+  await expect(bar).not.toContainText('projects selected');
+  // The rail is back to its resting (non-selectable) state.
+  await expect(page.locator('.projects-page .rail-proj').first()).not.toHaveClass(/selectable/);
 });
 
-// The static fixture has a single big session, so the append-on-scroll PATH
-// can't be exercised here (covered by test/search-recent.test.mjs). This guards
-// that the ledger still renders its rows and scrolling doesn't tear it down.
-// (Moved from home.spec.ts, D1 — the ledger no longer lives on `/`.)
-test('ledger renders and survives a scroll to the bottom', async ({ page }) => {
-  await gotoProjects(page);
-  const rows = page.locator('.recent-ledger .day .row');
-  expect(await rows.count()).toBeGreaterThanOrEqual(1);
-  await page.locator('.projects-page').evaluate((el) => { el.scrollTop = el.scrollHeight; });
-  await expect(rows.first()).toBeVisible();
-});
-
-// ── Task 19 (PR-2 checkpoint) drift-pin: two-column reflow — LEDGER-FIRST
-// stacked below 1100px (flips the old F2/D1 rail-first order), ledger-left/
-// rail-right sticky ≥1100px (styles.css `.projects-layout` @media 1100px) ─────
-test('projects layout stacks the ledger above the rail below 1100px', async ({ page }) => {
+// ── Task 20 (D14) drift-pin: reflow — chrome leaves at <1100px, boxed
+// "Projects" section BELOW the ledger (ledger stays first, D1/D13) ───────────
+test('projects layout stacks the ledger above a BOXED "Projects" section below 1100px', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });
   await gotoProjects(page);
-  const info = await page.locator('.projects-layout').evaluate((el) => {
-    const cs = getComputedStyle(el);
-    const rail = el.querySelector('.projects-rail')!;
-    const main = el.querySelector('.projects-main')!;
+
+  const info = await page.evaluate(() => {
+    const shell = document.querySelector('.projects-shell') as HTMLElement;
+    const rail = document.querySelector('.projects-shell .right-rail') as HTMLElement;
+    const content = document.querySelector('.projects-shell .projects-content') as HTMLElement;
     // eslint-disable-next-line no-bitwise
-    const mainBeforeRail = !!(main.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return { flexDirection: cs.flexDirection, mainBeforeRail };
+    const contentBeforeRail = !!(content.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const cs = getComputedStyle(rail);
+    return {
+      shellFlexDirection: getComputedStyle(shell).flexDirection,
+      contentBeforeRail,
+      railBorderStyle: cs.borderStyle,
+      railBg: cs.backgroundColor,
+    };
   });
-  expect(info.flexDirection).toBe('column');
-  // Source order puts the ledger (main) above the rail at this width (D1's
-  // "moving list stays primary" — no CSS `order` override applies below the
-  // breakpoint, or above it either, since the DOM order already matches the
-  // desired visual order at every width).
-  expect(info.mainBeforeRail).toBe(true);
+  expect(info.shellFlexDirection).toBe('column');
+  // Source order puts the content column (ledger) above the rail at this
+  // width (D1's "moving list stays primary").
+  expect(info.contentBeforeRail).toBe(true);
+  // "Boxed" — a real border, not the flush chrome treatment.
+  expect(info.railBorderStyle).toBe('solid');
 });
 
-test('projects layout places the ledger main column left and a ~300px sticky rail right at >=1100px', async ({ page }) => {
+test('projects layout places the content column left and a chrome rail right at >=1100px', async ({ page }) => {
   await page.setViewportSize({ width: 1728, height: 900 });
   await gotoProjects(page);
-  const info = await page.locator('.projects-layout').evaluate((el) => {
+  const info = await page.locator('.projects-shell').evaluate((el) => {
     const cs = getComputedStyle(el);
-    const rail = el.querySelector('.projects-rail') as HTMLElement;
-    const main = el.querySelector('.projects-main') as HTMLElement;
+    const rail = el.querySelector('.right-rail') as HTMLElement;
+    const content = el.querySelector('.projects-content') as HTMLElement;
     return {
       flexDirection: cs.flexDirection,
       railWidth: rail.getBoundingClientRect().width,
       railLeft: rail.getBoundingClientRect().left,
-      mainLeft: main.getBoundingClientRect().left,
-      railPosition: getComputedStyle(rail).position,
+      contentLeft: content.getBoundingClientRect().left,
     };
   });
   expect(info.flexDirection).toBe('row');
-  // The ledger (main) sits visually LEFT of the rail once the row layout
-  // kicks in — this is the D1 shape (`order: 1` main / `order: 2` rail).
-  expect(info.mainLeft).toBeLessThan(info.railLeft);
-  expect(Math.abs(info.railWidth - 300)).toBeLessThanOrEqual(2);
-  expect(info.railPosition).toBe('sticky');
+  expect(info.contentLeft).toBeLessThan(info.railLeft);
+  expect(Math.abs(info.railWidth - 280)).toBeLessThanOrEqual(2);
 });
 
 test('no horizontal overflow on /projects at 1024/1366/1728', async ({ page }) => {

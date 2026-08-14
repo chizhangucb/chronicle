@@ -417,7 +417,12 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    selection-state treatment or one of the two mount points loses its highlight. */
 .session-row.selectable, .row.selectable { cursor: pointer; transition: border-color 0.15s; }
 .session-row.selectable:hover, .row.selectable:hover { border-color: var(--brass); }
-.session-row.selected, .row.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
+/* PR-2c (Task 20): selected rows read as checkbox + subtle tint — the
+   brass BORDER highlight is deliberately killed here (the row already has a
+   normal `border: 1px solid var(--border)` at rest; a selected row keeps
+   that same neutral border and adds only the background tint, so selection
+   never competes visually with the brand-brass focus ring/hover states). */
+.session-row.selected, .row.selected { background: rgba(192, 138, 30, 0.08); }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.danger:hover { background: rgba(217, 79, 61, 0.12); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1385,7 +1390,10 @@ h4 { margin: 6px 0; }
    `.rail-proj` and placed AFTER the `:hover` rule above so a selected+hovered
    row still reads as selected (equal specificity, cascade order decides). */
 .rail-proj.selectable { cursor: pointer; }
-.rail-proj.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
+/* PR-2c (Task 20): same "checkbox + subtle tint, no brass border" treatment
+   as `.row.selected` above — a neutral border (matching the row's own hover
+   border-color, not brass) plus the tint is enough to read as selected. */
+.rail-proj.selected { border-color: var(--border); background: rgba(192, 138, 30, 0.08); }
 .rail-proj-row { display: flex; align-items: flex-start; gap: var(--gap-2); }
 .rail-proj-main { flex: 1; min-width: 0; }
 .home-search { max-width: none; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
@@ -1525,29 +1533,68 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* `/projects` layout (Task 9 reshape, D1 VERBATIM; PR-2 checkpoint amendment,
-   Task 19): the recent-sessions ledger is the MAIN column (people care about
-   the moving list), the projects rail sits to its RIGHT as a compact sticky
-   column — both visible at once. Source order in ProjectsPage.tsx is
-   main-then-rail (the ledger stacks FIRST at every width — D1's "moving
-   list stays primary" plus the PR-2 checkpoint's ledger-first stacking
-   below 1100px), so no `order` override is needed in either breakpoint: the
-   column layout below 1100px naturally stacks the ledger above the rail,
-   and the row layout at/above it naturally places the ledger (first in DOM)
-   on the left and the rail on the right. */
-.projects-page .projects-layout { display: flex; flex-direction: column; gap: var(--gap-5); align-items: flex-start; }
-.projects-page .projects-rail { width: 100%; }
-.projects-page .projects-main { width: 100%; min-width: 0; }
-@media (min-width: 1100px) {
-  .projects-page .projects-layout { flex-direction: row; }
-  .projects-page .projects-rail { flex: 0 0 300px; width: 300px; position: sticky; top: var(--gap-4); }
-  .projects-page .projects-main { flex: 1 1 auto; }
+/* `/projects` — PR-2c chrome-sidebar redesign (Task 20, D14, supersedes the
+   PR-2 two-column shape above). Three vertical zones: the left app sidebar
+   (`.sidebar`, untouched), a CENTER content column (`.projects-content` —
+   filter toolbar, command bar, ledger; scrolls independently) and a RIGHT
+   chrome sidebar (`.right-rail` — same background tone as `.sidebar`, full
+   height, flush to the window edge) at >=1100px.
+   Below 1100px: `.projects-page` (the `.page` scroll container) stays the
+   single scroll surface — `.projects-shell` is a plain stacked column, DOM
+   order puts the ledger (inside `.projects-content`) first and the rail
+   below it as a boxed "Projects" section (D1/D13: the ledger is the moving
+   list, stays primary at every width).
+   At >=1100px `.projects-page` hands its OWN padding/scroll off to its two
+   children — this is what lets `.right-rail` reach true full height flush
+   to the viewport edge (a `.page`-level padding-right would otherwise inset
+   it) while `.projects-content` keeps its own independent scroll. */
+.projects-page .projects-shell { display: flex; flex-direction: column; }
+.projects-page .projects-content { width: 100%; min-width: 0; }
+.projects-page .right-rail {
+  width: 100%; margin-top: var(--gap-5);
+  background: var(--bg1); border: 1px solid var(--border); border-radius: 6px;
+  padding: var(--gap-4);
 }
+@media (min-width: 1100px) {
+  .projects-page { display: flex; padding: 0; overflow: hidden; }
+  .projects-page .projects-shell { flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: row; }
+  .projects-page .projects-content { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 20px 24px; }
+  .projects-page .right-rail {
+    flex: 0 0 280px; width: 280px; overflow-y: auto;
+    margin-top: 0; border: none; border-left: 1px solid var(--border);
+    border-radius: 0; padding: 16px 14px;
+  }
+}
+
+/* Chrome-sidebar head: eyebrow-style `PROJECTS · N` label (same recipe as the
+   left sidebar's `.sb-sec-head.eyebrow` "SESSION" label) + one small Select
+   affordance — mirrors the left sidebar's visual vocabulary without touching
+   any `.sb-*` rule. */
+.right-rail-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-2); margin-bottom: var(--gap-3); }
 
 /* Projects rail list — F2 restore of the Chi-confirmed contract: a dense list
    of the pre-Batch-C `.rail-proj` rows (the same anatomy the old home-rail
    sidebar used), NOT the bordered card grid an earlier pass shipped without
-   sign-off. `.rail-proj` itself is unchanged (its hover-only background/
-   border already gives each row a subtle list-item feel); this page only
-   supplies the container — single column, width bounded by `.projects-rail`. */
+   sign-off, and NOT a table (no header row) — this is navigation. `.rail-proj`
+   itself is unchanged (its hover-only background/border already gives each
+   row a subtle list-item feel); this page only supplies the container. */
 .projects-page .projects-list { display: flex; flex-direction: column; }
+
+/* Full-width command bar (PR-2c, Task 20) — the ONE shared bar both the
+   session-select and project-select flows render their controls into,
+   sliding in directly under the filter toolbar in the content column. This
+   replaces the OLD in-ledger and in-rail boxed `.select-toolbar`s on this
+   page — `.select-toolbar` itself still exists for the unrelated
+   ProjectDetail Sessions-tab select flow, untouched by this redesign. */
+.command-bar {
+  display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap;
+  padding: var(--gap-2) var(--gap-3); margin-bottom: var(--gap-4);
+  background: var(--bg1); border: 1px solid var(--border-strong); border-radius: 6px;
+  animation: command-bar-in 150ms ease-out;
+}
+@keyframes command-bar-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+/* Portal target for RecentLedger's session-select controls (see
+   RecentLedger.tsx `commandBarSlot`) — `display: contents` so the wrapper
+   itself never becomes a visible/sized box, its portaled children lay out as
+   if they were direct `.command-bar` children. */
+.command-bar-slot { display: contents; }

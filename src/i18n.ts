@@ -137,6 +137,9 @@ const zh = {
   'Sync': '同步',
   'Select project': '选择项目',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
+  // Shared /projects command bar (Task 20, PR-2c chrome-sidebar redesign)
+  'sessions selected': '个会话已选',
+  'projects selected': '个项目已选',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
     '从 Chronicle 移除这些会话？不会改动源日志——之后可以撤销。',
@@ -690,6 +693,9 @@ const ja = {
   'Sync': '同期',
   'Select project': 'プロジェクトを選択',
   'New display name (folder is not touched):': '新しい表示名（フォルダーは変更されません）：',
+  // Shared /projects command bar (Task 20, PR-2c chrome-sidebar redesign)
+  'sessions selected': 'セッションを選択中',
+  'projects selected': 'プロジェクトを選択中',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
     'これらのセッションを Chronicle から削除しますか？元のログは変更されません — 直後に元に戻せます。',
