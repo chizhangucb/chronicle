@@ -39,13 +39,14 @@ async function assertNonEmpty(page: Page, label: string): Promise<void> {
 }
 
 // Content-tab counterpart to assertNonEmpty: unlike Overview/Explore (one
-// primary data view), Content (src/ContentTab.tsx) renders THREE
+// primary data view), Content (src/ContentTab.tsx) renders FOUR
 // independently-scoped sub-cards (usage characteristics, tool-results-by-tool,
-// skills & subagents) that each show their OWN "No sessions in range." when
-// there's no data of THAT specific kind in-window — e.g. the window-matrix
-// fixture's spanning/today mini sessions (test/e2e/helpers.ts) are plain
+// skills, subagents — split into separate Skills/Subagents cards in Task 14,
+// D5/D7) that each show their OWN "No sessions in range." when there's no
+// data of THAT specific kind in-window — e.g. the window-matrix fixture's
+// spanning/today mini sessions (test/e2e/helpers.ts) are plain
 // user/assistant turns with no tool_use/subagent activity, so the
-// tool-results and skills&subagents cards legitimately render empty even
+// tool-results/skills/subagents cards legitimately render empty even
 // though the tab as a whole has real in-window session data. So instead of
 // asserting NO "No sessions in range." text anywhere on the page (too
 // strict — flags real, correct empty states), assert the one signal that's
