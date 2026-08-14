@@ -388,6 +388,34 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   `main` touching `docs/**`/`CHANGELOG.md`/`website/**` (secret: `VERCEL_TOKEN`). Edit
   `docs/`, never `website/docs/` (regenerated at build by `website/scripts/build-content.mjs`
   + `assemble.mjs`). The changelog page is GENERATED from repo-root `CHANGELOG.md`.
+- **Timezone convention: ALL user-facing day/hour bucketing/labels are LOCAL time, converted once.**
+  Server-side (`server/windowUsage.ts`, `server/explore.ts`, `server/insights.ts`,
+  `server/routes/projects.ts`): `strftime(..., 'localtime')` on the SQL side, bucket keys in
+  'YYYY-MM-DD' (day/week) or 'YYYY-MM-DDTHH' (hour) or 'YYYY-MM' (month) format.
+  Client-side (`src/charts/timeBuckets.ts`): bucket keys are formatted directly with local getters
+  (`getFullYear()`, `getMonth()`, etc.) — **NEVER reconstruct a Date from a day key via**
+  `${key}T00:00:00Z`, which re-parses an already-local calendar string as UTC midnight and shifts
+  the displayed day by ±1 in any non-UTC timezone (the root cause of the Aug-12-label-on-Aug-13
+  double-conversion bug).  `dayKeyOf`/`hourKeyOf`/`monthKeyOf` produce the same format as the
+  server; a client-computed Date goes through the local (non-UTC) constructor (`new Date(y, mo-1, d)`),
+  never parsed ISO. One exception: `server/activity.ts`'s `medianBaseline` uses internal UTC-anchored
+  join keys (never displayed).
+- **Windowed-usage semantics (feedback-round): a session belongs to a time window iff its activity
+  span overlaps the window**, not the old `COALESCE(s.started_at,'9') >= cutoff` gate which drops
+  sessions that started before the window but ran INTO it. Primitive: `server/windowUsage.ts`
+  `windowedUsage` / `bucketedUsage` (framework-free, callable by insights.ts / explore.ts / content.ts
+  / routes/projects.ts / routes/activity.ts). Billed magnitudes attributed via per-session
+  per-model calibration: scale each session's billed cell by (in-window per-message tokens ÷
+  whole-session per-message tokens), clamped 0..1 — reuses the "share of real total" idea from
+  `server/calibrate.ts`, weighted by token count. Sessions fully inside the window naturally get
+  ratio 1. Error counts stay whole-session at overlap granularity (disclosed trade-off,
+  see query comments).
+- **The STANDING RULE (feedback-round, Task 7):** any user-reported fix targeting a UI/UX pattern
+  class MUST trigger an app-wide sweep for that same pattern, with a regression pin (a new CI probe
+  or test assertion) landed in the same PR. Example: the timestamp-spacing fix (Task 18) was
+  applied site-locally once (ledger day headers, PR #79) while the same visual class shipped in the
+  Conversation Timeline; the rule prevents that recurrence. A sweep is a single pass across the
+  app's key files (search/grep), not an exhaustive audit — the probe is the durable guard.
 
 ## Gotchas
 
@@ -456,6 +484,16 @@ see npm / npx above, where `tsconfig.publish.json` compiles the server for the t
   clears it; otherwise route via a PR or hand the exact command to the user. Never work
   around a denial.
 
+- **`res.sendFile(absolutePath)` 404s under dot-segment install paths** (`npx ~/.npm/_npx/`,
+  `.claude/worktrees/`). Express's `sendFile` applies `dotfiles:'ignore'` to the entire path,
+  not just the filename — paths with dots in any directory component are rejected. Workaround:
+  always use `sendFile(rel, {root})`, passing the relative filename + the root directory
+  separately (already done in `server/standalone.ts`; regression test: `test/standalone-spa-fallback.test.mjs`).
+- **Any test touching server modules that start autosync must call `stopAutoSync()` in teardown**
+  — otherwise `npm test` hangs on machines with real data in `~/.chronicle/chronicle.db`. The
+  auto-sync watchers remain live and prevent the process from exiting.
+- **Never run `vite build` concurrently with an e2e run** — the build wipes `dist/` and the
+  seeded e2e server 404s mid-run. E2E tests assume `dist/` is stable for their full duration.
 ## Verification habits used here
 
 Features were verified against real data: this repo's own Claude Code session
