@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
+import RecentLedger from './RecentLedger.js';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 
@@ -153,48 +154,265 @@ export function WelcomeEmpty({ onImport }: { onImport: () => void }) {
 export interface ProjectsPageProps {
   projects: ProjectSummary[] | null;
   onOpenProject: (id: number | string) => void;
+  onOpenSession?: (id: string, projectId: number) => void;
   onImport: () => void;
   onRefresh: () => void;
 }
 
-// `/projects` — a dense rail-style list, moved off Home (Task 13). This is
-// the Chi-confirmed contract: the SAME row anatomy as the pre-Batch-C
-// `.rail-proj` sidebar rows (pdot · name · live dot … session count · gear
-// menu, meta line = branch/"needs association" · relative time), just laid
-// out as a page instead of a 264px sidebar — never the bordered card grid
-// Batch C shipped instead (F2 restore). Each row opens the project's
-// analytics; its gear menu carries Sync/Rename/Remove.
-export default function ProjectsPage({ projects, onOpenProject, onImport, onRefresh }: ProjectsPageProps) {
+interface UseProjectSelect {
+  selectMode: boolean;
+  isSelected: (id: number | string) => boolean;
+  toggle: (id: number | string) => void;
+  enterSelect: () => void;
+  exitSelect: () => void;
+  selectedCount: number;
+  allSelected: boolean;
+  confirming: boolean;
+  syncing: boolean;
+  removing: boolean;
+  selectAllOrClear: () => void;
+  requestRemove: () => void;
+  cancelConfirm: () => void;
+  syncSelected: () => void;
+  removeSelected: () => void;
+}
+
+// Project-level mirror of `useSessionSelect` (src/SessionSelect.tsx) — same
+// state shape (select mode, inline two-step confirm, danger action), but
+// simpler: `api.deleteProject` has no undo path (it hard-deletes the project
+// row, unlike a session's tombstone-based delete), so there's no Undo toast
+// here, matching the existing single-project `ProjectMenu` remove flow above
+// (also confirm-then-gone, no undo). Task 19, PR-2 checkpoint: "I want a
+// convenient way for the user to select multiple projects... and be able to
+// delete them or sync with them" (Chi). PR-2c (Task 20, chrome-sidebar
+// redesign): this used to build its own boxed `.select-toolbar` `Bar` JSX;
+// now it returns primitives only — ProjectsPage renders them into the ONE
+// shared full-width command bar alongside the session-select flow, and
+// `onBeforeEnter` lets that command bar force-exit the sibling session-select
+// so at most one select mode is ever active.
+function useProjectSelect(projects: ProjectSummary[], onRefresh: () => void, onBeforeEnter?: () => void): UseProjectSelect {
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number | string>>(() => new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
+  function enterSelect() { onBeforeEnter?.(); setSelectMode(true); }
+  function toggle(id: number | string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setConfirming(false);
+  }
+
+  // Sequential per project (brief: "immediate, spinner, sequential per
+  // project") rather than Promise.all — a burst of concurrent sync requests
+  // would otherwise hammer the same git/import machinery at once.
+  async function syncSelected() {
+    if (syncing || !selected.size) return;
+    setSyncing(true);
+    try {
+      for (const id of selected) { try { await api.syncProject(id); } catch { /* per-project errors don't block the rest */ } }
+      invalidateClientCache();
+      onRefresh();
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function removeSelected() {
+    if (removing || !selected.size) return;
+    setRemoving(true);
+    try {
+      for (const id of selected) { try { await api.deleteProject(id); } catch { /* per-project errors don't block the rest */ } }
+      invalidateClientCache();
+      onRefresh();
+      exitSelect();
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  const allSelected = projects.length > 0 && projects.every((p) => selected.has(p.id));
+
+  return {
+    selectMode, isSelected: (id) => selected.has(id), toggle, enterSelect, exitSelect,
+    selectedCount: selected.size,
+    allSelected,
+    confirming,
+    syncing,
+    removing,
+    selectAllOrClear: () => setSelected(allSelected ? new Set() : new Set(projects.map((p) => p.id))),
+    requestRemove: () => setConfirming(true),
+    cancelConfirm: () => setConfirming(false),
+    syncSelected,
+    removeSelected,
+  };
+}
+
+// PR-2c (Task 20): project select-mode CONTROLS rendered into the shared
+// command bar — "<N> projects selected · Select all · Cancel · ⟳ Sync (N) ·
+// ⌫ Remove (N)", same two-step inline confirm as before, just no longer
+// wrapped in its own boxed `.select-toolbar` (that box is gone; the command
+// bar itself supplies the one shared frame for both select flows).
+function ProjectCommandBarControls({ api }: { api: UseProjectSelect }) {
+  if (api.confirming) {
+    return (
+      <>
+        <span className="muted small">{t('Remove these from Chronicle? Source logs and folders are not touched.')}</span>
+        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.removing}>{t('Cancel')}</button>
+        <button className="btn danger-btn" disabled={api.removing} onClick={api.removeSelected}>
+          {api.removing ? t('Removing…') : `⌫ ${t('Remove')} (${api.selectedCount})`}
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="muted small">{api.selectedCount} {t('projects selected')}</span>
+      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allSelected ? t('Clear') : t('Select all')}</button>
+      <button className="btn ghost" onClick={api.exitSelect}>{t('Cancel')}</button>
+      <button className="btn ghost" disabled={!api.selectedCount || api.syncing} onClick={api.syncSelected}>
+        {api.syncing ? `◌ ${t('Syncing…')}` : `⟳ ${t('Sync')} (${api.selectedCount})`}
+      </button>
+      <button className="btn danger-btn" disabled={!api.selectedCount} onClick={api.requestRemove}>
+        ⌫ {t('Remove')} ({api.selectedCount})
+      </button>
+    </>
+  );
+}
+
+// `/projects` — PR-2c chrome-sidebar redesign (Task 20, D14: Chi's second
+// checkpoint reply). Supersedes the PR-2 two-column "card-ish rail" shape:
+// "recent sessions and projects should not be seen as exactly at the same
+// data model level… the old design of adding projects as a sidebar on the
+// right side, similar to the left-side home sidebar" (Chi) — she picked the
+// CHROME SIDEBAR mockup. Three vertical zones: the left app sidebar
+// (App.tsx, untouched), a CENTER content column (`.projects-content` — filter
+// toolbar, the command bar when selecting, "Recent sessions" + one small
+// Select button, the ledger table; scrolls independently), and a RIGHT chrome
+// sidebar (`.right-rail` — same background tone as the left app sidebar,
+// full height, flush to the window edge; eyebrow `PROJECTS · N` + one small
+// Select affordance; borderless `.rail-proj` nav rows — pdot · name ·
+// live-dot … count · gear-visible-at-rest — meta line beneath; NO card
+// borders, NO table headers — navigation, not a table). `RecentLedger` still
+// owns the ledger's own data (day groups, infinite scroll, minor bucket)
+// verbatim; only its select-mode CONTROLS now portal into the shared command
+// bar below (see RecentLedger.tsx's `commandBarSlot`/`onSelectModeChange`/
+// `onBeforeEnterSelect`/`onExposeExit`).
+//
+// Select mode (either list) collapses to ONE full-width command bar sliding
+// in directly under the filter toolbar, in the content column — the old
+// in-ledger boxed toolbar and the old in-rail boxed toolbar are both gone.
+// The two select flows are mutually exclusive (entering one exits the
+// other), so the bar only ever shows one at a time. "Select minor sessions
+// (N)" left the ledger's resting header — it's now a chip inside the
+// session command bar, sessions-only. Selected rows read as checkbox +
+// subtle tint (`.row.selected`/`.rail-proj.selected` in styles.css) — no
+// heavy brass border.
+//
+// Reflow (`styles.css` `.projects-page` @media 1100px): below 1100px the
+// right sidebar leaves the chrome and renders as a boxed "Projects" section
+// BELOW the ledger (ledger stays first, per D1/D13) — `.projects-page`
+// itself is the single scroll container at that width, same as before.
+//
+// Sign-off: per Chi, 2026-08-14 second checkpoint reply (D14,
+// records/plans/2026-08-14-chronicle-feedback-round-plan.md) — see
+// .claude/product-contract.md for the checkable enumerable shape.
+export default function ProjectsPage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: ProjectsPageProps) {
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
+  const [query, setQuery] = useState('');
+  // Whether RecentLedger's OWN select mode is active — published up via
+  // `onSelectModeChange` (RecentLedger owns the actual state; this is just
+  // the boolean this component needs to decide whether the command bar is
+  // visible and which flow it hosts).
+  const [sessionSelectActive, setSessionSelectActive] = useState(false);
+  // A stable wrapper around RecentLedger's `exitSelect`, registered once via
+  // `onExposeExit` (see RecentLedger.tsx) — lets the project-select flow
+  // force-close the session-select flow when it enters (mutual exclusion).
+  const exitSessionSelectRef = useRef<() => void>(() => {});
+  const projSelect = useProjectSelect(projects ?? [], onRefresh, () => exitSessionSelectRef.current());
+  // Portal target for the session-select command-bar controls (RecentLedger
+  // renders its `SessionCommandBarControls` into this node) — a callback ref
+  // so the portal can start working the instant the node mounts.
+  const [cmdBarSlot, setCmdBarSlot] = useState<HTMLDivElement | null>(null);
 
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) return <WelcomeEmpty onImport={onImport} />;
 
+  const showCommandBar = sessionSelectActive || projSelect.selectMode;
+
   return (
     <div className="page projects-page">
-      <div className="page-title-row">
-        <h1 className="page-title">{t('Projects')}</h1>
-      </div>
-      <div className="projects-list">
-        {projects.map((p) => (
-          <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
-            <div className="n">
-              <span>
-                <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
-                {p.name}
-                {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="c num">{p.session_count}</span>
-                <ProjectMenu project={p} onRefresh={onRefresh} />
-              </span>
-            </div>
-            <div className="meta">
-              {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
-              {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
-            </div>
+      <div className="projects-shell">
+        <div className="projects-content">
+          {/* Filter toolbar sits at the top of the CONTENT column only (Task
+              20, D14 — spans the content width, NOT under the right-sidebar
+              chrome; supersedes the PR-2 "spans both columns" shape now that
+              the right rail is full-bleed chrome rather than a second
+              content column). */}
+          <div className="home-search">
+            ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+              onChange={(e) => setQuery(e.target.value)} />
+            <span className="kbd">⌘K</span>
           </div>
-        ))}
+          {showCommandBar && (
+            <div className="command-bar">
+              {projSelect.selectMode
+                ? <ProjectCommandBarControls api={projSelect} />
+                : <div ref={setCmdBarSlot} className="command-bar-slot" />}
+            </div>
+          )}
+          <RecentLedger projects={projects} onOpenSession={onOpenSession} onRefresh={onRefresh} query={query}
+            commandBarSlot={cmdBarSlot}
+            onSelectModeChange={setSessionSelectActive}
+            onBeforeEnterSelect={() => projSelect.exitSelect()}
+            onExposeExit={(fn) => { exitSessionSelectRef.current = fn; }} />
+        </div>
+        <aside className="right-rail">
+          <div className="right-rail-head">
+            <span className="eyebrow">{t('Projects')} · {projects.length}</span>
+            {!projSelect.selectMode && (
+              <button className="btn tiny ghost" onClick={projSelect.enterSelect}>☑ {t('Select')}</button>
+            )}
+          </div>
+          <div className="projects-list">
+            {projects.map((p) => (
+              <div key={p.id}
+                className={`rail-proj ${projSelect.selectMode ? 'selectable' : ''} ${projSelect.isSelected(p.id) ? 'selected' : ''}`}
+                onClick={() => (projSelect.selectMode ? projSelect.toggle(p.id) : onOpenProject(p.id))}>
+                <div className="rail-proj-row">
+                  {projSelect.selectMode && (
+                    <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={projSelect.isSelected(p.id)}
+                        onChange={() => projSelect.toggle(p.id)} aria-label={t('Select project')} />
+                    </div>
+                  )}
+                  <div className="rail-proj-main">
+                    <div className="n">
+                      <span>
+                        <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
+                        {p.name}
+                        {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="c num">{p.session_count}</span>
+                        <ProjectMenu project={p} onRefresh={onRefresh} />
+                      </span>
+                    </div>
+                    <div className="meta">
+                      {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
+                      {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
     </div>
   );

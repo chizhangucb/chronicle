@@ -4,8 +4,8 @@
 const zh = {
   'AI Session Time Machine': 'AI 会话时光机',
   'Projects': '项目',
-  // Home dashboard (Task 13)
-  'Home': '主页',
+  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  'Insights': '洞察',
   'Live now': '正在进行',
   'Since you left': '离开以来',
   'No activity yet today — your live and recently-ended sessions will show here.': '今天还没有活动 — 正在进行和刚结束的会话会显示在这里。',
@@ -133,7 +133,13 @@ const zh = {
   'Select all': '全选',
   'Removing…': '正在移除…',
   'Remove these from Chronicle? Source logs and folders are not touched.': '从 Chronicle 移除这些项目？不会改动源日志和文件夹。',
+  // Project multi-select bulk bar (Task 19, PR-2 checkpoint)
+  'Sync': '同步',
+  'Select project': '选择项目',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
+  // Shared /projects command bar (Task 20, PR-2c chrome-sidebar redesign)
+  'sessions selected': '个会话已选',
+  'projects selected': '个项目已选',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
     '从 Chronicle 移除这些会话？不会改动源日志——之后可以撤销。',
@@ -556,8 +562,8 @@ const zh = {
 const ja = {
   'AI Session Time Machine': 'AI セッションタイムマシン',
   'Projects': 'プロジェクト',
-  // Home dashboard (Task 13)
-  'Home': 'ホーム',
+  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  'Insights': 'インサイト',
   'Live now': '進行中',
   'Since you left': '前回からの更新',
   'No activity yet today — your live and recently-ended sessions will show here.': '今日はまだアクティビティがありません — 進行中や直近で終了したセッションがここに表示されます。',
@@ -683,7 +689,13 @@ const ja = {
   'Select all': 'すべて選択',
   'Removing…': '削除中…',
   'Remove these from Chronicle? Source logs and folders are not touched.': 'これらを Chronicle から削除しますか？元のログとフォルダーは変更されません。',
+  // Project multi-select bulk bar (Task 19, PR-2 checkpoint)
+  'Sync': '同期',
+  'Select project': 'プロジェクトを選択',
   'New display name (folder is not touched):': '新しい表示名（フォルダーは変更されません）：',
+  // Shared /projects command bar (Task 20, PR-2c chrome-sidebar redesign)
+  'sessions selected': 'セッションを選択中',
+  'projects selected': 'プロジェクトを選択中',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
     'これらのセッションを Chronicle から削除しますか？元のログは変更されません — 直後に元に戻せます。',

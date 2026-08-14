@@ -34,20 +34,41 @@ export interface UseSessionSelect {
   isSelected: (id: string) => boolean;
   toggle: (id: string) => void;
   enterSelect: () => void;
+  exitSelect: () => void;
   // Bulk add/remove a whole set of ids at once — e.g. a day-group header
   // checkbox (select/clear exactly that day's visible rows) or a quick-select
   // shortcut (e.g. Home's "Select minor sessions"). Generic on purpose so it
   // stays reusable beyond the ids in the `sessions` list passed in above.
   setMany: (ids: string[], value: boolean) => void;
+  // Primitives the PR-2c `/projects` command bar (ProjectsPage.tsx) builds its
+  // own bar UI from — the boxed `Bar` below stays the ProjectDetail Sessions-tab
+  // presentation (unchanged), these expose the SAME underlying state/actions so
+  // there is one owner of the logic, just two renderings of it.
+  selectedCount: number;
+  allVisibleSelected: boolean;
+  confirming: boolean;
+  deleting: boolean;
+  selectAllOrClear: () => void;
+  requestRemove: () => void;
+  cancelConfirm: () => void;
+  confirmRemove: () => void;
   Bar: React.ReactNode;
   Toast: React.ReactNode;
+}
+
+export interface UseSessionSelectOptions {
+  // Called before select mode is entered — lets a caller with a SIBLING select
+  // flow (the /projects command bar hosts both a session-select and a
+  // project-select) force-exit the other one, so at most one is ever active
+  // (the brief's "ONE full-width command bar", never two stacked).
+  onBeforeEnter?: () => void;
 }
 
 // `pendingUndo`: a delete performed elsewhere (e.g. the Overview single-session
 // danger-zone delete, which navigates away immediately) that should surface the
 // SAME undo toast here once this component mounts at the destination view —
 // see OverviewMode's onDeleted / App's pendingUndo plumbing. Consumed once.
-export function useSessionSelect(sessions: SelectableSession[], onRefresh: () => void, pendingUndo?: DeletedEntry | null): UseSessionSelect {
+export function useSessionSelect(sessions: SelectableSession[], onRefresh: () => void, pendingUndo?: DeletedEntry | null, options?: UseSessionSelectOptions): UseSessionSelect {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [confirming, setConfirming] = useState(false);
@@ -70,7 +91,7 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
   }, [pendingUndo]);
 
   function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
-  function enterSelect() { setSelectMode(true); }
+  function enterSelect() { options?.onBeforeEnter?.(); setSelectMode(true); }
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -188,5 +209,16 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     </Toast.Root>
   ) : null;
 
-  return { selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, setMany, Bar, Toast: UndoToast };
+  return {
+    selectMode, isSelected: (id: string) => selected.has(id), toggle, enterSelect, exitSelect, setMany,
+    selectedCount: selected.size,
+    allVisibleSelected,
+    confirming,
+    deleting,
+    selectAllOrClear: () => setMany(sessions.map((s) => s.id), !allVisibleSelected),
+    requestRemove: () => setConfirming(true),
+    cancelConfirm: () => setConfirming(false),
+    confirmRemove: deleteSelected,
+    Bar, Toast: UndoToast,
+  };
 }

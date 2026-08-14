@@ -5,6 +5,12 @@
 // regression (sidebar entries, tabs, window options, /insights redirect,
 // Overview DOM order).
 //
+// 2026-08-14 feedback round (D1+D2, records/plans/2026-08-14-chronicle-
+// feedback-round-plan.md): the sidebar item + page title at `/` were renamed
+// Home → Insights (∑ glyph), and the recent-sessions ledger — previously the
+// last section of this page — moved to `/projects` (see projects.spec.ts).
+// Tests below are retargeted accordingly.
+//
 // Flake discipline: every wait is on a visible DOM condition (auto-retrying
 // `expect`), never a bare sleep.
 import { test, expect, type Page } from '@playwright/test';
@@ -14,21 +20,21 @@ const state = readSeedState();
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto(state.baseURL + '/');
-  // The hub + the reused Recent-sessions ledger both present.
   await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
-  await expect(page.locator('.recent-ledger .day .row').first()).toBeVisible();
 }
 
-// ── Drift-pin (a): sidebar has exactly Home + Projects, no Insights entry ─────
-test('sidebar top nav has exactly Home and Projects, no Insights entry', async ({ page }) => {
+// ── Drift-pin (a): sidebar has exactly Insights + Projects, no Home entry ─────
+test('sidebar top nav has exactly Insights and Projects, no Home entry', async ({ page }) => {
   await gotoHome(page);
   const items = page.locator('.sidebar .sb-top .sb-item');
   await expect(items).toHaveCount(2);
-  await expect(items.nth(0)).toHaveAttribute('title', 'Home');
+  await expect(items.nth(0)).toHaveAttribute('title', 'Insights');
   await expect(items.nth(1)).toHaveAttribute('title', 'Projects');
-  await expect(page.locator('.sidebar .sb-item[title="Insights"]')).toHaveCount(0);
-  // The old ∑ Insights glyph is gone from the chrome.
-  await expect(page.locator('.sidebar')).not.toContainText('∑');
+  await expect(items.nth(0).locator('.sb-icon')).toHaveText('∑');
+  await expect(items.nth(1).locator('.sb-icon')).toHaveText('◫');
+  await expect(page.locator('.sidebar .sb-item[title="Home"]')).toHaveCount(0);
+  // The old ⌂ Home glyph is gone from the chrome.
+  await expect(page.locator('.sidebar')).not.toContainText('⌂');
 });
 
 // ── Drift-pin (b): `/` shows Overview / Explore / Content tabs ────────────────
@@ -65,13 +71,16 @@ test('/insights?tab=explore redirects to /?tab=explore with the Explore tab acti
   await expect(page.locator('.pivot').first()).toBeVisible();
 });
 
-// ── Drift-pin (e): Overview DOM order KPIs → activity → burn → charts → ledger ─
-test('Overview reading order: KPIs → activity → burn → charts → ledger', async ({ page }) => {
+// ── Drift-pin (e): Overview DOM order KPIs → activity → burn → charts, and the
+// recent-sessions ledger no longer mounts here (moved to /projects, D1) ───────
+test('Overview reading order: KPIs → activity → burn → charts, no ledger', async ({ page }) => {
   await gotoHome(page); // default window is Today, so the Activity block is present
   await expect(page.locator('.home-dashboard .activity-card')).toBeVisible();
+  // The ledger moved to /projects (D1) — it must not mount on this page at all.
+  await expect(page.locator('.home-dashboard .recent-ledger')).toHaveCount(0);
   const order = await page.evaluate(() => {
     const root = document.querySelector('.home-dashboard')!;
-    const sel = ['.kpis', '.activity-card', '.burn-card', '.grid2', '.recent-ledger'];
+    const sel = ['.kpis', '.activity-card', '.burn-card', '.grid2'];
     const els = sel.map((s) => root.querySelector(s));
     if (els.some((e) => !e)) return 'missing';
     // Confirm each element strictly precedes the next in document order.
@@ -86,18 +95,6 @@ test('Overview reading order: KPIs → activity → burn → charts → ledger',
 });
 
 // ── Existing behaviors, retargeted to the merged surface ─────────────────────
-
-test('reading order: hub zone renders before the Recent-sessions ledger', async ({ page }) => {
-  await gotoHome(page);
-  const result = await page.evaluate(() => {
-    const kpis = document.querySelector('.home-dashboard .kpis');
-    const ledger = document.querySelector('.recent-ledger');
-    if (!kpis || !ledger) return 'missing';
-    // eslint-disable-next-line no-bitwise
-    return (kpis.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'ledger-after' : 'ledger-before';
-  });
-  expect(result).toBe('ledger-after');
-});
 
 test('no horizontal overflow on the hub at 1366', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -135,20 +132,9 @@ test('live session shows a pulsing dot in the Activity block', async ({ page }) 
   // Remount the hub via in-app nav (keeps the EventSource open).
   await page.locator('button.sb-item[title="Projects"]').click();
   await expect(page.locator('.projects-page, .empty-state').first()).toBeVisible();
-  await page.locator('button.sb-item[title="Home"]').click();
+  await page.locator('button.sb-item[title="Insights"]').click();
 
   await expect(page.locator('.activity-row .live-dot.on').first()).toBeVisible();
 
   await page.evaluate(() => (window as unknown as { __es?: EventSource }).__es?.close());
-});
-
-// The static fixture has a single big session, so the append-on-scroll PATH
-// can't be exercised here (covered by test/search-recent.test.mjs). This guards
-// that the ledger still renders its rows and scrolling doesn't tear it down.
-test('ledger renders and survives a scroll to the bottom', async ({ page }) => {
-  await gotoHome(page);
-  const rows = page.locator('.recent-ledger .day .row');
-  expect(await rows.count()).toBeGreaterThanOrEqual(1);
-  await page.locator('.home-dashboard').evaluate((el) => { el.scrollTop = el.scrollHeight; });
-  await expect(rows.first()).toBeVisible();
 });

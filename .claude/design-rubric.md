@@ -254,9 +254,11 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Exactly one magnifier glyph `⌕`** across the app.
 - **Mono glyph vocabulary, no colored emoji, in chrome or page content.** The canonical set
   (extend this list when adding a new one, don't invent a parallel vocabulary): `⌕`=search
-  `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights (RETIRED from
-  chrome — the Home/Insights merge removed the Insights sidebar item; no longer used in `src/`,
-  only asserted absent by `test/e2e/home.spec.ts`) `⚙`=settings
+  `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights (un-retired for
+  exactly ONE chrome use — the 2026-08-14 feedback-round D2 rename gave the sidebar its own
+  Insights item, `∑ Insights`, replacing the old `⌂ Home` entry; `∑` still may NOT appear
+  anywhere else in chrome or page content, and `test/e2e/home.spec.ts` pins that single sidebar
+  use) `⚙`=settings
   `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓`=causality (`src/session/MessageRow.tsx`)
   `↶`/`↷`=undo/redo (`src/RefineMode.tsx`). This list is canonical but not exhaustive — any
   other MONO glyph used consistently for one meaning is legitimate; a COLORED emoji is not, full

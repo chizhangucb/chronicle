@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { t } from './i18n.js';
-import { useSessionSelect } from './SessionSelect.js';
+import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
 import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput } from './models.js';
@@ -101,9 +102,33 @@ export interface RecentLedgerProps {
   projects: ProjectSummary[] | null;
   onOpenSession?: (id: string, projectId: number) => void;
   onRefresh: () => void;
+  // Filter query (Task 19, PR-2 checkpoint): `/projects` lifts the filter box
+  // out into a full-width toolbar that spans the content column, so IT owns
+  // the input + its own state and passes the live value down here — the
+  // ledger's own `.home-search` box is suppressed and the debounced-search
+  // effect below just reacts to the prop instead of local state. `/projects`
+  // is RecentLedger's only mount point (Task 20, PR-2c — the old standalone
+  // `/` HomeDashboard mount was already gone before this task), so `query`
+  // is unconditionally controlled — no uncontrolled fallback branch needed.
+  query: string;
+  // PR-2c chrome-sidebar redesign (Task 20): the old in-ledger boxed
+  // `.select-toolbar` is gone — session select-mode CONTROLS portal into a
+  // DOM node ProjectsPage owns (the shared full-width command bar, directly
+  // under the filter toolbar), so both the session and project select flows
+  // render through the SAME bar instead of two separate boxed toolbars.
+  // `commandBarSlot` is that portal target; `onSelectModeChange` publishes
+  // this ledger's selectMode boolean up (so ProjectsPage knows whether to
+  // show the command bar at all); `onBeforeEnterSelect` lets ProjectsPage
+  // force-exit the SIBLING project-select flow so at most one is ever active;
+  // `onExposeExit` registers a stable exit function once, so the project
+  // select flow (entered from the right rail) can close this one out too.
+  commandBarSlot?: HTMLElement | null;
+  onSelectModeChange?: (active: boolean) => void;
+  onBeforeEnterSelect?: () => void;
+  onExposeExit?: (fn: () => void) => void;
 }
 
-export default function RecentLedger({ projects, onOpenSession, onRefresh }: RecentLedgerProps) {
+export default function RecentLedger({ projects, onOpenSession, onRefresh, query, commandBarSlot, onSelectModeChange, onBeforeEnterSelect, onExposeExit }: RecentLedgerProps) {
   const [recentSessions, setRecentSessions] = useState<SearchResultItem[] | null>(null);
   const requestId = useRef(0);
   const [hasMore, setHasMore] = useState(true);
@@ -119,20 +144,24 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
   };
   useEffect(() => { refreshRecent(); }, []);
 
-  const [query, setQuery] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
-  function handleQueryChange(next: string) {
-    setQuery(next);
+  // Fires the debounced search whenever the controlled `query` prop changes —
+  // skips the very first mount (the effect above already covers the
+  // empty-query initial fetch).
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      const trimmed = next.trim();
+      const trimmed = query.trim();
       if (!trimmed) { refreshRecent(); return; }
       const id = ++requestId.current;
       api.search({ q: trimmed }).then((r) => { if (id === requestId.current) setRecentSessions(r.results); })
         .catch(() => { if (id === requestId.current) setRecentSessions([]); });
     }, 200);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   const isRecentMode = !query.trim();
   function loadMore() {
@@ -166,7 +195,8 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
   }, [isRecentMode, hasMore, recentSessions]);
 
   const selectableRecent = (recentSessions ?? []).map((s) => ({ id: s.id, source: s.source, project_id: s.project_id }));
-  const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); });
+  const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); }, undefined,
+    { onBeforeEnter: onBeforeEnterSelect });
 
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
   const groups = useMemo(() => groupByDay(recentSessions ?? []), [recentSessions]);
@@ -174,7 +204,8 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
   // Minor (noise-gated) sessions never appear in `recentSessions` above (the
   // "recent" search branch excludes them — server/routes/search.ts), so the
   // count lives up here too: it drives BOTH the "Select minor sessions"
-  // quick-select and the bucket panel below, off one shared fetch/refresh.
+  // quick-select chip (now IN the command bar, sessions-only — see PR-2c
+  // below) and the bucket panel further down, off one shared fetch/refresh.
   const [minorItems, setMinorItems] = useState<MinorSession[] | null>(null);
   const loadMinor = () => api.minorSessions().then(setMinorItems).catch(() => setMinorItems([]));
   useEffect(() => { loadMinor(); }, []);
@@ -185,23 +216,70 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
     recentSelect.setMany(minorItems.map((m) => m.id), true);
   }
 
+  // Publish selectMode up (ProjectsPage needs this boolean to decide whether
+  // the shared command bar is visible at all) and register a stable exit
+  // function once (so entering the SIBLING project-select flow, which lives
+  // entirely in ProjectsPage, can close this one — see SessionSelect.tsx's
+  // `onBeforeEnter` for the reverse direction). `exitRef` mirrors the
+  // existing `loadMoreRef` pattern above: keep a ref pointed at the latest
+  // closure, expose a stable wrapper that always calls through it.
+  //
+  // Task 20 review, traced + fixed: switching project-select -> session-select
+  // used to unmount and remount the shared `.command-bar` (replaying its
+  // entrance animation), because `showCommandBar` in ProjectsPage
+  // (`sessionSelectActive || projSelect.selectMode`) briefly computed FALSE
+  // mid-switch. `projSelect.selectMode` flips false SYNCHRONOUSLY (inside
+  // `recentSelect.enterSelect()` below, via `onBeforeEnterSelect`), but
+  // `sessionSelectActive` — the mirror of THIS ledger's `recentSelect.
+  // selectMode` — used to only update via an effect watching it AFTER the
+  // fact. Switching that effect from `useEffect` to `useLayoutEffect` was
+  // NOT enough: React had already committed a real DOM mutation removing
+  // `.command-bar` in the FIRST commit (the one containing the click's own
+  // batched state updates), and re-adding it in a SECOND commit (triggered
+  // by the layout effect) creates a genuinely NEW DOM node — proven by a
+  // Playwright check that marks the live node and confirms identity survives
+  // (test/e2e/projects.spec.ts). Flushing both commits before paint hides it
+  // from the human eye but does not stop the browser from starting the CSS
+  // entrance animation over on the replacement node.
+  //
+  // The actual fix: notify `onSelectModeChange` SYNCHRONOUSLY, inside the
+  // SAME click handler that flips `recentSelect.selectMode` (`handleEnter`
+  // below), so `sessionSelectActive` and `projSelect.selectMode` land in the
+  // exact same React batch/commit as each other — `showCommandBar` never
+  // computes false at any point, so React's reconciler sees the SAME
+  // `.command-bar` position true-before/true-after and reuses the same DOM
+  // node (only its portaled CHILD content swaps). The reverse direction
+  // (session -> project) never needed this: `projSelect.selectMode` itself
+  // flips true in the very same synchronous commit that flips
+  // `recentSelect.selectMode` false (both owned/triggered directly in
+  // ProjectsPage), so the OR is already satisfied without any round-trip.
+  // The `useLayoutEffect` stays as a general safety net (e.g. a completed
+  // Remove exits select mode from inside the hook's own async delete flow,
+  // not from a RecentLedger click handler) — redundant-but-harmless on the
+  // paths `handleEnter` already covers synchronously (same value, no-op).
+  useLayoutEffect(() => { onSelectModeChange?.(recentSelect.selectMode); }, [recentSelect.selectMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const exitRef = useRef(recentSelect.exitSelect);
+  exitRef.current = recentSelect.exitSelect;
+  useEffect(() => { onExposeExit?.(() => exitRef.current()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleEnterSelect() {
+    onSelectModeChange?.(true);
+    recentSelect.enterSelect();
+  }
+
   return (
     <section className="recent-ledger">
-      <div className="home-search">
-        ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
-          onChange={(e) => handleQueryChange(e.target.value)} />
-        <span className="kbd">⌘K</span>
-      </div>
+      {recentSelect.selectMode && commandBarSlot && createPortal(
+        <SessionCommandBarControls api={recentSelect} minorCount={minorItems?.length ?? 0} onSelectMinor={selectMinorSessions} />,
+        commandBarSlot,
+      )}
       <div className="page-title-row">
         <h2 className="page-title">{t('Recent sessions')}</h2>
-        <div className="page-title-actions">
-          {!!minorItems?.length && (
-            <button className="btn small ghost minor-quick-select" onClick={selectMinorSessions}>
-              {t('Select minor sessions')} ({minorItems.length})
-            </button>
-          )}
-          {recentSelect.Bar}
-        </div>
+        {!recentSelect.selectMode && (
+          <div className="page-title-actions">
+            <button className="btn small" onClick={handleEnterSelect}>☑ {t('Select')}</button>
+          </div>
+        )}
       </div>
       <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
         {recentSelect.selectMode && <span aria-hidden="true" />}
@@ -255,6 +333,41 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
       <MinorSessionsBucket items={minorItems} onRefresh={() => { loadMinor(); onRefresh(); }} />
       {recentSelect.Toast}
     </section>
+  );
+}
+
+// PR-2c (Task 20): session select-mode CONTROLS, portaled into ProjectsPage's
+// shared `.command-bar` slot instead of RecentLedger's own boxed toolbar —
+// "<N> sessions selected · Select all · Cancel · [minor chip, sessions-only]
+// · ⌫ Remove (N)", with the SAME two-step inline confirm + undo-toast flow
+// `useSessionSelect` has always driven (built from the primitives it now
+// exposes — see SessionSelect.tsx — not a re-implementation).
+function SessionCommandBarControls({ api, minorCount, onSelectMinor }: { api: UseSessionSelect; minorCount: number; onSelectMinor: () => void }) {
+  if (api.confirming) {
+    return (
+      <>
+        <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
+        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.deleting}>{t('Cancel')}</button>
+        <button className="btn danger-btn" onClick={api.confirmRemove} disabled={api.deleting}>
+          {api.deleting ? t('Removing…') : `⌫ ${t('Remove')} ${api.selectedCount}`}
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="muted small">{api.selectedCount} {t('sessions selected')}</span>
+      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allVisibleSelected ? t('Clear') : t('Select all')}</button>
+      <button className="btn ghost" onClick={api.exitSelect}>{t('Cancel')}</button>
+      {minorCount > 0 && (
+        <button className="chip minor-quick-select" onClick={onSelectMinor}>
+          {t('Select minor sessions')} ({minorCount})
+        </button>
+      )}
+      <button className="btn danger-btn" disabled={!api.selectedCount} onClick={api.requestRemove}>
+        ⌫ {t('Remove')}{api.selectedCount ? ` (${api.selectedCount})` : ''}
+      </button>
+    </>
   );
 }
 

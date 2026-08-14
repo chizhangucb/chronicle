@@ -16,7 +16,9 @@ async function fixtureProjectId(): Promise<number> {
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto(state.baseURL + '/');
-  await expect(page.locator('.recent-ledger .day .row').first()).toBeVisible();
+  // The recent-sessions ledger moved to /projects (2026-08-14 feedback round,
+  // D1) — Home now ends at the Insights charts, so wait on the KPI strip.
+  await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
 }
 
 async function gotoProjects(page: Page): Promise<void> {

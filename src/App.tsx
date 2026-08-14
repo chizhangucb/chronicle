@@ -150,9 +150,9 @@ export default function App() {
         </div>
 
         <nav className="sb-top">
-          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title={t('Home')}
+          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title={t('Insights')}
             onClick={() => navigate('/')}>
-            <span className="sb-icon">⌂</span><span className="sb-label">{t('Home')}</span>
+            <span className="sb-icon">∑</span><span className="sb-label">{t('Insights')}</span>
           </button>
           <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title={t('Projects')}
             onClick={() => navigate('/projects')}>
@@ -238,6 +238,7 @@ export default function App() {
         )}
         {atProjects && (
           <ProjectsPage projects={projects} onOpenProject={(id: number | string) => navigate(`/project/${id}`)}
+            onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (

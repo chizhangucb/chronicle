@@ -1,4 +1,18 @@
-// Task 14 E2E: bulk-select upgrades on the Home ledger (spec §2.2).
+// Task 14 E2E: bulk-select upgrades on the recent-sessions ledger (spec §2.2).
+//
+// 2026-08-14 feedback round (D1, records/plans/2026-08-14-chronicle-feedback-
+// round-plan.md): the ledger moved from `/` to `/projects` (main column,
+// beside the projects rail) — see projects.spec.ts.
+//
+// 2026-08-14 SECOND checkpoint reply (D14, Task 20, chrome-sidebar redesign):
+// the ledger's own boxed `.select-toolbar` is GONE — session select-mode
+// controls now render into the ONE shared full-width `.command-bar` that
+// slides in under the filter toolbar in the content column (also used by the
+// projects rail's own select flow — see projects.spec.ts for that half).
+// `RecentLedger`'s data/selection logic (`useSessionSelect`) is otherwise
+// unchanged — day groups, infinite scroll, minor bucket, tri-state
+// selection, inline confirm + undo toast — only WHERE its controls render
+// moved.
 //
 // The Task-1 big fixture is deliberately ONE session on ONE day, which can't
 // exercise day-group tri-state selection or a filtered multi-row "Select
@@ -18,9 +32,9 @@ import { readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 
-async function gotoHome(page: Page): Promise<void> {
+async function gotoProjects(page: Page): Promise<void> {
   page.on('dialog', (d) => { throw new Error(`Unexpected native dialog: ${d.type()} ${d.message()}`); });
-  await page.goto(state.baseURL + '/');
+  await page.goto(state.baseURL + '/projects');
   await expect(page.locator('.recent-ledger .day .row').first()).toBeVisible();
 }
 
@@ -28,14 +42,41 @@ function rowByTitle(page: Page, title: string) {
   return page.locator('.recent-ledger .row').filter({ has: page.locator('.title .t', { hasText: title }) });
 }
 
-async function enterSelectMode(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '☑ Select', exact: true }).click();
-  await expect(page.locator('.recent-ledger .select-toolbar')).toBeVisible();
+// The shared command bar — see ProjectsPage.tsx. Scoped to `.projects-content`
+// (a direct child) so it's unambiguous even if a future page nests other
+// `.command-bar`-shaped things.
+function commandBar(page: Page) {
+  return page.locator('.projects-page .projects-content > .command-bar');
 }
 
-test.describe('bulk select — Home ledger', () => {
+async function enterSelectMode(page: Page): Promise<void> {
+  // Scoped to `.recent-ledger` — the projects rail has its OWN "☑ Select"
+  // affordance in its eyebrow head (projects.spec.ts), so an unscoped
+  // page-wide lookup would be ambiguous between the two.
+  await page.locator('.recent-ledger').getByRole('button', { name: '☑ Select', exact: true }).click();
+  await expect(commandBar(page)).toBeVisible();
+}
+
+test.describe('bulk select — recent-sessions ledger (/projects)', () => {
+  // ── Task 20 review — Adopted #3: the rail's old boxed toolbar absence is
+  // pinned in projects.spec.ts ("The old in-rail boxed toolbar is gone");
+  // this closes the OTHER half — the ledger's own OLD in-list boxed
+  // `.select-toolbar` (the pre-PR-2c presentation, replaced by the shared
+  // `.command-bar`) must never render on `/projects`, at rest OR while
+  // selecting (its controls now portal into the command bar instead). ────
+  test('the ledger never renders its own OLD in-list .select-toolbar on /projects', async ({ page }) => {
+    await gotoProjects(page);
+    await expect(page.locator('.recent-ledger .select-toolbar')).toHaveCount(0);
+
+    await enterSelectMode(page);
+    // Still absent once selecting — the command bar (asserted via
+    // `enterSelectMode` above) is the only select-mode toolbar surface.
+    await expect(page.locator('.recent-ledger .select-toolbar')).toHaveCount(0);
+    await expect(page.locator('.select-toolbar')).toHaveCount(0);
+  });
+
   test('day-group header checkbox selects exactly that day\'s visible rows, tri-state via indeterminate', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
 
     const alphaRow = rowByTitle(page, 'Mini fixture Alpha');
@@ -79,7 +120,7 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('checkbox hit targets (day header + per-row) are at least 24x24px', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
     const day = page.locator('.recent-ledger .day').filter({ has: page.locator('.title .t', { hasText: 'Mini fixture Alpha' }) });
     const targets = [day.locator('.day-head .daycheck'), rowByTitle(page, 'Mini fixture Alpha').locator('.rowcheck')];
@@ -92,42 +133,48 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('filter narrows rows, then "Select all" selects only the filtered rows', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await page.getByPlaceholder(/Filter sessions/).fill('Bravo');
     await expect(page.locator('.recent-ledger .row')).toHaveCount(1);
     await expect(rowByTitle(page, 'Mini fixture Bravo')).toBeVisible();
 
     await enterSelectMode(page);
     await page.getByRole('button', { name: /^Select all$/ }).click();
-    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+    await expect(commandBar(page)).toContainText('1 sessions selected');
     await expect(rowByTitle(page, 'Mini fixture Bravo').locator('.rowcheck input[type="checkbox"]')).toBeChecked();
   });
 
-  test('"Select minor sessions" quick-select appears when the minor bucket is non-empty', async ({ page }) => {
-    await gotoHome(page);
-    const quickSelect = page.locator('.recent-ledger .minor-quick-select');
-    await expect(quickSelect).toBeVisible();
-    await expect(quickSelect).toContainText('1'); // exactly the one seeded minor session
+  // "Select minor sessions (N)" left the ledger's RESTING header (Task 20,
+  // D14) — it only appears as a chip INSIDE the command bar, once already in
+  // select mode.
+  test('"Select minor sessions" chip is absent at rest and appears in the command bar once selecting', async ({ page }) => {
+    await gotoProjects(page);
+    await expect(page.locator('.recent-ledger .page-title-row .minor-quick-select')).toHaveCount(0);
 
-    await quickSelect.click();
-    await expect(page.locator('.recent-ledger .select-toolbar')).toBeVisible();
-    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+    await enterSelectMode(page);
+    const chip = commandBar(page).locator('.minor-quick-select');
+    await expect(chip).toBeVisible();
+    await expect(chip).toContainText('1'); // exactly the one seeded minor session
+
+    await chip.click();
+    await expect(commandBar(page)).toContainText('1 sessions selected');
   });
 
   test('quick-select minor sessions composes with "Select all" (union, not replace)', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     // Unfiltered: big fixture + Alpha + Bravo are all visible in the ledger.
     const totalRows = await page.locator('.recent-ledger .row').count();
     expect(totalRows).toBeGreaterThanOrEqual(3);
 
-    await page.locator('.recent-ledger .minor-quick-select').click();
-    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+    await enterSelectMode(page);
+    await commandBar(page).locator('.minor-quick-select').click();
+    await expect(commandBar(page)).toContainText('1 sessions selected');
 
     // "Select all" must UNION the visible ids into the selection, not replace
     // it — a naive `setSelected(new Set(visibleIds))` would silently drop the
     // minor id here (the regression this test guards against).
     await page.getByRole('button', { name: /^Select all$/ }).click();
-    await expect(page.locator('.select-toolbar .muted.small', { hasText: `${totalRows + 1} selected` })).toBeVisible();
+    await expect(commandBar(page)).toContainText(`${totalRows + 1} sessions selected`);
     const checkboxes = page.locator('.recent-ledger .rowcheck input[type="checkbox"]');
     expect(await checkboxes.count()).toBe(totalRows);
     for (let i = 0; i < totalRows; i++) await expect(checkboxes.nth(i)).toBeChecked();
@@ -137,21 +184,21 @@ test.describe('bulk select — Home ledger', () => {
 
     // Clear SUBTRACTS only the visible ids — the invisible minor id survives.
     await page.getByRole('button', { name: /^Clear$/ }).click();
-    await expect(page.locator('.select-toolbar .muted.small', { hasText: '1 selected' })).toBeVisible();
+    await expect(commandBar(page)).toContainText('1 sessions selected');
     for (let i = 0; i < totalRows; i++) await expect(checkboxes.nth(i)).not.toBeChecked();
   });
 
   // Destructive — runs LAST so earlier tests can still rely on Alpha existing.
   test('Remove uses the inline confirm bar (never a native dialog) and completes', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
     await rowByTitle(page, 'Mini fixture Alpha').locator('.rowcheck input[type="checkbox"]').check();
 
-    await page.getByRole('button', { name: /⌫ Remove/ }).click();
+    await commandBar(page).getByRole('button', { name: /⌫ Remove/ }).click();
     // Inline confirm bar (never window.confirm — the page.on('dialog') handler
-    // registered in gotoHome would throw if a native dialog fired instead).
-    await expect(page.locator('.select-toolbar', { hasText: 'Remove these sessions from Chronicle' })).toBeVisible();
-    await page.getByRole('button', { name: '⌫ Remove 1', exact: true }).click();
+    // registered in gotoProjects would throw if a native dialog fired instead).
+    await expect(commandBar(page)).toContainText('Remove these sessions from Chronicle');
+    await commandBar(page).getByRole('button', { name: '⌫ Remove 1', exact: true }).click();
 
     await expect(rowByTitle(page, 'Mini fixture Alpha')).toHaveCount(0);
   });
