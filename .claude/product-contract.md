@@ -113,7 +113,8 @@ the project view uses per-project).
   … session count (`.c`) · gear menu (`⚙`). Meta line: branch (`⎇ <branch>`) or "needs
   association" · relative last-active time.
 - No permanent border/background (base `border: 1px solid transparent`, visible on hover only).
-- Reflow: single column ≤ 1024px, two columns ≥ 1728px.
+- Reflow: single column below 1400px, two columns at ≥ 1400px (`styles.css` `@media (min-width:
+  1400px)`; pinned by e2e at the 1024 / 1728 reference widths).
 - Row click → project analytics; gear menu → the enumerable above.
 
 ### `/project/:id` — Overview / Explore / Content / Sessions tabs (`ProjectDetail.tsx`).
