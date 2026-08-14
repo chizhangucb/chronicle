@@ -164,6 +164,7 @@ export interface Message {
   agent_type: string | null;
   workflow_id: string | null;
   agent_id: string | null;
+  agent_desc: string | null;
   skill: string | null;
   input_tokens: number | null;
   output_tokens: number | null;

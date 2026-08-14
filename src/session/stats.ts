@@ -27,6 +27,7 @@ export interface StatMessage {
   is_sidechain?: 0 | 1;
   agent_type?: string | null;
   agent_id?: string | null;
+  agent_desc?: string | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
 }
@@ -177,28 +178,87 @@ function activeDurationMs(messages: StatMessage[]): number {
   return sum;
 }
 
-// Groups sidechain (subagent) assistant turns by `agent_type` — the source
-// for the Overview "Subagents" card (src/session/OverviewMode.tsx) and its
-// drill-in filter (src/SessionView.tsx). Callers pass the UNFILTERED message
-// array (SessionView's default `messages` has sidechains stripped out).
-// Sorted desc by total tokens (input+output) so the busiest subagent leads.
-// The parser stamps `agent_type` on EVERY sidechain event (user/tool_use/
-// tool_result/thinking/assistant), not just assistant turns — so `turns` must
-// be gated to `kind === 'assistant'` or it double/triple-counts each real turn
-// via its accompanying tool_use/tool_result rows. Token sums don't need the
-// same gate: only assistant rows carry input_tokens/output_tokens, so summing
-// unconditionally is already correct (non-assistant rows contribute 0).
-function subagentRuns(messages: StatMessage[]): { agentType: string; turns: number; inputTokens: number; outputTokens: number }[] {
-  const map = new Map<string, { agentType: string; turns: number; inputTokens: number; outputTokens: number }>();
+export interface SubagentTypeGroup {
+  agentType: string;
+  // Distinct RUNS (agent_id) of this type — what the D3 drill-in row shows
+  // ("<type> · N runs · tokens"), NOT the same number as `turns`. Falls back
+  // to 1 when every row of this type predates the agent_id column (no run
+  // identity to count), matching subagentRunCount()'s whole-session fallback.
+  runCount: number;
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+// Groups sidechain (subagent) rows by `agent_type` — the source for the
+// Overview "Subagents" card (src/session/OverviewMode.tsx) and its type-level
+// drill-in (src/SessionView.tsx run list). Callers pass the UNFILTERED
+// message array (SessionView's default `messages` has sidechains stripped
+// out). Sorted desc by total tokens (input+output) so the busiest subagent
+// type leads. The parser stamps `agent_type`/`agent_id` on EVERY sidechain
+// event (user/tool_use/tool_result/thinking/assistant), not just assistant
+// turns — so `turns` (and tokens, which only assistant rows carry) must be
+// gated to `kind === 'assistant'` or turns double/triple-counts each real
+// turn via its accompanying tool_use/tool_result rows; `agent_id` collection
+// for `runCount` does NOT need that gate (any kind carries it).
+function subagentRuns(messages: StatMessage[]): SubagentTypeGroup[] {
+  const map = new Map<string, { agentType: string; turns: number; inputTokens: number; outputTokens: number; agentIds: Set<string> }>();
   for (const m of messages) {
-    if (!m.is_sidechain || !m.agent_type || m.kind !== 'assistant') continue;
-    const cur = map.get(m.agent_type) ?? { agentType: m.agent_type, turns: 0, inputTokens: 0, outputTokens: 0 };
-    cur.turns++;
-    cur.inputTokens += m.input_tokens ?? 0;
-    cur.outputTokens += m.output_tokens ?? 0;
+    if (!m.is_sidechain || !m.agent_type) continue;
+    const cur = map.get(m.agent_type) ?? { agentType: m.agent_type, turns: 0, inputTokens: 0, outputTokens: 0, agentIds: new Set<string>() };
+    if (m.agent_id) cur.agentIds.add(m.agent_id);
+    if (m.kind === 'assistant') {
+      cur.turns++;
+      cur.inputTokens += m.input_tokens ?? 0;
+      cur.outputTokens += m.output_tokens ?? 0;
+    }
     map.set(m.agent_type, cur);
   }
-  return [...map.values()].sort((a, b) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens));
+  return [...map.values()]
+    .map((g) => ({ agentType: g.agentType, runCount: g.agentIds.size || 1, turns: g.turns, inputTokens: g.inputTokens, outputTokens: g.outputTokens }))
+    .sort((a, b) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens));
+}
+
+export interface SubagentRunInfo {
+  id: string;
+  agentType: string;
+  startTs: string | null;
+  endTs: string | null;
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+  description: string | null;
+}
+
+// The RUN LIST for one subagent type (D3 two-level drill-in): one row per
+// distinct `agent_id`, sorted by start time. `startTs`/`endTs` are the
+// min/max ts seen across ALL of that run's rows (any kind), so a run with no
+// assistant turn (rare, but possible for a very short-lived agent) still gets
+// a start time. `turns`/tokens are assistant-gated for the same reason
+// subagentRuns() gates them. `description` is the first non-null
+// `agent_desc` seen for the run (the parser stamps it on every event of a
+// file-based run, so any row has it if the sidecar had one).
+function subagentRunList(messages: StatMessage[], agentType: string): SubagentRunInfo[] {
+  const map = new Map<string, SubagentRunInfo>();
+  for (const m of messages) {
+    if (!m.is_sidechain || !m.agent_id || m.agent_type !== agentType) continue;
+    let cur = map.get(m.agent_id);
+    if (!cur) {
+      cur = { id: m.agent_id, agentType, startTs: null, endTs: null, turns: 0, inputTokens: 0, outputTokens: 0, description: null };
+      map.set(m.agent_id, cur);
+    }
+    if (m.ts) {
+      if (!cur.startTs || m.ts < cur.startTs) cur.startTs = m.ts;
+      if (!cur.endTs || m.ts > cur.endTs) cur.endTs = m.ts;
+    }
+    if (m.kind === 'assistant') {
+      cur.turns++;
+      cur.inputTokens += m.input_tokens ?? 0;
+      cur.outputTokens += m.output_tokens ?? 0;
+    }
+    if (!cur.description && m.agent_desc) cur.description = m.agent_desc;
+  }
+  return [...map.values()].sort((a, b) => (a.startTs ?? '').localeCompare(b.startTs ?? ''));
 }
 
 // The Overview Subagents card HEADER count: distinct subagent RUNS, not
@@ -249,4 +309,5 @@ export {
   engagedDurationMs,
   subagentRuns,
   subagentRunCount,
+  subagentRunList,
 };

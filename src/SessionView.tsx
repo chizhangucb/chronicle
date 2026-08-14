@@ -9,7 +9,7 @@ import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
 import { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
-import { errorDrillIn } from './session/stats.ts';
+import { errorDrillIn, subagentRunList, fmtTokNum, fmtDur } from './session/stats.ts';
 import ContentTab from './ContentTab.tsx';
 import { useResizable } from './useResizable.ts';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
@@ -166,10 +166,15 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [noRepo, setNoRepo] = useState(false);
   const [commitLoading, setCommitLoading] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
-  // Which subagent's transcript the 'subagent' drill-in mode is showing (set by
-  // OverviewMode's Subagents card; null when not drilled in). NOT part of the
-  // sidebar rail's `modes` — it's a drill-in reached only via the Overview card.
-  const [subagentRun, setSubagentRun] = useState<string | null>(null);
+  // Two-level 'subagent' drill-in (D3), set by OverviewMode's Subagents card;
+  // both null when not drilled in. NOT part of the sidebar rail's `modes` —
+  // reached only via the Overview card.
+  // Level 1: `subagentType` set, `subagentRunId` null — the RUN LIST for that
+  // agent_type (one row per agent_id).
+  // Level 2: both set — that one run's transcript (filtered by agent_id, not
+  // agent_type — many runs can share a type).
+  const [subagentType, setSubagentType] = useState<string | null>(null);
+  const [subagentRunId, setSubagentRunId] = useState<string | null>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [causality, setCausality] = useState<CausalityData | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
@@ -274,11 +279,20 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // default playback/refine/overview lists; durations and Cost & Usage include
   // them via the server-stored numbers.
   const messages = useMemo(() => (data?.messages ?? []).filter((m) => !m.is_sidechain), [data]);
-  // 'subagent' drill-in: that agent type's sidechain transcript, read from the
-  // UNFILTERED session messages (sidechains are excluded from `messages` above).
+  // 'subagent' drill-in level 1: the run list for `subagentType`, read from
+  // the UNFILTERED session messages (sidechains are excluded from `messages`
+  // above). subagentRunList groups by agent_id, not agent_type — many runs
+  // share a type, which is exactly what the run list is for.
+  const subagentRunRows = useMemo(
+    () => (subagentType ? subagentRunList(data?.messages ?? [], subagentType) : []),
+    [data, subagentType],
+  );
+  // Level 2: that ONE run's transcript, filtered by agent_id (replaces the
+  // old agent_type filter — a type can have many runs, so filtering by type
+  // alone would show every run's messages interleaved).
   const subagentMessages = useMemo(
-    () => (data?.messages ?? []).filter((m) => m.is_sidechain && m.agent_type === subagentRun),
-    [data, subagentRun],
+    () => (data?.messages ?? []).filter((m) => m.is_sidechain && m.agent_id === subagentRunId),
+    [data, subagentRunId],
   );
   const activeKinds = useMemo(() => {
     if (!chips.size) return null; // no filter → all
@@ -468,7 +482,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       {mode === 'overview' && (
         <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
           onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession}
-          onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }}
+          onOpenSubagent={(a) => { setSubagentType(a); setSubagentRunId(null); setMode('subagent'); }}
           onOpenContent={() => setMode('content')}
           onOpenErrors={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(true); setMode('playback'); }} />
       )}
@@ -482,13 +496,58 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         </div>
       )}
 
-      {mode === 'subagent' && subagentRun && <>
+      {mode === 'subagent' && subagentType && !subagentRunId && (
+        <div className="page">
+          <div className="subagent-head">
+            <button className="btn ghost small" onClick={() => { setSubagentType(null); setMode('overview'); }}>
+              ← {t('back to session')}
+            </button>
+            <span className="subagent-title">
+              <strong className="subagent-name">{t('Subagent runs')} · {subagentType}</strong>
+              <span className="subagent-parent muted small" title={`${t('Parent session')} · ${sessionDisplayName(data.session)}`}>{t('Parent session')} · {sessionDisplayName(data.session)}</span>
+            </span>
+          </div>
+          <div className="card">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>{t('Start')}</th>
+                  <th>{t('Duration')}</th>
+                  <th>{t('Turns')}</th>
+                  <th>{t('Tokens')}</th>
+                  <th style={{ textAlign: 'left' }}>{t('Description')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subagentRunRows.map((r) => {
+                  const durMs = r.startTs && r.endTs ? new Date(r.endTs).getTime() - new Date(r.startTs).getTime() : null;
+                  return (
+                    <tr key={r.id} className="rowlink" role="button" tabIndex={0}
+                      title={t('Open this run\'s transcript')}
+                      onClick={() => setSubagentRunId(r.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSubagentRunId(r.id); } }}>
+                      <td style={{ textAlign: 'left' }}>{r.startTs ? new Date(r.startTs).toLocaleString() : '—'}</td>
+                      <td>{fmtDur(durMs)}</td>
+                      <td>{r.turns}</td>
+                      <td>{fmtTokNum(r.inputTokens + r.outputTokens)}</td>
+                      <td className="t" style={{ textAlign: 'left' }} title={r.description || ''}>{r.description || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!subagentRunRows.length && <div className="muted small">{t('No runs found for this subagent type.')}</div>}
+          </div>
+        </div>
+      )}
+
+      {mode === 'subagent' && subagentType && subagentRunId && <>
         <div className="subagent-head">
-          <button className="btn ghost small" onClick={() => { setSubagentRun(null); setMode('overview'); }}>
-            ← {t('back to session')}
+          <button className="btn ghost small" onClick={() => setSubagentRunId(null)}>
+            ← {t('back to run list')}
           </button>
           <span className="subagent-title">
-            <strong className="subagent-name">{t('Subagent')} · {subagentRun}</strong>
+            <strong className="subagent-name">{t('Subagent')} · {subagentType}</strong>
             <span className="subagent-parent muted small" title={`${t('Parent session')} · ${sessionDisplayName(data.session)}`}>{t('Parent session')} · {sessionDisplayName(data.session)}</span>
           </span>
         </div>

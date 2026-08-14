@@ -68,6 +68,13 @@ export interface Event {
   // Null for a non-sidechain event, or an older import that predates this
   // column.
   agent_id?: string | null;
+  // Human-readable description of a subagent RUN, read from that run's
+  // agent-<hex>.meta.json sidecar `description` field (Claude Code writes one
+  // per subagent transcript file). Stamped on every event of the run, like
+  // `agent_id`. Null for a non-sidechain event, an inline sidechain entry with
+  // no own file (no sidecar to read), or an older import that predates this
+  // column.
+  agent_desc?: string | null;
   skill?: string | null;
   // Per-message token usage (one API call's numbers on the first event of the line).
   input_tokens?: number | null;

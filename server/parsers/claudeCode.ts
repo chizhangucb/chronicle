@@ -65,10 +65,12 @@ interface ClaudeLine {
 }
 
 // Sidecar written next to a subagent transcript file (agent-<hex>.meta.json).
-// Only agentType is consumed today; other fields (description, toolUseId,
-// spawnDepth) are read but not yet surfaced.
+// agentType (fallback attribution) and description (surfaced in the run list —
+// see the Subagents drill-in) are consumed; toolUseId/spawnDepth are read but
+// not yet surfaced.
 interface AgentMeta {
   agentType?: string;
+  description?: string;
 }
 
 // Scan ~/.claude/projects for importable projects with session/message estimates.
@@ -440,6 +442,11 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
   for (const ref of listAgentFiles(subagentsDir)) {
     const meta = readAgentMeta(ref.file);
     const metaAgentType = typeof meta?.agentType === 'string' && meta.agentType ? meta.agentType : null;
+    // The run's human-readable description (Task 11/D3): unlike agent_type,
+    // there is no inline-pairing source for this — the sidecar is the only
+    // place it exists, so it's stamped unconditionally on every event of the
+    // run below (not just as a fallback).
+    const metaDesc = typeof meta?.description === 'string' && meta.description.trim() ? meta.description.trim() : null;
     const fileAgentId = agentIdFromFile(ref.file);
     let agentType: string | null | undefined;
     const subEvents: Event[] = [];
@@ -467,6 +474,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
         e.workflow_id = ref.workflowId;
         e.agent_id = fileAgentId; // run-level id, from the file's own name — not the line's agentId field
         if (agentType) e.agent_type = agentType;
+        if (metaDesc) e.agent_desc = metaDesc;
         if (!usageAttached && o.message?.usage) {
           attachPerEventUsage(e, o.message.usage);
           usageAttached = true;

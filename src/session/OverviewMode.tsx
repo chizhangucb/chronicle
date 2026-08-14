@@ -3,7 +3,7 @@ import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, A
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import InfoTip from '../InfoTip.tsx';
-import { fmtMoney } from '../format.ts';
+import { fmtMoney, pluralize } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
@@ -507,15 +507,18 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
         {subagents.length > 0 && (
           <div className="card">
-            <h3>{t('Subagents')} · {subagentRunTotal}</h3>
+            <h3>{t('Subagents')} · {subagentRunTotal}
+              <InfoTip text={t('A run is one subagent invocation (agent_id); a type (e.g. general-purpose) can have many runs. Turns are that type\'s assistant messages across all its runs. Tokens are input + output across all its runs.')} />
+            </h3>
             {subagents.map((r) => (
               <div key={r.agentType} className="trow subagent-row"
                 role="button" tabIndex={0}
+                title={t('Open the run list for this subagent type')}
                 onClick={() => onOpenSubagent?.(r.agentType)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSubagent?.(r.agentType); } }}>
                 <span className="t" title={r.agentType}>{r.agentType}</span>
-                <span className="k num">×{r.turns}</span>
-                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)}</b>
+                <span className="k num">{pluralize(r.runCount, t('run'), t('runs'))}</span>
+                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)} {t('tok')}</b>
                 <span className="subagent-arrow">→</span>
               </div>
             ))}
