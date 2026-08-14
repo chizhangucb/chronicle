@@ -119,6 +119,22 @@ export function densifyBuckets(keys: string[], unit: BucketUnit): string[] {
   return out;
 }
 
+// Defensive cap for a dense-filled bucket-key array (D12 follow-up, Task 18
+// review finding #1): densifyBuckets has no inherent upper bound — hourly
+// never coarsens server-side (server/explore.ts), so an hourly rollup over a
+// multi-year "All" range densifies to tens of thousands of keys (verified: an
+// 11-year span produces 101,821). Feeding that wholesale into a Recharts
+// <BarChart>/<Brush> is a real perf risk, not just a legibility one. Keeps
+// the MOST RECENT `max` keys — `keys` is assumed already chronologically
+// sorted (as densifyBuckets always returns) — and reports whether/how much
+// was dropped, so the caller can render an honest "showing last N of M" note
+// instead of silently truncating.
+export interface CappedBuckets { keys: string[]; truncated: boolean; total: number; }
+export function capDenseBuckets(keys: string[], max: number): CappedBuckets {
+  if (keys.length <= max) return { keys, truncated: false, total: keys.length };
+  return { keys: keys.slice(-max), truncated: true, total: keys.length };
+}
+
 // Local day-key formatter, e.g. "Aug 13" — the key IS already local, so it's
 // formatted straight from its own numeric parts (see the header comment on
 // why this never routes through a UTC-parsed Date).

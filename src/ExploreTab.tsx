@@ -8,7 +8,7 @@ import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf } from './models.ts';
 import { fmtMoney } from './format.ts';
-import { fmtHourOfDay, densifyBuckets, type BucketUnit } from './charts/timeBuckets.ts';
+import { fmtHourOfDay, densifyBuckets, capDenseBuckets, type BucketUnit } from './charts/timeBuckets.ts';
 import { bucketLabel } from '@shared/bucketLabel.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
@@ -206,6 +206,14 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   const ROLLUP_UNIT: Record<Exclude<ExploreRollup, 'total'>, BucketUnit> = {
     hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
   };
+  // Defensive cap on the dense-filled series (review finding #1): hourly
+  // never coarsens server-side, so an hourly rollup over a multi-year "All"
+  // range densifies to tens of thousands of rows (verified: an 11-year span
+  // → 101,821 entries) — unsafe to feed wholesale into <BarChart>/<Brush>.
+  // Keep the most RECENT MAX_DENSE_BUCKETS and say so via a card-subtitle
+  // note (same visual pattern as the "too dense — showing <coarser>" note
+  // just above this chart).
+  const MAX_DENSE_BUCKETS = 2000;
   // One Recharts row per bucket: { bucket: label, [seriesKey]: metricValue }.
   // Series set = the ranked rows (topN + Other), so the stack matches the
   // table. D12: server/explore.ts only returns buckets that have data, so a
@@ -215,13 +223,15 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // up each dense key's real bucket if present — a missing one renders as an
   // all-zero row with a label formatted the SAME way the server would have
   // (shared/bucketLabel.ts), so a gap bar looks identical in style to a real
-  // one, just empty.
-  const chartData = useMemo(() => {
-    if (!result?.buckets) return [];
+  // one, just empty. capDenseBuckets then bounds the result to the most
+  // recent MAX_DENSE_BUCKETS keys.
+  const rollupChart = useMemo(() => {
+    if (!result?.buckets) return { rows: [] as Record<string, string | number>[], truncated: false, total: 0 };
     const byKey = new Map(result.buckets.map((b) => [b.bucket, b]));
     const unit = ROLLUP_UNIT[result.rollup as Exclude<ExploreRollup, 'total'>];
     const denseKeys = densifyBuckets(result.buckets.map((b) => b.bucket), unit);
-    return denseKeys.map((key) => {
+    const capped = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
+    const rows = capped.keys.map((key) => {
       const b = byKey.get(key);
       const row: Record<string, string | number> = { bucket: b ? b.label : bucketLabel(key) };
       for (const { row: r } of ranked) {
@@ -230,7 +240,9 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
       }
       return row;
     });
+    return { rows, truncated: capped.truncated, total: capped.total };
   }, [result, ranked, pivot.metric]);
+  const chartData = rollupChart.rows;
   // Recharts <Brush> default window for the hourly rollup — hourly never
   // coarsens server-side any more (see server/explore.ts), so a wide range
   // can return hundreds/thousands of buckets; the brush keeps the plot
@@ -294,6 +306,11 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               )}
               {result.rollup !== result.requestedRollup && (
                 <span className="muted small"> · {ROLLUP_LABEL[result.requestedRollup]} {t('too dense — showing')} {ROLLUP_LABEL[result.rollup]}</span>
+              )}
+              {rollupChart.truncated && (
+                <span className="muted small">
+                  {' '}· {t('showing the most recent')} {MAX_DENSE_BUCKETS.toLocaleString()} {t('of')} {rollupChart.total.toLocaleString()} {t('buckets')}
+                </span>
               )}
             </h3>
             {result.buckets ? (

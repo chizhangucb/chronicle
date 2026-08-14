@@ -4,7 +4,7 @@
 // the Explore rollup chart's hourly/daily/weekly/monthly buckets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { densifyBuckets, dayKeyOf, hourKeyOf, monthKeyOf, fmtDayLabel, fmtHourLabel, fmtHourOfDay } from '../src/charts/timeBuckets.ts';
+import { densifyBuckets, capDenseBuckets, dayKeyOf, hourKeyOf, monthKeyOf, fmtDayLabel, fmtHourLabel, fmtHourOfDay } from '../src/charts/timeBuckets.ts';
 
 test('densifyBuckets: day — fills gaps between first and last present key', () => {
   assert.deepEqual(
@@ -147,4 +147,38 @@ test('fmtHourOfDay: returns original input for invalid hour values', () => {
   assert.equal(fmtHourOfDay('25', 'en-US'), '25');
   assert.equal(fmtHourOfDay('-1', 'en-US'), '-1');
   assert.equal(fmtHourOfDay('abc', 'en-US'), 'abc');
+});
+
+// Task 18 review finding #1: densifyBuckets has no inherent upper bound —
+// an hourly rollup over a multi-year "All" range can densify to tens of
+// thousands of keys. capDenseBuckets is the defensive cap ExploreTab.tsx
+// applies before handing rows to Recharts.
+test('capDenseBuckets: array at or under the cap passes through unchanged, untruncated', () => {
+  const keys = ['a', 'b', 'c'];
+  assert.deepEqual(capDenseBuckets(keys, 3), { keys, truncated: false, total: 3 });
+  assert.deepEqual(capDenseBuckets(keys, 10), { keys, truncated: false, total: 3 });
+});
+
+test('capDenseBuckets: array over the cap keeps the MOST RECENT `max` keys (the tail, since dense arrays are chronologically sorted)', () => {
+  const keys = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
+  const result = capDenseBuckets(keys, 2);
+  assert.deepEqual(result, { keys: ['2026-04', '2026-05'], truncated: true, total: 5 });
+});
+
+test('capDenseBuckets: empty input is untruncated with total 0', () => {
+  assert.deepEqual(capDenseBuckets([], 100), { keys: [], truncated: false, total: 0 });
+});
+
+test('capDenseBuckets: a realistic multi-year hourly span (verifies the 101,821-entry scale cited in the review finding) gets capped to exactly `max`', () => {
+  // 11 years of hourly buckets ≈ 11 * 365.25 * 24, well over the 2,000 cap
+  // ExploreTab.tsx applies.
+  const denseKeys = densifyBuckets(['2015-01-01T00', '2026-01-01T00'], 'hour');
+  assert.ok(denseKeys.length > 90000, `expected 90k+ hourly buckets over 11 years, got ${denseKeys.length}`);
+  const capped = capDenseBuckets(denseKeys, 2000);
+  assert.equal(capped.truncated, true);
+  assert.equal(capped.keys.length, 2000);
+  assert.equal(capped.total, denseKeys.length);
+  // The kept window is the tail (most recent), so its last key must match the
+  // original series' last key.
+  assert.equal(capped.keys[capped.keys.length - 1], denseKeys[denseKeys.length - 1]);
 });

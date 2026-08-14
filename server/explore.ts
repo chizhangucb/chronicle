@@ -81,12 +81,26 @@ const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'wee
 // hourly "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date
 // "2026-08-03" (%w is 0=Sun..6=Sat; Monday offset = (%w+6)%7 days back),
 // monthly "2026-08".
+//
+// LOCAL time, via SQLite's 'localtime' modifier — matching the round's
+// convention that every user-facing day/hour bucketing is local, not UTC
+// (server/windowUsage.ts's `bucketKeyExpr`; see the Home spend-over-time
+// "Aug 12 on Aug 13" defect this convention exists to prevent). `ts` columns
+// are stored as UTC ISO strings, so a bare `substr`/un-adorned `strftime`
+// (the old form here) sliced/split the UTC string directly — wrong bucket
+// for any session near a local day boundary in a non-UTC timezone (review
+// finding, Task 18 fix-round). 'localtime' is applied exactly ONCE per
+// SQLite call: the weekly branch's inner `strftime('%w', …, 'localtime')`
+// computes the LOCAL weekday (a separate, independent call), and the outer
+// `date(…, 'localtime', '-N days')` converts to local first, then subtracts
+// — never chaining two 'localtime' modifiers onto the same value, which
+// would double-apply the offset.
 export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string): string {
   switch (rollup) {
-    case 'hourly': return `substr(${ts}, 1, 13)`;
-    case 'daily': return `substr(${ts}, 1, 10)`;
-    case 'weekly': return `date(${ts}, '-' || ((CAST(strftime('%w', ${ts}) AS INTEGER) + 6) % 7) || ' days')`;
-    case 'monthly': return `substr(${ts}, 1, 7)`;
+    case 'hourly': return `strftime('%Y-%m-%dT%H', ${ts}, 'localtime')`;
+    case 'daily': return `strftime('%Y-%m-%d', ${ts}, 'localtime')`;
+    case 'weekly': return `date(${ts}, 'localtime', '-' || ((CAST(strftime('%w', ${ts}, 'localtime') AS INTEGER) + 6) % 7) || ' days')`;
+    case 'monthly': return `strftime('%Y-%m', ${ts}, 'localtime')`;
   }
 }
 
