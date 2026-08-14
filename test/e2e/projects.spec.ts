@@ -1,10 +1,17 @@
-// E2E for `/projects` (F2 restore, 2026-08-13): the shipped bordered
-// card-grid was an unagreed redesign. This suite pins the Chi-confirmed
-// contract instead — a dense rail-style LIST reusing the exact pre-Batch-C
-// `.rail-proj` row anatomy (pdot · name · optional live dot … session count
-// · gear menu, meta line = branch/"needs association" · relative time) —
-// and guards against the invented `.projects-grid` card treatment ever
-// coming back.
+// E2E for `/projects` (F2 restore, 2026-08-13, plus the 2026-08-14 feedback-round
+// reshape, D1+D2 — records/plans/2026-08-14-chronicle-feedback-round-plan.md).
+//
+// F2 pinned a dense rail-style LIST reusing the exact pre-Batch-C `.rail-proj`
+// row anatomy (pdot · name · optional live dot … session count · gear menu,
+// meta line = branch/"needs association" · relative time) against the shipped
+// bordered card-grid, which was an unagreed redesign — that guard against the
+// invented `.projects-grid` card treatment still applies below.
+//
+// D1 (Task 9) then reshaped the page again: the recent-sessions ledger — "the
+// list that's always moving is what people actually want to see" (Chi) — moved
+// here from `/` as the MAIN (left) column, with the `.rail-proj` project list
+// demoted to a compact ~300px sticky RAIL on the right. Below ~1100px the rail
+// stacks ABOVE the ledger (source order; it's short).
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
@@ -67,19 +74,68 @@ test('meta line shows branch (⎇) or "needs association", plus a relative time'
   expect(/⎇ |needs association/.test(text)).toBe(true);
 });
 
-test('list is single-column at 1024px and flows to two columns at 1728px', async ({ page }) => {
+// ── D1 drift-pin: the recent-sessions ledger is the MAIN column ───────────────
+test('recent-sessions ledger is the main column, with search + day groups', async ({ page }) => {
+  await gotoProjects(page);
+  const ledger = page.locator('.projects-page .projects-main .recent-ledger');
+  await expect(ledger).toBeVisible();
+  await expect(ledger.locator('.home-search')).toBeVisible();
+  await expect(ledger.getByText('Recent sessions')).toBeVisible();
+  await expect(ledger.locator('.day .row').first()).toBeVisible();
+});
+
+// The static fixture has a single big session, so the append-on-scroll PATH
+// can't be exercised here (covered by test/search-recent.test.mjs). This guards
+// that the ledger still renders its rows and scrolling doesn't tear it down.
+// (Moved from home.spec.ts, D1 — the ledger no longer lives on `/`.)
+test('ledger renders and survives a scroll to the bottom', async ({ page }) => {
+  await gotoProjects(page);
+  const rows = page.locator('.recent-ledger .day .row');
+  expect(await rows.count()).toBeGreaterThanOrEqual(1);
+  await page.locator('.projects-page').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(rows.first()).toBeVisible();
+});
+
+// ── D1 drift-pin: two-column reflow — stacked below 1100px, ledger-left/
+// rail-right sticky ≥1100px (styles.css `.projects-layout` @media 1100px) ─────
+test('projects layout stacks the rail above the ledger below 1100px', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });
   await gotoProjects(page);
-  const narrowCols = await page.locator('.projects-page .projects-list').evaluate(
-    (el) => getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length || 1,
-  );
-  expect(narrowCols).toBeLessThanOrEqual(1);
+  const info = await page.locator('.projects-layout').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const rail = el.querySelector('.projects-rail')!;
+    const main = el.querySelector('.projects-main')!;
+    // eslint-disable-next-line no-bitwise
+    const railBeforeMain = !!(rail.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return { flexDirection: cs.flexDirection, railBeforeMain };
+  });
+  expect(info.flexDirection).toBe('column');
+  // Source order puts the rail above the ledger at this width (no CSS `order`
+  // override applies below the breakpoint).
+  expect(info.railBeforeMain).toBe(true);
+});
 
+test('projects layout places the ledger main column left and a ~300px sticky rail right at >=1100px', async ({ page }) => {
   await page.setViewportSize({ width: 1728, height: 900 });
-  const wideCols = await page.locator('.projects-page .projects-list').evaluate(
-    (el) => getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length || 1,
-  );
-  expect(wideCols).toBeGreaterThanOrEqual(2);
+  await gotoProjects(page);
+  const info = await page.locator('.projects-layout').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const rail = el.querySelector('.projects-rail') as HTMLElement;
+    const main = el.querySelector('.projects-main') as HTMLElement;
+    return {
+      flexDirection: cs.flexDirection,
+      railWidth: rail.getBoundingClientRect().width,
+      railLeft: rail.getBoundingClientRect().left,
+      mainLeft: main.getBoundingClientRect().left,
+      railPosition: getComputedStyle(rail).position,
+    };
+  });
+  expect(info.flexDirection).toBe('row');
+  // The ledger (main) sits visually LEFT of the rail once the row layout
+  // kicks in — this is the D1 shape (`order: 1` main / `order: 2` rail).
+  expect(info.mainLeft).toBeLessThan(info.railLeft);
+  expect(Math.abs(info.railWidth - 300)).toBeLessThanOrEqual(2);
+  expect(info.railPosition).toBe('sticky');
 });
 
 test('no horizontal overflow on /projects at 1024/1366/1728', async ({ page }) => {

@@ -11,6 +11,15 @@ const state = readSeedState();
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto(state.baseURL + '/');
+  await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
+}
+
+// The recent-sessions ledger moved from `/` to `/projects` (2026-08-14
+// feedback round, D1 — records/plans/2026-08-14-chronicle-feedback-round-
+// plan.md; see projects.spec.ts) — the ledger column-policy probes below are
+// retargeted here.
+async function gotoProjects(page: Page): Promise<void> {
+  await page.goto(state.baseURL + '/projects');
   await expect(page.locator('.day .row').first()).toBeVisible();
 }
 
@@ -43,12 +52,12 @@ async function gapVarPx(page: Page, name: string): Promise<number> {
   );
 }
 
-// ── (a) Home ledger: Cost/Active/Msgs/When alignment + header/body column
-// registration + When overflow ──────────────────────────────────────────────
+// ── (a) Recent-sessions ledger (/projects): Cost/Active/Msgs/When alignment +
+// header/body column registration + When overflow ─────────────────────────
 
-test.describe('(a) Home ledger column policy', () => {
+test.describe('(a) Recent-sessions ledger column policy', () => {
   test('Cost/Active/Msgs cells use .num-col and are right-aligned tabular numerics', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const bad = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('.day .row')].slice(0, 20);
       const problems: string[] = [];
@@ -74,7 +83,7 @@ test.describe('(a) Home ledger column policy', () => {
   });
 
   test('When cell is right-aligned tabular numerics, uses .ts-col, and never overflows its cell', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const bad = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('.day .row')].slice(0, 20);
       const problems: string[] = [];
@@ -102,7 +111,7 @@ test.describe('(a) Home ledger column policy', () => {
   });
 
   test('.ts-col computed width is the policy 9ch (regression guard — fails if the class is ever removed)', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const { widthPx, chPx } = await page.evaluate(() => {
       const when = document.querySelector('.day .row .m.ts-col') as HTMLElement | null;
       if (!when) return { widthPx: -1, chPx: -1 };
@@ -114,12 +123,12 @@ test.describe('(a) Home ledger column policy', () => {
       probe.remove();
       return { widthPx: when.getBoundingClientRect().width, chPx: chWidth };
     });
-    expect(widthPx, '.m.ts-col not found on a Home row').toBeGreaterThan(0);
+    expect(widthPx, '.m.ts-col not found on a /projects ledger row').toBeGreaterThan(0);
     expect(Math.abs(widthPx - chPx * 9), `expected ~9ch (${chPx * 9}px), got ${widthPx}px`).toBeLessThan(3);
   });
 
   test('header cells register with their body columns (matching right edges, ±2px)', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const bad = await page.evaluate(() => {
       const headEls = [...document.querySelectorAll('.colhead > span')];
       const firstRow = document.querySelector('.day .row');
@@ -141,7 +150,7 @@ test.describe('(a) Home ledger column policy', () => {
   });
 
   test('the "Session" header x-position equals the title column\'s x (±2px)', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const { headX, titleX } = await page.evaluate(() => {
       const head = document.querySelector('.colhead > span:first-child');
       const title = document.querySelector('.day .row .title');
@@ -376,6 +385,7 @@ for (const width of WIDTHS) {
     const projectId = await fixtureProjectId();
     const cases: RouteCase[] = [
       { label: 'home', go: gotoHome },
+      { label: 'projects', go: gotoProjects },
       ...projectRoutes(projectId),
       ...sessionRoutes(),
       ...insightsRoutes(),

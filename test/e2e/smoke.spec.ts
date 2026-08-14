@@ -13,6 +13,13 @@ const state = readSeedState();
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto(state.baseURL + '/');
+  // The recent-sessions ledger (`.day .row`) moved to /projects (2026-08-14
+  // feedback round, D1) — Home now ends at the Insights charts.
+  await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
+}
+
+async function gotoProjects(page: Page): Promise<void> {
+  await page.goto(state.baseURL + '/projects');
   await expect(page.locator('.day .row').first()).toBeVisible();
 }
 
@@ -21,8 +28,8 @@ async function gotoFixtureOverview(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /Files touched/ })).toBeVisible();
 }
 
-test('home renders at least one session row from the fixture', async ({ page }) => {
-  await gotoHome(page);
+test('projects renders at least one session row from the fixture', async ({ page }) => {
+  await gotoProjects(page);
   const rowCount = await page.locator('.day .row').count();
   expect(rowCount).toBeGreaterThanOrEqual(1);
 });

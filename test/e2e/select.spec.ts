@@ -1,4 +1,10 @@
-// Task 14 E2E: bulk-select upgrades on the Home ledger (spec §2.2).
+// Task 14 E2E: bulk-select upgrades on the recent-sessions ledger (spec §2.2).
+//
+// 2026-08-14 feedback round (D1, records/plans/2026-08-14-chronicle-feedback-
+// round-plan.md): the ledger moved from `/` to `/projects` (main column,
+// beside the projects rail) — see projects.spec.ts. The ledger component
+// (`RecentLedger`) and its selectors are unchanged; only the route it's
+// mounted under moved, so this suite is retargeted below.
 //
 // The Task-1 big fixture is deliberately ONE session on ONE day, which can't
 // exercise day-group tri-state selection or a filtered multi-row "Select
@@ -18,9 +24,9 @@ import { readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 
-async function gotoHome(page: Page): Promise<void> {
+async function gotoProjects(page: Page): Promise<void> {
   page.on('dialog', (d) => { throw new Error(`Unexpected native dialog: ${d.type()} ${d.message()}`); });
-  await page.goto(state.baseURL + '/');
+  await page.goto(state.baseURL + '/projects');
   await expect(page.locator('.recent-ledger .day .row').first()).toBeVisible();
 }
 
@@ -33,9 +39,9 @@ async function enterSelectMode(page: Page): Promise<void> {
   await expect(page.locator('.recent-ledger .select-toolbar')).toBeVisible();
 }
 
-test.describe('bulk select — Home ledger', () => {
+test.describe('bulk select — recent-sessions ledger (/projects)', () => {
   test('day-group header checkbox selects exactly that day\'s visible rows, tri-state via indeterminate', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
 
     const alphaRow = rowByTitle(page, 'Mini fixture Alpha');
@@ -79,7 +85,7 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('checkbox hit targets (day header + per-row) are at least 24x24px', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
     const day = page.locator('.recent-ledger .day').filter({ has: page.locator('.title .t', { hasText: 'Mini fixture Alpha' }) });
     const targets = [day.locator('.day-head .daycheck'), rowByTitle(page, 'Mini fixture Alpha').locator('.rowcheck')];
@@ -92,7 +98,7 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('filter narrows rows, then "Select all" selects only the filtered rows', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await page.getByPlaceholder(/Filter sessions/).fill('Bravo');
     await expect(page.locator('.recent-ledger .row')).toHaveCount(1);
     await expect(rowByTitle(page, 'Mini fixture Bravo')).toBeVisible();
@@ -104,7 +110,7 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('"Select minor sessions" quick-select appears when the minor bucket is non-empty', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     const quickSelect = page.locator('.recent-ledger .minor-quick-select');
     await expect(quickSelect).toBeVisible();
     await expect(quickSelect).toContainText('1'); // exactly the one seeded minor session
@@ -115,7 +121,7 @@ test.describe('bulk select — Home ledger', () => {
   });
 
   test('quick-select minor sessions composes with "Select all" (union, not replace)', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     // Unfiltered: big fixture + Alpha + Bravo are all visible in the ledger.
     const totalRows = await page.locator('.recent-ledger .row').count();
     expect(totalRows).toBeGreaterThanOrEqual(3);
@@ -143,13 +149,13 @@ test.describe('bulk select — Home ledger', () => {
 
   // Destructive — runs LAST so earlier tests can still rely on Alpha existing.
   test('Remove uses the inline confirm bar (never a native dialog) and completes', async ({ page }) => {
-    await gotoHome(page);
+    await gotoProjects(page);
     await enterSelectMode(page);
     await rowByTitle(page, 'Mini fixture Alpha').locator('.rowcheck input[type="checkbox"]').check();
 
     await page.getByRole('button', { name: /⌫ Remove/ }).click();
     // Inline confirm bar (never window.confirm — the page.on('dialog') handler
-    // registered in gotoHome would throw if a native dialog fired instead).
+    // registered in gotoProjects would throw if a native dialog fired instead).
     await expect(page.locator('.select-toolbar', { hasText: 'Remove these sessions from Chronicle' })).toBeVisible();
     await page.getByRole('button', { name: '⌫ Remove 1', exact: true }).click();
 
