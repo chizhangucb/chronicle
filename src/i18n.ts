@@ -580,6 +580,15 @@ const zh = {
     '参与时间是你实际在场的时间；智能体活跃时间是智能体工作的时间。此项为本次会话的参与时间 ÷ 活跃时间，二者的上限规则与导入时相同。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': '查看上下文都花在哪里 →',
+  // Task 13: Burn tile reshuffle + KPI InfoTip sweep
+  'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
+    '范围内所有会话计费的输入 + 输出词元；不含缓存读写。缓存占比 = 缓存读取 ÷（缓存读取 + 新输入）。',
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+    '根据计费词元数按标价在本地估算，并非真实账单数据；窗口开始前就已运行、延续到窗口内的会话按其窗口内词元占比折算。',
+  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+    '此窗口内的 Git 提交数（原始 git log 计数）——不筛选是否由已跟踪会话触发。',
+  'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
+    '每一条标准化事件记录——用户、助手、思考、工具调用与工具结果——不仅限于人机对话轮次。',
 };
 
 const ja = {
@@ -1166,6 +1175,15 @@ const ja = {
     '関与時間はあなたの実際の在席時間、エージェントのアクティブ時間はエージェントの作業時間です。これはこのセッションにおける関与時間 ÷ アクティブ時間であり、どちらの時間もインポート時と同じ方法で上限が適用されます。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': 'コンテキストの内訳を見る →',
+  // Task 13: Burn tile reshuffle + KPI InfoTip sweep
+  'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
+    '範囲内の全セッションで課金された入力+出力トークン数（キャッシュの読み書きは含みません）。% cached = キャッシュ読み取り ÷（キャッシュ読み取り + 新規入力）。',
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+    '課金対象トークン数を表示価格でローカル推定した値であり、実際の請求データではありません。ウィンドウ開始前から続いていたセッションは、ウィンドウ内のトークン比率で按分されます。',
+  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+    'このウィンドウ内の Git コミット数（生の git log カウント）— 追跡対象セッションが引き起こしたものに限定されません。',
+  'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
+    'すべての正規化イベント行 — ユーザー、アシスタント、思考、ツール呼び出し、ツール結果 — 人間/アシスタントの会話ターンだけではありません。',
 };
 
 const DICTS: Record<string, Record<string, string>> = { zh, ja };

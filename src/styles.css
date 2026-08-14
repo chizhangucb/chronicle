@@ -1525,8 +1525,6 @@ h4 { margin: 6px 0; }
 .burn-now .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 .burn-now .s { font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .burn-card.warn .burn-now .v { color: var(--warn); }
-.burn-ratio { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); flex: none; }
-.burn-ratio.hot { color: var(--warn); }
 .burn-flag { font-size: 11px; font-weight: 500; }
 .burn-bar { position: relative; height: 6px; background: var(--bg2); border-radius: 3px; margin-top: var(--gap-3); }
 .burn-fill { height: 100%; border-radius: 3px; background: var(--brass); max-width: 100%; }

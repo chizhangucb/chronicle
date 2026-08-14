@@ -12,6 +12,7 @@ import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
+import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, costOfCells, tokensOfCells } from './windowedUsage.ts';
 import ExploreTab from './ExploreTab.tsx';
@@ -462,22 +463,22 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div className="s">{fmtInt(stats.activeDays)} {t('Active Days')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Cost')}</div>
+          <div className="l">{t('Cost')} <InfoTip text={t('Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.')} /></div>
           <div className="v">{fmtMoney(stats.totalCost, 0)}</div>
           <div className="s">{fmtInt(stats.modelCount)} {t('models')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Tokens')}</div>
+          <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
           <div className="v">{fmtTok(stats.totalTokens)}</div>
           <div className="s" title={`${t('Input')} ${fmtTok(stats.totalIn)} · ${t('Output')} ${fmtTok(stats.totalOut)}`}>{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Agent Active')}</div>
+          <div className="l">{t('Agent Active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
           <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} ${t('avg/session')}`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Messages')}</div>
+          <div className="l">{t('Messages')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></div>
           <div className="v">{fmtInt(stats.messages)}</div>
           <div className="s">{fmtInt(stats.userPrompts)} {t('prompts')}</div>
         </div>
@@ -492,7 +493,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div className="s">{stats.errorRate.toFixed(1)}% {t('Error Rate')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Commits')}</div>
+          <div className="l">{t('Commits')} <InfoTip text={t('Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.')} /></div>
           <div className="v">{fmtInt(data.analytics.commits)}</div>
           <div className="s">{t('in range')}</div>
         </div>
