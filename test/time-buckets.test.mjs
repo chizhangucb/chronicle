@@ -1,9 +1,10 @@
 // Unit tests for src/charts/timeBuckets.ts (feedback-round Task 3 + D12): the
 // shared LOCAL-time bucket dense-fill + label helpers used by the Home
-// spend-over-time chart (daily/hourly) and the ProjectDetail trend.
+// spend-over-time chart (daily/hourly), the ProjectDetail trend, and (Task 18)
+// the Explore rollup chart's hourly/daily/weekly/monthly buckets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { densifyBuckets, dayKeyOf, hourKeyOf, fmtDayLabel, fmtHourLabel, fmtHourOfDay } from '../src/charts/timeBuckets.ts';
+import { densifyBuckets, dayKeyOf, hourKeyOf, monthKeyOf, fmtDayLabel, fmtHourLabel, fmtHourOfDay } from '../src/charts/timeBuckets.ts';
 
 test('densifyBuckets: day — fills gaps between first and last present key', () => {
   assert.deepEqual(
@@ -57,6 +58,66 @@ test('dayKeyOf / hourKeyOf: pad single-digit month/day/hour', () => {
 test('densifyBuckets round-trips with dayKeyOf/hourKeyOf: every produced key parses back to a real local Date one unit apart', () => {
   const keys = densifyBuckets(['2026-02-27', '2026-03-02'], 'day'); // crosses a month boundary
   assert.deepEqual(keys, ['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02']);
+});
+
+// Task 18/D12: 'week' and 'month' units, added so Explore's weekly/monthly
+// rollups can also be dense-filled (not just hourly/daily).
+test('densifyBuckets: week — fills gaps 7 days at a time between Monday-aligned keys', () => {
+  assert.deepEqual(
+    densifyBuckets(['2026-08-03', '2026-08-24'], 'week'), // both Mondays
+    ['2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24'],
+  );
+});
+
+test('densifyBuckets: week — a single key returns just that key', () => {
+  assert.deepEqual(densifyBuckets(['2026-08-03'], 'week'), ['2026-08-03']);
+});
+
+test('densifyBuckets: week — fills across a month boundary', () => {
+  assert.deepEqual(
+    densifyBuckets(['2026-02-23', '2026-03-09'], 'week'),
+    ['2026-02-23', '2026-03-02', '2026-03-09'],
+  );
+});
+
+test('densifyBuckets: month — fills gaps between two months in the same year', () => {
+  assert.deepEqual(
+    densifyBuckets(['2026-05', '2026-08'], 'month'),
+    ['2026-05', '2026-06', '2026-07', '2026-08'],
+  );
+});
+
+test('densifyBuckets: month — fills across a year boundary', () => {
+  assert.deepEqual(
+    densifyBuckets(['2025-11', '2026-02'], 'month'),
+    ['2025-11', '2025-12', '2026-01', '2026-02'],
+  );
+});
+
+test('densifyBuckets: month — a single key returns just that key', () => {
+  assert.deepEqual(densifyBuckets(['2026-08'], 'month'), ['2026-08']);
+});
+
+test('densifyBuckets: month — unsorted, duplicate input is order-independent', () => {
+  assert.deepEqual(
+    densifyBuckets(['2026-08', '2026-05', '2026-08', '2026-06'], 'month'),
+    ['2026-05', '2026-06', '2026-07', '2026-08'],
+  );
+});
+
+test('densifyBuckets: empty input returns empty output for week and month too', () => {
+  assert.deepEqual(densifyBuckets([], 'week'), []);
+  assert.deepEqual(densifyBuckets([], 'month'), []);
+});
+
+test('monthKeyOf: format matches server/explore.ts bucketExpr monthly (\'YYYY-MM\')', () => {
+  const d = new Date(2026, 7, 13); // Aug 13 2026 LOCAL — month is 0-indexed
+  assert.equal(monthKeyOf(d), '2026-08');
+});
+
+test('monthKeyOf: pads a single-digit month', () => {
+  const d = new Date(2026, 0, 5);
+  assert.equal(monthKeyOf(d), '2026-01');
 });
 
 test('fmtDayLabel: formats a LOCAL day key directly, no UTC double-shift', () => {

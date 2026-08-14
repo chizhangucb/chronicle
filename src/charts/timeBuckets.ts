@@ -17,7 +17,12 @@
 // bug this task fixes). Every formatter below builds its Date from the key's
 // own numeric parts instead, via the local (non-UTC) constructor.
 
-export type BucketUnit = 'hour' | 'day';
+// 'week' and 'month' were added for Task 18/D12 (Explore's weekly/monthly
+// rollups) — server/explore.ts's `bucketExpr` emits weekly keys in the SAME
+// 'YYYY-MM-DD' format as daily (that week's Monday date, via SQLite's `date()`
+// weekday offset), so 'week' reuses day-key parsing/formatting and just steps
+// 7 days at a time instead of 1. Monthly keys are 'YYYY-MM'.
+export type BucketUnit = 'hour' | 'day' | 'week' | 'month';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -25,6 +30,7 @@ function pad2(n: number): string {
 
 interface DayParts { y: number; mo: number; d: number; }
 interface HourParts extends DayParts { h: number; }
+interface MonthParts { y: number; mo: number; }
 
 function parseDayKey(key: string): DayParts {
   const [y, mo, d] = key.split('-').map(Number);
@@ -34,6 +40,10 @@ function parseHourKey(key: string): HourParts {
   const [datePart, hourPart] = key.split('T');
   const { y, mo, d } = parseDayKey(datePart);
   return { y, mo, d, h: Number(hourPart) };
+}
+function parseMonthKey(key: string): MonthParts {
+  const [y, mo] = key.split('-').map(Number);
+  return { y, mo };
 }
 
 // Local day/hour key FROM a Date, in the same format the server emits —
@@ -45,6 +55,9 @@ export function dayKeyOf(d: Date): string {
 }
 export function hourKeyOf(d: Date): string {
   return `${dayKeyOf(d)}T${pad2(d.getHours())}`;
+}
+export function monthKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
 // A local Date constructed FROM a bucket key, for stepping day-by-day/
@@ -59,6 +72,10 @@ function dateOfHourKey(key: string): Date {
   const { y, mo, d, h } = parseHourKey(key);
   return new Date(y, mo - 1, d, h);
 }
+function dateOfMonthKey(key: string): Date {
+  const { y, mo } = parseMonthKey(key);
+  return new Date(y, mo - 1, 1);
+}
 
 // Zero-fills a contiguous range of bucket keys spanning the earliest to the
 // latest key present in `keys` (order-independent, duplicates collapsed) —
@@ -71,12 +88,25 @@ export function densifyBuckets(keys: string[], unit: BucketUnit): string[] {
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
   const out: string[] = [];
-  if (unit === 'day') {
+  if (unit === 'day' || unit === 'week') {
+    // 'week' keys are already Monday-aligned 'YYYY-MM-DD' dates (see the
+    // BucketUnit comment above), so stepping 7 days at a time from a Monday
+    // lands on the next Monday — no separate week-key parser needed.
+    const step = unit === 'week' ? 7 : 1;
     let cur = dateOfDayKey(first);
     const end = dateOfDayKey(last);
     while (cur.getTime() <= end.getTime()) {
       out.push(dayKeyOf(cur));
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + step);
+    }
+  } else if (unit === 'month') {
+    let cur = dateOfMonthKey(first);
+    const end = dateOfMonthKey(last);
+    while (cur.getTime() <= end.getTime()) {
+      out.push(monthKeyOf(cur));
+      // JS Date normalizes an overflowed month (e.g. month=12 for Dec + 1)
+      // into the next year automatically, so no separate year-rollover branch.
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
     }
   } else {
     let cur = dateOfHourKey(first);

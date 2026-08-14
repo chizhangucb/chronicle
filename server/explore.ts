@@ -16,6 +16,12 @@ import { ERROR_RE } from './errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
 // precedence as the Task 13 Activity route, instead of re-deriving it here.
 import { displayName } from './activity.ts';
+// Bucket-key → axis-label formatting is shared with the client (feedback-round
+// Task 18/D12: the client needs the identical format for zero-filled dense
+// buckets) — see shared/bucketLabel.ts. Re-exported below so existing callers/
+// tests (`explore.bucketLabel`) keep working unchanged.
+import { bucketLabel } from '../shared/bucketLabel.ts';
+export { bucketLabel };
 
 export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
 export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
@@ -82,17 +88,6 @@ export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string):
     case 'weekly': return `date(${ts}, '-' || ((CAST(strftime('%w', ${ts}) AS INTEGER) + 6) % 7) || ' days')`;
     case 'monthly': return `substr(${ts}, 1, 7)`;
   }
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-// Deterministic short axis label from a bucket key (branch on key length so one
-// formatter serves all four rollups; no locale, matching the mono axis style).
-export function bucketLabel(key: string): string {
-  const mon = (m: string): string => MONTHS[Math.max(0, Math.min(11, Number(m) - 1))];
-  if (key.length === 13) return `${mon(key.slice(5, 7))} ${Number(key.slice(8, 10))} ${key.slice(11, 13)}h`; // hourly
-  if (key.length === 10) return `${mon(key.slice(5, 7))} ${Number(key.slice(8, 10))}`; // daily / weekly (Monday date)
-  if (key.length === 7) return `${mon(key.slice(5, 7))} ${key.slice(0, 4)}`; // monthly
-  return key;
 }
 
 // Pure cap-coarsening: from the requested rollup, return the finest rollup whose
