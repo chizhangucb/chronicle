@@ -5,6 +5,7 @@ import { t } from './i18n.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
+import RecentLedger from './RecentLedger.js';
 import type { Project } from '@shared/types.ts';
 import type { RepoInfo } from './ProjectDetail.tsx';
 
@@ -153,18 +154,25 @@ export function WelcomeEmpty({ onImport }: { onImport: () => void }) {
 export interface ProjectsPageProps {
   projects: ProjectSummary[] | null;
   onOpenProject: (id: number | string) => void;
+  onOpenSession?: (id: string, projectId: number) => void;
   onImport: () => void;
   onRefresh: () => void;
 }
 
-// `/projects` — a dense rail-style list, moved off Home (Task 13). This is
-// the Chi-confirmed contract: the SAME row anatomy as the pre-Batch-C
-// `.rail-proj` sidebar rows (pdot · name · live dot … session count · gear
-// menu, meta line = branch/"needs association" · relative time), just laid
-// out as a page instead of a 264px sidebar — never the bordered card grid
-// Batch C shipped instead (F2 restore). Each row opens the project's
-// analytics; its gear menu carries Sync/Rename/Remove.
-export default function ProjectsPage({ projects, onOpenProject, onImport, onRefresh }: ProjectsPageProps) {
+// `/projects` (Task 9 reshape, D1 VERBATIM): the recent-sessions ledger is the
+// MAIN column, the projects rail sits to its RIGHT — "the recent sessions list
+// is always up to date… I would be naturally interested in the moving list
+// rather than the list that doesn't move that much" (Chi). `RecentLedger` used
+// to be the last section of the `/` Home dashboard (Task 13); it moved here
+// verbatim (search box, day groups, infinite scroll, multi-select, minor
+// bucket all unchanged — see RecentLedger.tsx) because it's the thing that
+// actually changes day to day, so it earns the primary reading position.
+// `.rail-proj` (pdot · name · live dot … count · gear, meta line) is the
+// Chi-confirmed row anatomy from the pre-Batch-C sidebar (F2 restore) — now a
+// compact ~300px sticky rail instead of the page body. Below ~1100px the rail
+// stacks ABOVE the ledger (it's short) via source order + `.projects-layout`
+// switching from column to row only past that breakpoint.
+export default function ProjectsPage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: ProjectsPageProps) {
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
 
   if (projects === null) return <div className="page center muted">Loading…</div>;
@@ -175,26 +183,33 @@ export default function ProjectsPage({ projects, onOpenProject, onImport, onRefr
       <div className="page-title-row">
         <h1 className="page-title">{t('Projects')}</h1>
       </div>
-      <div className="projects-list">
-        {projects.map((p) => (
-          <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
-            <div className="n">
-              <span>
-                <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
-                {p.name}
-                {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="c num">{p.session_count}</span>
-                <ProjectMenu project={p} onRefresh={onRefresh} />
-              </span>
-            </div>
-            <div className="meta">
-              {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
-              {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
-            </div>
+      <div className="projects-layout">
+        <aside className="projects-rail">
+          <div className="projects-list">
+            {projects.map((p) => (
+              <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
+                <div className="n">
+                  <span>
+                    <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
+                    {p.name}
+                    {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="c num">{p.session_count}</span>
+                    <ProjectMenu project={p} onRefresh={onRefresh} />
+                  </span>
+                </div>
+                <div className="meta">
+                  {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
+                  {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </aside>
+        <div className="projects-main">
+          <RecentLedger projects={projects} onOpenSession={onOpenSession} onRefresh={onRefresh} />
+        </div>
       </div>
     </div>
   );

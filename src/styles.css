@@ -1517,15 +1517,26 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* Projects list (`/projects`) — F2 restore of the Chi-confirmed contract: a
-   dense list of the pre-Batch-C `.rail-proj` rows (the same anatomy the old
-   home-rail sidebar used), NOT the bordered card grid an earlier pass shipped
-   without sign-off. `.rail-proj` itself is unchanged (its hover-only
-   background/border already gives each row a subtle list-item feel); this
-   page only supplies the container: single column by default, two columns
-   once there's room to spare so the list doesn't stretch into a single
-   ultra-wide unreadable line. */
-.projects-page .projects-list { display: flex; flex-direction: column; max-width: 640px; }
-@media (min-width: 1400px) {
-  .projects-page .projects-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--gap-4); max-width: 1120px; }
+/* `/projects` layout (Task 9 reshape, D1 VERBATIM): the recent-sessions
+   ledger is the MAIN column (people care about the moving list), the projects
+   rail sits to its RIGHT as a compact sticky column — both visible at once.
+   Source order in ProjectsPage.tsx is rail-then-main, so below the breakpoint
+   (where there's no row layout) the rail naturally stacks ABOVE the ledger
+   with no extra markup; past the breakpoint `order` swaps them visually so
+   the ledger reads first (left) without reordering the DOM. */
+.projects-page .projects-layout { display: flex; flex-direction: column; gap: var(--gap-5); align-items: flex-start; }
+.projects-page .projects-rail { width: 100%; }
+.projects-page .projects-main { width: 100%; min-width: 0; }
+@media (min-width: 1100px) {
+  .projects-page .projects-layout { flex-direction: row; }
+  .projects-page .projects-rail { order: 2; flex: 0 0 300px; width: 300px; position: sticky; top: var(--gap-4); }
+  .projects-page .projects-main { order: 1; flex: 1 1 auto; }
 }
+
+/* Projects rail list — F2 restore of the Chi-confirmed contract: a dense list
+   of the pre-Batch-C `.rail-proj` rows (the same anatomy the old home-rail
+   sidebar used), NOT the bordered card grid an earlier pass shipped without
+   sign-off. `.rail-proj` itself is unchanged (its hover-only background/
+   border already gives each row a subtle list-item feel); this page only
+   supplies the container — single column, width bounded by `.projects-rail`. */
+.projects-page .projects-list { display: flex; flex-direction: column; }

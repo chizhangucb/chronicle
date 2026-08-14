@@ -4,8 +4,8 @@
 const zh = {
   'AI Session Time Machine': 'AI 会话时光机',
   'Projects': '项目',
-  // Home dashboard (Task 13)
-  'Home': '主页',
+  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  'Insights': '洞察',
   'Live now': '正在进行',
   'Since you left': '离开以来',
   'No activity yet today — your live and recently-ended sessions will show here.': '今天还没有活动 — 正在进行和刚结束的会话会显示在这里。',
@@ -556,8 +556,8 @@ const zh = {
 const ja = {
   'AI Session Time Machine': 'AI セッションタイムマシン',
   'Projects': 'プロジェクト',
-  // Home dashboard (Task 13)
-  'Home': 'ホーム',
+  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  'Insights': 'インサイト',
   'Live now': '進行中',
   'Since you left': '前回からの更新',
   'No activity yet today — your live and recently-ended sessions will show here.': '今日はまだアクティビティがありません — 進行中や直近で終了したセッションがここに表示されます。',

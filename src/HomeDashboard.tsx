@@ -5,7 +5,6 @@ import {
   insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
 } from './api.js';
-import RecentLedger from './RecentLedger.js';
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
@@ -23,13 +22,17 @@ import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 
-// The ONE Insights hub at `/` (product-IA fix, 2026-08-13). Home and the old
-// `/insights` page are merged into a single tabbed surface — Overview / Explore
-// / Content — so there is exactly one KPI strip and one `/api/insights` fetch,
-// never two pages showing the same aggregates. Overview reading order, top→
-// bottom: KPI strip (with the window toggle) → Activity block (live + since-you-
-// left, Today only) → Burn tile → the Insights Overview charts → Recent-sessions
-// ledger LAST. Explore/Content reuse the existing tab components at scope=all.
+// The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
+// item + page title Home → Insights, Task 9). Home and the old `/insights`
+// page are merged into a single tabbed surface — Overview / Explore / Content
+// — so there is exactly one KPI strip and one `/api/insights` fetch, never two
+// pages showing the same aggregates. Overview reading order, top→bottom: KPI
+// strip (with the window toggle) → Activity block (live + since-you-left,
+// Today only) → Burn tile → the Insights Overview charts. The recent-sessions
+// ledger no longer mounts here — it moved to `/projects` as the main column
+// next to the projects rail (D1: the moving list is what people want to see
+// live; see RecentLedger.tsx and ProjectsPage.tsx). Explore/Content reuse the
+// existing tab components at scope=all.
 
 type Tab = 'overview' | 'explore' | 'content';
 
@@ -146,7 +149,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
   return (
     <div className="page home-dashboard">
       <div className="dash-head">
-        <h1 className="page-title">{t('Home')}</h1>
+        <h1 className="page-title">{t('Insights')}</h1>
         <div className="hub-ctl">
           <div className="tabs">
             <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>
@@ -189,8 +192,6 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
                 <InsightsCharts result={insights} days={days} />
               </div>
             )}
-
-            <RecentLedger projects={projects} onOpenSession={onOpenSession} onRefresh={onRefresh} />
           </>
         )}
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
