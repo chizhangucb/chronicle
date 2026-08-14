@@ -37,17 +37,22 @@ marked "layout-independent." Tag findings with the Batch B 8-category rubric AND
 - [ ] No horizontal scrollbar on `document.documentElement` at any of the 3 reference widths.
 - [ ] Every icon in chrome is the mono glyph vocabulary (below) or an SVG — zero colored emoji.
 
-### Home (`HomePage.tsx`)
-- [ ] Cards render with project name, git pill (live branch, no cache), session/message counts.
-- [ ] Select mode: cards become checkboxes; Select-all/Clear/Cancel + danger "Remove (N)" all
-      present; delete is a two-step INLINE confirm bar — `document.querySelectorAll
-      ('.confirm-bar, [class*="confirm"]')` finds it, `window.confirm`/`alert`/`prompt` are never
-      called (grep, not just runtime — see App-wide invariants).
-- [ ] Card grid reflows (no fixed-width cards causing horizontal overflow) at 1024px.
+### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
+Product shape enumerated in `.claude/product-contract.md` — judge against it (IA-conformance lens).
+- [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Burn tile →
+      Insights charts → Recent-sessions ledger LAST. Exactly one KPI strip, one `/api/insights` fetch.
+- [ ] Tabs Overview / Explore / Content and a five-option window toggle (Today/7d/30d/90d/All) present.
+- [ ] `/projects` is the dense `.rail-proj` LIST (pdot · name · live dot … count · gear menu; meta =
+      branch/"needs association" · relative time) — NEVER the bordered `.projects-grid` card treatment.
+- [ ] Ledger + project select mode: rows/day-headers become checkboxes; delete is a two-step INLINE
+      confirm bar — `document.querySelectorAll('.confirm-bar, [class*="confirm"], .menu-confirm')`
+      finds it, `window.confirm`/`alert`/`prompt` are never called (grep, not just runtime — see
+      App-wide invariants).
+- [ ] Both surfaces reflow with no horizontal overflow at 1024px (ledger + rail-list).
 
-### Project detail / Insights hub (`ProjectDetail.tsx`, `InsightsPage.tsx`)
-- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content tabs (Insights)
-      all render without a client error at each reference width.
+### Project detail / Insights hub (`ProjectDetail.tsx`, `HomeDashboard.tsx`)
+- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content tabs (the `/`
+      Insights hub) all render without a client error at each reference width.
 - [ ] KPI/stat tiles: every numeric leaf reports `getComputedStyle(el).fontVariantNumeric`
       containing `"tabular"` (see Alignment policy).
 - [ ] No KPI tile's right edge (`getBoundingClientRect().right`) exceeds its row container's
@@ -99,7 +104,7 @@ marked "layout-independent." Tag findings with the Batch B 8-category rubric AND
   bar labels, 2dp grouped (`fmtMoney(n, 2)`) for detail tables/tooltips/per-row cost. A raw
   `` `$${v}` `` template literal or a bare `.toFixed()` call on a money value anywhere in `src/`
   is a P0 finding by construction (grep for it) — **documented exception:** `fmtLaneC` in
-  `src/InsightsPage.tsx` (proxy-lane billed spend), which deliberately falls back to raw
+  `src/HomeDashboard.tsx` (proxy-lane billed spend), which deliberately falls back to raw
   `.toFixed(4)`/a literal `<$0.0001` string for sub-cent values, per its inline comment ("never
   round a non-zero spend down to a misleading $0.00"); this is a known, comment-documented
   carve-out, not a new finding — mirrors the `--heat-axis-offset` token carve-out below.

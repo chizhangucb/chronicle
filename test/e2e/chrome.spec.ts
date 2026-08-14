@@ -94,6 +94,9 @@ test.describe('T17.8 — search scope labels', () => {
     await gotoHome(page);
     await page.locator('button.icon-btn[title^="Search"]').click();
     await expect(page.locator('.search-modal')).toBeVisible();
+    // Full enumerable pin (contract: search scopes = exactly All / Tools / Chat, never "Code").
+    await expect(page.locator('.search-tabs .chip')).toHaveCount(3);
+    await expect(page.locator('.search-tabs .chip', { hasText: 'All' })).toBeVisible();
     await expect(page.locator('.search-tabs .chip', { hasText: 'Tools' })).toBeVisible();
     await expect(page.locator('.search-tabs .chip', { hasText: /^Code$/ })).toHaveCount(0);
     await expect(page.locator('.search-tabs .chip', { hasText: 'Chat' })).toBeVisible();
