@@ -9,6 +9,7 @@ import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
 import { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
+import { errorDrillIn } from './session/stats.ts';
 import ContentTab from './ContentTab.tsx';
 import { useResizable } from './useResizable.ts';
 import type { ProjectDetail, ProjectSessionSummary } from './api.js';
@@ -156,6 +157,11 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [chips, setChips] = useState<Set<string>>(new Set());
   const [keyword, setKeyword] = useState('');
   const [debounced, setDebounced] = useState('');
+  // Errors KPI drill-in (OverviewMode → Playback): true while Playback is
+  // restricted to erroring tool_result rows + their paired tool_use calls,
+  // bypassing the kind chips (see `visible` below). Independent of `chips`
+  // because it's a row-identity filter (tool_use_id pairing), not a kind filter.
+  const [errorsOnly, setErrorsOnly] = useState(false);
   const [commit, setCommit] = useState<CommitInfo | null>(null);
   const [noRepo, setNoRepo] = useState(false);
   const [commitLoading, setCommitLoading] = useState(false);
@@ -281,14 +287,22 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     return set;
   }, [chips]);
 
+  // Errors drill-in support: the erroring tool_result rows + their paired
+  // tool_use calls (same set OverviewMode's Errors KPI counts via
+  // `messages.filter(isErrorResult)`), as a reference Set so `visible` below
+  // can test membership in O(1) without re-deriving it per message.
+  const errorRows = useMemo(() => (errorsOnly ? new Set(errorDrillIn(messages)) : null), [errorsOnly, messages]);
+
   const visible = useMemo(() => messages.filter((m) => {
-    if (activeKinds && !activeKinds.has(m.kind)) return false;
+    if (errorRows) {
+      if (!errorRows.has(m)) return false;
+    } else if (activeKinds && !activeKinds.has(m.kind)) return false;
     if (debounced) {
       const hay = `${m.text || ''} ${m.tool_name || ''} ${m.tool_input || ''}`.toLowerCase();
       if (!hay.includes(debounced)) return false;
     }
     return true;
-  }), [messages, activeKinds, debounced]);
+  }), [messages, activeKinds, debounced, errorRows]);
 
   const selected = messages.find((m) => m.seq === selectedSeq) || null;
 
@@ -384,13 +398,15 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       <div className="session-main">
       <div className="session-toolbar">
         <div className="crumbs">
-          <button className="crumb" title={t('Project home page')} onClick={() => onBack(undefined, data.project.id)}>◫ {data.project.name}</button>
+          <button className="crumb" title={`${data.project.name} — ${t('Project home page')}`} onClick={() => onBack(undefined, data.project.id)}>◫ {data.project.name}</button>
           <span className="crumb-sep">›</span>
           <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
             onSwitch={onSwitchSession} />
         </div>
         {mode === 'playback' && <><div className="filter-chips">
-          {FILTER_CHIPS.map((c) => (
+          {errorsOnly ? (
+            <button className="chip on" onClick={() => setErrorsOnly(false)}>{t('Errors')} ✕</button>
+          ) : FILTER_CHIPS.map((c) => (
             <button key={c.key} className={`chip ${chips.has(c.key) ? 'on' : ''}`}
               onClick={() => setChips((prev) => {
                 const next = new Set(prev);
@@ -398,8 +414,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
                 return next;
               })}>{c.label}</button>
           ))}
-          {(chips.size > 0 || debounced) && (
-            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); }}>{t('Clear filter')}</button>
+          {(chips.size > 0 || debounced || errorsOnly) && (
+            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(false); }}>{t('Clear filter')}</button>
           )}
         </div>
         <input ref={searchRef} className="search" placeholder={t('Search messages…  ⌘F')}
@@ -453,7 +469,8 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         <OverviewMode data={data} messages={messages} liveStatus={liveStatus}
           onDeleted={(undo) => onBack(undo, data.project.id)} onRename={renameSession}
           onOpenSubagent={(a) => { setSubagentRun(a); setMode('subagent'); }}
-          onOpenContent={() => setMode('content')} />
+          onOpenContent={() => setMode('content')}
+          onOpenErrors={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(true); setMode('playback'); }} />
       )}
 
       {mode === 'content' && (
@@ -472,7 +489,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           </button>
           <span className="subagent-title">
             <strong className="subagent-name">{t('Subagent')} · {subagentRun}</strong>
-            <span className="subagent-parent muted small">{t('Parent session')} · {sessionDisplayName(data.session)}</span>
+            <span className="subagent-parent muted small" title={`${t('Parent session')} · ${sessionDisplayName(data.session)}`}>{t('Parent session')} · {sessionDisplayName(data.session)}</span>
           </span>
         </div>
         <div className="panes">

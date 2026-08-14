@@ -387,7 +387,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                           return (
                             <label key={sk} className="wiz-sess-row">
                               <input type="checkbox" checked={selected.has(sk)} onChange={() => toggleUnit(sk)} />
-                              <span className="wiz-sess-label">{s.label || s.id}</span>
+                              <span className="wiz-sess-label" title={s.label || s.id}>{s.label || s.id}</span>
                               {s.modifiedAt && <span className="muted small">{new Date(s.modifiedAt).toLocaleDateString()}</span>}
                               <span className="muted small" title={t('Estimated raw log entries — imported message counts are lower after noise filtering')}>~{s.messageEstimate}</span>
                               {s.imported

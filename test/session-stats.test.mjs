@@ -6,7 +6,7 @@
 // order).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toolMixSorted, cumulativeCostSeries } from '../src/session/stats.ts';
+import { toolMixSorted, cumulativeCostSeries, errorDrillIn } from '../src/session/stats.ts';
 
 test('toolMixSorted: counts tool_use messages by tool_name, desc', () => {
   const messages = [
@@ -28,4 +28,36 @@ test('cumulativeCostSeries: running total grows monotonically with each priced a
   assert.ok(series.length >= 1);
   assert.ok(series[series.length - 1].cumCost > 0);
   for (let i = 1; i < series.length; i++) assert.ok(series[i].cumCost >= series[i - 1].cumCost);
+});
+
+// Task 6: the Errors KPI drill-in (OverviewMode → SessionView Playback filter)
+// runs over exactly this helper's output — see errorDrillIn's header comment.
+test('errorDrillIn: returns erroring tool_result rows plus their paired tool_use call, nothing else', () => {
+  const messages = [
+    { kind: 'user', text: 'do the thing' },
+    { kind: 'assistant', text: 'ok' },
+    { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'call-1' },
+    { kind: 'tool_result', tool_use_id: 'call-1', text: 'Error: command failed' },
+    { kind: 'tool_use', tool_name: 'Read', tool_use_id: 'call-2' },
+    { kind: 'tool_result', tool_use_id: 'call-2', text: 'file contents, all good' },
+  ];
+  const drilled = errorDrillIn(messages);
+  assert.deepEqual(drilled, [messages[2], messages[3]]);
+});
+
+test('errorDrillIn: an error tool_result with no tool_use_id still surfaces on its own', () => {
+  const messages = [
+    { kind: 'tool_result', tool_use_id: null, text: 'fatal: something broke' },
+    { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'call-1' },
+    { kind: 'tool_result', tool_use_id: 'call-1', text: 'fine' },
+  ];
+  assert.deepEqual(errorDrillIn(messages), [messages[0]]);
+});
+
+test('errorDrillIn: no errors → empty result', () => {
+  const messages = [
+    { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'call-1' },
+    { kind: 'tool_result', tool_use_id: 'call-1', text: 'ok' },
+  ];
+  assert.deepEqual(errorDrillIn(messages), []);
 });

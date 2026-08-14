@@ -571,7 +571,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div style={{ marginTop: 10 }}>
             {stats.ranking.map(([label, n], i) => (
               <div key={label} className="hbar">
-                <span className="n">{label}</span>
+                <span className="n" title={label}>{label}</span>
                 <div className="track"><div className="fill" style={{ width: `${(n / maxRank) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtInt(n)}</span>
               </div>
@@ -584,7 +584,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div style={{ marginTop: 10 }}>
             {stats.costByModel.map(([model, cost], i) => (
               <div key={model} className="hbar">
-                <span className="n">{model}</span>
+                <span className="n" title={model}>{model}</span>
                 <div className="track"><div className="fill" style={{ width: `${(cost / maxCostByModel) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtMoney(cost, 2)}</span>
               </div>
@@ -611,7 +611,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       <div className="session-list">
         {recent5.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt">{sessionDisplayName(s)}</div>
+            <div className="session-prompt" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
             <div className="session-meta muted small">
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
@@ -650,12 +650,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           return (
             <div key={s.id} className={`card session-row ${sessionSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
               onClick={() => (sessionSelect.selectMode ? sessionSelect.toggle(s.id) : onOpenSession(s.id))}>
-              <div className="session-prompt">
+              <div className="session-prompt" title={sessionDisplayName(s)}>
                 {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
                 {sessionDisplayName(s)}
               </div>
               {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
-                <div className="session-subprompt muted small">{s.first_prompt}</div>
+                <div className="session-subprompt muted small" title={s.first_prompt}>{s.first_prompt}</div>
               )}
               <div className="session-meta muted small">
                 {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
@@ -723,7 +723,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="crumb on" onMouseEnter={() => prefetch(projectsUrl())}>
+        <button className="crumb on" title={current?.name} onMouseEnter={() => prefetch(projectsUrl())}>
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
             : '◫ '}
@@ -740,7 +740,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
               onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
               <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title">
+                <span className="picker-title" title={p.name}>
                   <span className="pdot" style={{ '--project-color': itemColors.get(Number(p.id)) } as React.CSSProperties} />{p.name}
                 </span>
                 <span className="muted small">
@@ -788,7 +788,8 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`} onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
+        <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current) : undefined}
+          onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
           ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
@@ -801,7 +802,7 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
             <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
               <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title">{title(s)}</span>
+                <span className="picker-title" title={sessionDisplayName(s)}>{title(s)}</span>
                 <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
               </span>
             </button>

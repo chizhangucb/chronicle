@@ -320,8 +320,8 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
   const Row = ({ s }: { s: ActivitySessionLite }) => (
     <div className="activity-row" onClick={() => open(s)}>
       <span className={`live-dot ${s.live ? 'on' : ''}`} aria-hidden="true" />
-      <span className="ar-name">{s.name}</span>
-      <span className="ar-proj muted">{s.projectName}</span>
+      <span className="ar-name" title={s.name}>{s.name}</span>
+      <span className="ar-proj muted" title={s.projectName}>{s.projectName}</span>
       {s.errorCount > 0 && <span className="ar-err">{pluralize(s.errorCount, t('error'), t('errors'))}</span>}
       <span className="ar-when muted">{s.live ? t('live') : formatRelativeTime(s.endedAt)}</span>
       <span className="ar-cost num-col">{fmtMoney(priceCells(s.tokensByModel), 2)}</span>
@@ -403,7 +403,7 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
         <div className="burn-top" onClick={openTop} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') openTop(); }}>
           <span className="eyebrow">{t('Top session')}</span>
-          <span className="bt-name">{burn.topSessionName}</span>
+          <span className="bt-name" title={burn.topSessionName ?? undefined}>{burn.topSessionName}</span>
           <span className="bt-cost num-col">{fmtMoney(topCost, 2)}</span>
         </div>
       )}
@@ -561,7 +561,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
             const max = spendByModel[0]?.value || 1;
             return (
               <div className="hbar" key={r.name}>
-                <span className="n">{r.name}</span>
+                <span className="n" title={r.name}>{r.name}</span>
                 <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtMoney(r.value, 0)}</span>
               </div>
@@ -572,7 +572,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
             const max = bySource[0]?.value || 1;
             return (
               <div className="hbar" key={r.name}>
-                <span className="n">{r.name}</span>
+                <span className="n" title={r.name}>{r.name}</span>
                 <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{r.value}</span>
               </div>
@@ -589,7 +589,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
             const max = toolMix[0]?.value || 1;
             return (
               <div className="hbar" key={r.name}>
-                <span className="n">{r.name}</span>
+                <span className="n" title={r.name ?? undefined}>{r.name}</span>
                 <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtInt(r.value)}</span>
               </div>
@@ -600,7 +600,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
             const max = errorRateByProject[0]?.value || 1;
             return (
               <div className="hbar" key={r.name}>
-                <span className="n">{r.name}</span>
+                <span className="n" title={r.name}>{r.name}</span>
                 <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{r.value.toFixed(1)}%</span>
               </div>
