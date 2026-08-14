@@ -309,9 +309,9 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
       </div>
       {hasLaneC && (
         <div className="kpi">
-          <div className="l">{t('Proxy lane (billed)')} <InfoTip text={laneCTip} /></div>
+          <div className="l"><span className="lbl" title={t('Proxy lane (billed)')}>{t('Proxy lane (billed)')}</span> <InfoTip text={laneCTip} /></div>
           <div className="v">{fmtLaneC(laneC.totalSpend)}</div>
-          <div className="s">{laneCSub}</div>
+          <div className="s" title={laneCSub}>{laneCSub}</div>
         </div>
       )}
     </div>

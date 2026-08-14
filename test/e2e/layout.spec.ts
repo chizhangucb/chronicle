@@ -392,3 +392,76 @@ for (const width of WIDTHS) {
     expect(failing, failing.join('; ')).toEqual([]);
   });
 }
+
+// ── (f) KPI strip: the 9-tile proxy-lane (Lane C) layout guarantee (F2) ────
+// Chi-reported defect: with the optional 9th "Proxy lane (billed)" tile
+// present (real-world case: `~/.aios/litellm/spend.jsonl` has spend in
+// range), its "z-ai/glm-5.2 · 5 req" sub-line wrapped awkwardly and the row
+// overflowed its rhythm. That 9th tile only appears when the LiteLLM spend
+// log exists on the machine running the suite (server/laneC.ts reads a
+// fixed real homedir path, unrelated to the isolated CHRONICLE_DATA_DIR this
+// harness seeds), so it is NOT reliably reachable via fixture data alone —
+// per the task brief, this probes the CSS-level guarantee directly: force a
+// 9th tile with the exact long content Chi saw, then assert the guarantee
+// holds at all 3 reference widths. If the real proxy tile IS present on the
+// machine running this suite, it is asserted too (belt-and-suspenders).
+test.describe('(f) KPI strip 9-tile layout guarantee', () => {
+  for (const width of WIDTHS) {
+    test(`no tile overflows its row and no sub-line wraps at ${width}px (forced 9th proxy-lane tile)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await gotoInsights(page);
+      const result = await page.evaluate(() => {
+        const strip = document.querySelector('.kpis') as HTMLElement | null;
+        if (!strip) return { error: 'no .kpis strip found' };
+        let tiles = [...strip.querySelectorAll('.kpi')] as HTMLElement[];
+        // Force the 9-tile state deterministically if the real Lane-C tile
+        // isn't already present (see comment above).
+        if (tiles.length < 9) {
+          const template = tiles[0];
+          if (!template) return { error: 'no .kpi tiles to clone' };
+          const clone = template.cloneNode(true) as HTMLElement;
+          const lEl = clone.querySelector('.l');
+          if (lEl) {
+            lEl.innerHTML = '';
+            const lbl = document.createElement('span');
+            lbl.className = 'lbl';
+            lbl.title = 'Proxy lane (billed)';
+            lbl.textContent = 'PROXY LANE (BILLED)';
+            lEl.appendChild(lbl);
+          }
+          const vEl = clone.querySelector('.v');
+          if (vEl) vEl.textContent = '$0.0001';
+          const sEl = clone.querySelector('.s');
+          if (sEl) { sEl.textContent = 'z-ai/glm-5.2 · 5 req'; sEl.setAttribute('title', 'z-ai/glm-5.2 · 5 req'); }
+          strip.appendChild(clone);
+          tiles = [...strip.querySelectorAll('.kpi')] as HTMLElement[];
+        }
+        const stripRight = strip.getBoundingClientRect().right;
+        const problems: string[] = [];
+        for (const tile of tiles) {
+          const r = tile.getBoundingClientRect();
+          if (r.right > stripRight + 0.5) {
+            problems.push(`tile right=${r.right.toFixed(1)} exceeds strip right=${stripRight.toFixed(1)}`);
+          }
+          const sEl = tile.querySelector('.s') as HTMLElement | null;
+          if (sEl) {
+            const cs = getComputedStyle(sEl);
+            const lineH = parseFloat(cs.lineHeight) || 14;
+            if (sEl.scrollHeight > lineH * 1.5) {
+              problems.push(`sub-line wrapped to a 2nd line: "${sEl.textContent}" scrollHeight=${sEl.scrollHeight} lineHeight=${lineH}`);
+            }
+            if (cs.whiteSpace !== 'nowrap') problems.push(`sub-line not nowrap: "${sEl.textContent}"`);
+          }
+        }
+        const docOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+        if (docOverflow) {
+          problems.push(`document overflow: scrollWidth=${document.documentElement.scrollWidth} innerWidth=${window.innerWidth}`);
+        }
+        return { problems, tileCount: tiles.length };
+      });
+      expect(result.error, result.error).toBeUndefined();
+      expect(result.tileCount, 'expected 9 kpi tiles (real or forced)').toBeGreaterThanOrEqual(9);
+      expect(result.problems, (result.problems ?? []).join('; ')).toEqual([]);
+    });
+  }
+});
