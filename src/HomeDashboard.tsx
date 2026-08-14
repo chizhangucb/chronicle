@@ -9,7 +9,7 @@ import RecentLedger from './RecentLedger.js';
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
-import { costOf, type ModelUsageInput } from './models.js';
+import { costOf } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { t, lang } from './i18n.js';
@@ -17,6 +17,8 @@ import InfoTip from './InfoTip.tsx';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
+import { densifyBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
+import { sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, sumFields, type BucketedCell } from './windowedUsage.ts';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -71,27 +73,6 @@ function fmtActive(ms: number): string {
   const m = Math.round((ms % 3600000) / 60000);
   return h ? `${h}h ${m}m` : `${m}m`;
 }
-function fmtDayLabel(day: string): string {
-  return new Intl.DateTimeFormat(localeOf(), { month: 'short', day: 'numeric' }).format(new Date(`${day}T00:00:00Z`));
-}
-
-function parseUsage(json: string | null): Record<string, ModelUsageInput> {
-  if (!json) return {};
-  try { return JSON.parse(json) as Record<string, ModelUsageInput>; } catch { return {}; }
-}
-function sessionCost(json: string | null): number {
-  let total = 0;
-  for (const [model, u] of Object.entries(parseUsage(json))) total += costOf(model, u) ?? 0;
-  return total;
-}
-// "Tokens" = input + output only (matches ProjectDetail/OverviewMode); cache
-// tokens are a separate billing tier shown in the token table's own columns.
-function sessionTokens(json: string | null): number {
-  let total = 0;
-  for (const u of Object.values(parseUsage(json))) total += (u.input || 0) + (u.output || 0);
-  return total;
-}
-
 // Price a bag of per-model token cells client-side (the price table lives ONLY
 // in src/models.ts — hard constraint; the server returns tokens, never $).
 function priceCells(byModel: ActivityTokensByModel): number {
@@ -223,19 +204,20 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 // `.kpis` tile row. The single source of the Home hub's headline numbers. ----
 export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   const kpis = useMemo(() => {
-    let cost = 0, tokens = 0, input = 0, cacheRead = 0, agentActiveMs = 0, engagedMs = 0;
+    let agentActiveMs = 0, engagedMs = 0;
     const projectsTouched = new Set<number>();
     for (const s of result.sessions) {
-      cost += sessionCost(s.usage);
-      tokens += sessionTokens(s.usage);
       agentActiveMs += s.agent_active_ms || 0;
       engagedMs += s.engaged_ms || 0;
       projectsTouched.add(s.project_id);
-      for (const u of Object.values(parseUsage(s.usage))) {
-        input += u.input || 0;
-        cacheRead += u.cacheRead || 0;
-      }
     }
+    // Windowed cells (Task 2/3): a session that started before the window but
+    // ran INTO it contributes only its in-window share here, instead of
+    // vanishing (old gate) or counting its full historical usage.
+    const byModel = sumByModel(result.windowedTokensByModel);
+    const cost = costOfCells(byModel);
+    const tokens = tokensOfCells(byModel);
+    const { input, cacheRead } = sumFields(byModel);
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
     const topTool = result.toolDist[0]?.name ?? null;
     const totalHeads = result.errorsByProject.reduce((n, r) => n + r.head_count, 0);
@@ -435,19 +417,22 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
 // The KPI strip is rendered by the hub above this, so it is NOT repeated here. ----
 function InsightsCharts({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
   const [, navigate] = useLocation();
-  const rangeLabel = days ? `${Math.round(days)}d` : t('All');
+  // Same fix as ExploreTab.tsx's rangeLabel: days<1 (fractional
+  // days-since-local-midnight, the Today window) reads "Today", not "0d" —
+  // Math.round alone would silently round Today down to zero days.
+  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
 
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
   // ---- Spend over time · stacked by project (top 5 by spend in range + Other) ----
+  // Windowed cells (Task 2/3), not raw `s.usage`: a session that started before
+  // the window but ran INTO it contributes only its in-window share, so this
+  // ranking agrees with the KPI strip's Spend and the chart below it.
   const projectSpend = useMemo(() => {
+    const byProjectModel = sumByKeyModel(result.windowedTokensByModel, (c) => String(c.projectId));
     const m = new Map<number, number>();
-    for (const s of result.sessions) {
-      const cost = sessionCost(s.usage);
-      if (!cost) continue;
-      m.set(s.project_id, (m.get(s.project_id) ?? 0) + cost);
-    }
+    for (const [key, byModel] of byProjectModel) m.set(Number(key), costOfCells(byModel));
     return m;
   }, [result]);
   const projectsBySpend = useMemo(
@@ -456,31 +441,39 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   );
   const topProjects = useMemo(() => projectsBySpend.slice(0, 5), [projectsBySpend]);
   const otherProjectIds = useMemo(() => new Set(projectsBySpend.slice(5).map((p) => p.id)), [projectsBySpend]);
+  // hourlySpend is only computed server-side for a short window (days<=2, i.e.
+  // the Today window is the only WINDOWS entry that ever qualifies) — falls
+  // back to dailySpend otherwise (server/insights.ts). Both are LOCAL-time
+  // bucket keys (server strftime(...,'localtime')), so the label formatters
+  // below never need the old UTC-double-shift workaround.
+  const useHourly = result.hourlySpend != null;
+  const spendBucketUnit = useHourly ? 'hour' as const : 'day' as const;
   const spendChartData = useMemo(() => {
-    const byDay = new Map<string, Record<string, number>>();
-    for (const s of result.sessions) {
-      if (!s.started_at) continue;
-      const cost = sessionCost(s.usage);
-      if (!cost) continue;
-      const day = s.started_at.slice(0, 10);
-      const key = otherProjectIds.has(s.project_id) ? 'other' : String(s.project_id);
-      const row = byDay.get(day) ?? {};
-      row[key] = (row[key] ?? 0) + cost;
-      byDay.set(day, row);
-    }
-    return [...byDay.keys()].sort().map((day) => ({ day: fmtDayLabel(day), ...byDay.get(day) }));
-  }, [result, otherProjectIds]);
+    const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
+    const byBucket = groupByBucket(cells);
+    // D12: dense-fill every bucket from first to last present, so equal bar
+    // spacing represents equal time even when some hours/days had no spend.
+    const bucketKeys = densifyBuckets([...byBucket.keys()], spendBucketUnit);
+    const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
+    return bucketKeys.map((bucket) => {
+      const byGroupModel = sumByKeyModel(
+        byBucket.get(bucket) ?? [],
+        (c) => (otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId)),
+      );
+      const row: Record<string, string | number> = { bucket: labelOf(bucket) };
+      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel);
+      return row;
+    });
+  }, [result, otherProjectIds, useHourly, spendBucketUnit]);
   const hasOther = otherProjectIds.size > 0;
 
   // ---- Spend by model (hbar) ----
   const spendByModel = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of result.sessions) {
-      for (const [model, u] of Object.entries(parseUsage(s.usage))) {
-        m.set(model, (m.get(model) ?? 0) + (costOf(model, u) ?? 0));
-      }
-    }
-    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+    const byModel = sumByModel(result.windowedTokensByModel);
+    return [...byModel.entries()]
+      .map(([name, cell]) => ({ name, value: costOf(name, cell) ?? 0 }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
   }, [result]);
 
   // ---- Sources (hbar) ----
@@ -508,23 +501,14 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   // ---- Token usage by model table ----
   const tokenTable = useMemo(() => {
-    const agg = new Map<string, { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; cost: number }>();
-    for (const s of result.sessions) {
-      for (const [model, u] of Object.entries(parseUsage(s.usage))) {
-        const cur = agg.get(model) ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0, cost: 0 };
-        cur.input += u.input || 0;
-        cur.output += u.output || 0;
-        cur.cacheRead += u.cacheRead || 0;
-        cur.cw5m += u.cacheWrite5m ?? u.cacheWrite ?? 0;
-        cur.cw1h += u.cacheWrite1h || 0;
-        cur.cost += costOf(model, u) ?? 0;
-        agg.set(model, cur);
-      }
-    }
+    const byModel = sumByModel(result.windowedTokensByModel);
     const msgsByModel = new Map(result.modelDist.map((r) => [r.model, r.count]));
-    return [...agg.entries()].map(([model, v]) => ({
-      model, ...v,
-      hitRate: (v.cacheRead + v.input) ? (v.cacheRead / (v.cacheRead + v.input)) * 100 : 0,
+    return [...byModel.entries()].map(([model, cell]) => ({
+      model,
+      input: cell.input, output: cell.output, cacheRead: cell.cacheRead,
+      cw5m: cell.cacheWrite5m, cw1h: cell.cacheWrite1h,
+      cost: costOf(model, cell) ?? 0,
+      hitRate: (cell.cacheRead + cell.input) ? (cell.cacheRead / (cell.cacheRead + cell.input)) * 100 : 0,
       msgs: msgsByModel.get(model) ?? 0,
     })).sort((a, b) => b.cost - a.cost);
   }, [result]);
@@ -537,8 +521,12 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   // ---- Top sessions by cost ----
   const topSessions = useMemo(() => {
+    const byModel = sumByKeyModel(result.windowedTokensByModel, (c) => c.sessionId);
     return result.sessions
-      .map((s) => ({ session: s, cost: sessionCost(s.usage), tokens: sessionTokens(s.usage) }))
+      .map((s) => {
+        const m = byModel.get(s.id);
+        return { session: s, cost: costOfCells(m), tokens: tokensOfCells(m) };
+      })
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 15);
   }, [result]);
@@ -547,11 +535,11 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     <>
       <div className="grid2">
         <div className="card">
-          <h3>{t('Spend over time · stacked by project')}</h3>
+          <h3>{t('Spend over time · stacked by project')}{useHourly ? ` · ${t('Hourly')}` : ''}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={spendChartData}>
               <CartesianGrid {...GRID_PROPS} />
-              <XAxis dataKey="day" {...AXIS_PROPS} />
+              <XAxis dataKey="bucket" {...AXIS_PROPS} />
               <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
               <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
               {topProjects.map((p, i) => (
@@ -693,7 +681,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
                   <td className="cost">{fmtMoney(cost, 2)}</td>
                   <td>{fmtTok(tokens)}</td>
                   <td>{fmtActive(session.agent_active_ms || 0)}</td>
-                  <td>{session.started_at ? fmtDayLabel(session.started_at.slice(0, 10)) : '—'}</td>
+                  <td>{session.started_at ? fmtDayLabel(dayKeyOf(new Date(session.started_at)), localeOf()) : '—'}</td>
                 </tr>
               ))}
             </tbody>

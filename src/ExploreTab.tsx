@@ -117,7 +117,9 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   };
   const { data: result } = useCachedFetch<ExploreResult>(exploreUrl(params));
 
-  const rangeLabel = days ? `${days}d` : t('All');
+  // days<1 (e.g. fractional days-since-local-midnight for "Today") reads as
+  // "Today" rather than a fractional day count like "0.9960218055555555D".
+  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
   const metricChipLabel = useMemo(() => metricOptions().find((o) => o.key === pivot.metric)?.label ?? pivot.metric, [pivot.metric]);
   const groupChipLabel = useMemo(() => groupOptions().find((o) => o.key === pivot.group)?.label ?? pivot.group, [pivot.group]);
   const subgroupChipLabel = useMemo(
