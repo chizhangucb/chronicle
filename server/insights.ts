@@ -164,6 +164,18 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // DB) into JS and regexed each one on every request — 0.8-17s per click.
   // Session-level (no messages join), so only the overlap gate applies here —
   // there's no per-message ts to additionally restrict by.
+  // KNOWN WINDOWING TRADEOFF (unlike the token magnitudes above, which windowedUsage
+  // scales to an in-window share): error_count/result_count are WHOLE-SESSION
+  // precomputed totals (server/errors.ts heuristic, backfilled once at import — see the
+  // comment above). overlapGate makes a spanning session correctly VISIBLE for "Today",
+  // but its error count here is its FULL historical count, not just today's errors —
+  // there's no per-message error timestamp to re-slice by on this fast path (that would
+  // mean joining messages and re-running the tool_result/tool_use MIN(id) pairing query
+  // per request, the exact per-request regex cost this precomputed-column path was built
+  // to avoid — see server/errors.ts's "ONE server copy" gotcha in CLAUDE.md). Net effect:
+  // a long-running spanning session can OVER-count errors into a short window (old
+  // behavior: it was excluded and UNDER-counted, i.e. zero). Same tradeoff at the
+  // equivalent per-project query in server/routes/projects.ts.
   const errorsByProject = db.prepare(`
     SELECT s.project_id AS project_id,
            SUM(COALESCE(s.result_count, 0)) AS head_count,

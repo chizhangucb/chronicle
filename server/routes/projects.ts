@@ -117,6 +117,14 @@ export function mountProjects(app: Express): void {
       // Precomputed at import (db.ts replaceSession, shared server/errors.ts
       // heuristic) — no per-request regex over tool_result heads. Session-level
       // (no messages join), so only the overlap gate applies.
+      // KNOWN WINDOWING TRADEOFF (same as server/insights.ts's errorsByProject, see
+      // that comment for the full rationale): error_count is a WHOLE-SESSION
+      // precomputed total, not scaled to the in-window share the token magnitudes get
+      // via windowedUsage — overlapGate makes a spanning session correctly visible for
+      // "Today", but its error count is its FULL historical count. There's no
+      // per-message error timestamp to cheaply re-slice by without re-running the
+      // tool_result/tool_use pairing join per request (the exact cost this precomputed
+      // column exists to avoid).
       const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
         WHERE project_id = ? AND ${overlapGate('sessions')} AND COALESCE(minor, 0) = 0`)
         .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
