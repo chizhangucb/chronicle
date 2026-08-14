@@ -2,12 +2,13 @@ import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
-import { t } from './i18n.ts';
+import { t, lang } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf } from './models.ts';
 import { fmtMoney } from './format.ts';
+import { fmtHourOfDay } from './charts/timeBuckets.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
@@ -37,6 +38,18 @@ function fmtTok(tokens: number): string {
 }
 function fmtHours(ms: number): string {
   return (ms / 3600000).toFixed(1);
+}
+
+// Format a subgroup label value based on the subgroup type. For hour subgroups,
+// formats the hour number (0–23) as "9 AM" / "10 PM"; for others, returns the
+// label as-is. If no label is available (subgroupLabelByKey miss), falls back to
+// the key itself.
+function fmtSubgroupLabel(key: string, label: string | undefined, subgroup: string): string {
+  const displayLabel = label ?? key;
+  if (subgroup === 'hour') {
+    return fmtHourOfDay(displayLabel, lang());
+  }
+  return displayLabel;
 }
 
 // These read only the metric-agnostic aggregate fields, so they accept either a
@@ -300,9 +313,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <span className="n" title={rowDisplayLabel(row)}>{rowDisplayLabel(row)}</span>
                       <div className="track">
                         {row.segments.length > 0 && segTotal > 0
-                          ? row.segments.map((seg) => (
-                            <i key={seg.key} style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }} />
-                          ))
+                          ? row.segments.map((seg) => {
+                            const fmtLabel = fmtSubgroupLabel(seg.key, seg.label, pivot.subgroup);
+                            return (
+                              <i
+                                key={seg.key}
+                                title={`${fmtLabel}: ${fmtTok(seg.tokens)}`}
+                                style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }}
+                              />
+                            );
+                          })
                           : <i style={{ width: `${totalBarPct}%`, background: 'var(--c1)' }} />}
                       </div>
                       <span className="v">{fmtMetricValue(row, pivot.metric)}</span>
@@ -313,9 +333,18 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 {!ranked.length && <div className="muted small">{t('No sessions in range.')}</div>}
                 {subgroupChipLabel && subgroupKeys.length > 0 && (
                   <div className="legend">
-                    {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => (
-                      <span key={key}><span className="dot" style={{ background: segColor(key) }} />{subgroupLabelByKey.get(key) ?? key}</span>
-                    ))}
+                    {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => {
+                      const label = fmtSubgroupLabel(key, subgroupLabelByKey.get(key), pivot.subgroup);
+                      return (
+                        <span key={key}><span className="dot" style={{ background: segColor(key) }} />{label}</span>
+                      );
+                    })}
+                    {subgroupKeys.length > CATEGORICAL_COLORS.length && (
+                      <span style={{ color: 'var(--ink-3)' }}>
+                        <span className="dot" style={{ background: 'var(--ink-3)' }} />
+                        + {subgroupKeys.length - CATEGORICAL_COLORS.length} {t('more')}
+                      </span>
+                    )}
                   </div>
                 )}
               </>

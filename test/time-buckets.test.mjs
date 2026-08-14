@@ -3,7 +3,7 @@
 // spend-over-time chart (daily/hourly) and the ProjectDetail trend.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { densifyBuckets, dayKeyOf, hourKeyOf, fmtDayLabel, fmtHourLabel } from '../src/charts/timeBuckets.ts';
+import { densifyBuckets, dayKeyOf, hourKeyOf, fmtDayLabel, fmtHourLabel, fmtHourOfDay } from '../src/charts/timeBuckets.ts';
 
 test('densifyBuckets: day — fills gaps between first and last present key', () => {
   assert.deepEqual(
@@ -68,4 +68,22 @@ test('fmtDayLabel: formats a LOCAL day key directly, no UTC double-shift', () =>
 test('fmtHourLabel: compact "9 AM" / "10 PM" style per the brief', () => {
   assert.equal(fmtHourLabel('2026-08-13T09', 'en-US'), '9 AM');
   assert.equal(fmtHourLabel('2026-08-13T22', 'en-US'), '10 PM');
+});
+
+test('fmtHourOfDay: formats hour-of-day (0-23) as "9 AM" / "10 PM" for subgroup labels', () => {
+  assert.equal(fmtHourOfDay('9', 'en-US'), '9 AM');
+  assert.equal(fmtHourOfDay('22', 'en-US'), '10 PM');
+  assert.equal(fmtHourOfDay('0', 'en-US'), '12 AM');
+  assert.equal(fmtHourOfDay('12', 'en-US'), '12 PM');
+});
+
+test('fmtHourOfDay: handles numeric strings edge cases', () => {
+  assert.equal(fmtHourOfDay('00', 'en-US'), '12 AM');
+  assert.equal(fmtHourOfDay('23', 'en-US'), '11 PM');
+});
+
+test('fmtHourOfDay: returns original input for invalid hour values', () => {
+  assert.equal(fmtHourOfDay('25', 'en-US'), '25');
+  assert.equal(fmtHourOfDay('-1', 'en-US'), '-1');
+  assert.equal(fmtHourOfDay('abc', 'en-US'), 'abc');
 });

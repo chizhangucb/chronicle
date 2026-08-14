@@ -104,3 +104,13 @@ export function fmtHourLabel(key: string, locale: string): string {
   const { y, mo, d, h } = parseHourKey(key);
   return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(y, mo - 1, d, h));
 }
+
+// Hour-of-day formatter for subgroup labels (0–23 → "9 AM" / "10 PM").
+// Takes the raw hour number as a string (e.g., "9", "10", "22") and formats
+// it using Intl.DateTimeFormat with a dummy date (1970-01-01) — the date is
+// irrelevant; only the hour matters.
+export function fmtHourOfDay(hourStr: string, locale: string): string {
+  const h = Number(hourStr);
+  if (Number.isNaN(h) || h < 0 || h > 23) return hourStr;
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(1970, 0, 1, h));
+}
