@@ -109,7 +109,11 @@ drag-resizable when expanded. Contents, top to bottom:
 3. **Burn tile** (`.burn-card`, `BurnTile`) — window spend vs a baseline (Today → 14-day daily
    median; 7d/30d/90d → prior period of the same length; All → NO baseline). Warn tint + `×ratio`
    + "high" flag when spend runs > 2× baseline. Comparison bar when a baseline exists. Names the
-   top contributing session (name + cost), clickable.
+   top contributing session (name + cost), clickable. **D6 sign-off (feedback-round Task 13,
+   `records/plans/2026-08-14-chronicle-feedback-round-plan.md`):** the headline (`.burn-now .v`) IS
+   the ratio + flag (e.g. `×3.2 high`) when a baseline exists; the support line (`.burn-now .s`) is
+   the absolute comparison, `$current vs $baseline · <baselineLabel>`. (No-baseline `All` case
+   unchanged: headline falls back to absolute spend, support line stays "all time · no baseline".)
 4. **Insights charts** (`.grid2` then `.grid2b` etc., `InsightsCharts`) — Spend over time stacked
    by project (top 5 + neutral "Other") · Spend by model · Sources · Working Rhythm · Global tool
    mix (top 5 + Other) · Error rate by project · Token usage by model table · Top sessions by cost.
@@ -190,6 +194,36 @@ sign-off (D13) for this surface's shape.
 ### `/project/:id` — Overview / Explore / Content / Sessions tabs (`ProjectDetail.tsx`).
 ### `/session/:id` — Overview / Playback / Refine / Security Check (`SessionView.tsx`); Subagents card on Overview.
 
+**D3 sign-off (feedback-round Task 11, `records/plans/2026-08-14-chronicle-feedback-round-plan.md`
+— addendum to the original C3 Subagents-card decision).** The Overview **Subagents** card
+(`.subagent-row` rows) header stays `Subagents · <N>` where N is the whole-session run count
+(distinct `agent_id`, NOT distinct agent_type — the permanent data-scale guard, see the pin
+inventory). Each row reads `<agent_type> · N run(s) · <tokens> tok` (an `InfoTip` explains
+runs-vs-turns-vs-tokens). Drill-in is **two levels**, reached only from this card (never the
+sidebar rail):
+1. **Level 1 — click a type row** → a run-list table (`.rowlink` rows, columns Start / Duration /
+   Turns / Tokens / Description) listing every run (`agent_id`) of that `agent_type`, sorted by
+   start time.
+2. **Level 2 — click a run row** → that run's transcript (`.subagent-conv`), filtered to
+   `agent_id` (not the whole type — each run's messages render on their own, not interleaved with
+   sibling runs of the same type).
+Back affordances step back one level at a time (run transcript → run list → session Overview).
+
+### Content tab — composition + three-card grid (D5, D7)
+
+**D5/D7 sign-off (feedback-round Task 14, `records/plans/2026-08-14-chronicle-feedback-round-plan.md`).**
+- **D5 — token composition rows sort DESC by token count** (`compositionRows`, zero-token rows
+  sink to the bottom); each kind's bar color is stable (keyed to a fixed kind order), not
+  positional, so it doesn't reshuffle as the sort order changes. `.grid2`/`.grid2b` card rows use
+  `align-items: stretch` so shorter cards fill the row height instead of looking short next to a
+  taller sibling.
+- **D7 — the old single "Skills & subagents" card (one shared bar-scale `max`) is SPLIT into
+  THREE independently-scoped cards** in a `.grid3` row: **Tool results by tool | Skills |
+  Subagents**, each capped at 6 rows and each with its OWN bar-scale `max` (kills the empty-bar
+  artifact where a short list looked flat under a shared max dominated by a heavier sibling).
+  `.grid3` reflows via `auto-fit`/`minmax(200px,1fr)` (3 → 2+1 → 1-per-row) rather than a hardcoded
+  breakpoint, so it holds at 1024/1366/1728 without a dedicated media query.
+
 ### Content tab (`ContentTab.tsx`, shared by `/` all-scope, `/project/:id`, and session scope)
 
 **D4 sign-off (feedback-round Task 12, Chi approved in
@@ -247,6 +281,9 @@ client never switches on a characteristic's `key`):
 | Recent-sessions ledger (`/projects` content column) select-mode controls render in the shared command bar, no old boxed toolbar, inline confirm (no native dialog) | `test/e2e/select.spec.ts` |
 | Recent-sessions ledger (`/projects` content column) column policy (num-col / ts-col alignment) | `test/e2e/layout.spec.ts` |
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
+| Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
+| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards (D5, D7) | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-rubric walk) |
+| Burn tile headline = ratio + flag, support line = absolute `$current vs $baseline` (D6) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-rubric walk |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card (D4) | `test/e2e/content-characteristics.spec.ts` |
 | Playback selection drives panels | `test/e2e/playback.spec.ts` |
