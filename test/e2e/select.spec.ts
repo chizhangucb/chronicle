@@ -35,7 +35,10 @@ function rowByTitle(page: Page, title: string) {
 }
 
 async function enterSelectMode(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '☑ Select', exact: true }).click();
+  // Scoped to `.recent-ledger` — Task 19 (PR-2 checkpoint) added a SECOND
+  // "☑ Select" affordance for the projects rail's own multi-select, so an
+  // unscoped page-wide lookup is now ambiguous between the two.
+  await page.locator('.recent-ledger').getByRole('button', { name: '☑ Select', exact: true }).click();
   await expect(page.locator('.recent-ledger .select-toolbar')).toBeVisible();
 }
 

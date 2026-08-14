@@ -133,6 +133,9 @@ const zh = {
   'Select all': '全选',
   'Removing…': '正在移除…',
   'Remove these from Chronicle? Source logs and folders are not touched.': '从 Chronicle 移除这些项目？不会改动源日志和文件夹。',
+  // Project multi-select bulk bar (Task 19, PR-2 checkpoint)
+  'Sync': '同步',
+  'Select project': '选择项目',
   'New display name (folder is not touched):': '新的显示名称（不改动文件夹）：',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':
@@ -683,6 +686,9 @@ const ja = {
   'Select all': 'すべて選択',
   'Removing…': '削除中…',
   'Remove these from Chronicle? Source logs and folders are not touched.': 'これらを Chronicle から削除しますか？元のログとフォルダーは変更されません。',
+  // Project multi-select bulk bar (Task 19, PR-2 checkpoint)
+  'Sync': '同期',
+  'Select project': 'プロジェクトを選択',
   'New display name (folder is not touched):': '新しい表示名（フォルダーは変更されません）：',
   // Sync hygiene (Phase 5 PR 5a): tombstones/undo, session multi-select, noise gate, pause
   'Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.':

@@ -159,57 +159,178 @@ export interface ProjectsPageProps {
   onRefresh: () => void;
 }
 
-// `/projects` (Task 9 reshape, D1 VERBATIM): the recent-sessions ledger is the
-// MAIN column, the projects rail sits to its RIGHT — "the recent sessions list
-// is always up to date… I would be naturally interested in the moving list
-// rather than the list that doesn't move that much" (Chi). `RecentLedger` used
-// to be the last section of the `/` Home dashboard (Task 13); it moved here
-// verbatim (search box, day groups, infinite scroll, multi-select, minor
-// bucket all unchanged — see RecentLedger.tsx) because it's the thing that
-// actually changes day to day, so it earns the primary reading position.
-// `.rail-proj` (pdot · name · live dot … count · gear, meta line) is the
-// Chi-confirmed row anatomy from the pre-Batch-C sidebar (F2 restore) — now a
-// compact ~300px sticky rail instead of the page body. Below ~1100px the rail
-// stacks ABOVE the ledger (it's short) via source order + `.projects-layout`
-// switching from column to row only past that breakpoint.
+interface UseProjectSelect {
+  selectMode: boolean;
+  isSelected: (id: number | string) => boolean;
+  toggle: (id: number | string) => void;
+  enterSelect: () => void;
+  Bar: React.ReactNode;
+}
+
+// Project-level mirror of `useSessionSelect` (src/SessionSelect.tsx) — same
+// visual language (select-toolbar, inline two-step confirm, danger button),
+// but simpler: `api.deleteProject` has no undo path (it hard-deletes the
+// project row, unlike a session's tombstone-based delete), so there's no
+// Undo toast here, matching the existing single-project `ProjectMenu` remove
+// flow above (also confirm-then-gone, no undo). Task 19, PR-2 checkpoint:
+// "I want a convenient way for the user to select multiple projects...
+// and be able to delete them or sync with them" (Chi).
+function useProjectSelect(projects: ProjectSummary[], onRefresh: () => void): UseProjectSelect {
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number | string>>(() => new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); setConfirming(false); }
+  function enterSelect() { setSelectMode(true); }
+  function toggle(id: number | string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setConfirming(false);
+  }
+
+  // Sequential per project (brief: "immediate, spinner, sequential per
+  // project") rather than Promise.all — a burst of concurrent sync requests
+  // would otherwise hammer the same git/import machinery at once.
+  async function syncSelected() {
+    if (syncing || !selected.size) return;
+    setSyncing(true);
+    try {
+      for (const id of selected) { try { await api.syncProject(id); } catch { /* per-project errors don't block the rest */ } }
+      invalidateClientCache();
+      onRefresh();
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function removeSelected() {
+    if (removing || !selected.size) return;
+    setRemoving(true);
+    try {
+      for (const id of selected) { try { await api.deleteProject(id); } catch { /* per-project errors don't block the rest */ } }
+      invalidateClientCache();
+      onRefresh();
+      exitSelect();
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  const allSelected = projects.length > 0 && projects.every((p) => selected.has(p.id));
+
+  const Bar = selectMode ? (
+    <div className="select-toolbar">
+      {confirming ? (
+        <>
+          <span className="muted small">{t('Remove these from Chronicle? Source logs and folders are not touched.')}</span>
+          <button className="btn ghost" onClick={() => setConfirming(false)} disabled={removing}>{t('Cancel')}</button>
+          <button className="btn danger-btn" disabled={removing} onClick={removeSelected}>
+            {removing ? t('Removing…') : `⌫ ${t('Remove')} (${selected.size})`}
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="muted small">{selected.size} {t('selected')}</span>
+          <button className="btn ghost" onClick={() => setSelected(allSelected ? new Set() : new Set(projects.map((p) => p.id)))}>
+            {allSelected ? t('Clear') : t('Select all')}
+          </button>
+          <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
+          <button className="btn ghost" disabled={!selected.size || syncing} onClick={syncSelected}>
+            {syncing ? `◌ ${t('Syncing…')}` : `⟳ ${t('Sync')} (${selected.size})`}
+          </button>
+          <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
+            ⌫ {t('Remove')} ({selected.size})
+          </button>
+        </>
+      )}
+    </div>
+  ) : (
+    <button className="btn small" onClick={enterSelect}>☑ {t('Select')}</button>
+  );
+
+  return { selectMode, isSelected: (id) => selected.has(id), toggle, enterSelect, Bar };
+}
+
+// `/projects` (Task 9 reshape, D1 VERBATIM; PR-2 checkpoint amendments,
+// Task 19): the recent-sessions ledger is the MAIN column, the projects rail
+// sits to its RIGHT — "the recent sessions list is always up to date… I
+// would be naturally interested in the moving list rather than the list that
+// doesn't move that much" (Chi). `RecentLedger` used to be the last section
+// of the `/` Home dashboard (Task 13); it moved here verbatim (day groups,
+// infinite scroll, multi-select, minor bucket all unchanged — see
+// RecentLedger.tsx) because it's the thing that actually changes day to day,
+// so it earns the primary reading position. Its filter box is now lifted up
+// into a full-width toolbar spanning both columns (PR-2 checkpoint: "the
+// session list and projects list start at the same height"); the big page
+// `h1` is REMOVED (redundant next to the column heads below — sidebar nav
+// already names the page). `.rail-proj` (pdot · name · live dot … count ·
+// gear, meta line) is the Chi-confirmed row anatomy from the pre-Batch-C
+// sidebar (F2 restore) — now a compact ~300px sticky rail instead of the
+// page body. Below ~1100px the LEDGER stacks first (source order — the
+// ledger is what actually moves), rail below.
 export default function ProjectsPage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: ProjectsPageProps) {
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
+  const [query, setQuery] = useState('');
+  const projSelect = useProjectSelect(projects ?? [], onRefresh);
 
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) return <WelcomeEmpty onImport={onImport} />;
 
   return (
     <div className="page projects-page">
-      <div className="page-title-row">
-        <h1 className="page-title">{t('Projects')}</h1>
+      <div className="home-search">
+        ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+          onChange={(e) => setQuery(e.target.value)} />
+        <span className="kbd">⌘K</span>
       </div>
       <div className="projects-layout">
+        <div className="projects-main">
+          <RecentLedger projects={projects} onOpenSession={onOpenSession} onRefresh={onRefresh} query={query} />
+        </div>
         <aside className="projects-rail">
+          <div className="page-title-row">
+            <h2 className="page-title">{t('Projects')} · {projects.length}</h2>
+            <div className="page-title-actions">{projSelect.Bar}</div>
+          </div>
           <div className="projects-list">
             {projects.map((p) => (
-              <div key={p.id} className="rail-proj" onClick={() => onOpenProject(p.id)}>
-                <div className="n">
-                  <span>
-                    <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
-                    {p.name}
-                    {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="c num">{p.session_count}</span>
-                    <ProjectMenu project={p} onRefresh={onRefresh} />
-                  </span>
-                </div>
-                <div className="meta">
-                  {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
-                  {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
+              <div key={p.id}
+                className={`rail-proj ${projSelect.selectMode ? 'selectable' : ''} ${projSelect.isSelected(p.id) ? 'selected' : ''}`}
+                onClick={() => (projSelect.selectMode ? projSelect.toggle(p.id) : onOpenProject(p.id))}>
+                <div className="rail-proj-row">
+                  {projSelect.selectMode && (
+                    <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={projSelect.isSelected(p.id)}
+                        onChange={() => projSelect.toggle(p.id)} aria-label={t('Select project')} />
+                    </div>
+                  )}
+                  <div className="rail-proj-main">
+                    <div className="n">
+                      <span>
+                        <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
+                        {p.name}
+                        {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="c num">{p.session_count}</span>
+                        <ProjectMenu project={p} onRefresh={onRefresh} />
+                      </span>
+                    </div>
+                    <div className="meta">
+                      {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
+                      {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </aside>
-        <div className="projects-main">
-          <RecentLedger projects={projects} onOpenSession={onOpenSession} onRefresh={onRefresh} />
-        </div>
       </div>
     </div>
   );

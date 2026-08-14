@@ -101,9 +101,17 @@ export interface RecentLedgerProps {
   projects: ProjectSummary[] | null;
   onOpenSession?: (id: string, projectId: number) => void;
   onRefresh: () => void;
+  // Controlled filter query (Task 19, PR-2 checkpoint): `/projects` lifts the
+  // filter box out into a full-width toolbar that spans BOTH columns, so it
+  // owns the input + its own state and passes the live value down here — the
+  // ledger's own `.home-search` box is suppressed and the debounced-search
+  // effect below just reacts to the prop instead of local state. Omitted
+  // (uncontrolled) by the standalone `/` HomeDashboard mount, which keeps
+  // rendering its own inline search box exactly as before.
+  query?: string;
 }
 
-export default function RecentLedger({ projects, onOpenSession, onRefresh }: RecentLedgerProps) {
+export default function RecentLedger({ projects, onOpenSession, onRefresh, query: controlledQuery }: RecentLedgerProps) {
   const [recentSessions, setRecentSessions] = useState<SearchResultItem[] | null>(null);
   const requestId = useRef(0);
   const [hasMore, setHasMore] = useState(true);
@@ -119,19 +127,29 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
   };
   useEffect(() => { refreshRecent(); }, []);
 
-  const [query, setQuery] = useState('');
+  const isControlled = controlledQuery !== undefined;
+  const [internalQuery, setInternalQuery] = useState('');
+  const query = isControlled ? (controlledQuery as string) : internalQuery;
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
-  function handleQueryChange(next: string) {
-    setQuery(next);
+  // Fires the debounced search whenever `query` changes, regardless of
+  // whether it's local or a controlled prop — skips the very first mount
+  // (the effect above already covers the empty-query initial fetch).
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      const trimmed = next.trim();
+      const trimmed = query.trim();
       if (!trimmed) { refreshRecent(); return; }
       const id = ++requestId.current;
       api.search({ q: trimmed }).then((r) => { if (id === requestId.current) setRecentSessions(r.results); })
         .catch(() => { if (id === requestId.current) setRecentSessions([]); });
     }, 200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  function handleQueryChange(next: string) {
+    setInternalQuery(next);
   }
 
   const isRecentMode = !query.trim();
@@ -187,11 +205,13 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
 
   return (
     <section className="recent-ledger">
-      <div className="home-search">
-        ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
-          onChange={(e) => handleQueryChange(e.target.value)} />
-        <span className="kbd">⌘K</span>
-      </div>
+      {!isControlled && (
+        <div className="home-search">
+          ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+            onChange={(e) => handleQueryChange(e.target.value)} />
+          <span className="kbd">⌘K</span>
+        </div>
+      )}
       <div className="page-title-row">
         <h2 className="page-title">{t('Recent sessions')}</h2>
         <div className="page-title-actions">

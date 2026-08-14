@@ -1375,11 +1375,19 @@ h4 { margin: 6px 0; }
 .rail-proj .n { font: 500 13px var(--mono); display: flex; justify-content: space-between; align-items: baseline; }
 .rail-proj .n .c { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .rail-proj .meta { display: flex; gap: 8px; margin-top: 5px; font: 11px var(--mono); color: var(--ink-3); align-items: center; }
-/* Gear (project options) is quiet by default and revealed on row hover /
-   keyboard focus, or while a sync is spinning, so the rail reads as names+counts
-   at rest. */
-.rail-proj .gear { opacity: 0; transition: opacity 0.12s; }
+/* Gear (project options) rests at a muted-but-visible opacity — PR-2
+   checkpoint: a hover-only reveal read as "the gear was removed" (Chi). Full
+   opacity on row hover/keyboard focus, or while a sync is spinning. */
+.rail-proj .gear { opacity: 0.45; transition: opacity 0.12s; }
 .rail-proj:hover .gear, .rail-proj .gear:focus-visible, .rail-proj .gear.spin { opacity: 1; }
+/* Task 19 project multi-select — mirrors the session-row/ledger `.row`
+   selected/selectable visual language (SessionSelect.tsx), scoped to
+   `.rail-proj` and placed AFTER the `:hover` rule above so a selected+hovered
+   row still reads as selected (equal specificity, cascade order decides). */
+.rail-proj.selectable { cursor: pointer; }
+.rail-proj.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
+.rail-proj-row { display: flex; align-items: flex-start; gap: var(--gap-2); }
+.rail-proj-main { flex: 1; min-width: 0; }
 .home-search { max-width: none; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--ink-3); }
 .home-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--ink); font: 13px var(--mono); }
 
@@ -1517,20 +1525,23 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* `/projects` layout (Task 9 reshape, D1 VERBATIM): the recent-sessions
-   ledger is the MAIN column (people care about the moving list), the projects
-   rail sits to its RIGHT as a compact sticky column — both visible at once.
-   Source order in ProjectsPage.tsx is rail-then-main, so below the breakpoint
-   (where there's no row layout) the rail naturally stacks ABOVE the ledger
-   with no extra markup; past the breakpoint `order` swaps them visually so
-   the ledger reads first (left) without reordering the DOM. */
+/* `/projects` layout (Task 9 reshape, D1 VERBATIM; PR-2 checkpoint amendment,
+   Task 19): the recent-sessions ledger is the MAIN column (people care about
+   the moving list), the projects rail sits to its RIGHT as a compact sticky
+   column — both visible at once. Source order in ProjectsPage.tsx is
+   main-then-rail (the ledger stacks FIRST at every width — D1's "moving
+   list stays primary" plus the PR-2 checkpoint's ledger-first stacking
+   below 1100px), so no `order` override is needed in either breakpoint: the
+   column layout below 1100px naturally stacks the ledger above the rail,
+   and the row layout at/above it naturally places the ledger (first in DOM)
+   on the left and the rail on the right. */
 .projects-page .projects-layout { display: flex; flex-direction: column; gap: var(--gap-5); align-items: flex-start; }
 .projects-page .projects-rail { width: 100%; }
 .projects-page .projects-main { width: 100%; min-width: 0; }
 @media (min-width: 1100px) {
   .projects-page .projects-layout { flex-direction: row; }
-  .projects-page .projects-rail { order: 2; flex: 0 0 300px; width: 300px; position: sticky; top: var(--gap-4); }
-  .projects-page .projects-main { order: 1; flex: 1 1 auto; }
+  .projects-page .projects-rail { flex: 0 0 300px; width: 300px; position: sticky; top: var(--gap-4); }
+  .projects-page .projects-main { flex: 1 1 auto; }
 }
 
 /* Projects rail list — F2 restore of the Chi-confirmed contract: a dense list

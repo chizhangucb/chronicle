@@ -21,7 +21,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | Route | Surface | Component |
 |---|---|---|
 | `/` | The ONE Insights hub, sidebar item **`∑ Insights`** — tabs Overview / Explore / Content | `src/HomeDashboard.tsx` |
-| `/projects` | Two-column layout: recent-sessions ledger (main, left) + projects rail (right, sticky) | `src/ProjectsPage.tsx` |
+| `/projects` | Two-column, no h1: full-width filter toolbar, aligned "Recent sessions" / "Projects · N" heads, ledger (main, left, stacks first below 1100px) + projects rail (right, sticky, gear visible at rest, multi-select) | `src/ProjectsPage.tsx` |
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
@@ -113,30 +113,62 @@ the project view uses per-project).
 
 ### `/projects` — two-column: recent-sessions ledger (main) + projects rail (right)
 
-Page title "Projects" (unchanged — only `/`'s title/sidebar item renamed, not this one). D1
-VERBATIM: "the recent sessions list is always up to date… I would be naturally interested in the
-moving list rather than the list that doesn't move that much" (Chi) — the ledger, not the project
-list, earns the primary (left/main) reading position.
+No page `h1` (Task 19, PR-2 checkpoint: removed — redundant next to the two column heads below,
+and the sidebar nav already names the page). D1 VERBATIM: "the recent sessions list is always up
+to date… I would be naturally interested in the moving list rather than the list that doesn't move
+that much" (Chi) — the ledger, not the project list, earns the primary (left/main) reading
+position and now ALSO stacks first at every width (below).
 
+- **Full-width filter toolbar** (`.projects-page > .home-search`, direct child of the page, above
+  `.projects-layout`) — the session filter box, lifted out of `RecentLedger` (Task 19: "it looks
+  better if the session list and projects list start at the same height" — Chi) so it visually
+  spans BOTH columns instead of living inside the ledger column. `RecentLedger` takes it as a
+  controlled `query` prop and suppresses its own `.home-search` when controlled; the standalone
+  `/` HomeDashboard mount (uncontrolled) is unaffected and still renders its own inline box.
+- **Aligned column heads, one row, same y.** Beneath the toolbar, both columns' FIRST element is a
+  `.page-title-row`: left "Recent sessions" (`RecentLedger`, its "Select minor sessions (N)"
+  quick-select + session-select `Bar`), right "Projects · N" (the rail's own title + the project
+  multi-select `Bar` below). Same class, same content shape on both sides, so they align without
+  any explicit DOM-sharing.
 - **MAIN column, LEFT** (`.projects-main`) — the full `RecentLedger` (`.recent-ledger`), reused
-  VERBATIM from its old position as the last section of `/` (same component, same behavior):
-  filter search box, "Recent sessions" title, "Select minor sessions (N)" quick-select,
+  from its old position as the last section of `/` (same component, same behavior beyond the
+  lifted filter box): "Recent sessions" title, "Select minor sessions (N)" quick-select,
   day-grouped rows (day-header tri-state checkbox in select mode), infinite lazy scroll,
   minor-sessions bucket, session multi-select (`useSessionSelect`: inline confirm + undo, never
   `window.confirm`).
-- **RAIL column, RIGHT, sticky ~300px** (`.projects-rail`) — the dense project list. Rows are
-  `.rail-proj` (the pre-Batch-C sidebar-rail row anatomy), NEVER the bordered `.projects-grid`
-  card treatment (F2 removed that unagreed redesign; `.projects-grid` must never exist again).
-  Row: colored `.pdot` · project name · optional live-dot (when a session in the project is live)
-  … session count (`.c`) · gear menu (`⚙`). Meta line: branch (`⎇ <branch>`) or "needs
-  association" · relative last-active time. No permanent border/background (base `border: 1px
-  solid transparent`, visible on hover only).
+- **RAIL column, RIGHT, sticky ~300px** (`.projects-rail`) — a "Projects · N" title (N = project
+  count) + a project multi-select `Bar`, then the dense project list. Rows are `.rail-proj` (the
+  pre-Batch-C sidebar-rail row anatomy), NEVER the bordered `.projects-grid` card treatment (F2
+  removed that unagreed redesign; `.projects-grid` must never exist again). Row: colored `.pdot` ·
+  project name · optional live-dot (when a session in the project is live) … session count (`.c`)
+  · gear menu (`⚙`). Meta line: branch (`⎇ <branch>`) or "needs association" · relative
+  last-active time. No permanent border/background (base `border: 1px solid transparent`, visible
+  on hover only) unless selected (brass border + tint, see multi-select below).
+- **Gear rests visible** (Task 19, PR-2 checkpoint: "I saw there's no gear icon attached to the
+  individual projects anymore. Is that purposeful or not?" — Chi). `.rail-proj .gear` sits at a
+  muted `opacity: .45` at rest (was `opacity: 0`, hover-only), full opacity on row hover/focus or
+  while a sync spins.
+- **Project multi-select** (Task 19, PR-2 checkpoint: "I want a convenient way for the user to
+  select multiple projects, similar to how they can select multiple sessions and be able to
+  delete them or sync with them" — Chi). A "☑ Select" affordance in the rail head enters select
+  mode: per-row checkboxes (`.rowcheck`, same visual language as session multi-select), row click
+  toggles selection instead of navigating to the project, "Select all"/"Clear"/"Cancel", and a
+  bulk bar whose action buttons are EXACTLY `⟳ Sync (N)` (immediate, spinner, sequential per
+  project — loops `api.syncProject`) and `⌫ Remove (N)` (two-step INLINE confirm, never
+  `window.confirm` — loops `api.deleteProject`, then refresh + `invalidateClientCache`; no undo,
+  matching the existing single-project gear-menu remove, since `deleteProject` hard-deletes the
+  project row rather than tombstoning it).
 - **Reflow** (`styles.css` `.projects-layout`, `@media (min-width: 1100px)`): below 1100px, ONE
-  column — source order puts the rail ABOVE the ledger (the rail is short); at ≥ 1100px, a row
-  layout with the ledger main column `order: 1` (left) and the rail `order: 2`, `flex: 0 0 300px`,
-  `position: sticky` (right). Pinned by e2e at the 1024 / 1728 reference widths.
-- Ledger row click → session view; rail row click → project analytics; rail gear menu → the
-  enumerable above.
+  column — source order puts the LEDGER above the rail (Task 19 flips the old F2/D1 rail-first
+  order: the ledger is the moving list, so it stays primary at every width, not just ≥1100px); at
+  ≥ 1100px, a row layout with the ledger main column (left) and the rail `flex: 0 0 300px`,
+  `position: sticky` (right) — no CSS `order` override needed at either breakpoint since the DOM
+  is already ledger-then-rail. Pinned by e2e at the 1024 / 1728 reference widths.
+- Ledger row click → session view; rail row click (outside select mode) → project analytics; rail
+  gear menu → the enumerable above.
+
+Sign-off: per Chi, 2026-08-14 PR-#98 checkpoint reply (D13,
+`records/plans/2026-08-14-chronicle-feedback-round-plan.md`).
 
 ### `/project/:id` — Overview / Explore / Content / Sessions tabs (`ProjectDetail.tsx`).
 ### `/session/:id` — Overview / Playback / Refine / Security Check (`SessionView.tsx`); Subagents card on Overview.
@@ -155,7 +187,10 @@ list, earns the primary (left/main) reading position.
 | `/projects` rail rows (right column), no `.projects-grid`, not a card | `test/e2e/projects.spec.ts` — "renders rail-style rows…", "…NOT a bordered card…" |
 | Project gear menu = Sync Update / Rename / Remove, no View Details | `test/e2e/projects.spec.ts` — "gear menu opens with…"; `chrome.spec.ts` T17.6 |
 | `/projects` recent-sessions ledger is the main (left) column | `test/e2e/projects.spec.ts` — "recent-sessions ledger is the main column…" |
-| `/projects` two-column reflow: stacked (rail above ledger) <1100px, ledger-left/rail-right ≥1100px | `test/e2e/projects.spec.ts` — "stacks the rail above the ledger below 1100px…", "…places the ledger main column left and a ~300px sticky rail right…" |
+| `/projects` full-width filter toolbar (spans both columns), no page h1, aligned column heads on one row | `test/e2e/projects.spec.ts` — "filter toolbar spans full width above the two columns, no page h1, and the two column heads align on one row" |
+| `/projects` gear rests visible (opacity .45), not opacity:0 | `test/e2e/projects.spec.ts` — "project gear rests at a muted-but-visible opacity, not fully hidden" |
+| `/projects` project multi-select: row click toggles, bulk bar = exactly Sync (N) / Remove (N), inline confirm | `test/e2e/projects.spec.ts` — "project multi-select: Select enters select mode…" |
+| `/projects` two-column reflow: stacked (LEDGER above rail) <1100px, ledger-left/rail-right ≥1100px | `test/e2e/projects.spec.ts` — "stacks the ledger above the rail below 1100px…", "…places the ledger main column left and a ~300px sticky rail right…" |
 | `/projects` no horizontal overflow at 1024/1366/1728 | `test/e2e/projects.spec.ts` — "no horizontal overflow on /projects…" |
 | Project-row live dot | `test/e2e/projects.spec.ts` — "live session shows a pulsing dot on its project row" |
 | Search scopes = All / Tools / Chat (exactly three, never "Code") | `test/e2e/chrome.spec.ts` T17.8 |
