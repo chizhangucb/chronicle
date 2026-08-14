@@ -239,7 +239,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh }: Rec
                       onChange={() => recentSelect.toggle(s.id)} aria-label={t('Select session')} />
                   </div>
                 )}
-                <div className="title"><div className="t">{sessionDisplayName(s)}</div>
+                <div className="title"><div className="t" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
                   <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
                 <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
                 <div className="m num-col"><b>{costLabel(s)}</b></div>

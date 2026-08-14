@@ -90,7 +90,13 @@ const COMPOSITION_LABELS: Record<string, string> = {
 export default function ContentTab({ scope, days }: ContentTabProps): JSX.Element {
   const { data: result } = useCachedFetch<ContentResult>(contentUrl(scope.type, scope.id, days ?? undefined));
 
-  const rangeLabel = days ? `${days}d` : t('All');
+  // Mirrors ExploreTab.tsx's rangeLabel: `days` can be a FRACTIONAL
+  // days-since-local-midnight value for "Today" (ProjectDetail.tsx/
+  // HomeDashboard.tsx), so `${days}d` alone leaked a raw float like
+  // "0.224…d" here — the same bug class the window/float-day-leak fix
+  // already covered in ExploreTab's card title, just missed in this file's
+  // composition footer (caught live by test/e2e/window-matrix.spec.ts).
+  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
 
   // Composition bar widths are the share OF THE COMPOSITION LIST ITSELF (sums
   // to 100%), matching content.html's rows (74/12/7/5/2 = ~100).
@@ -182,7 +188,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
           const share = compositionTotal ? (c.tokens / compositionTotal) * 100 : 0;
           return (
             <div className="rank" key={c.key}>
-              <span className="n">{t(COMPOSITION_LABELS[c.key] ?? c.key)}</span>
+              <span className="n" title={t(COMPOSITION_LABELS[c.key] ?? c.key)}>{t(COMPOSITION_LABELS[c.key] ?? c.key)}</span>
               <div className="track"><i style={{ width: `${share}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
               <span className="v">{fmtTok(c.tokens)}</span>
               <span className="p">{share.toFixed(1)}%</span>
@@ -208,7 +214,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
             const width = (r.tokens / toolResultsTop.max) * 100;
             return (
               <div className="rank" key={r.key}>
-                <span className="n">{r.key}</span>
+                <span className="n" title={r.key}>{r.key}</span>
                 <div className="track"><i style={{ width: `${width}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v">{fmtTok(r.tokens)}</span>
                 <span className="p">{share.toFixed(1)}%</span>
@@ -229,7 +235,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
           </h3>
           {skillsView.skills.map((s, i) => (
             <div className="rank nopct" key={`skill-${s.key}`}>
-              <span className="n">{s.key}</span>
+              <span className="n" title={s.key}>{s.key}</span>
               <div className="track"><i style={{ width: `${(s.tokens / skillsView.max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
               <span className="v">×{s.count}</span>
             </div>
@@ -237,7 +243,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
           {skillsView.skillsMore > 0 && <div className="muted small">{t('+{n} more').replace('{n}', String(skillsView.skillsMore))}</div>}
           {skillsView.subagents.map((s, i) => (
             <div className="rank nopct" key={`subagent-${s.key}`}>
-              <span className="n">{s.key}</span>
+              <span className="n" title={s.key}>{s.key}</span>
               <div className="track"><i style={{ width: `${(s.tokens / skillsView.max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
               <span className="v">×{s.runs}</span>
             </div>

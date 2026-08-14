@@ -7,6 +7,7 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
+import { overlapGate, windowedUsage } from './windowUsage.ts';
 // Context-window table is a model CONSTANT (max tokens), not a price, so it's
 // shared between server and client via `shared/contextWindows.ts` (the price
 // table stays client-only in src/models.ts — see that file's comment). This
@@ -72,26 +73,27 @@ export interface ContentResult {
 
 export function computeContent(scope: Scope, days: number | null): ContentResult {
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
+  // null (not '') for the windowed-usage primitives — see server/insights.ts's comment on
+  // the same pattern for why (cutoffIso===null is windowedUsage's "All window" signal).
+  const cutoffIso = days ? cutoff : null;
   const sc = scopeClause(scope);
+  // overlapGate (Task 2, the P0 fix — see server/windowUsage.ts): a session whose activity
+  // ran INTO the window now counts, not just one that STARTED in it. `m.ts >= ?` additionally
+  // restricts message-joined queries below to messages that actually fall in-window.
   const base = `JOIN sessions s ON s.id = m.session_id
-    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`;
-  const bind = () => [cutoff, ...sc.params];
+    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
+  const bind = () => [cutoff, ...sc.params, cutoff];
 
-  // Calibration base = Σ in-scope sessions.usage (input+output) — the
-  // authoritative billed total (= Overview / Insights Tokens KPI, which is
-  // input+output per the 5d decision), NOT the per-message assistant sum
-  // (which undercounts vs Overview). Same scope + days + minor gate as `base`,
-  // minus the messages join. calibratedTotalTokens is this same value, so the
-  // composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
-  const usageRows = db.prepare(`SELECT s.usage AS usage FROM sessions s
-     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as { usage: string|null }[];
+  // Calibration base = Σ in-scope sessions.usage (input+output), windowed (Task 2): each
+  // session's billed cell scaled to its in-window share of per-message tokens, via
+  // windowedUsage — the authoritative billed total (= Overview / Insights Tokens KPI, which
+  // is input+output per the 5d decision), NOT the per-message assistant sum (which
+  // undercounts vs Overview) and NOT a raw unscaled sessions.usage sum (which would
+  // over-count a session spanning the window boundary). calibratedTotalTokens is this same
+  // value, so the composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
+  const windowedCells = windowedUsage(db, `${minorGate(scope)} ${sc.sql}`, sc.params, cutoffIso);
   let billed = 0;
-  for (const r of usageRows) {
-    if (!r.usage) continue;
-    let parsed: Record<string, { input?: number; output?: number }>;
-    try { parsed = JSON.parse(r.usage) as Record<string, { input?: number; output?: number }>; } catch { continue; }
-    for (const mdl of Object.keys(parsed)) billed += (parsed[mdl].input ?? 0) + (parsed[mdl].output ?? 0);
-  }
+  for (const c of windowedCells) billed += c.cells.input + c.cells.output;
 
   // Composition by kind (calibrated).
   const kindChars = db.prepare(`SELECT m.kind AS k, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
@@ -118,7 +120,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
       WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
     )
     JOIN sessions s ON s.id = r.session_id
-    WHERE r.kind='tool_result' AND COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} AND u.tool_name IS NOT NULL
+    WHERE r.kind='tool_result' AND ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND u.tool_name IS NOT NULL AND r.ts >= ?
     GROUP BY u.tool_name`).all(...bind()) as unknown as { k: string; chars: number }[];
   const toolResultsByTool = toolChars.map((t) => ({ key: t.k, tokens: shareTokens(t.chars) }))
     .filter((t) => t.tokens > 0).sort((a, b) => b.tokens - a.tokens);
@@ -180,9 +182,13 @@ interface SessionCharStats {
 }
 function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }): SessionCharStats {
   const bind = () => [cutoff, ...sc.params];
+  // Session-level (no messages join) — overlapGate (Task 2) is the whole fix here: a
+  // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
+  // session, not an in-window fraction, so there's no per-message `m.ts >= cutoff` to add —
+  // just the same overlap-vs-drop inclusion fix every other gate in this file gets.
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
        s.agent_active_ms AS active, s.engaged_ms AS engaged
-     FROM sessions s WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as
+     FROM sessions s WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as
      { ctx: number|null; usage: string|null; active: number|null; engaged: number|null }[];
   const stats: SessionCharStats = {
     totalTokens: 0,
@@ -260,9 +266,11 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
 // message-row count, since one API turn's tool_result confirmation is a
 // separate row that never carries its own tokens).
 function computeCharacteristics(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }, stats: SessionCharStats): Characteristic[] {
-  const bind = () => [cutoff, ...sc.params];
+  // overlapGate + trailing `m.ts >= ?` — same fix as computeContent's own `base` (these
+  // workflowRuns/subagentTurns queries are message-level, unlike computeSessionCharStats).
+  const bind = () => [cutoff, ...sc.params, cutoff];
   const base = `JOIN sessions s ON s.id = m.session_id
-    WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql}`;
+    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
   // workflowRuns/subagentTurns denominator is stats.totalTokens (ALL in-scope
   // sessions) — sidechain fields aren't a "not yet computed" signal like
   // active/context (see the SessionCharStats comment), so no sessions need
@@ -297,20 +305,23 @@ function computeCharacteristics(scope: Scope, cutoff: string, sc: { sql: string;
 }
 
 function computeCallouts(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }, stats: SessionCharStats): ContentResult['callouts'] {
-  const bind = () => [cutoff, ...sc.params];
+  // overlapGate + trailing `m.ts >= ?` — both queries below are message-level (join `m`).
+  const bind = () => [cutoff, ...sc.params, cutoff];
   // Subagent-heavy: token share from sessions where sidechain tokens > 50% of session tokens.
   const heavy = db.prepare(`SELECT s.id,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS total,
        COALESCE(SUM(CASE WHEN m.is_sidechain=1 THEN COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0) ELSE 0 END),0) AS sub
      FROM messages m JOIN sessions s ON s.id=m.session_id
-     WHERE COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} GROUP BY s.id`).all(...bind()) as unknown as { id: string; total: number; sub: number }[];
+     WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ? GROUP BY s.id`).all(...bind()) as unknown as { id: string; total: number; sub: number }[];
   let heavyTokens = 0, heavyTotal = 0;
   for (const h of heavy) { heavyTotal += h.total; if (h.total > 0 && h.sub > 0.5 * h.total) heavyTokens += h.total; }
-  // Cache-warmth: median gap (min) between consecutive same-model assistant turns.
+  // Cache-warmth: median gap (min) between consecutive same-model assistant turns — gaps
+  // are computed only from IN-WINDOW turns (m.ts >= cutoff), so "Today" reflects today's
+  // cadence, not a spanning session's whole history.
   const turns = db.prepare(`SELECT m.session_id AS sid, m.model AS model, m.ts AS ts FROM messages m
      JOIN sessions s ON s.id=m.session_id
      WHERE m.kind='assistant' AND m.model IS NOT NULL AND m.ts IS NOT NULL
-       AND COALESCE(s.started_at,'9') >= ? ${minorGate(scope)} ${sc.sql} ORDER BY m.session_id, m.ts`).all(...bind()) as unknown as { sid: string; model: string; ts: string }[];
+       AND ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ? ORDER BY m.session_id, m.ts`).all(...bind()) as unknown as { sid: string; model: string; ts: string }[];
   const gaps: number[] = [];
   for (let i = 1; i < turns.length; i++) {
     if (turns[i].sid === turns[i-1].sid && turns[i].model === turns[i-1].model) {

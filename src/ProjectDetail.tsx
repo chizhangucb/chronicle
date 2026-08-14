@@ -5,13 +5,15 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { api, projectUrl, projectsUrl } from './api.js';
+import { api, projectUrl, projectsUrl, type WindowedUsageCell } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
+import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
+import { sumByModel, sumByKeyModel, costOfCells, tokensOfCells } from './windowedUsage.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
@@ -65,6 +67,12 @@ export interface ProjectAnalytics {
   activity: ActivityRow[];
   errors: number;
   commits: number;
+  // Windowed per-session, per-model billed cells (Task 2/3, project-scoped) —
+  // the client prices these via costOf for the Cost/Tokens KPI tiles and Cost
+  // by model bars, instead of summing raw session.usage, so a session that
+  // started before the window but ran INTO it contributes only its in-window
+  // share (mirrors server/insights.ts's windowedTokensByModel).
+  windowedTokensByModel: WindowedUsageCell[];
 }
 
 export interface ProjectDetailData {
@@ -274,44 +282,40 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     // Agent active total: same per-session fallback as the "duration" sort
     // (agent_active_ms when present, else wall-clock start→end).
     const activeMs = sessions.reduce((sum, s) => sum + sessionDurationMs(s), 0);
-    // Cost/tokens: sum per-model usage across every session in range (Step 3 —
-    // client-side aggregation, same source data the session list already
-    // parses via sessionUsage/sessionCost).
+    // Cost/tokens: windowed per-model cells (Task 2/3), not raw session.usage —
+    // a session that started before the window but ran INTO it contributes
+    // only its in-window share, so these KPIs agree with the session list
+    // above (which is already overlap-gated server-side) at every window.
     let totalCost = 0, totalIn = 0, totalOut = 0;
-    const byModel = new Map<string, number>();
+    const windowedByModel = sumByModel(analytics.windowedTokensByModel);
+    const costByModelMap = new Map<string, number>();
     const modelsSeen = new Set<string>();
-    for (const s of sessions) {
-      const usage = sessionUsage(s);
-      if (!usage) continue;
-      for (const [m, u] of Object.entries(usage)) {
-        modelsSeen.add(m);
-        totalIn += u.input || 0;
-        totalOut += u.output || 0;
-        const cost = costOf(m, u) ?? 0;
-        totalCost += cost;
-        byModel.set(m, (byModel.get(m) || 0) + cost);
-      }
+    for (const [m, cell] of windowedByModel) {
+      modelsSeen.add(m);
+      totalIn += cell.input;
+      totalOut += cell.output;
+      costByModelMap.set(m, costOf(m, cell) ?? 0);
     }
-    const costByModel = [...byModel.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    // Trend: sessions + cost per day, gaps filled so the chart line/bars are
-    // continuous across the whole range.
+    for (const cost of costByModelMap.values()) totalCost += cost;
+    const costByModel = [...costByModelMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    // Trend: sessions + cost per LOCAL calendar day (see src/charts/timeBuckets.ts —
+    // never a UTC slice of the ISO string, which shifts sessions started near
+    // local midnight onto the wrong day). Project scope has no server-side
+    // day-bucketed cost split (unlike the Home hub's dailySpend/hourlySpend),
+    // so each session's whole-session cost is attributed to the local day it
+    // started on — same as before, just local-keyed. Dense-filled (D12) from
+    // the first to the last day with any activity, so the chart's bar/line
+    // spacing represents equal time even when some days in between were idle.
     const byDay = new Map<string, number>();
     const costByDay = new Map<string, number>();
     for (const s of sessions) {
       if (!s.started_at) continue;
-      const day = s.started_at.slice(0, 10);
+      const day = dayKeyOf(new Date(s.started_at));
       byDay.set(day, (byDay.get(day) || 0) + 1);
       costByDay.set(day, (costByDay.get(day) || 0) + sessionCost(s));
     }
-    const dayKeys = [...byDay.keys()].sort();
-    const trend: { day: string; count: number; cost: number }[] = [];
-    if (dayKeys.length) {
-      const start = days ? new Date(Date.now() - days * 86400000) : new Date(dayKeys[0]);
-      for (let d = new Date(start); d <= new Date(); d.setDate(d.getDate() + 1)) {
-        const key = d.toISOString().slice(0, 10);
-        trend.push({ day: key, count: byDay.get(key) || 0, cost: costByDay.get(key) || 0 });
-      }
-    }
+    const trend: { day: string; count: number; cost: number }[] = densifyBuckets([...byDay.keys()], 'day')
+      .map((key) => ({ day: key, count: byDay.get(key) || 0, cost: costByDay.get(key) || 0 }));
     // Source donut
     const bySource = new Map<string, number>();
     for (const s of sessions) bySource.set(s.source, (bySource.get(s.source) || 0) + 1);
@@ -329,11 +333,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       toolCalls, messages, userPrompts,
       errors: analytics.errors || 0,
       errorRate: toolCalls ? ((analytics.errors || 0) / toolCalls) * 100 : 0,
-      activeDays: new Set(sessions.filter((s) => s.started_at).map((s) => (s.started_at as string).slice(0, 10))).size,
+      activeDays: new Set(sessions.filter((s) => s.started_at).map((s) => dayKeyOf(new Date(s.started_at as string)))).size,
       activeMs, totalCost, totalIn, totalOut, totalTokens: totalIn + totalOut, modelCount: modelsSeen.size,
       trend, sources, ranking, costByModel,
     };
-  }, [data, days]);
+  }, [data]);
 
   // Sorted + filtered view of the session list; rendering is windowed
   // (SESSION_WINDOW rows + "Show more") so 1000-session projects stay snappy.
@@ -465,12 +469,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         <div className="kpi">
           <div className="l">{t('Tokens')}</div>
           <div className="v">{fmtTok(stats.totalTokens)}</div>
-          <div className="s">{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
+          <div className="s" title={`${t('Input')} ${fmtTok(stats.totalIn)} · ${t('Output')} ${fmtTok(stats.totalOut)}`}>{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Agent Active')}</div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
-          <div className="s">{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
+          <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} ${t('avg/session')}`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Messages')}</div>
@@ -567,7 +571,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div style={{ marginTop: 10 }}>
             {stats.ranking.map(([label, n], i) => (
               <div key={label} className="hbar">
-                <span className="n">{label}</span>
+                <span className="n" title={label}>{label}</span>
                 <div className="track"><div className="fill" style={{ width: `${(n / maxRank) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtInt(n)}</span>
               </div>
@@ -580,7 +584,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div style={{ marginTop: 10 }}>
             {stats.costByModel.map(([model, cost], i) => (
               <div key={model} className="hbar">
-                <span className="n">{model}</span>
+                <span className="n" title={model}>{model}</span>
                 <div className="track"><div className="fill" style={{ width: `${(cost / maxCostByModel) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
                 <span className="v num">{fmtMoney(cost, 2)}</span>
               </div>
@@ -607,7 +611,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       <div className="session-list">
         {recent5.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt">{sessionDisplayName(s)}</div>
+            <div className="session-prompt" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
             <div className="session-meta muted small">
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
@@ -646,12 +650,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           return (
             <div key={s.id} className={`card session-row ${sessionSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
               onClick={() => (sessionSelect.selectMode ? sessionSelect.toggle(s.id) : onOpenSession(s.id))}>
-              <div className="session-prompt">
+              <div className="session-prompt" title={sessionDisplayName(s)}>
                 {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
                 {sessionDisplayName(s)}
               </div>
               {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
-                <div className="session-subprompt muted small">{s.first_prompt}</div>
+                <div className="session-subprompt muted small" title={s.first_prompt}>{s.first_prompt}</div>
               )}
               <div className="session-meta muted small">
                 {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
@@ -719,7 +723,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="crumb on" onMouseEnter={() => prefetch(projectsUrl())}>
+        <button className="crumb on" title={current?.name} onMouseEnter={() => prefetch(projectsUrl())}>
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
             : '◫ '}
@@ -736,7 +740,7 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
               onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
               <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title">
+                <span className="picker-title" title={p.name}>
                   <span className="pdot" style={{ '--project-color': itemColors.get(Number(p.id)) } as React.CSSProperties} />{p.name}
                 </span>
                 <span className="muted small">
@@ -784,7 +788,8 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`} onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
+        <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current) : undefined}
+          onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
           ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
@@ -797,7 +802,7 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
             <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
               <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title">{title(s)}</span>
+                <span className="picker-title" title={sessionDisplayName(s)}>{title(s)}</span>
                 <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
               </span>
             </button>

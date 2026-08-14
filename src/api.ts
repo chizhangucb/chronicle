@@ -325,6 +325,24 @@ export interface InsightsSessionRow {
   usage: string | null;
 }
 
+// Windowed billed cells (feedback-round Task 2/3): per-session, per-model,
+// in-window-scaled token cells — mirrors server/windowUsage.ts's
+// WindowedUsageCell/BucketedUsageCell VERBATIM (same field names; the server
+// returns these as plain JSON, no adapter needed). The client prices these via
+// src/models.ts costOf (src/windowedUsage.ts's aggregation helpers) instead of
+// summing raw `sessions.usage`, so a session that started before the active
+// window but ran INTO it contributes only its in-window share.
+export interface WindowedUsageCell {
+  sessionId: string;
+  projectId: number;
+  model: string;
+  source: string;
+  cells: { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number };
+}
+export interface BucketedUsageCell extends WindowedUsageCell {
+  bucket: string;
+}
+
 export interface InsightsResult {
   sessions: InsightsSessionRow[];
   toolDist: NameCount[];
@@ -341,6 +359,12 @@ export interface InsightsResult {
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
   laneC: LaneCSpend;
+  // See the WindowedUsageCell/BucketedUsageCell comment above.
+  windowedTokensByModel: WindowedUsageCell[];
+  dailySpend: BucketedUsageCell[];
+  // Only computed server-side (non-null) for a short window (days<=2) — the
+  // client falls back to dailySpend otherwise (see server/insights.ts).
+  hourlySpend: BucketedUsageCell[] | null;
 }
 
 // Lane C proxy-lane billed spend (mirrors server/laneC.ts) — authoritative

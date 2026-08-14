@@ -41,15 +41,38 @@ function jsonLine(obj) {
  * @param {number} [opts.turns] - user/assistant turn pairs. 2 turns (4 events) is always "minor"
  *   (server/noiseGate.ts: messageCount < 10). 8 turns (16 events) with 50s user→assistant gaps clears
  *   BOTH the message-count (>=10) and 5-min agent-active thresholds, so it lands in the main ledger.
- * @param {number} [opts.gapSec] - seconds between each message.
+ * @param {number} [opts.gapSec] - seconds between each message. Ignored when `endISO` is given.
+ * @param {string} [opts.endISO] - UTC ISO instant the LAST message should land on. When given, the
+ *   per-message gap is derived (`(endTs - startTs) / (turns * 2 - 1)`) instead of using `gapSec`, so a
+ *   caller can pin both ends of a session (e.g. "started 26h ago, still going 5 minutes ago") without
+ *   hand-computing a gap. Used by the window-matrix fixture (Task 7, D-series) for sessions whose
+ *   absolute timestamps are relative to Date.now() AT SEED TIME rather than a fixed calendar date.
  * @returns {{sessionId: string, file: string}}
  */
 export function writeMiniSession(destDir, opts) {
-  const { sessionId, dateISO, promptText, cwd = MINI_DEFAULT_CWD, turns = 8, gapSec = 50 } = opts;
+  const { sessionId, dateISO, promptText, cwd = MINI_DEFAULT_CWD, turns = 8, endISO } = opts;
   const projectDir = path.join(destDir, mungeProjectDir(cwd));
   fs.mkdirSync(projectDir, { recursive: true });
 
   const baseTs = Date.parse(dateISO);
+  // BUG GUARD: Date.parse()'s difference is in MILLISECONDS — divide by 1000
+  // before dividing by message count, or the result (already effectively
+  // milliseconds) gets treated as seconds and re-multiplied by 1000 below,
+  // inflating every gap ~1000x (caught live: a "26h ago -> 5 min ago" session
+  // landed its last message in 2029, not the same day — see task-7-report.md).
+  //
+  // GAP-COUNT BUG GUARD (round 2 review finding): the loop below writes 2
+  // messages per turn (2*turns total) but the FIRST message is written at
+  // `cursor` BEFORE any `cursor += gapSec*1000` advance — so there are only
+  // `2*turns - 1` gaps between the first and last recorded message, not
+  // `2*turns`. Dividing by `turns*2` (one gap too many) understated the true
+  // per-gap spacing, so the last message landed one gapSec short of `endISO`
+  // — for the spanning-session fixture (turns=30, ~26h span) that was ~26
+  // minutes early, silently violating the "ends ~5 min before now" guarantee
+  // window-matrix.spec.ts's isolation assertions depend on.
+  const gapSec = endISO
+    ? Math.max(1, Math.round((Date.parse(endISO) - baseTs) / 1000 / Math.max(1, turns * 2 - 1)))
+    : (opts.gapSec ?? 50);
   let cursor = baseTs;
   let parentUuid = null;
   const lines = [];

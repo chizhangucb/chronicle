@@ -57,6 +57,24 @@ function isErrorResult(m: StatMessage): boolean {
       .test((m.text || '').slice(0, 200));
 }
 
+// Errors KPI drill-in (src/session/OverviewMode.tsx's Errors card →
+// src/SessionView.tsx's Playback filter): the erroring tool_result rows PLUS
+// their paired tool_use call, matched by `tool_use_id` — the same pairing
+// rule server/errors.ts documents for aggregate error attribution, applied
+// here to pick out individual rows instead of counting them. Mirrors
+// `messages.filter(isErrorResult)` (the count shown on the KPI itself), so
+// the drill-in view shows exactly what was counted, plus the call that
+// produced each error. Generic over `T` so it can run over the client's
+// richer `PlaybackMessage` (SessionView.tsx) without losing those fields.
+function errorDrillIn<T extends StatMessage>(messages: T[]): T[] {
+  const erroringIds = new Set<string>();
+  for (const m of messages) {
+    if (isErrorResult(m) && m.tool_use_id) erroringIds.add(m.tool_use_id);
+  }
+  return messages.filter((m) => isErrorResult(m)
+    || (m.kind === 'tool_use' && !!m.tool_use_id && erroringIds.has(m.tool_use_id)));
+}
+
 // Tool-mix counts, reshaped for Recharts' `data` prop — every tool, sorted
 // desc by count (unlike a top-7 + "other" cut, the Tool Mix card only ever
 // renders its own top slice, so no aggregation bucket is needed here).
@@ -219,6 +237,7 @@ export {
   FRIENDLY_CALL,
   DELETABLE_SOURCES,
   isErrorResult,
+  errorDrillIn,
   toolMixSorted,
   cumulativeCostSeries,
   fmtCtx,

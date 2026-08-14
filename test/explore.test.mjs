@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { withTempDb } from './helpers.mjs';
 
 let dbModule, teardown, explore;
@@ -71,11 +72,19 @@ before(async () => {
       { kind: 'tool_result', tool_use_id: 't3', text: 'read ok', ts: '2026-08-01T10:27:03.000Z' },
     ]),
   );
+  // T10:00Z (not T03:00Z, its value before Task 18's review fix — see the
+  // rollup tests below): server/explore.ts's bucketExpr now buckets in LOCAL
+  // time (Task 18 review finding #2), so a UTC timestamp within ~11h of UTC
+  // midnight can land on a different LOCAL calendar day depending on the
+  // machine's timezone — T03:00Z is exactly that case (it's the previous
+  // local day west of UTC, e.g. PDT). T10:00Z matches s1/sDup's convention
+  // below and stays on the same local day for every realistic dev/CI
+  // timezone (UTC and America/Los_Angeles both keep it on Aug 2).
   replaceSession(
     { id: 's2', project_id: p2.id, source: 'codex', file_path: '/tmp/s2.jsonl',
-      started_at: '2026-08-02T03:00:00.000Z', ended_at: '2026-08-02T03:30:00.000Z',
+      started_at: '2026-08-02T10:00:00.000Z', ended_at: '2026-08-02T10:30:00.000Z',
       usage: JSON.stringify({ 'claude-haiku-4-5': { input: 40, output: 20, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
-    rhythmEvents('2026-08-02T03:00:00.000Z', [], 'claude-haiku-4-5'),
+    rhythmEvents('2026-08-02T10:00:00.000Z', [], 'claude-haiku-4-5'),
   );
   // sDup has ONE erroring tool_result (te1) but TWO tool_use rows sharing
   // tool_use_id 'te1' — the pairing join must attribute exactly ONE error.
@@ -398,6 +407,75 @@ test('bucketLabel / bucketExpr shape the four granularities', () => {
   assert.equal(explore.bucketLabel('2026-08-09T14'), 'Aug 9 14h');
   assert.equal(explore.bucketLabel('2026-08-09'), 'Aug 9');
   assert.equal(explore.bucketLabel('2026-08'), 'Aug 2026');
-  assert.equal(explore.bucketExpr('daily', 'm.ts'), 'substr(m.ts, 1, 10)');
-  assert.equal(explore.bucketExpr('monthly', 's.started_at'), 'substr(s.started_at, 1, 7)');
+  // LOCAL time via SQLite's 'localtime' modifier (Task 18 review fix — was a
+  // bare substr()/un-adorned strftime() over the raw UTC ts string, the exact
+  // UTC-day bug class this round exists to stamp out). String-shape lock;
+  // the test below actually EXECUTES these expressions under a non-UTC TZ to
+  // prove the semantic fix, not just the SQL text.
+  assert.equal(explore.bucketExpr('daily', 'm.ts'), "strftime('%Y-%m-%d', m.ts, 'localtime')");
+  assert.equal(explore.bucketExpr('monthly', 's.started_at'), "strftime('%Y-%m', s.started_at, 'localtime')");
+});
+
+test('bucketExpr buckets in LOCAL time, not UTC (Task 18 review fix)', async (t) => {
+  // 2026-08-09T06:59:00Z is 2026-08-08 23:59 PDT — a timestamp whose UTC
+  // calendar date and LOCAL calendar date genuinely differ. Under the OLD
+  // implementation (`substr(ts, 1, 10)` / a bare `strftime(...)` with no
+  // 'localtime' modifier, operating directly on the UTC ts string) this
+  // would bucket to '2026-08-09' (confirmed manually: `ts.slice(0, 10)` ===
+  // '2026-08-09') — the exact "Aug 12 on Aug 13" defect class this whole
+  // feedback round exists to fix. The correct LOCAL bucket is '2026-08-08'.
+  // process.env.TZ is a legitimate way to make this deterministic in CI
+  // regardless of the runner's own timezone (SQLite's 'localtime' modifier
+  // reads TZ per-call — verified directly: flipping TZ between runs of the
+  // same query changes the returned bucket, so this is not cached/inert).
+  const prevTz = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  t.after(() => { process.env.TZ = prevTz; });
+  const ts = '2026-08-09T06:59:00.000Z';
+  const oldUtcDaily = ts.slice(0, 10); // what the pre-fix substr() form produced
+  assert.equal(oldUtcDaily, '2026-08-09', 'sanity check: UTC date really does differ from the local date here');
+
+  const mem = new DatabaseSync(':memory:');
+  const bucketOf = (rollup) => {
+    const expr = explore.bucketExpr(rollup, '?');
+    const nParams = (expr.match(/\?/g) || []).length; // weekly's expr binds `ts` twice
+    return mem.prepare(`SELECT ${expr} AS bkt`).get(...Array(nParams).fill(ts)).bkt;
+  };
+
+  assert.equal(bucketOf('hourly'), '2026-08-08T23');
+  assert.equal(bucketOf('daily'), '2026-08-08');
+  assert.notEqual(bucketOf('daily'), oldUtcDaily, 'must NOT match the old UTC-substr bucket');
+  assert.equal(bucketOf('monthly'), '2026-08');
+  // Weekly = that LOCAL week's Monday. 2026-08-08 (local date) is a Saturday,
+  // so its Monday is 2026-08-03.
+  assert.equal(bucketOf('weekly'), '2026-08-03');
+});
+
+test('computeExplore: group=hour (Group=Hour-of-day pivot) buckets in LOCAL time, not UTC (Task 18 sweep, round 2)', async (t) => {
+  // Same bug class as bucketExpr above, same file, found while fixing it:
+  // groupExpr's and errorGroupCol's 'hour' branches (server/explore.ts) fed
+  // strftime('%H', ts) the raw UTC ts with NO 'localtime' modifier. The
+  // client renders this group via fmtHourOfDay ("9 AM"/"10 PM"), which is
+  // only meaningful against the user's own clock hour.
+  //
+  // The shared fixture (this file's `before()`) seeds s1/s2/sDup all starting
+  // at 10:00 UTC = 03:00 PDT (see the comment on s2's T10:00Z choice above) —
+  // a clean single-value check: every message/error in scope should bucket
+  // to LOCAL hour '3', never the raw UTC hour '10'.
+  const prevTz = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  t.after(() => { process.env.TZ = prevTz; });
+
+  const byHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'hour', rollup: 'total', topN: 24 });
+  const hourKeys = byHour.rows.map((r) => r.key);
+  assert.ok(hourKeys.includes('3'), `expected LOCAL hour '3' (10:00 UTC = 03:00 PDT) among ${JSON.stringify(hourKeys)}`);
+  assert.ok(!hourKeys.includes('10'), `must NOT bucket by the raw UTC hour '10', got ${JSON.stringify(hourKeys)}`);
+
+  // errorGroupCol's 'hour' branch is a SEPARATE function, only reached via
+  // metric='errors' — s1's and sDup's erroring tool_results are also at
+  // 10:00 UTC / 03:00 PDT (see the `before()` fixture above).
+  const errByHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'hour', rollup: 'total', topN: 24 });
+  const errHourKeys = errByHour.rows.filter((r) => r.errors > 0).map((r) => r.key);
+  assert.ok(errHourKeys.includes('3'), `expected LOCAL hour '3' among erroring rows, got ${JSON.stringify(errHourKeys)}`);
+  assert.ok(!errHourKeys.includes('10'), `must NOT bucket errors by the raw UTC hour '10', got ${JSON.stringify(errHourKeys)}`);
 });

@@ -12,5 +12,6 @@ export declare function writeMiniSession(
     cwd?: string;
     turns?: number;
     gapSec?: number;
+    endISO?: string;
   }
 ): { sessionId: string; file: string };

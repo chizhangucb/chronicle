@@ -112,6 +112,14 @@ Product shape enumerated in `.claude/product-contract.md` — judge against it (
   `font-variant-numeric` to `normal`; a rule combining `font:` with a numeric column MUST re-state
   `font-variant-numeric: tabular-nums;` as a trailing declaration in the same rule. Checkable by
   the same `fontVariantNumeric` probe above — it will read `"normal"` on a broken rule.
+- **Truncation-title policy:** every clamped + actually-overflowing element (CSS `text-overflow:
+  ellipsis`, `-webkit-line-clamp`, or `scrollWidth > clientWidth`) MUST carry a non-empty `title`
+  attribute so the full text appears on hover. Checkable: `test/e2e/probes.spec.ts` TRUNCATION probe
+  queries all clamped elements and flags those without a title. This is a CI probe (not judge-only).
+- **Legend-label policy:** no `.legend` entry renders as a bare unit-less integer (e.g., a legend
+  showing "9 6 7 8 22" instead of "Hour 9", "Tool X"). All legend text must include its context
+  label. Checkable: `test/e2e/probes.spec.ts` LEGEND probe scans `.legend > *` for `/^\d+$/` text
+  and flags bare numbers. This is a CI probe (not judge-only).
 
 ## Container policy
 
@@ -182,12 +190,19 @@ Fixed step scale in `src/styles.css` `:root` — `--gap-1: 4px; --gap-2: 8px; --
 arbitrary px values.
 
 - **SPACE (Batch B category):** a label must never run directly into its value with no gap
-  (`margin`/`gap` of 0 between a `.label`-class element and its adjacent value) — checkable via
-  computed `gap`/`margin-right` matching one of the 5 scale steps, not `0px`.
+  (`margin`/`gap` of ≥4px between a `.label`-class element and its adjacent value, or any
+  element whose class contains "label" and an adjacent sibling) — checkable via
+  computed `gap`/`margin-right` matching one of the 5 scale steps (minimum 4px), not `0px`.
+  **CI-probed by `test/e2e/probes.spec.ts` SPACE probe** (scans `.trow .k`, `.sel-check`,
+  `.day-head .sum`, and a generic `[class*="label"]:not([class*="recharts"])` selector against all
+  adjacent siblings; flags gaps < 4px or text overflow). Judge-level additions apply SPACE to
+  newly authored patterns not yet covered by probe selectors.
 - **RHYTHM (Batch B category):** repeated structural gaps (card padding, list-item spacing, KPI
   row gaps) within one surface use the SAME step consistently — checkable by collecting every
   matching gap's computed pixel value on a surface and confirming they cluster to a single
-  `--gap-N`, not a scatter of one-off values.
+  `--gap-N`, not a scatter of one-off values. **D5 section-air rule:** the first h3-level heading
+  inside a card gets `--gap-5` (24px) top margin for breathing room (applies via global `.card >
+  h3` rule in `src/styles.css`).
 - New spacing needs pick the nearest existing step; a genuinely new value is a deliberate
   exception (like `--heat-axis-offset`, a documented layout offset), never silent px drift.
 
@@ -223,6 +238,14 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Status colors (`--ok`/`--warn`/--danger`) are reserved** for good/warning/critical state and
   never reused as a categorical "series N" color; they always ship with an icon or text label,
   never color alone.
+- **Dense time-series (D12):** every rendered time-series chart must be zero-filled from its first
+  to its last bucket, so equal bar/point spacing always represents equal time, never a collapsed
+  run of empty buckets reading visually as one wide bar. Implemented via `src/charts/timeBuckets.ts`
+  `densifyBuckets` (client-side) + `server/windowUsage.ts` / `server/explore.ts` bucketing
+  (server-side). **CI-probed by `test/e2e/probes.spec.ts` TIME-AXIS probe** — reads x-axis tick
+  labels from rendered Recharts charts in a bounded bucket range and asserts consecutive labels
+  are exactly one day/hour/month apart (not a gap of multiple buckets). Detects the regression
+  class this task fixed (collapsing idle gaps into equal spacing between distant buckets).
 
 ## App-wide invariants (regression guards — grep or DOM-probe to confirm)
 

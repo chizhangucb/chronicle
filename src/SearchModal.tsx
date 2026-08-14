@@ -167,9 +167,9 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
                 <span className="search-row-title">
                   <span className="search-row-project">{r.project_name}</span>
                   <span className="search-row-sep">/</span>
-                  <span className="search-row-name">{sessionDisplayName(r)}</span>
+                  <span className="search-row-name" title={sessionDisplayName(r)}>{sessionDisplayName(r)}</span>
                 </span>
-                {r.snippet && <span className="search-row-snippet muted small">{searchHighlight(r.snippet, debounced)}</span>}
+                {r.snippet && <span className="search-row-snippet muted small" title={r.snippet}>{searchHighlight(r.snippet, debounced)}</span>}
               </span>
               <span className="search-row-meta muted small">
                 {r.matchCount > 0 && <span className="search-row-count">{r.matchCount} {t(r.matchCount === 1 ? 'match' : 'matches')}</span>}

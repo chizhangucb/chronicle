@@ -111,7 +111,7 @@ export default function CodePanel({ projectId, commit, noRepo, loading }: CodePa
         {commit ? (
           <span className="commit-info" title={commit.hash}>
             <span className="pill git-pill">⎇ {commit.hash.slice(0, 7)}</span>
-            <span className="commit-subject">{commit.subject}</span>
+            <span className="commit-subject" title={commit.subject}>{commit.subject}</span>
             <span className="muted small commit-date">{new Date(commit.date).toLocaleString()}</span>
             {commit.beforeHistory && <span className="pill warn-pill">before first commit</span>}
             {loading && <span className="muted small spin" title="Loading this snapshot…">◌</span>}

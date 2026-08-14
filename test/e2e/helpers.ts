@@ -52,6 +52,11 @@ export interface SeedState {
   miniAlphaId: string;
   miniBravoId: string;
   miniMinorId: string;
+  // Task 7 (window-matrix): two more mini sessions, timestamped RELATIVE TO
+  // Date.now() at seed time (not a fixed calendar date like the three
+  // above) — see the writeMiniSession call sites below for why.
+  spanningSessionId: string;
+  todayOnlySessionId: string;
 }
 
 export function readSeedState(): SeedState {
@@ -145,6 +150,52 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
     promptText: 'Mini fixture Charlie: quick tweak.',
   });
 
+  // Task 7 (window-matrix): the fixture above is pinned to a fixed calendar
+  // date (2026-08), so it's invisible to "Today"/"7d"/"30d" windows once this
+  // suite runs far enough past that date (explore.spec.ts's header comment
+  // already documents this exact fragility). These two sessions are seeded
+  // RELATIVE TO Date.now() AT THIS POINT (globalSetup runs once, before any
+  // spec starts, so this is deterministic for the whole test run even though
+  // the absolute timestamps drift run to run).
+  const nowMs = Date.now();
+  const spanningSessionId = 'minifix-spanning';
+  const todayOnlySessionId = 'minifix-today';
+  // spanningSessionId: starts 26h before now — guaranteed to fall on an
+  // earlier LOCAL calendar day than "today" no matter what the wall-clock
+  // time is when this runs, since the span exceeds 24h — and ends 5 minutes
+  // before now, which is trivially always "today" (an end 5 minutes shy of
+  // "now" cannot itself be in the future or cross back over a *later*
+  // midnight). This is the exact regression shape overlapGate
+  // (server/windowUsage.ts) fixes: the OLD gate compared only
+  // `started_at >= cutoff` and would have dropped this session from "Today"
+  // even though ~26h of its own activity ran INTO today. 30 turns (60
+  // messages, well over the noise-gate's 10-message floor) spread evenly
+  // across the ~26h span keeps every individual inter-message gap well under
+  // durations.ts's 10-min Agent-Active cap, but the capped sum still clears
+  // the 5-min-active floor by two orders of magnitude, so this is never
+  // routed into the minor-sessions bucket regardless of config.
+  writeMiniSession(fixtureDir, {
+    sessionId: spanningSessionId,
+    dateISO: new Date(nowMs - 26 * 3600 * 1000).toISOString(),
+    endISO: new Date(nowMs - 5 * 60 * 1000).toISOString(),
+    turns: 30,
+    promptText: 'Mini fixture Spanning: overnight investigation of the parser regression.',
+  });
+  // todayOnlySessionId: entirely inside the last 40 minutes, so unless this
+  // suite happens to run in the first ~35 minutes after local midnight
+  // (accepted low-probability risk, same class already accepted for the
+  // Today-window fractional-days math elsewhere in this app) it is
+  // unambiguously "today" from start to finish — a control case alongside
+  // the spanning session above for window-matrix.spec.ts's overlap-gate and
+  // probes.spec.ts's dense-time-axis (D12) assertions.
+  writeMiniSession(fixtureDir, {
+    sessionId: todayOnlySessionId,
+    dateISO: new Date(nowMs - 40 * 60 * 1000).toISOString(),
+    endISO: new Date(nowMs - 5 * 60 * 1000).toISOString(),
+    turns: 12,
+    promptText: 'Mini fixture Today: same-day quick investigation.',
+  });
+
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-data-'));
   const port = await findFreePort();
   const baseURL = `http://127.0.0.1:${port}`;
@@ -172,7 +223,7 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
     throw new Error(`Fixture session not found in scan result: ${JSON.stringify(scanJson)}`);
   }
 
-  const miniFiles = [miniAlphaId, miniBravoId, miniMinorId].map((id) => {
+  const miniFiles = [miniAlphaId, miniBravoId, miniMinorId, spanningSessionId, todayOnlySessionId].map((id) => {
     const f = project.sessions?.find((s) => s.id === id)?.file;
     if (!f) throw new Error(`Mini fixture session not found in scan result: ${id}`);
     return f;
@@ -185,11 +236,14 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
   });
   if (!importRes.ok) throw new Error(`Seed import failed (${importRes.status}): ${await importRes.text()}`);
   const importJson = (await importRes.json()) as ImportResponse;
-  if (!importJson.imported || importJson.imported < 4) {
-    throw new Error(`Seed import reported ${importJson.imported ?? 0} sessions imported, expected 4: ${JSON.stringify(importJson)}`);
+  if (!importJson.imported || importJson.imported < 6) {
+    throw new Error(`Seed import reported ${importJson.imported ?? 0} sessions imported, expected 6: ${JSON.stringify(importJson)}`);
   }
 
-  return { baseURL, dataDir, fixtureDir, sessionId, miniAlphaId, miniBravoId, miniMinorId, pid: proc.pid ?? -1, proc };
+  return {
+    baseURL, dataDir, fixtureDir, sessionId, miniAlphaId, miniBravoId, miniMinorId,
+    spanningSessionId, todayOnlySessionId, pid: proc.pid ?? -1, proc,
+  };
 }
 
 export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir'>): void {

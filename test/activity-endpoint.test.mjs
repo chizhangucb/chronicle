@@ -44,6 +44,16 @@ function rhythmEvents(baseMs, model, extra = []) {
   return [...events, ...extra];
 }
 
+// Assistant-only events (no human 'user' turns, so every inter-message gap counts toward
+// agent_active_ms — see server/durations.ts) at explicit absolute timestamps, spaced days
+// apart. Used for the spanning-session fixture below, whose messages straddle a window
+// cutoff many days out — rhythmEvents' fixed 2-min spacing can't reach that far.
+function spanEvents(timestampsMs, model, tokensPerMsg) {
+  return timestampsMs.map((ms, i) => ({
+    kind: 'assistant', model, ts: iso(ms), input_tokens: tokensPerMsg, output_tokens: 0, text: `span msg ${i}`,
+  }));
+}
+
 const MODEL = 'claude-sonnet-5';
 function usageJson(input) {
   return JSON.stringify({ [MODEL]: { input, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } });
@@ -91,6 +101,25 @@ before(async () => {
       rhythmEvents(base, MODEL),
     );
   }
+
+  // --- P0 regression fixture (feedback-round Task 2 review finding): a session whose
+  // started_at predates a window cutoff but whose ended_at (and some messages) fall
+  // INSIDE it — the burn tile's windowSpendTokensByModel must include its in-window
+  // share, not exclude it entirely (old bug) or count its FULL usage (would defeat the
+  // point of scaling). Deliberately anchored at days=10 (started 15d ago, ended 8d ago,
+  // messages straddling the 10-day cutoff at ~9.5d ago) — a window strictly BETWEEN the
+  // "Today" and "7d" windows the other tests pin exact totals for, so this fixture
+  // contributes ZERO to those (both its started_at and ended_at sit outside every
+  // window <=7d, and outside medianBaseline's/prior-7d's <=14d-back range on the near
+  // side) and doesn't perturb any existing assertion in this file.
+  const spannerBefore = [14, 13.5, 13, 12.5, 12, 11].map((d) => now - d * DAY); // before the 10d cutoff
+  const spannerAfter = [9.5, 9, 8.8, 8.6, 8.4, 8.2].map((d) => now - d * DAY);  // after the 10d cutoff, before ended_at
+  replaceSession(
+    { id: 'spanner10d', project_id: p.id, source: 'claude-code', file_path: '/tmp/spanner10d.jsonl',
+      started_at: iso(now - 15 * DAY), ended_at: iso(now - 8 * DAY),
+      usage: usageJson(4000) },
+    spanEvents([...spannerBefore, ...spannerAfter], MODEL, 10),
+  );
 
   const app = express();
   mountActivity(app);
@@ -184,6 +213,52 @@ test('burn window spend + baseline (7d): current 7d vs prior 7d', async () => {
   assert.equal(tok(r.burn.windowSpendTokensByModel), 27000);
   // prior 7d = d8..d13 = (8+9+10+11+12+13)*1000 = 63000
   assert.equal(tok(r.burn.baselineTokensByModel), 63000);
+});
+
+test('burn window spend (10d, P0 regression): a session that started before the cutoff but ended inside it contributes its in-window share, not zero and not its full usage', async () => {
+  const r = await getActivity({ days: 10, since: iso(now - 30 * 60000) });
+  // The 10d window also picks up the other fixture sessions that overlap it: s_live(1000)
+  // + s_left(5000) + d1..d6,d8,d9 (d7/d11-14 fall outside — see the daily-fixture comment
+  // above) = (1+2+3+4+5+6+8+9)*1000 = 38000 + 6000 = 44000, UNAMBIGUOUSLY (comfortable
+  // margin either side of the 10-day cutoff, like every other day used elsewhere in this
+  // file). d10 is the one exception: it's excluded from that fixed sum and handled
+  // dynamically below.
+  //
+  // TIME-OF-DAY FLAKE (review finding, feedback-round round 2): `dayAt(d)` anchors the
+  // daily fixtures to UTC MIDNIGHT (`todayMidnight - d*DAY + 12h`, needed for the
+  // calendar-day median-baseline bucketing other tests in this file rely on), while the
+  // production `days:10` cutoff used by the route under test is a ROLLING window anchored
+  // to real `Date.now()` (`now - 10*DAY` — server/activity.ts computeActivity). These two
+  // anchors diverge by up to ±12h depending on wall-clock time-of-day. Every OTHER day
+  // offset used in this file (d1..d9, d11..d14) has enough margin from its own window
+  // boundary that the ±12h drift never flips its inclusion — d10 is the only one placed
+  // EXACTLY on the days:10 boundary, so whether it's in or out of the window is genuinely
+  // ambiguous at the instant this test runs (confirmed live: this assertion read 46000 at
+  // 12:31 UTC and would read 56000 before ~12:00 UTC, a deterministic — not random —
+  // divergence tied to time-of-day, not flakiness in the underlying overlapGate logic).
+  //
+  // Fix: mirror the EXACT production comparison (server/windowUsage.ts `overlapGate`:
+  // `COALESCE(ended_at, started_at, '9') >= cutoff`) to decide d10's inclusion dynamically,
+  // instead of hardcoding a snapshot that only holds on one side of UTC noon. d10's own
+  // session is a tight 22-minute span (see rhythmEvents above), so unlike spanner10d it is
+  // essentially always all-in or all-out, never partially scaled — except in the residual
+  // ~22-minutes-out-of-24-hours edge where the cutoff itself lands inside that span, which
+  // is accepted here as the same class of low-probability risk already accepted elsewhere
+  // in this codebase (e.g. helpers.ts's "first 35 minutes after local midnight" comment).
+  const d10EndedAtMs = dayAt(10) + 22 * 60000;
+  const cutoff10Ms = now - 10 * DAY;
+  const d10Included = d10EndedAtMs >= cutoff10Ms;
+  const baselineExcludingSpanner = 44000 + (d10Included ? 10000 : 0);
+  // spanner10d: billed input=4000; 12 messages @10 tokens each (120 total), 6 before the
+  // 10d cutoff and 6 after → in-window ratio 6/12 = 0.5 → windowed cell = 2000 (this split
+  // is itself anchored to real `now`, same as the route's cutoff, so it's never ambiguous).
+  const total = tok(r.burn.windowSpendTokensByModel);
+  assert.equal(
+    total, baselineExcludingSpanner + 2000,
+    `must equal baseline(${baselineExcludingSpanner}, d10Included=${d10Included}) + spanner10d's scaled in-window share(2000)`,
+  );
+  assert.ok(total > baselineExcludingSpanner, 'spanner10d must not be dropped entirely (the P0 bug: old gate excluded it)');
+  assert.ok(total < baselineExcludingSpanner + 4000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-window share)');
 });
 
 test('minor sessions are excluded from the window aggregates', async () => {

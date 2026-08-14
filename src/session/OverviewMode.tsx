@@ -38,6 +38,9 @@ export interface OverviewModeProps {
   // Switch SessionView into the session-scoped Content panel (Task 5e-4's
   // "See what filled the context" link). Optional for the same reason as above.
   onOpenContent?: () => void;
+  // Drill into Playback, filtered to the erroring tool results + their paired
+  // tool_use calls (see the Errors KPI below). Optional for the same reason as above.
+  onOpenErrors?: () => void;
 }
 
 // Session ID with one-click copy (shown on the session home page).
@@ -113,7 +116,7 @@ interface CostAgg {
   cacheHitPct: number | null;
 }
 
-export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent, onOpenContent }: OverviewModeProps): JSX.Element {
+export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent, onOpenContent, onOpenErrors }: OverviewModeProps): JSX.Element {
   const { session } = data;
 
   // Inline rename (edit-in-place). Avoids the native window.prompt dialog, which
@@ -314,13 +317,20 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
       <div className="kpis">
         <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
-        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
+        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
         <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.')} /></div>
           <div className="v">{fmtDur(engagedMs)}</div><div className="s">{t('your attention')}</div></div>
         <div className="kpi"><div className="l">{t('Messages')}</div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} {t('prompts')}</div></div>
-        <div className={`kpi ${stats.errors > 0 ? 'warn' : ''}`}><div className="l">{t('Errors')}</div><div className="v">{stats.errors}</div><div className="s">{errorPct}% {t('of results')}</div></div>
+        <div className={`kpi ${stats.errors > 0 ? 'warn drill' : ''}`}
+          role={stats.errors > 0 ? 'button' : undefined}
+          tabIndex={stats.errors > 0 ? 0 : undefined}
+          title={stats.errors > 0 ? t('View erroring tool calls in Playback') : undefined}
+          onClick={stats.errors > 0 ? () => onOpenErrors?.() : undefined}
+          onKeyDown={stats.errors > 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenErrors?.(); } } : undefined}>
+          <div className="l">{t('Errors')}</div><div className="v">{stats.errors}</div><div className="s">{errorPct}% {t('of results')}</div>
+        </div>
         {ctxPctRounded !== null && (
           <div className="kpi"><div className="l">{t('Peak context')}</div><div className="v">{ctxPctRounded}%</div><div className="s">{fmtCtx(ctxWindow || 0)} {t('window')}</div></div>
         )}
@@ -385,7 +395,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="card">
           <h3>{t('Tool mix')}</h3>
           {toolMix.length > 0 ? toolMix.slice(0, 6).map((row, i) => (
-            <div className="hbar" key={row.name}><span className="n">{FRIENDLY_CALL[row.name] ?? row.name}</span>
+            <div className="hbar" key={row.name}><span className="n" title={FRIENDLY_CALL[row.name] ?? row.name}>{FRIENDLY_CALL[row.name] ?? row.name}</span>
               <div className="track"><div className="fill" style={{ width: `${(row.count / maxToolCount) * 100}%`, background: CATEGORICAL_COLORS[i % 5] }} /></div>
               <span className="v num">{row.count}</span></div>
           )) : <div className="muted small">{t('No tool calls recorded.')}</div>}
@@ -405,7 +415,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                   <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} {fmtMoney(s.value, 0)}</span>
                 ))}
               </div>
-              <h3 style={{ marginTop: 12 }}>{t('Cache behavior')}</h3>
+              <h3>{t('Cache behavior')}</h3>
               <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · {fmtMoney(costAgg.cacheReadCost, 2)}</b></div>
               <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · {fmtMoney(costAgg.cw5mCost, 2)}</b></div>
               {costAgg.cw1h > 0 && (
@@ -478,7 +488,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           {stats.timeline.map((e) => (
             <div key={e.seq} className="trow">
               <span className="k num">{e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
-              <span className="t">{e.label}{e.preview ? ` — ${e.preview}` : ''}</span>
+              <span className="t" title={`${e.label}${e.preview ? ` — ${e.preview}` : ''}`}>{e.label}{e.preview ? ` — ${e.preview}` : ''}</span>
             </div>
           ))}
           {!stats.timeline.length && <div className="muted small">{t('No tool calls recorded.')}</div>}
@@ -489,7 +499,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           {stats.filesTouched.map((f) => (
             <div key={f.path} className="trow">
               <span className="k num">{f.count}Δ</span>
-              <span className="t">{f.path}</span>
+              <span className="t" title={f.path}>{f.path}</span>
             </div>
           ))}
           {!stats.filesTouched.length && <div className="muted small">{t('No files touched.')}</div>}
@@ -503,7 +513,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                 role="button" tabIndex={0}
                 onClick={() => onOpenSubagent?.(r.agentType)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSubagent?.(r.agentType); } }}>
-                <span className="t">{r.agentType}</span>
+                <span className="t" title={r.agentType}>{r.agentType}</span>
                 <span className="k num">×{r.turns}</span>
                 <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)}</b>
                 <span className="subagent-arrow">→</span>

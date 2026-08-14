@@ -1,13 +1,15 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams } from './api.ts';
-import { t } from './i18n.ts';
+import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams, type ExploreRollup } from './api.ts';
+import { t, lang } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf } from './models.ts';
 import { fmtMoney } from './format.ts';
+import { fmtHourOfDay, densifyBuckets, capDenseBuckets, type BucketUnit } from './charts/timeBuckets.ts';
+import { bucketLabel } from '@shared/bucketLabel.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
@@ -37,6 +39,18 @@ function fmtTok(tokens: number): string {
 }
 function fmtHours(ms: number): string {
   return (ms / 3600000).toFixed(1);
+}
+
+// Format a subgroup label value based on the subgroup type. For hour subgroups,
+// formats the hour number (0–23) as "9 AM" / "10 PM"; for others, returns the
+// label as-is. If no label is available (subgroupLabelByKey miss), falls back to
+// the key itself.
+function fmtSubgroupLabel(key: string, label: string | undefined, subgroup: string): string {
+  const displayLabel = label ?? key;
+  if (subgroup === 'hour') {
+    return fmtHourOfDay(displayLabel, lang());
+  }
+  return displayLabel;
 }
 
 // These read only the metric-agnostic aggregate fields, so they accept either a
@@ -117,7 +131,9 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   };
   const { data: result } = useCachedFetch<ExploreResult>(exploreUrl(params));
 
-  const rangeLabel = days ? `${days}d` : t('All');
+  // days<1 (e.g. fractional days-since-local-midnight for "Today") reads as
+  // "Today" rather than a fractional day count like "0.9960218055555555D".
+  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
   const metricChipLabel = useMemo(() => metricOptions().find((o) => o.key === pivot.metric)?.label ?? pivot.metric, [pivot.metric]);
   const groupChipLabel = useMemo(() => groupOptions().find((o) => o.key === pivot.group)?.label ?? pivot.group, [pivot.group]);
   const subgroupChipLabel = useMemo(
@@ -185,16 +201,48 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // faithful passthrough of the source data.
   const rowDisplayLabel = (row: ExploreRow): string =>
     (pivot.group === 'model' && row.key === '<synthetic>') ? t('client-generated') : row.label;
+  // Server bucket-key unit per effective rollup, for densifyBuckets. 'total'
+  // never reaches here (result.buckets is undefined for it).
+  const ROLLUP_UNIT: Record<Exclude<ExploreRollup, 'total'>, BucketUnit> = {
+    hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
+  };
+  // Defensive cap on the dense-filled series (review finding #1): hourly
+  // never coarsens server-side, so an hourly rollup over a multi-year "All"
+  // range densifies to tens of thousands of rows (verified: an 11-year span
+  // → 101,821 entries) — unsafe to feed wholesale into <BarChart>/<Brush>.
+  // Keep the most RECENT MAX_DENSE_BUCKETS and say so via a card-subtitle
+  // note (same visual pattern as the "too dense — showing <coarser>" note
+  // just above this chart).
+  const MAX_DENSE_BUCKETS = 2000;
   // One Recharts row per bucket: { bucket: label, [seriesKey]: metricValue }.
-  // Series set = the ranked rows (topN + Other), so the stack matches the table.
-  const chartData = useMemo(() => {
-    if (!result?.buckets) return [];
-    return result.buckets.map((b) => {
-      const row: Record<string, string | number> = { bucket: b.label };
-      for (const { row: r } of ranked) { const cell = b.series[r.key]; row[r.key] = cell ? metricValue(cell, pivot.metric) : 0; }
+  // Series set = the ranked rows (topN + Other), so the stack matches the
+  // table. D12: server/explore.ts only returns buckets that have data, so a
+  // long idle gap used to collapse to equal spacing between distant buckets,
+  // misrepresenting time. Zero-fill from the earliest to the latest bucket
+  // KEY (not label) via the shared densifyBuckets helper (Task 3), then look
+  // up each dense key's real bucket if present — a missing one renders as an
+  // all-zero row with a label formatted the SAME way the server would have
+  // (shared/bucketLabel.ts), so a gap bar looks identical in style to a real
+  // one, just empty. capDenseBuckets then bounds the result to the most
+  // recent MAX_DENSE_BUCKETS keys.
+  const rollupChart = useMemo(() => {
+    if (!result?.buckets) return { rows: [] as Record<string, string | number>[], truncated: false, total: 0 };
+    const byKey = new Map(result.buckets.map((b) => [b.bucket, b]));
+    const unit = ROLLUP_UNIT[result.rollup as Exclude<ExploreRollup, 'total'>];
+    const denseKeys = densifyBuckets(result.buckets.map((b) => b.bucket), unit);
+    const capped = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
+    const rows = capped.keys.map((key) => {
+      const b = byKey.get(key);
+      const row: Record<string, string | number> = { bucket: b ? b.label : bucketLabel(key) };
+      for (const { row: r } of ranked) {
+        const cell = b?.series[r.key];
+        row[r.key] = cell ? metricValue(cell, pivot.metric) : 0;
+      }
       return row;
     });
+    return { rows, truncated: capped.truncated, total: capped.total };
   }, [result, ranked, pivot.metric]);
+  const chartData = rollupChart.rows;
   // Recharts <Brush> default window for the hourly rollup — hourly never
   // coarsens server-side any more (see server/explore.ts), so a wide range
   // can return hundreds/thousands of buckets; the brush keeps the plot
@@ -203,7 +251,17 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // shows everything, no negative startIndex.
   const brushStartIndex = Math.max(0, chartData.length - 72);
   const brushEndIndex = Math.max(0, chartData.length - 1);
-  const showBrush = result?.rollup === 'hourly' && chartData.length > 0;
+  // daily/weekly/monthly are normally kept legible by server-side cap
+  // coarsening (COUNT(DISTINCT bucket) over the buckets that actually HAVE
+  // data — see server/explore.ts's cap-coarsening comment), which is why they
+  // historically never needed a brush. But that cap is computed pre-densify:
+  // a sparse range (e.g. 20 active days spread across a full year) can still
+  // pass the sparse cap and then balloon once dense-filled with the empty
+  // days/weeks/months in between. Reuse the same brush for that edge case
+  // rather than leaving those rollups unbounded once dense.
+  const DENSE_BRUSH_THRESHOLD = 90; // mirrors server/explore.ts ROLLUP_BUCKET_CAP
+  const showBrush = chartData.length > 0
+    && (result?.rollup === 'hourly' || chartData.length > DENSE_BRUSH_THRESHOLD);
   const otherRow = ranked.find(({ row }) => row.key === 'Other');
   const fmtChartValue = (v: number): string => {
     if (pivot.metric === 'spend') return fmtMoney(v, 0);
@@ -248,6 +306,11 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               )}
               {result.rollup !== result.requestedRollup && (
                 <span className="muted small"> · {ROLLUP_LABEL[result.requestedRollup]} {t('too dense — showing')} {ROLLUP_LABEL[result.rollup]}</span>
+              )}
+              {rollupChart.truncated && (
+                <span className="muted small">
+                  {' '}· {t('showing the most recent')} {MAX_DENSE_BUCKETS.toLocaleString()} {t('of')} {rollupChart.total.toLocaleString()} {t('buckets')}
+                </span>
               )}
             </h3>
             {result.buckets ? (
@@ -298,9 +361,16 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <span className="n" title={rowDisplayLabel(row)}>{rowDisplayLabel(row)}</span>
                       <div className="track">
                         {row.segments.length > 0 && segTotal > 0
-                          ? row.segments.map((seg) => (
-                            <i key={seg.key} style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }} />
-                          ))
+                          ? row.segments.map((seg) => {
+                            const fmtLabel = fmtSubgroupLabel(seg.key, seg.label, pivot.subgroup);
+                            return (
+                              <i
+                                key={seg.key}
+                                title={`${fmtLabel}: ${fmtTok(seg.tokens)}`}
+                                style={{ width: `${(seg.tokens / segTotal) * totalBarPct}%`, background: segColor(seg.key) }}
+                              />
+                            );
+                          })
                           : <i style={{ width: `${totalBarPct}%`, background: 'var(--c1)' }} />}
                       </div>
                       <span className="v">{fmtMetricValue(row, pivot.metric)}</span>
@@ -311,9 +381,18 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 {!ranked.length && <div className="muted small">{t('No sessions in range.')}</div>}
                 {subgroupChipLabel && subgroupKeys.length > 0 && (
                   <div className="legend">
-                    {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => (
-                      <span key={key}><span className="dot" style={{ background: segColor(key) }} />{subgroupLabelByKey.get(key) ?? key}</span>
-                    ))}
+                    {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => {
+                      const label = fmtSubgroupLabel(key, subgroupLabelByKey.get(key), pivot.subgroup);
+                      return (
+                        <span key={key}><span className="dot" style={{ background: segColor(key) }} />{label}</span>
+                      );
+                    })}
+                    {subgroupKeys.length > CATEGORICAL_COLORS.length && (
+                      <span style={{ color: 'var(--ink-3)' }}>
+                        <span className="dot" style={{ background: 'var(--ink-3)' }} />
+                        + {subgroupKeys.length - CATEGORICAL_COLORS.length} {t('more')}
+                      </span>
+                    )}
                   </div>
                 )}
               </>

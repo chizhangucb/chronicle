@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
 import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
-import { liveCandidatesForSessions, liveWatcherSessionIds } from '../live.ts';
+import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
+import { overlapGate, windowedUsage, type WindowedUsageCell } from '../windowUsage.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -55,6 +56,25 @@ export function mountProjects(app: Express): void {
       const rows = db.prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
       for (const r of rows) liveProjectIds.add(r.project_id);
     }
+    // Source-log freshness (Task 16): an active CLI session that nobody has
+    // open in Chronicle has neither an open live watcher nor a recent
+    // ended_at (that only updates on import), so the two checks above miss
+    // it entirely. A running session keeps writing its source log though —
+    // fall back to statting the file mtime of each project's MOST RECENT
+    // session (SQLite's documented bare-column behavior: with exactly one
+    // MAX() aggregate in the query, the non-aggregated columns are taken
+    // from the row that produced the max — see sqlite.org/lang_select.html
+    // #bare_columns_in_an_aggregate_query), so this is one cheap stat per
+    // project, not per session.
+    const latestFiles = db.prepare(`
+      SELECT project_id, file_path, MAX(started_at) AS started_at
+      FROM sessions WHERE COALESCE(minor, 0) = 0
+      GROUP BY project_id`).all() as unknown as { project_id: number; file_path: string | null }[];
+    for (const r of latestFiles) {
+      if (!liveProjectIds.has(r.project_id) && r.file_path && isLiveCandidate(r.file_path)) {
+        liveProjectIds.add(r.project_id);
+      }
+    }
     res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) })));
   });
 
@@ -72,13 +92,19 @@ export function mountProjects(app: Express): void {
       // Optional time range (?days=7/30/365) — filters sessions and all analytics.
       const days = Number(req.query.days) || null;
       const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
+      // null (not '') for the windowed-usage primitive — see server/insights.ts's comment
+      // on the same pattern for why (cutoffIso===null is windowedUsage's "All window" signal).
+      const cutoffIso = days ? cutoff : null;
       // Minor (noise-gated) sessions are excluded from this main list — they
       // live in the global "minor sessions" bucket (GET /api/sessions/minor)
       // until promoted or ignored.
+      // overlapGate (Task 2, the P0 fix — see server/windowUsage.ts): a session that
+      // started before the window but ran INTO it (e.g. spans midnight into "Today")
+      // still counts — replaces the old started_at-only gate that dropped it entirely.
       const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
           (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
            FROM messages m WHERE m.session_id = sessions.id) AS char_count
-        FROM sessions WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0 ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
+        FROM sessions WHERE project_id = ? AND ${overlapGate('sessions')} AND COALESCE(minor, 0) = 0 ORDER BY started_at DESC`).all(project.id, cutoff) as unknown as RawSessionRow[];
       const liveIds = liveCandidatesForSessions(rawSessions);
       // "Ongoing" = the source log was written to in the last 10 minutes — the
       // session is likely still in progress (auto-sync keeps it fresh; stats read
@@ -92,23 +118,40 @@ export function mountProjects(app: Express): void {
       // CROSS JOIN pins sessions as the outer loop so messages come from the
       // covering idx_messages_agg index instead of a full table scan — same
       // perf-fix shape as server/insights.ts (see the index comment in db.ts).
+      // overlapGate on session inclusion + `m.ts >= ?` restricts message-level
+      // aggregates to messages that actually fall in-window (Task 2).
       const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
-        GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
+        WHERE s.project_id = ? AND ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL AND m.ts >= ?
+        GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff, cutoff);
       const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
-      const activity = db.prepare(`SELECT substr(m.ts, 1, 10) AS day, COUNT(*) AS count
+        WHERE s.project_id = ? AND ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.ts >= ? GROUP BY m.kind`).all(project.id, cutoff, cutoff);
+      // LOCAL-time bucket keys (Task 2 / plan's timezone convention) — see
+      // server/insights.ts's dailyActivity for the same fix.
+      const activity = db.prepare(`SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL
-        GROUP BY day ORDER BY day`).all(project.id, cutoff);
+        WHERE s.project_id = ? AND ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.ts IS NOT NULL AND m.ts >= ?
+        GROUP BY day ORDER BY day`).all(project.id, cutoff, cutoff);
       // Precomputed at import (db.ts replaceSession, shared server/errors.ts
-      // heuristic) — no per-request regex over tool_result heads.
+      // heuristic) — no per-request regex over tool_result heads. Session-level
+      // (no messages join), so only the overlap gate applies.
+      // KNOWN WINDOWING TRADEOFF (same as server/insights.ts's errorsByProject, see
+      // that comment for the full rationale): error_count is a WHOLE-SESSION
+      // precomputed total, not scaled to the in-window share the token magnitudes get
+      // via windowedUsage — overlapGate makes a spanning session correctly visible for
+      // "Today", but its error count is its FULL historical count. There's no
+      // per-message error timestamp to cheaply re-slice by without re-running the
+      // tool_result/tool_use pairing join per request (the exact cost this precomputed
+      // column exists to avoid).
       const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
-        WHERE project_id = ? AND COALESCE(started_at, '9') >= ? AND COALESCE(minor, 0) = 0`)
+        WHERE project_id = ? AND ${overlapGate('sessions')} AND COALESCE(minor, 0) = 0`)
         .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
-      return { sessions, analyticsBase: { toolDist, kindDist, activity, errors }, cutoff };
+      // Windowed per-model billed cells (Task 2): the client (Task 3) prices these for the
+      // project KPIs instead of summing raw session.usage, so they agree with the session
+      // list above at every window, including a spanning session's partial in-window share.
+      const windowedTokensByModel: WindowedUsageCell[] = windowedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso);
+      return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, windowedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
     res.json({ project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),
