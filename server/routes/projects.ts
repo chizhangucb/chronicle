@@ -150,7 +150,7 @@ export function mountProjects(app: Express): void {
       // Windowed per-model billed cells (Task 2): the client (Task 3) prices these for the
       // project KPIs instead of summing raw session.usage, so they agree with the session
       // list above at every window, including a spanning session's partial in-window share.
-      const windowedTokensByModel: WindowedUsageCell[] = windowedUsage(db, 'AND s.project_id = ?', [project.id], cutoffIso);
+      const windowedTokensByModel: WindowedUsageCell[] = windowedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso);
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, windowedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);

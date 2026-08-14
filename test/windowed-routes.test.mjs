@@ -90,6 +90,20 @@ before(async () => {
     spanEvents(todayOffsets, 10),
   );
 
+  // minor: a minor session (agent_active_ms < 5min) with non-zero usage in-window,
+  // to verify the windowed KPI call correctly excludes minor sessions. This session
+  // should be excluded from all windowed aggregates even though it has tokens.
+  const minorOffsets = [-1 * HOUR, -50 * 60000];
+  replaceSession(
+    {
+      id: 'minor', project_id: projectId, source: 'claude-code', file_path: '/tmp/minor.jsonl',
+      started_at: iso(now - 1 * HOUR), ended_at: iso(now - 50 * 60000),
+      usage: JSON.stringify({ [MODEL]: { input: 500, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } }),
+      minor: 1,
+    },
+    spanEvents(minorOffsets, 10),
+  );
+
   const app = express();
   mountProjects(app);
   await new Promise((resolve) => {
@@ -163,6 +177,23 @@ test('windowed token totals reconcile EXACTLY across insights/projects/explore/c
   assert.equal(insightsTotal, contentTotal, 'insights and content must agree exactly (both source windowedUsage input+output)');
 
   // Full precision: spanner contributes exactly half its billed 1000 (6/12 in-window
-  // messages) + today contributes its full billed 200 = 700.
+  // messages) + today contributes its full billed 200 = 700. Minor session is excluded.
   assert.equal(insightsTotal, 700);
 });
+
+test('minor sessions are excluded from windowed KPI queries', async () => {
+  // The insights result excludes minor sessions — this is the baseline.
+  const insightsResult = await insightsModule.computeInsights(WINDOW_DAYS);
+  const insightsTotal = sumWindowedCells(insightsResult.windowedTokensByModel);
+
+  // The projects/:id windowed query must also exclude minor sessions and
+  // reconcile exactly with insights.
+  const res = await fetch(`${baseUrl}/projects/${projectId}?days=${WINDOW_DAYS}`);
+  const projectsResult = await res.json();
+  const projectsTotal = sumWindowedCells(projectsResult.analytics.windowedTokensByModel);
+
+  // Totals must match: both exclude the minor session (500 tokens).
+  assert.equal(projectsTotal, insightsTotal, 'projects windowed KPI must exclude minor sessions and reconcile with insights');
+  assert.equal(projectsTotal, 700, 'total must be 700 (spanner 500 + today 200), excluding minor session');
+});
+

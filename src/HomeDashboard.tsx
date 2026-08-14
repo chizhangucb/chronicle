@@ -17,7 +17,7 @@ import InfoTip from './InfoTip.tsx';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
-import { densifyBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
+import { densifyBuckets, capDenseBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, sumFields, type BucketedCell } from './windowedUsage.ts';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
@@ -425,6 +425,11 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
+  // Max densified buckets for the spend chart (cap to prevent runaway rendering).
+  // This matches ExploreTab's cap; for daily/hourly-bounded windows this is rarely
+  // approached, so we cap silently without a UI note.
+  const MAX_DENSE_BUCKETS = 2000;
+
   // ---- Spend over time · stacked by project (top 5 by spend in range + Other) ----
   // Windowed cells (Task 2/3), not raw `s.usage`: a session that started before
   // the window but ran INTO it contributes only its in-window share, so this
@@ -453,7 +458,10 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     const byBucket = groupByBucket(cells);
     // D12: dense-fill every bucket from first to last present, so equal bar
     // spacing represents equal time even when some hours/days had no spend.
-    const bucketKeys = densifyBuckets([...byBucket.keys()], spendBucketUnit);
+    // Cap to MAX_DENSE_BUCKETS to prevent runaway rendering on very long
+    // time series (matches ExploreTab's approach).
+    const denseKeys = densifyBuckets([...byBucket.keys()], spendBucketUnit);
+    const { keys: bucketKeys } = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
     const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
     return bucketKeys.map((bucket) => {
       const byGroupModel = sumByKeyModel(
