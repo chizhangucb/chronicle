@@ -260,6 +260,55 @@ test('entering session select exits an active project select, and vice versa —
   await expect(page.locator('.projects-page .rail-proj').first()).not.toHaveClass(/selectable/);
 });
 
+// ── Task 20 review (Important #1) — the project-select -> session-select
+// switch must NOT unmount/remount the shared `.command-bar` (which would
+// replay its `command-bar-in` entrance animation). The reverse direction
+// (session -> project) was already immune: `projSelect.selectMode` flips
+// true in the SAME synchronous commit as `recentSelect.selectMode` flips
+// false, so `showCommandBar`'s OR is satisfied without waiting on
+// RecentLedger's `onSelectModeChange` notification. The broken direction
+// depended on that notification landing in the SAME commit — fixed by
+// switching it from `useEffect` to `useLayoutEffect` (RecentLedger.tsx).
+// Verified here via DOM node identity (a marker survives iff the same node
+// persisted) and `getAnimations()` (no re-triggered entrance animation),
+// not just text polling — a passing text-content assertion alone would not
+// have caught the original bug (the bar's CONTENT was always correct after
+// the fact; only its DOM identity/animation briefly glitched).
+test('switching project-select -> session-select does not unmount the command bar or replay its entrance animation', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+
+  await page.locator('.projects-page .right-rail .right-rail-head').getByRole('button', { name: /Select/ }).click();
+  const bar = page.locator('.projects-page .projects-content > .command-bar');
+  await expect(bar).toContainText('projects selected');
+  // Let the entrance animation (150ms) fully finish before switching, so a
+  // "still running from the FIRST mount" false negative can't masquerade as
+  // "never replayed".
+  await page.waitForTimeout(250);
+
+  // Mark the live DOM node. A freshly-created replacement node (unmount +
+  // remount) would NOT carry this — custom properties don't survive a node
+  // being torn down and a new one taking its place.
+  await bar.evaluate((el) => { (el as unknown as { __pr2cMarker?: string }).__pr2cMarker = 'original-node'; });
+
+  // Trigger the previously-buggy switch.
+  await page.locator('.projects-page .recent-ledger .page-title-row').getByRole('button', { name: '☑ Select', exact: true }).click();
+  await expect(bar).toContainText('sessions selected');
+
+  const identity = await page.evaluate(() => {
+    const el = document.querySelector('.projects-page .projects-content > .command-bar') as (HTMLElement & { __pr2cMarker?: string }) | null;
+    if (!el) return { present: false, sameNode: false, runningEntrance: false };
+    const runningEntrance = el.getAnimations().some((a) => {
+      const name = 'animationName' in a ? (a as unknown as { animationName?: string }).animationName : undefined;
+      return name === 'command-bar-in' && a.playState === 'running';
+    });
+    return { present: true, sameNode: el.__pr2cMarker === 'original-node', runningEntrance };
+  });
+  expect(identity.present, 'command bar must still be present').toBe(true);
+  expect(identity.sameNode, 'the SAME DOM node must persist across the switch (no unmount/remount)').toBe(true);
+  expect(identity.runningEntrance, 'the entrance animation must not replay').toBe(false);
+});
+
 // ── Task 20 (D14) drift-pin: reflow — chrome leaves at <1100px, boxed
 // "Projects" section BELOW the ledger (ledger stays first, D1/D13) ───────────
 test('projects layout stacks the ledger above a BOXED "Projects" section below 1100px', async ({ page }) => {

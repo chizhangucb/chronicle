@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { t } from './i18n.js';
@@ -223,10 +223,49 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   // `onBeforeEnter` for the reverse direction). `exitRef` mirrors the
   // existing `loadMoreRef` pattern above: keep a ref pointed at the latest
   // closure, expose a stable wrapper that always calls through it.
-  useEffect(() => { onSelectModeChange?.(recentSelect.selectMode); }, [recentSelect.selectMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  //
+  // Task 20 review, traced + fixed: switching project-select -> session-select
+  // used to unmount and remount the shared `.command-bar` (replaying its
+  // entrance animation), because `showCommandBar` in ProjectsPage
+  // (`sessionSelectActive || projSelect.selectMode`) briefly computed FALSE
+  // mid-switch. `projSelect.selectMode` flips false SYNCHRONOUSLY (inside
+  // `recentSelect.enterSelect()` below, via `onBeforeEnterSelect`), but
+  // `sessionSelectActive` — the mirror of THIS ledger's `recentSelect.
+  // selectMode` — used to only update via an effect watching it AFTER the
+  // fact. Switching that effect from `useEffect` to `useLayoutEffect` was
+  // NOT enough: React had already committed a real DOM mutation removing
+  // `.command-bar` in the FIRST commit (the one containing the click's own
+  // batched state updates), and re-adding it in a SECOND commit (triggered
+  // by the layout effect) creates a genuinely NEW DOM node — proven by a
+  // Playwright check that marks the live node and confirms identity survives
+  // (test/e2e/projects.spec.ts). Flushing both commits before paint hides it
+  // from the human eye but does not stop the browser from starting the CSS
+  // entrance animation over on the replacement node.
+  //
+  // The actual fix: notify `onSelectModeChange` SYNCHRONOUSLY, inside the
+  // SAME click handler that flips `recentSelect.selectMode` (`handleEnter`
+  // below), so `sessionSelectActive` and `projSelect.selectMode` land in the
+  // exact same React batch/commit as each other — `showCommandBar` never
+  // computes false at any point, so React's reconciler sees the SAME
+  // `.command-bar` position true-before/true-after and reuses the same DOM
+  // node (only its portaled CHILD content swaps). The reverse direction
+  // (session -> project) never needed this: `projSelect.selectMode` itself
+  // flips true in the very same synchronous commit that flips
+  // `recentSelect.selectMode` false (both owned/triggered directly in
+  // ProjectsPage), so the OR is already satisfied without any round-trip.
+  // The `useLayoutEffect` stays as a general safety net (e.g. a completed
+  // Remove exits select mode from inside the hook's own async delete flow,
+  // not from a RecentLedger click handler) — redundant-but-harmless on the
+  // paths `handleEnter` already covers synchronously (same value, no-op).
+  useLayoutEffect(() => { onSelectModeChange?.(recentSelect.selectMode); }, [recentSelect.selectMode]); // eslint-disable-line react-hooks/exhaustive-deps
   const exitRef = useRef(recentSelect.exitSelect);
   exitRef.current = recentSelect.exitSelect;
   useEffect(() => { onExposeExit?.(() => exitRef.current()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleEnterSelect() {
+    onSelectModeChange?.(true);
+    recentSelect.enterSelect();
+  }
 
   return (
     <section className="recent-ledger">
@@ -238,7 +277,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
         <h2 className="page-title">{t('Recent sessions')}</h2>
         {!recentSelect.selectMode && (
           <div className="page-title-actions">
-            <button className="btn small" onClick={recentSelect.enterSelect}>☑ {t('Select')}</button>
+            <button className="btn small" onClick={handleEnterSelect}>☑ {t('Select')}</button>
           </div>
         )}
       </div>

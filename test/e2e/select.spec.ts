@@ -58,6 +58,23 @@ async function enterSelectMode(page: Page): Promise<void> {
 }
 
 test.describe('bulk select — recent-sessions ledger (/projects)', () => {
+  // ── Task 20 review — Adopted #3: the rail's old boxed toolbar absence is
+  // pinned in projects.spec.ts ("The old in-rail boxed toolbar is gone");
+  // this closes the OTHER half — the ledger's own OLD in-list boxed
+  // `.select-toolbar` (the pre-PR-2c presentation, replaced by the shared
+  // `.command-bar`) must never render on `/projects`, at rest OR while
+  // selecting (its controls now portal into the command bar instead). ────
+  test('the ledger never renders its own OLD in-list .select-toolbar on /projects', async ({ page }) => {
+    await gotoProjects(page);
+    await expect(page.locator('.recent-ledger .select-toolbar')).toHaveCount(0);
+
+    await enterSelectMode(page);
+    // Still absent once selecting — the command bar (asserted via
+    // `enterSelectMode` above) is the only select-mode toolbar surface.
+    await expect(page.locator('.recent-ledger .select-toolbar')).toHaveCount(0);
+    await expect(page.locator('.select-toolbar')).toHaveCount(0);
+  });
+
   test('day-group header checkbox selects exactly that day\'s visible rows, tri-state via indeterminate', async ({ page }) => {
     await gotoProjects(page);
     await enterSelectMode(page);

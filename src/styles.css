@@ -409,7 +409,12 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .project-card { cursor: pointer; transition: border-color 0.15s; }
 .project-card:hover { border-color: var(--brass); }
 .project-card.selectable:hover { border-color: var(--brass); }
-.project-card.selected { border-color: var(--brass); background: rgba(192, 138, 30, 0.08); }
+/* `.project-card.selected` (dead — deleted, Task 20 review) used to set a
+   brass border+tint here, but no `.project-card` markup exists anywhere in
+   `src/` (the F2 rail restore removed the bordered card-grid this class
+   belonged to) — same "brass border on a selected row" pattern this task
+   killed live elsewhere (`.row.selected`/`.rail-proj.selected` below), just
+   an orphaned landmine with no call site left to hit it. */
 /* Shared with the session-row multi-select (src/SessionSelect.tsx — mounted
    in both the Home ledger stream and the project session list). ProjectDetail's
    session list still uses `.card session-row`; Home's ledger (5d-1) switched its
