@@ -567,7 +567,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               </div>
             );
           })}
-          <h3 style={{ marginTop: 14 }}>{t('Sources')}</h3>
+          <h3>{t('Sources')}</h3>
           {bySource.map((r, i) => {
             const max = bySource[0]?.value || 1;
             return (
@@ -595,7 +595,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               </div>
             );
           })}
-          <h3 style={{ marginTop: 14 }}>{t('Error rate by project')}</h3>
+          <h3>{t('Error rate by project')}</h3>
           {errorRateByProject.map((r, i) => {
             const max = errorRateByProject[0]?.value || 1;
             return (

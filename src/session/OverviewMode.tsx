@@ -405,7 +405,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                   <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} {fmtMoney(s.value, 0)}</span>
                 ))}
               </div>
-              <h3 style={{ marginTop: 12 }}>{t('Cache behavior')}</h3>
+              <h3>{t('Cache behavior')}</h3>
               <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · {fmtMoney(costAgg.cacheReadCost, 2)}</b></div>
               <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · {fmtMoney(costAgg.cw5mCost, 2)}</b></div>
               {costAgg.cw1h > 0 && (
