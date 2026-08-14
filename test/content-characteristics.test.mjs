@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
 
 let dbModule, teardown, content;
-let p2Id, p3Id; // project ids, set in before() — referenced by project-scoped tests below
+let p1Id, p2Id, p3Id; // project ids, set in before() — referenced by project-scoped tests below
 
 const T0 = Date.parse('2026-08-05T00:00:00.000Z');
 const iso = (offsetMs) => new Date(T0 + offsetMs).toISOString();
@@ -60,6 +60,7 @@ before(async () => {
   content = await import('../server/content.ts');
   const { upsertProject, replaceSession } = dbModule;
   const p1 = upsertProject('/tmp/proj-characteristics');
+  p1Id = p1.id;
 
   // ── s8h: a 9-hour marathon session, built from ONE long-running tool call.
   // agentActiveMs's rule "gap ending in a tool_result matched to a prior
@@ -334,13 +335,32 @@ before(async () => {
 });
 after(() => teardown());
 
+// D4 (feedback-round Task 12): at all/project scope, `.share` was renamed to
+// the generic `.value` (Characteristic now also carries label/why/info/format
+// so the client can render without switching on `key` — see server/content.ts).
+// At session scope, the four threshold predicates that always collapsed to a
+// meaningless 0%/100% at N=1 (eightHourSessions/highContextAbs/highContextRel/
+// autonomousShare) are REPLACED by absolute session facts
+// (marathonBadge/peakContextTokens/unattendedRatio); cacheEfficiency/
+// subagentTurns/workflowRuns carry over unchanged (real percentages even for
+// one session).
 describe('computeContent().characteristics — contract', () => {
-  test('result carries exactly the 7 keys from spec §2.5, in order', () => {
-    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
+  test('all/project scope: result carries exactly the 7 keys from spec §2.5, in order (highContextRel + subagentTurns lead, the old narrative callouts\' framing)', () => {
+    const r = content.computeContent({ type: 'project', id: p1Id }, null);
+    assert.equal(r.characteristicsScope, 'project');
     assert.deepEqual(r.characteristics.map((c) => c.key), [
-      'eightHourSessions', 'workflowRuns', 'subagentTurns',
-      'highContextAbs', 'highContextRel', 'cacheEfficiency', 'autonomousShare',
+      'highContextRel', 'subagentTurns', 'eightHourSessions',
+      'workflowRuns', 'highContextAbs', 'cacheEfficiency', 'autonomousShare',
     ]);
+  });
+
+  test('session scope: characteristicsScope is "session" and the four threshold predicates are gone', () => {
+    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
+    assert.equal(r.characteristicsScope, 'session');
+    const keys = r.characteristics.map((c) => c.key);
+    for (const dropped of ['eightHourSessions', 'highContextAbs', 'highContextRel', 'autonomousShare']) {
+      assert.ok(!keys.includes(dropped), `session scope should not carry ${dropped}`);
+    }
   });
 
   test('every characteristic is exact:true (all numerators are session-level or exact sidechain columns, never text-length calibration)', () => {
@@ -349,51 +369,51 @@ describe('computeContent().characteristics — contract', () => {
   });
 });
 
-describe('eightHourSessions + autonomousShare (s8h)', () => {
-  test('s8h (9h matched-tool-result gap) is 100% eightHourSessions and 100% autonomousShare in its own session scope', () => {
+describe('session-scope marathonBadge + unattendedRatio (s8h)', () => {
+  test('s8h (9h matched-tool-result gap): marathonBadge crosses 8h (~9.0h, warn), unattendedRatio ≈17% (well under 25%, warn)', () => {
     const r = content.computeContent({ type: 'session', id: 's8h' }, null);
-    const eightHour = findChar(r, 'eightHourSessions');
-    assert.equal(eightHour.share, 100);
-    assert.equal(eightHour.count, 1);
-    const autonomous = findChar(r, 'autonomousShare');
-    assert.equal(autonomous.share, 100);
-    assert.equal(autonomous.count, 1);
+    const marathon = findChar(r, 'marathonBadge');
+    assert.equal(marathon.value, 9);
+    assert.equal(marathon.count, 1);
+    assert.equal(marathon.warn, true);
+    const unattended = findChar(r, 'unattendedRatio');
+    assert.equal(unattended.value, 17); // 5,420,000 / 32,420,000 ≈ 16.7% -> rounds to 17
+    assert.equal(unattended.warn, true);
   });
 
-  test('s8h has zero workflow/subagent/context/cache characteristics (none of those signals are present)', () => {
+  test('s8h has zero workflow/subagent/cache facts and no peakContextTokens fact (no context_tokens stored)', () => {
     const r = content.computeContent({ type: 'session', id: 's8h' }, null);
-    for (const key of ['workflowRuns', 'subagentTurns', 'highContextAbs', 'highContextRel', 'cacheEfficiency']) {
+    for (const key of ['workflowRuns', 'subagentTurns', 'cacheEfficiency']) {
       const c = findChar(r, key);
-      assert.equal(c.share, 0, `${key} share should be 0`);
-      assert.equal(c.count, 0, `${key} count should be 0`);
+      assert.equal(c.value, 0, `${key} value should be 0`);
     }
+    assert.equal(r.characteristics.some((c) => c.key === 'peakContextTokens'), false);
   });
 });
 
-describe('highContextAbs vs highContextRel — absolute and relative thresholds diverge by design', () => {
-  test('sHighCtxAbs (200k ctx, 1M window): qualifies highContextAbs only', () => {
+describe('session-scope peakContextTokens folds the old abs/rel pair into one fact (sHighCtxAbs / sHighCtxRel)', () => {
+  test('sHighCtxAbs (200k ctx, 1M window): value=200000 tokens, value2=20% of window (well under the 70% warn line)', () => {
     const r = content.computeContent({ type: 'session', id: 'sHighCtxAbs' }, null);
-    assert.equal(findChar(r, 'highContextAbs').share, 100);
-    assert.equal(findChar(r, 'highContextAbs').count, 1);
-    assert.equal(findChar(r, 'highContextRel').share, 0);
-    assert.equal(findChar(r, 'highContextRel').count, 0);
+    const c = findChar(r, 'peakContextTokens');
+    assert.equal(c.value, 200_000);
+    assert.equal(c.value2, 20);
+    assert.equal(c.warn, false);
   });
 
-  test('sHighCtxRel (145k ctx, 200k window): qualifies highContextRel only', () => {
+  test('sHighCtxRel (145k ctx, 200k window): value=145000 tokens, value2=73% of window (past the 70% warn line)', () => {
     const r = content.computeContent({ type: 'session', id: 'sHighCtxRel' }, null);
-    assert.equal(findChar(r, 'highContextRel').share, 100);
-    assert.equal(findChar(r, 'highContextRel').count, 1);
-    assert.equal(findChar(r, 'highContextAbs').share, 0);
-    assert.equal(findChar(r, 'highContextAbs').count, 0);
+    const c = findChar(r, 'peakContextTokens');
+    assert.equal(c.value, 145_000);
+    assert.equal(c.value2, 73);
+    assert.equal(c.warn, true);
   });
 });
 
-describe('cacheEfficiency (sCache)', () => {
+describe('session-scope cacheEfficiency (sCache)', () => {
   test('cacheRead 9000 / (cacheRead 9000 + input 1000) = exactly 90%', () => {
     const r = content.computeContent({ type: 'session', id: 'sCache' }, null);
     const c = findChar(r, 'cacheEfficiency');
-    assert.equal(c.share, 90);
-    assert.equal(c.count, 1);
+    assert.equal(c.value, 90);
   });
 });
 
@@ -401,14 +421,14 @@ describe('workflowRuns + subagentTurns — session scope (sWorkflowA)', () => {
   test('workflowRuns: 450 wf_fixture01 tokens / 1000 session total = 45%, count = 1 distinct workflow', () => {
     const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, null);
     const c = findChar(r, 'workflowRuns');
-    assert.equal(c.share, 45);
+    assert.equal(c.value, 45);
     assert.equal(c.count, 1);
   });
 
   test('subagentTurns: (450 workflow + 240 direct) = 690 / 1000 session total = 69%, count = 5 turns', () => {
     const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, null);
     const c = findChar(r, 'subagentTurns');
-    assert.equal(c.share, 69);
+    assert.equal(c.value, 69);
     assert.equal(c.count, 5);
   });
 });
@@ -417,21 +437,21 @@ describe('workflowRuns + subagentTurns — session scope (sWorkflowA)', () => {
 // bare tool_use turn (no kind:'assistant' row exists in this session at
 // all). Pre-fix (`m.kind='assistant'` filter), this session's real 100
 // tokens of subagent spend were invisible: both workflowRuns and
-// subagentTurns read {share:0, count:0} even though wf_fixture02 genuinely
+// subagentTurns read {value:0, count:0} even though wf_fixture02 genuinely
 // ran and spent tokens — exactly what the reviewer reproduced. Post-fix
 // (`m.kind IN ('assistant','tool_use')`), both read their true share.
 describe('workflowRuns + subagentTurns — bare tool_use turn, no assistant row at all (sWorkflowB)', () => {
   test('workflowRuns: 100 wf_fixture02 tokens (on a tool_use row) / 200 session total = 50%, count = 1', () => {
     const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, null);
     const c = findChar(r, 'workflowRuns');
-    assert.equal(c.share, 50);
+    assert.equal(c.value, 50);
     assert.equal(c.count, 1);
   });
 
   test('subagentTurns: same 100 tokens (no direct turns in this session) / 200 session total = 50%, count = 1', () => {
     const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, null);
     const c = findChar(r, 'subagentTurns');
-    assert.equal(c.share, 50);
+    assert.equal(c.value, 50);
     assert.equal(c.count, 1);
   });
 });
@@ -442,7 +462,7 @@ describe('workflowRuns + subagentTurns — cross-session aggregation (scope=proj
     const c = findChar(r, 'workflowRuns');
     // Σ workflow tokens = 450 (A) + 100 (B) = 550; Σ session totals = 1000 (A) + 200 (B) = 1200.
     const expectedShare = Math.round((450 + 100) / (1000 + 200) * 100); // 46
-    assert.equal(c.share, expectedShare);
+    assert.equal(c.value, expectedShare);
     assert.equal(c.count, 2); // distinct workflow_id: wf_fixture01, wf_fixture02
   });
 
@@ -451,7 +471,7 @@ describe('workflowRuns + subagentTurns — cross-session aggregation (scope=proj
     const c = findChar(r, 'subagentTurns');
     // Σ sidechain tokens = 690 (A: 450 wf + 240 direct) + 100 (B) = 790; Σ totals = 1200.
     const expectedShare = Math.round((690 + 100) / (1000 + 200) * 100); // 66
-    assert.equal(c.share, expectedShare);
+    assert.equal(c.value, expectedShare);
     assert.equal(c.count, 6); // 3 wf + 2 direct (A) + 1 wf (B)
   });
 });
@@ -461,25 +481,28 @@ describe('workflowRuns + subagentTurns — cross-session aggregation (scope=proj
 // BOTH the numerator AND the denominator of the affected characteristic(s) —
 // not counted in the denominator while silently reading 0 in the numerator
 // (which would deflate every OTHER session's share with no visible sign).
+// These are all-scope/project-scope assertions (allProjectShares), so the
+// eightHourSessions/highContextAbs/highContextRel keys are still in play here
+// (only session scope replaces them with absolute facts).
 describe('missing-data exclusion (scope=project p2): eightHourSessions/highContextAbs exclude sessions without the underlying column from BOTH sides of the share', () => {
   test('eightHourSessions: denom excludes sNoDurA (null active/engaged) — 1000 (sCtrlA, qualifies) / 4000 (sCtrlA+sCtrlB+sNoCtxB, all have real duration data) = 25%, count = 1', () => {
     const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'eightHourSessions');
-    assert.equal(c.share, 25);
+    assert.equal(c.value, 25);
     assert.equal(c.count, 1);
   });
 
   test('highContextAbs: denom excludes sCtrlA/sNoDurA/sNoCtxB (no context_tokens) — 1000 (sCtrlB, qualifies) / 1000 (sCtrlB, the only session WITH context data) = 100%, count = 1', () => {
     const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'highContextAbs');
-    assert.equal(c.share, 100);
+    assert.equal(c.value, 100);
     assert.equal(c.count, 1);
   });
 
-  test('highContextRel: same denom as highContextAbs (only sCtrlB has context data) — sCtrlB does not clear the relative threshold, so share = 0%, count = 0 (not 0/7000 from an inflated denom, and not skipped/undefined)', () => {
+  test('highContextRel: same denom as highContextAbs (only sCtrlB has context data) — sCtrlB does not clear the relative threshold, so value = 0%, count = 0 (not 0/7000 from an inflated denom, and not skipped/undefined)', () => {
     const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'highContextRel');
-    assert.equal(c.share, 0);
+    assert.equal(c.value, 0);
     assert.equal(c.count, 0);
   });
 });

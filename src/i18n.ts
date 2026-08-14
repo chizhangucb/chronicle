@@ -555,6 +555,29 @@ const zh = {
   '+{n} more': '还有 {n} 项',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     '校准后词元数 {range}：{total} —— 约为莎士比亚全集的 {n} 倍。',
+  // Content tab merge (feedback-round Task 12, D4): narrative callouts folded
+  // into the top characteristic rows; session-scope replaces the four
+  // threshold predicates that collapse to 0/100 at N=1 with absolute facts.
+  "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.":
+    'Chronicle 自定的启发式阈值——并非 Claude Code 官方文档记载的自动压缩触发点；即使命中缓存，长会话的成本也更高，拆分任务或在任务中途压缩上下文可以降低缓存写入花费。',
+  "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.":
+    '委托给通过 Task 启动的子智能体完成的工作，而非在主线程中直接回答——每个子智能体都会占用自己的上下文，用于并行任务是值得的，简单任务中要留意。',
+  'active — crossed the 8-hour marathon threshold': '活跃时长——已超过 8 小时马拉松阈值',
+  'active this session (marathon threshold: 8h)': '本次会话的活跃时长（马拉松阈值：8 小时）',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it.':
+    '智能体活跃时间累加消息之间的每一段间隔，但不包括等待你输入提示的时间；每段间隔上限为 10 分钟，除非是被一次长时间运行的工具调用占满。',
+  "The same agent-active computation used for the marathon-sessions share elsewhere in Chronicle, reported here as this session's actual hours rather than a 0%/100% flag.":
+    '与 Chronicle 其他位置计算马拉松式会话占比所用的智能体活跃时间算法相同，这里显示的是本次会话的实际小时数，而非 0%/100% 的标记。',
+  'peak context tokens reached': '达到的峰值上下文词元数',
+  "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.":
+    'Chronicle 为提示成本上升而选择的启发式阈值是模型上下文窗口的 70%——并非 Claude Code 官方文档记载的自动压缩触发点。',
+  "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.":
+    '本次会话存储的最大上下文大小，以及它占其模型上下文窗口的比例。70% 是 Chronicle 为提示成本上升而选择的启发式阈值，并非官方记载的自动压缩触发点。',
+  'engaged time as a share of agent-active time': '参与时间占智能体活跃时间的比例',
+  'Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.':
+    '数值越低说明你在场的时间占智能体工作时间的比例越小——参与（实际经过的）时间不到活跃时间的四分之一，意味着这次会话大部分是在无人值守下进行的。',
+  "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import.":
+    '参与时间是你实际在场的时间；智能体活跃时间是智能体工作的时间。此项为本次会话的参与时间 ÷ 活跃时间，二者的上限规则与导入时相同。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': '查看上下文都花在哪里 →',
 };
@@ -1118,6 +1141,29 @@ const ja = {
   '+{n} more': '他 {n} 件',
   'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.':
     'キャリブレーション済みトークン数 {range}：{total} —— シェイクスピア全集の約 {n} 倍。',
+  // Content tab merge (feedback-round Task 12, D4): narrative callouts folded
+  // into the top characteristic rows; session-scope replaces the four
+  // threshold predicates that collapse to 0/100 at N=1 with absolute facts.
+  "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.":
+    'Chronicle 独自の経験則によるしきい値であり、Claude Code の公式ドキュメントに記載された自動圧縮のトリガーではありません — キャッシュされていても長いセッションはコストが高くなり、タスクを分割する、または途中でコンテキストを圧縮するとキャッシュ書き込みのコストを削減できます。',
+  "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.":
+    'メインスレッドで直接応答するのではなく、Task で起動されたサブエージェントに委任された作業です — 各サブエージェントは独自のコンテキスト分のコストがかかります。並列作業には有効ですが、単純なタスクでは注意が必要です。',
+  'active — crossed the 8-hour marathon threshold': 'アクティブ時間 — 8時間のマラソンしきい値を超過',
+  'active this session (marathon threshold: 8h)': 'このセッションでのアクティブ時間（マラソンしきい値：8時間）',
+  'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it.':
+    'エージェントのアクティブ時間は、あなたがプロンプトを入力するのを待っていた時間を除く、メッセージ間のすべての間隔を合計したものです。各間隔は10分を上限としますが、長時間実行されるツール呼び出しで埋まっている場合は例外です。',
+  "The same agent-active computation used for the marathon-sessions share elsewhere in Chronicle, reported here as this session's actual hours rather than a 0%/100% flag.":
+    'Chronicle の他の箇所でマラソン型セッションの割合を計算するのに使われているのと同じアクティブ時間の計算方法で、このセッションの実際の時間数を表示しています（0%/100%のフラグではありません）。',
+  'peak context tokens reached': '到達したピークコンテキストトークン数',
+  "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.":
+    'コスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値は、モデルのコンテキストウィンドウの70%です — 公式に文書化された自動圧縮のトリガーではありません。',
+  "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.":
+    'このセッションで保存された最大のコンテキストサイズと、それがモデルのコンテキストウィンドウに占める割合です。70% はコスト上昇を知らせるために Chronicle が選んだ経験則によるしきい値であり、公式に文書化された自動圧縮ポイントではありません。',
+  'engaged time as a share of agent-active time': 'エージェントのアクティブ時間に占める関与時間の割合',
+  'Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.':
+    '数値が低いほど、エージェントが作業していた時間のうちあなたが在席していた割合が小さいことを意味します — 関与時間（実時間）がアクティブ時間の4分の1未満の場合、そのセッションはほぼ無人状態で実行されたことになります。',
+  "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import.":
+    '関与時間はあなたの実際の在席時間、エージェントのアクティブ時間はエージェントの作業時間です。これはこのセッションにおける関与時間 ÷ アクティブ時間であり、どちらの時間もインポート時と同じ方法で上限が適用されます。',
   // Project tabs + session→Content link (Task 5e-4)
   'See what filled the context →': 'コンテキストの内訳を見る →',
 };

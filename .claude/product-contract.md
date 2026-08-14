@@ -180,6 +180,32 @@ sign-off (D13) for this surface's shape.
 ### `/project/:id` — Overview / Explore / Content / Sessions tabs (`ProjectDetail.tsx`).
 ### `/session/:id` — Overview / Playback / Refine / Security Check (`SessionView.tsx`); Subagents card on Overview.
 
+### Content tab (`ContentTab.tsx`, shared by `/` all-scope, `/project/:id`, and session scope)
+
+**D4 sign-off (feedback-round Task 12, Chi approved in
+`records/plans/2026-08-14-chronicle-feedback-round-plan.md`).** The old "What your usage says"
+narrative callouts card (3 hand-written sentences: context-pressure share, subagent-heavy share,
+cache-warmth minutes) and the separate "Usage characteristics" card (7 token-share stats, spec
+§2.5) are MERGED into ONE card, titled **"What your usage says"** — the narrative callouts
+duplicated numbers the characteristics list already carried (contextPressureShare was literally
+highContextRel's share), so their framing now lives in the top rows' `why` text instead of a
+second parallel computation; the cache-warmth-minutes stat (not a token share) had no
+characteristics-list analog and was dropped.
+
+The characteristics list is now **scope-tagged** (`ContentResult.characteristicsScope` +
+per-row `Characteristic.format`/`value`/`value2`/`label`/`why`/`info`, all server-supplied so the
+client never switches on a characteristic's `key`):
+- **all/project scope: 7 rows** (unchanged math, reordered) — `highContextRel` and
+  `subagentTurns` lead (absorbing the old narrative callouts' framing), then
+  `eightHourSessions` · `workflowRuns` · `highContextAbs` · `cacheEfficiency` · `autonomousShare`.
+- **session scope: 6 rows.** The four threshold predicates that always collapse to a meaningless
+  0%/100% at N=1 (`eightHourSessions`, `highContextAbs`, `highContextRel`, `autonomousShare`) are
+  REPLACED with absolute session facts: `marathonBadge` (real active hours vs the 8h line),
+  `peakContextTokens` (raw tokens + % of the model's window, folding the old abs/rel pair into
+  one richer fact), and `unattendedRatio` (engaged ÷ active, not a binary flag).
+  `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over unchanged — real, non-binary
+  percentages even for one session.
+
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
 | Enumerable / shape fact | Guarding test |
@@ -212,6 +238,6 @@ sign-off (D13) for this surface's shape.
 | Recent-sessions ledger (`/projects` content column) column policy (num-col / ts-col alignment) | `test/e2e/layout.spec.ts` |
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
-| Content 7 characteristics | `test/e2e/content-characteristics.spec.ts` |
+| Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card (D4) | `test/e2e/content-characteristics.spec.ts` |
 | Playback selection drives panels | `test/e2e/playback.spec.ts` |
 | InfoTip opens downward, closes, no viewport clip | `test/e2e/infotip.spec.ts` |

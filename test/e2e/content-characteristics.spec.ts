@@ -1,9 +1,12 @@
-// Minimal e2e probe for the Content tab's 7 usage characteristics block
-// (task C3-T15, spec §2.5). The unit tests (test/content-characteristics.test.mjs)
-// cover the engine math on hand-built ground truth; this probe just confirms
-// the block actually renders on a real imported session's Content tab —
-// exactly 7 rows, each with a bold "N% ..." lead-in and an InfoTip trigger —
-// at both the Home-hub (scope=all) and per-project Content tabs.
+// e2e probe for the Content tab's per-scope usage-characteristics block (D4,
+// feedback-round Task 12, merging the old spec §2.5 "7 characteristics" pin
+// with the new "What your usage says" merge). The unit tests
+// (test/content-characteristics.test.mjs) cover the engine math on hand-built
+// ground truth; this probe just confirms the block actually renders on real
+// imported data — exactly 7 rows at all/project scope (each with a bold
+// "N% ..." lead-in and an InfoTip trigger), and the 6-row session-facts set
+// at session scope (mixed percent/tokens/hours formats, so not every row
+// leads with "%").
 import { test, expect } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
@@ -16,7 +19,7 @@ async function fixtureProjectId(): Promise<number> {
 }
 
 function characteristicRows(page: import('@playwright/test').Page) {
-  return page.locator('.card', { has: page.getByRole('heading', { name: 'Usage characteristics' }) }).locator('.callout');
+  return page.locator('.card', { has: page.getByRole('heading', { name: 'What your usage says' }) }).locator('.callout');
 }
 
 test('Home hub Content tab (scope=all) renders exactly 7 usage-characteristic rows', async ({ page }) => {
@@ -43,4 +46,22 @@ test('Project Content tab renders exactly 7 usage-characteristic rows', async ({
   await page.goto(`${state.baseURL}/project/${projectId}/content`);
   const rows = characteristicRows(page);
   await expect(rows).toHaveCount(7);
+});
+
+// D4: session scope replaces the 4 threshold predicates that collapse to
+// 0%/100% at N=1 with absolute session facts (marathon badge, peak context
+// tokens + % of window, cache hit rate, subagent/workflow token share,
+// unattended ratio) — 6 rows for a real claude-code session (which has both
+// duration and context-size data), every row still InfoTip-backed.
+test('Session Content view renders the 6-row session-facts set, not the 7 all-scope shares', async ({ page }) => {
+  // Session scope has no tab bar — Content is reached from the session
+  // Overview's "See what filled the context →" link (src/session/OverviewMode.tsx).
+  await page.goto(`${state.baseURL}/session/${encodeURIComponent(state.sessionId)}`);
+  await page.locator('.ov-content-link').click();
+
+  const rows = characteristicRows(page);
+  await expect(rows).toHaveCount(6);
+  for (let i = 0; i < 6; i++) {
+    await expect(rows.nth(i).locator('button.info-tip')).toHaveCount(1);
+  }
 });
