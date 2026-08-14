@@ -317,7 +317,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
       <div className="kpis">
         <div className="kpi"><div className="l">{t('Cost')}</div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
-        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s">{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
+        <div className="kpi"><div className="l">{t('Tokens')}</div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
         <div className="kpi"><div className="l">{t('Engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses.')} /></div>

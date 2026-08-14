@@ -9,7 +9,7 @@
 //    group values) renders as an actual, distinctly-colored, legend-labeled
 //    bar segment, not just table/legend text elsewhere on the page.
 //
-// Date-window gotcha (documented per the brief): the shared fixture
+// Date-window gotcha (documented per the brief): the shared BIG fixture
 // (test/fixtures/gen-big-session.mjs) pins its messages to a FIXED date
 // (2026-08-01..03, deterministic — no Date.now()), while the explore engine's
 // `days=` cutoff is computed against the REAL clock at request time. A 7d/30d
@@ -19,6 +19,15 @@
 // no cutoff) is the only range guaranteed to include the fixture regardless
 // of today's date, so every test here selects it explicitly rather than
 // relying on the default 30d range.
+//
+// Task 7 update: test/e2e/helpers.ts's `launchSeeded` now ALSO seeds two mini
+// sessions timestamped relative to Date.now() AT SEED TIME (`spanningSessionId`/
+// `todayOnlySessionId`), so Today/7d/30d windows ARE genuinely testable now —
+// see window-matrix.spec.ts, which exercises exactly that. This file's own
+// tests still pin to "All" deliberately, though: they need the BIG fixture's
+// ~2450-turn density (many distinct hourly buckets, a real brush-drag target,
+// a non-trivial "Other" fold), which the two small relative-time sessions
+// don't provide and which is still pinned to the fixed 2026-08 date above.
 //
 // Metric gotcha: group=model's default Spend/Tokens path buckets by SESSION
 // `started_at` (server/explore.ts's EXACT_USAGE_GROUPS) — the fixture is one

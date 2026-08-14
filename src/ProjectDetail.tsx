@@ -469,12 +469,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         <div className="kpi">
           <div className="l">{t('Tokens')}</div>
           <div className="v">{fmtTok(stats.totalTokens)}</div>
-          <div className="s">{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
+          <div className="s" title={`${t('Input')} ${fmtTok(stats.totalIn)} · ${t('Output')} ${fmtTok(stats.totalOut)}`}>{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Agent Active')}</div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
-          <div className="s">{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
+          <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} ${t('avg/session')}`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
         </div>
         <div className="kpi">
           <div className="l">{t('Messages')}</div>

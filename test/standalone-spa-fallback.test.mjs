@@ -18,7 +18,17 @@ before(async () => {
   dbTeardown = temp.teardown;
 });
 
-after(() => {
+after(async () => {
+  // Importing server/standalone.ts (below) pulls in server/api.ts, which
+  // calls startAutoSync() at module scope — that registers recursive
+  // fs.watch() handles on the real source-log dirs (~/.claude/projects etc.)
+  // plus a setInterval backstop. Neither is torn down by server.close(), so
+  // without explicitly stopping them here this test process's event loop
+  // never goes empty and `node --test` hangs forever after the assertions
+  // already passed (caught live: verified via `sample` showing the process
+  // idle in uv__io_poll/kevent with zero CPU, not actually still working).
+  const { stopAutoSync } = await import('../server/autosync.ts');
+  stopAutoSync();
   if (server) server.close();
   dbTeardown();
 });
