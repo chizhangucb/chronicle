@@ -3,7 +3,7 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
-## Unreleased
+## 1.2.0 — 2026-08-15
 
 - **New home: a live Insights dashboard at `/`.** The landing page is now a
   Today/7d/30d KPI strip, a Today-only Activity block (live sessions + "since
@@ -31,6 +31,10 @@ https://github.com/chizhangucb/chronicle/releases
   `npm run walk` release-capture script are the judged gate before every
   `npm publish`. Internal: a server-side result cache and a client
   stale-while-revalidate fetch layer speed up navigation between cached views.
+- **Worktree sessions no longer dropped by sync.** Claude Code sessions run
+  inside a git worktree (`.claude/worktrees/<name>`) now import under their
+  parent repo instead of being silently skipped, so worktree-based development
+  shows up in Chronicle like any other session.
 
 ## 1.1.0
 
