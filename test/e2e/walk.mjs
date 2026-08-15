@@ -100,16 +100,22 @@ function buildRoutes(base, ctx) {
   routes.push({
     slug: 'home',
     async setup(page) {
+      // `/` is the Insights hub (Overview/Explore/Content). The recent-sessions
+      // ledger moved OFF Home to /projects in the D1/D2 IA reshape (#98); wait
+      // on the Overview body marker, not the ledger. See .claude/product-contract.md.
       await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.recent-ledger', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForSelector('.insights-page', { timeout: NAV_TIMEOUT_MS });
     },
   });
 
   routes.push({
     slug: 'projects',
     async setup(page) {
+      // Wait for real content (the ledger), not just the `.page` shell — the
+      // shell renders an immediate "Loading…" placeholder, so screenshotting on
+      // `.page` alone captures a loading state, not the /projects surface.
       await page.goto(`${base}/projects`, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.page', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForSelector('.recent-ledger', { timeout: NAV_TIMEOUT_MS });
     },
   });
 
@@ -197,12 +203,15 @@ function buildRoutes(base, ctx) {
   routes.push({
     slug: 'select-mode',
     async setup(page) {
-      await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
+      // Session multi-select now lives on /projects (ledger moved there in #98),
+      // and the resting "☑ Select" opens the shared `.command-bar` — the old
+      // boxed `.select-toolbar` was removed. See .claude/product-contract.md.
+      await page.goto(`${base}/projects`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.recent-ledger', { timeout: NAV_TIMEOUT_MS });
-      const btn = page.getByRole('button', { name: '☑ Select', exact: true });
-      if ((await btn.count()) === 0) throw new Error('no "☑ Select" button on Home (no sessions imported?)');
-      await btn.click();
-      await page.waitForSelector('.select-toolbar', { timeout: NAV_TIMEOUT_MS });
+      const btn = page.locator('.recent-ledger').getByRole('button', { name: '☑ Select', exact: true });
+      if ((await btn.count()) === 0) throw new Error('no "☑ Select" button in the /projects ledger (no sessions imported?)');
+      await btn.first().click();
+      await page.waitForSelector('.command-bar', { timeout: NAV_TIMEOUT_MS });
     },
   });
 
