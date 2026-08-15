@@ -12,7 +12,7 @@ The agreed product shape as enumerable, checkable facts — reflecting the CURRE
 confirmed calls. Where this disagrees with
 the spec (`~/chizhang-2/records/plans/2026-08-12-chronicle-quality-pass-design.md`), the branch
 state wins (F1/F2 fixed the surfaces to Chi's confirmed shape after the plan compressed it).
-This is JUDGE input, a sibling of `.claude/design-rubric.md`: the rubric judges *aesthetics/
+This is JUDGE input, a sibling of `spec/design-rubric.md`: the rubric judges *aesthetics/
 layout*, this judges *product shape / IA*. Every statement is verifiable against `src/` on this
 branch. Each enumerable names the e2e pin that guards it, so the contract is self-auditing.
 
@@ -85,7 +85,7 @@ drag-resizable when expanded. Contents, top to bottom:
   from Chronicle`. Exactly these three actions. NO "View Details" (the row itself navigates).
   Every destructive/text step is an inline affordance — never `window.confirm/prompt/alert`.
 - **Glyph vocabulary** (mono only, zero colored emoji in chrome or page content; canonical set in
-  `.claude/design-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
+  `spec/design-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch. `⌂`=Home is
   retired from chrome — the sidebar item it used to label was renamed to `∑ Insights` (D2, see

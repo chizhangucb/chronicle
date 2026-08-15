@@ -1,606 +1,82 @@
-# Chronicle — project notes for Claude
+# Chronicle
 
-Local-first AI coding session manager ("time machine"): imports logs from 4 AI tools
-(Claude Code, Codex, Cursor, OpenCode), maps every message to a Git code snapshot, plus
-security redaction, live streaming, a tabbed **Insights** analytics home
-(Overview/Explore/Content) with first-class **Subagents**, and invisible incremental
-auto-sync. Ships as a local web app via **`npx chronicle-cli`** (Node 24+) — no desktop
-shell, no cloud, zero outbound network calls. (v0.2.0 removed the MCP Hub, Skills Hub, and
-guard hook; the v1.0 re-ramp removed the Electron desktop shell, replay, share links, the
-feedback relay, and the Copilot/Gemini parsers.) Layered docs (guide / reference /
-architecture): `docs/`, published at getchronicle.dev/docs. Feature summary: `README.md`.
+Local-first AI coding session manager ("time machine"): imports logs from 4 AI tools (Claude Code, Codex, Cursor, OpenCode), maps every message to a Git code snapshot, adds security redaction, live streaming, and a tabbed Insights analytics home (Overview/Explore/Content) with first-class Subagents. Ships as a local web app via `npx chronicle-cli` (Node 24+): no desktop shell, no cloud, zero outbound network calls. Everything heavy is heuristic and local; there are no LLM calls anywhere.
+
+Satellite of the AIOS hub; owning project folder: `personal-projects/chronicle`. Canonical pattern rules: `$HUB/governance/satellite-repos.md`. Binding per-repo contract: `$HUB/governance/repo-contract.md`. Registry row: `$HUB/operations.md` `## Satellites`. `$HUB` = `$AIOS_HUB` (default `~/chizhang-2`).
+
+This file is a map: each line points at a source of truth, nothing restated (`repo-contract.md`). Deep dev knowledge lives in the hub, linked below. Docs site (guide/reference/architecture): `docs/`, published at getchronicle.dev/docs. Feature summary: `README.md`.
 
 ## Commands
 
 ```bash
 npm run dev        # Vite dev server + API in one process → http://localhost:4173
-npm run standalone # headless production server (npm run build + node server/standalone.ts; UI + /api)
 npm run build      # vite build → dist/
-npm run typecheck  # tsc -b  (type gate — MUST exit 0)
+npm run typecheck  # tsc -b  (type gate: MUST exit 0)
 npm test           # node --test 'test/**/*.test.mjs'
-npm run test:e2e   # playwright test — E2E gate (function/overflow/data-scale/perf smoke)
-npm run walk       # node test/e2e/walk.mjs — release-walk capture (screenshots + probe JSON)
+npm run test:e2e   # playwright E2E gate (function/overflow/data-scale/perf smoke)
+npm run walk       # release-walk capture (screenshots + probe JSON), judged against spec/
 ```
 
-`npx chronicle-cli` runs the published build (see **npm / npx** below). CI
-(`.github/workflows/ci.yml`) gates `main` + every PR on typecheck + test + build, AND a
-Playwright E2E job (`npm run test:e2e`), on Node 24. The E2E job seeds a temp standalone
-server from a big fixture (120 subagents, 5000 messages —
-`test/fixtures/gen-big-session.mjs`) via `test/e2e/global-setup.ts`, then runs
-`test/e2e/*.spec.ts`: function smoke, the permanent Subagents=120 data-scale guard (the
-Overview Subagents card must show the RUN count, not the distinct-agent-type count), no
-horizontal overflow at the 3 reference widths (1024/1366/1728 — laptop / common desktop /
-wide desktop, `test/e2e/helpers.ts` `WIDTHS`), and a warm `/api/insights` perf floor. Run it
-locally the same way (`npm run test:e2e`); it builds `dist/` if missing, so first run is
-slower. `npm run walk` is a separate, non-assertive counterpart (see the design-QA section)
-for a full route walk against a real (not seeded) Chronicle instance. Parsers are validated
-against fixtures in `test/fixtures/` plus real data end-to-end (see Verification below).
+`npx chronicle-cli` runs the published build. CI (`.github/workflows/ci.yml`) gates `main` and every PR on typecheck + test + build + the Playwright E2E job, on Node 24. Full publish/TypeScript/architecture detail is in the hub dev docs below.
 
-## npm / npx
+## Hub link
 
-- Published as the unscoped, public package **`chronicle-cli`** (`npx chronicle-cli`; bin
-  aliases `chronicle` + `chronicle-cli` → `bin/chronicle.mjs`). Data at
-  `~/.chronicle/chronicle.db` (override: `CHRONICLE_DATA_DIR`).
-- **`bin/chronicle.mjs` is a Node-built-ins-only launcher** (no deps): Node ≥24 preflight,
-  `--port <n>` / `--no-open` flags, a bounded free-port scan from 41730, opens the default
-  browser (best-effort, never fatal), then `import()`s the COMPILED server
-  (`dist-server/server/standalone.js` → `startServer(port, distDir)`, passing the client
-  `dist/` path explicitly) and runs in the foreground until Ctrl-C.
-- **Node ≥24 floor + WHY.** Two reasons: (1) `node:sqlite` (DatabaseSync) needs Node 24;
-  (2) dev runs `.ts` natively via Node's type-stripping, but **Node REFUSES to strip-type
-  `.ts` files under `node_modules`** — so the published tarball cannot ship raw `.ts`. At
-  publish the server is COMPILED to `dist-server/` by **`tsc -p tsconfig.publish.json`**
-  (`rewriteRelativeImportExtensions` rewrites `./x.ts` → `./x.js`; emits runnable ESM).
-  Wired into **`prepack`** = `rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json`.
-- **`files` allowlist** = `["bin","dist","dist-server"]` — only the launcher, the Vite
-  client build (`dist/`), and the compiled server (`dist-server/`) ship. Source `.ts`,
-  tests, docs, and `superpowers/` stay out of the tarball.
-- **`prepublishOnly`** = `npm run typecheck && npm test` — the publish gate (also
-  re-run in CI).
-- **Publish + smoke:** `npm publish` (unscoped → public by default), verify
-  `npm view chronicle-cli version`. Then the LOAD-BEARING **clean-dir npx smoke**:
-  `cd $(mktemp -d) && npx chronicle-cli --no-open --port <n>`, curl `/` → `200`, import one
-  session via the UI, confirm it renders. `express` is the only runtime `dependency`
-  (client libs are devDeps — Vite bundles them into `dist/`).
+- Hub is read-only from runtime code; path comes from `AIOS_HUB` (default `~/chizhang-2`). No absolute machine paths in tracked files (path-relative + git-cloneable).
+- `AGENTS.md` is `CLAUDE.md`'s twin: same content via symlink, so any harness reads this floor.
+- Confidentiality floor: chronicle is PUBLIC. Nothing confidential (hub `wiki/confidential/`, `next-ventures/`, or equivalent) ever lands in this repo's files, fixtures, commits, or pushes. Fixtures are always synthetic, never copies of hub data. Sessions may read anything in the hub.
 
-## TypeScript
+## Floor: $HUB/governance/ pointers
 
-Incremental migration to `.ts`/`.tsx`, keeping the **no-compile-step** architecture for
-DEV. TypeScript is a DEV type gate; it never emits in dev (publish is the one exception —
-see npm / npx above, where `tsconfig.publish.json` compiles the server for the tarball).
+The always-loaded floor is the working rules below plus this pointer table; governance bodies load on demand, never all at once.
 
-- **Node runs `.ts` natively.** Node 24 strips types at load — no build step, no flag.
-  So the server executes `.ts` directly (`import './db.ts'` etc.). `tsc` is only the
-  type checker: **`npm run typecheck`** (= `tsc -b`) MUST exit 0.
-- **Erasable-syntax-only.** Node's strip-only loader REJECTS `enum`, `namespace`,
-  parameter properties (`constructor(private x)`), and other non-erasable TS at runtime
-  (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`). Enforced by `erasableSyntaxOnly: true`. Use
-  `as const` unions instead of enums; assign fields in the constructor body.
-- **Explicit `.ts`/`.tsx` import extensions (Option A), relative imports only.** Node does
-  NOT rewrite `./x.js` → `x.ts`, so once a file becomes `.ts` every importer's specifier
-  must point at `.ts`/`.tsx` (a `.js`/`.jsx` file importing `./foo.ts` is fine for Vite and
-  Node). tsconfig sets `allowImportingTsExtensions` + `noEmit`.
-- **`shared/types.ts` (repo root) is the cross-boundary contract** — the normalized event
-  model (`Kind`, `Event`, `Usage`, `Session`…), framework-free. Server imports it relatively
-  (`../shared/types.ts`); the client imports it via the **`@shared`** alias (in
-  `vite.config.js` `resolve.alias` AND `tsconfig.client.json` `paths`, kept in sync). Its
-  names/optionality track the real parser + `db.ts` shapes — change them together.
-- **Full `strict: true`** (`noImplicitAny` + `strictNullChecks` on). Do NOT weaken strict or
-  silence errors with `any`/`@ts-ignore`/`@ts-expect-error`; type the real shape instead.
-- Two projects via references (`tsconfig.json` → `tsconfig.server.json` nodenext +
-  `tsconfig.client.json` bundler/jsx), sharing `tsconfig.base.json`; `tsconfig.publish.json`
-  is the separate publish-time server compile. `typescript` is pinned exact; client libs'
-  `@types/*` are devDeps (Vite bundles the client).
+| Topic | Source of truth |
+|---|---|
+| Repo layout + floor | `$HUB/governance/repo-contract.md` |
+| Satellite boundary, records, push, egress | `$HUB/governance/satellite-repos.md` |
+| Confidentiality (never leaves) | `$HUB/governance/confidentiality.md` |
+| Ticket lifecycle (all repos) | `$HUB/governance/ticket-tracker.md` |
+| Writing for Chi | `$HUB/governance/communication-style.md` |
+| Skill authoring + budgets | `$HUB/governance/skill-authoring.md` |
 
-## Architecture decisions (and why)
+## Working rules
 
-- **Single process, single port.** The Express app (`server/api.ts`, assembled from
-  `server/routes/*`) is mounted INTO the Vite dev server via a plugin in `vite.config.js`
-  using per-request `ssrLoadModule` (gives API hot-reload). The same app is served without
-  Vite by `server/standalone.ts` (mounts `/api` + serves the static client `dist/`), which
-  is what `npx chronicle-cli` launches. Keep new endpoints in these express routes and they
-  work in all run modes for free.
-- **`node:sqlite` (DatabaseSync), not better-sqlite3** — zero native compile. DB at
-  `~/.chronicle/chronicle.db` (override: `CHRONICLE_DATA_DIR`). Schema is created
-  idempotently in module scope; migrations are `try { ALTER TABLE … } catch {}` lines.
-- **Git snapshot engine shells out to `git`** (`server/git.ts`) — read-only:
-  `rev-list --before` (commit at timestamp), `ls-tree`, `show`, `diff-tree`. No libgit.
-- **Normalized event model** — every parser flattens tool-native logs into rows of
-  kind `user | assistant | thinking | tool_use | tool_result` with `ts`, `tool_name`,
-  `tool_input` (JSON string), `tool_use_id` (pairs calls↔results). Add new sources as
-  `server/parsers/<tool>.ts` exporting `scan<Tool>Projects()` + a parse function, then
-  wire into the scan/import routes in `server/routes/import-sync.ts` and `SOURCES` in
-  `src/ImportWizard.tsx`. Four sources today: claudeCode, codex, cursor, opencode.
-- **Logical projects** key on the physical `cwd` recorded in logs; a "Needs association"
-  banner merges sessions on path match.
-- **Read-only on foreign data, always**: SQLite sources (Cursor, OpenCode) are copied
-  to temp **including `-wal`/`-shm`** before opening; original logs are never written.
-- **Everything heavy is heuristic + local** (causality confidence tiers, redaction
-  regexes, Insights calibration) — no LLM calls, no outbound network anywhere, preserving
-  the offline guarantee.
-- **Repo is flat** (Chi's global preference): app code at root, PRD in `docs/`.
-- **Navigation is real URL routes (wouter).** `/` (Home = the ONE Insights hub, tabs
-  Overview/Explore/Content), `/projects` (dense rail-list), `/project/:id[/explore|/content]`,
-  `/session/:id`, and `/insights` = a redirect-only route → `/` (preserving a `?tab=` deep-link).
-  Home and the old separate Insights page were MERGED into one hub (`InsightsPage.tsx` deleted) —
-  there is exactly one KPI strip and one `/api/insights` fetch, never two surfaces showing the
-  same aggregates. **The agreed surface shape is frozen in `.claude/product-contract.md`; changing
-  a route/surface/enumerable requires a matching contract edit + Chi's sign-off (see the
-  plan-fidelity gate in Patterns).** The URL IS the persisted state, so any reload (including the
-  language switch's `location.reload()`) restores the current view for free — no `sessionStorage`
-  hack. There is one collapsible left sidebar (in `App.tsx`, collapse state in `localStorage`);
-  SessionView doesn't render its own rail — it publishes `{modes, active, select,
-  securityOpen}` up via the `onRailChange` prop while mounted, and App renders those as
-  sidebar items. SessionView is keyed by session id so the breadcrumb session switcher
-  remounts it cleanly.
-- **Top-bar Search + Import are global, not Home-only.** The `.topbar-right` 🔍 Search
-  (⌘K palette) and "+ Import Sessions" render in EVERY view; import/search work from
-  anywhere and refresh projects. Only the LIVE pill stays session-scoped.
-- **Session multi-select delete uses an inline confirm, never `window.confirm`.** One shared
-  hook, `useSessionSelect` (`src/SessionSelect.tsx`), is mounted in BOTH the Home
-  recent-sessions ledger (`src/RecentLedger.tsx`, the last section of the `/` dashboard,
-  `src/HomeDashboard.tsx`) and the project session list (`src/ProjectDetail.tsx`). Rows become
-  checkboxes (`selectMode`/`selected` Set) with Select-all/Clear/Cancel + a danger
-  "Remove (N)"; deletion is a two-step INLINE confirm bar (`confirming` state) — NOT
-  `window.confirm`, which is blocked in embedded/preview browsers. It tombstones each
-  selected session server-side, then surfaces a 10s Undo toast that just forgets the
-  tombstone(s) and re-syncs the owning project(s) — the source log is never touched.
-  Per-project delete is separate and NOT bulk: a project card's dropdown menu
-  (`ProjectMenu` in `src/ProjectsPage.tsx`, the `/projects` rail-list) has its own one-at-a-time
-  inline-confirm "Remove from Chronicle" (`api.deleteProject`).
-- **Latest `cwd` wins when resolving a session's project.** Sessions resumed after a
-  repo move keep the old path in early JSONL records; scanner and parser use the last
-  seen cwd (where the repo and its Git history live now) and collapse subdirectory
-  cwds up to a seen ancestor (`reduceCwd`). The scanner sniffs both the head and tail
-  64 KB of each file for this.
-- **Session display name = `name` (Chronicle override) → `summary` (parsed) →
-  `first_prompt`.** `sessionDisplayName()` in `ProjectDetail.tsx` is the single
-  source of that precedence; reuse it everywhere (rows, pickers, overview title).
-  The parser reads Claude Code's `{"type":"custom-title","customTitle":…}` lines
-  (the `/rename` title, LAST one wins) into `sessions.summary`; there are NO
-  `type:"summary"` lines in real logs, so custom-title is the only auto-title
-  source. `name` is a user-set override, preserved across re-import (see below).
-- **Cost is computed locally, never billed data.** Logs carry tokens, not dollars,
-  so the parser aggregates per-model token totals (`sessions.usage` JSON:
-  `{model: {input, output, cacheWrite5m, cacheWrite1h, cacheRead}}`) and
-  `src/models.ts` multiplies by a static per-model price table. 5-minute and
-  1-hour cache writes are billed at different rates — keep them split. The table
-  must track the current Anthropic pricing page (Opus 4.8 tier is $5/$25, NOT the
-  old Opus 4.1 $15/$75 — getting this wrong 3× inflates every number). The Overview
-  Cost & Usage block DISPLAYS the two tiers separately (tokens + $), each with a
-  `5m`/`1h` `.ttl-tag`: `cacheWriteByTtl()` / `cacheWriteCostByTtl()` in `models.ts`
-  split them (legacy `{cacheWrite}` logs are treated as 5m). **The price table lives ONLY
-  in `src/models.ts` (client-pure); it is NEVER duplicated server-side** — the Explore
-  engine returns metric-agnostic per-model token cells and the client prices Spend via
-  `costOf`.
-- **Global search is FTS5 with a LIKE fallback.** `/api/search` (`server/routes/search.ts`)
-  runs an FTS5 `MATCH` (phrase query, prefix on the last term) over `messages.text` +
-  `tool_input` when the `messages_fts` external-content virtual table is available, and
-  falls back to `LIKE` otherwise; results are grouped per session (top ~400 rows) with a
-  snippet. Empty query returns recent sessions ("Recent Access").
-- **Chat-type labels have ONE source of truth: `src/kinds.ts`.** `KIND_LABEL`/`KIND_ICON`
-  (role-accurate: User / Assistant / Thinking / Tool Call / Tool Result / Inserted) are
-  imported by Playback (`SessionView` `KIND_META`), Refine (`RefineMode`, uppercased for
-  its tag look), and the Refine export. Put new label wording here, never inline.
-- **"Agent Active" (labeled thus, was "Active Duration") = agent working time, excluding
-  only real human turns.** `activeDurationMs()` sums every inter-message gap EXCEPT the gap
-  leading into a genuine human prompt. The catch: **not every `user`-role message is a human
-  prompt** — `<task-notification>` (a background build finishing), `<launch-selected-element>`
-  (UI element pick), `<system-reminder>`, `<command-name>`/`<local-command…>`, and
-  `[Request interrupted…]` all log with role=user. `isHumanPrompt()` filters those via
-  `SYNTHETIC_USER_RE`, so their preceding gap counts as ACTIVE (the agent was busy) — only a
-  typed prompt subtracts time. The canonical stored durations live in `server/durations.ts`
-  (Agent Active with a 10-min cap + tool_result exemption; Engaged with a 90-min cap),
-  computed at import. Shown with an `InfoTip` (ⓘ) explainer; its key IS the full English
-  sentence.
-- **Language switch keeps your place.** `setLang` `location.reload()`s — many `t()` calls
-  run at module scope (e.g. `FILTER_CHIPS`), so a full reload is the only clean
-  re-translate. The URL route (not `sessionStorage`) restores your view on reload.
-- **Invisible sync.** Background incremental import keeps sessions fresh with no manual
-  re-import: `server/autosync.ts` watches the source log dirs (mtime > `imported_at`,
-  30-min backstop, debounce; state on `globalThis`) and re-imports changed sessions.
-  **Noise gate** (`server/noiseGate.ts`): a session is "minor" when its agent-active time
-  is under the threshold (default 5 min) OR it has fewer than N messages (default 10), both
-  tunable via `~/.chronicle/config.json`. `isMinorSession()` is applied uniformly at
-  INSERT time in `db.ts` `replaceSession`, so it covers manual import, per-project/-session
-  sync, AND auto-sync alike; minor sessions land in a single "minor sessions" bucket
-  (promote / ignore actions) instead of cluttering the main lists. **Tombstones**: deletes
-  are recorded so a re-sync doesn't resurrect a removed session. Sync can be paused.
+- Plan-first for anything non-trivial; the plan gets a yes before build.
+- No em dashes, anywhere, including files. Concise, bullets, casual, no hype.
+- Commits free as work completes; push is confirm-first, always.
+- Branch + PR for non-trivial changes; reserve direct-to-`main` for trivial/agreed one-offs. After a squash-merge, return the local checkout to freshly-pulled `main` before branching next (squash-merge leaves stale head branches; confirm a merged PR, not `is-ancestor`, before deleting).
+- STANDING RULE (bug-sweep): any user-reported fix targeting a UI/UX pattern class MUST trigger an app-wide sweep for that same pattern, with a regression pin (new CI probe or test assertion) landed in the same PR. A sweep is one grep/search pass; the probe is the durable guard.
+- Surface reshaping (new/merged/moved/redesigned page, or any change to a route/surface/enumerable) needs a matching `spec/product-contract.md` edit + Chi's sign-off, and a screenshot for Chi before the batch merges. IA drift without a signed contract edit is a publish-blocking P0.
+- npm publish: bump `package.json` version first → PR → merge → confirm `main` green → `npm run walk` against real data, judge against `spec/design-rubric.md` + `spec/product-contract.md` (publish blocks on any open P0/P1) → `npm publish` → verify `npm view chronicle-cli version` → clean-dir npx smoke → tag + `gh release`. Full checklist: hub patterns doc below.
 
-### Insights / Explore / Content engine (server/scope.ts · explore.ts · content.ts · calibrate.ts · insights.ts)
+## Pre-push scan list
 
-- **Scope + minor gate are ONE primitive.** `server/scope.ts` turns a
-  `Scope = {type: 'all'|'project'|'session', id?}` into a SQL `WHERE` fragment + bind
-  params (`s` is the sessions alias every engine query uses); a missing id degrades to
-  `'all'` rather than emitting a broken `= NULL`. `minorGate(scope)` returns
-  `AND COALESCE(s.minor,0)=0` for `'all'`/`'project'` but **`''` for a directly-opened
-  session** — session scope already restricts to one session, so the minor exclusion (meant
-  for aggregates) would wrongly blank the pane. Both are ANDed onto every engine query.
-- **Token MAGNITUDE comes from authoritative `sessions.usage`, not per-message columns.**
-  Per-message token columns capture only ~0.73 of billed usage (~27% is never stored
-  per-row, ~70% of what is stored sits on tool_use rows), so they can't reconcile. Explore's
-  `EXACT_USAGE_GROUPS` (`model`/`project`/`source`) source `tokensByModel` from the parsed
-  `sessions.usage` per-model billed cells (= Overview / Insights / Claude `/usage`);
-  requests/sessions/errors/activeMs stay per-message (their natural units). `hour`/`subagent`
-  are inherently message-level and stay per-message by design.
-- **Calibration is ONE shared primitive** (`server/calibrate.ts` `calibrateByBucket`).
-  Chronicle bills tokens per assistant turn, not per tool-call/kind, so "tokens
-  attributable to X" is estimated as X's share of message TEXT LENGTH scaled to the real
-  billed total. `tool`/`skill` × tokens in Explore and the whole Content composition are
-  calibrated; any result built from it sets **`calibrated: true`** so the UI badges it.
-- **Tool-results pair to their tool_use via `MIN(id)`.** Content's tool-results-by-tool and
-  Explore's per-group error attribution join a `tool_result` to exactly ONE `tool_use` with
-  `u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id=r.session_id AND
-  u2.tool_use_id=r.tool_use_id AND u2.kind='tool_use')` — the earliest matching row, so each
-  erroring result is counted ONCE, not multiplicatively cross-joined against every
-  co-resident tool_result.
-- **Index the pairing join.** `idx_messages_tooluse ON messages(session_id, tool_use_id)`
-  (in `db.ts`) makes that correlated subquery non-quadratic; without it SQLite can only
-  search the tool_use side by `session_id`. Measured on the maintainer's ~395 MB / 101k-row
-  real DB, this index alone cut `/api/explore` materially. (`idx_messages_session` on
-  `(session_id, seq)` + `idx_sessions_project` are the other two.)
-- **Subagents are first-class sidechain rows.** Subagent (sidechain) turns import with
-  `agent_type`/`skill` attribution and per-message token usage; Content's subagent token
-  share is **EXACT** from those per-message sidechain columns (skill share is calibrated).
-  The session view surfaces them in an Overview **Subagents** card + a per-subagent drill-in
-  (`SessionMode` includes `'subagent'`, reached only via that card, not the sidebar rail).
-- **Insights hub** (`server/insights.ts`) mirrors the per-project analytics shapes
-  (`server/routes/projects.ts`) but across ALL projects — same `COALESCE(minor,0)=0` gate,
-  same `days=` cutoff, same error heuristic (precomputed per-session counts; see the
-  `server/errors.ts` gotcha). Message-level aggregates are written as `sessions CROSS JOIN
-  messages` so the covering `idx_messages_agg` index serves them (never a scan of the fat
-  messages table). `dailyActivity`/`hourlyActivity` are
-  DELIBERATELY exempt from `days=` (Working Rhythm always shows a fixed trailing 182-day
-  calendar + trailing 30-day hour-of-day heatmap).
+Chronicle is public. Before any push, verify:
+- No hub-confidential material: nothing from `wiki/confidential/`, `next-ventures/`, or acquisition-adjacent trees.
+- No real hub documents or data in fixtures or tests (synthetic only).
+- No absolute hub/home paths in tracked files.
+- No secrets, keys, or `.env` contents.
 
-## Key files
+Deeper hub-data scan is deferred until chronicle reads hub data at runtime (CHI-107); it does not today, so it cannot carry hub-confidential data. Standard push confirm-first still applies.
 
-- `bin/chronicle.mjs` — `npx chronicle-cli` launcher (Node built-ins only; see npm / npx).
-- `tsconfig.publish.json` — publish-time server compile → `dist-server/` (`prepack`).
-- `server/db.ts` — schema (projects/sessions/messages) + indexes + FTS5 + `replaceSession`
-  transaction (applies the noise gate, preserves `name`).
-- `server/api.ts` — assembles the Express app from `server/routes/*` (projects, sessions,
-  import-sync, search, git, security, settings, insights, explore, content); starts the
-  auto-sync watchers on load.
-- `server/git.ts` — snapshot engine; `commitsBetween` pads ±10 min for timeline ticks.
-- `server/parsers/` — claudeCode, codex, cursor, opencode → normalized event model.
-- `server/live.ts` — JSONL tail (`Watcher`) + SQLite poll (`SqlitePollWatcher`) → SSE.
-- `server/causality.ts` — read→change linking, confidence 0.95/0.55/0.5/0.45/0.2.
-- `server/security.ts` — redaction rules, `scanSession`, interceptions.
-- `server/autosync.ts` — incremental auto-sync (mtime > imported_at; watchers, 30-min
-  backstop, debounce; state on globalThis); settings in `~/.chronicle/config.json`.
-- `server/noiseGate.ts` — `isMinorSession()` (minor bucket) + thresholds.
-- `server/durations.ts` — canonical Agent Active (10-min cap, tool_result exemption)
-  + Engaged (90-min cap), stored on sessions at import.
-- `server/scope.ts` · `explore.ts` · `content.ts` · `calibrate.ts` · `insights.ts` — the
-  Insights engine (see the Insights/Explore/Content section above).
-- `src/App.tsx` — global sidebar (collapse in localStorage; sb-top = Home + Projects only, plus
-  the session-mode rail while a session is open), URL routing (wouter: `/` `/projects`
-  `/project/:id[/explore|/content]` `/session/:id`, and `/insights` = redirect→`/`), LIVE pill
-  (session-scoped), the topbar sync-status pill (`useSyncStatus` — "synced Xm ago" / "syncing…" /
-  "sync failed Xm ago", click-to-sync-now), always-on top-bar Search/Import.
-- `src/HomeDashboard.tsx` — the `/` home = the ONE Insights hub (F1 merge; replaced the old
-  `HomePage` AND absorbed the deleted `InsightsPage.tsx`): tabs Overview / Explore / Content, a
-  five-option window toggle (Today/7d/30d/90d/All), and (on Overview, in this order) a KPI strip
-  (shared `KpiStrip`, ONE `/api/insights` fetch) → a Today-only Activity block (live + "since you
-  left", via `server/routes/activity.ts`) → a Burn tile → the Insights Overview charts →
-  `RecentLedger` last. `fmtLaneC` (proxy-lane sub-cent spend carve-out) lives here now. The
-  project grid moved to its own route/component, `/projects` (`src/ProjectsPage.tsx`, a rail-list).
-- `src/RecentLedger.tsx` — the recent-sessions ledger extracted from the old `HomePage`:
-  search box, day-grouping, lazy infinite scroll (`IntersectionObserver`), the
-  minor-sessions bucket, and session multi-select (`useSessionSelect`, see the Session
-  multi-select decision above). Mounted at the bottom of `HomeDashboard`.
-- `src/useCachedFetch.ts` — client stale-while-revalidate fetch layer (Task 5): a
-  module-level cache keyed by URL so a pane never blanks on a tab/param switch;
-  `invalidateClientCache()` (called from every mutation path) bumps a generation counter so
-  no pre-mutation response already in flight can land stale after it returns.
-- `server/cache.ts` — generation-keyed result cache for the heavy analytics routes
-  (insights/explore/content/per-project analytics); no TTL — correctness comes from
-  `invalidateCache()`, called at the end of every DB write path, not expiry.
-- `server/routes/activity.ts` — `/api/activity`, the Home dashboard feed (live +
-  since-you-left rows, the Burn tile), cached via `server/cache.ts`.
-- `shared/contextWindows.ts` — per-model context-window (max token) table, mirrored into
-  `shared/` (like `shared/types.ts`) so both the client (session Overview's context-used
-  gauge) and server (Content's `highContextRel` characteristic) compare against the same
-  numbers without hand-copy-pasted duplication.
-- `src/SessionView.tsx` — the core session view; registers modes (overview/playback/refine
-  + Security Check, ⌘1–⌘3) into the sidebar via `onRailChange`; owns filtering, windowing,
-  live SSE, causality panels, the breadcrumb session switcher, the `⇧⌘U` per-session sync
-  shortcut, the Subagents drill-in, and the Overview stats page.
-- `src/ExploreTab.tsx` · `src/ContentTab.tsx` — the Explore / Content tab bodies (consume the
-  `/api/explore|content` engine routes). Reused at `scope={all}` by the `/` hub (`HomeDashboard`)
-  and per-project by `ProjectDetail`. (The old `InsightsPage.tsx` was DELETED in the F1
-  Home/Insights merge — its Overview body is now inline in `HomeDashboard.tsx`.)
-- `src/ProjectDetail.tsx` — project analytics home with Overview/Explore/Content/Sessions
-  tabs; also exports `sessionDisplayName()`, `ProjectPicker`, `SessionPicker`. The `days`
-  for "Today" is fractional-days-since-local-midnight, memoized on `range`.
-- `src/models.ts` — static per-model tables (never fetched): context windows +
-  list-price table (`pricingFor`, `costOf`, `costBreakdownOf`, `cacheWriteTokens`,
-  `cacheWriteByTtl`, `cacheWriteCostByTtl`). Update when models/prices change.
-- `src/kinds.ts` — the canonical `KIND_LABEL`/`KIND_ICON` maps (see the labels decision).
-- `src/i18n.ts` — `t()` looks up `DICTS[lang()]` (zh + ja dicts, English is the key
-  itself); `setLang` reloads the page. Add a locale = add a dict here. **Because English IS
-  the key, a long explainer's key must BE the full English sentence, not a short label** —
-  a label key renders that literal string for English users (bit us once).
-- **Design system (PR 5c):** `src/styles.css`'s `:root` is the token contract every view is
-  styled against — `--bg0/1/2`, `--border(-strong)`, `--ink/-2/-3`, `--brass(-text)`,
-  `--ok/--warn/--danger`, `--c1..--c5` (categorical, fixed order, never cycled). A
-  `:root[data-theme="light"]` twin is authored but unwired. `src/Modal.tsx` (Radix Dialog),
-  `src/InfoTip.tsx` (Radix Popover), and inline Radix `DropdownMenu`/`Popover`/`Toast` usage
-  are the shared interactive primitives — see the Radix Dialog sibling-portal gotcha below
-  before touching `.modal`/`.modal-backdrop`. `src/colors.ts` (`projectColorMap`) and
-  `src/charts/ChartWrapper.tsx` (Recharts wrapper) are chart primitives.
+## Records seam
 
-## Patterns
+No `records/` in this repo. Decisions, brainstorms, and the session ledger live in the hub only; seam + Stop-hook wiring: `$HUB/governance/satellite-repos.md`. Ledger Repo column = `chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148); do not fill them manually. Decisions Chi confirms live are still best logged in-flow at the top of `$HUB/records/decisions.md` (header ending `(session <id>, stream: chronicle)`).
 
-- State lives on `globalThis` (`__chronicleLive` etc.) so Vite SSR module reloads don't
-  orphan watchers/child processes.
-- All secret-bearing API output goes through `maskService`-style masking; never return
-  raw headers/env.
-- Destructive or user-visible ops back up first under `~/.chronicle/backups/` and require
-  an explicit UI click.
-- UI is plain React + one `styles.css` (CSS variables, dark theme) — no UI framework;
-  match that style. Charts are Recharts (via `ChartWrapper`) or hand-rolled SVG/CSS.
-- Long lists: window around the selection (~400 rows) + decimate timeline ticks;
-  don't render unbounded arrays (sessions reach 5k+ messages).
-- **npm-publish checklist** (order matters): bump `package.json` version FIRST → commit +
-  push (a branch + PR) → merge, return to `main` → confirm `main` green
-  (`npm run typecheck && npm test && npm run build`) → run `npm run walk` against real data
-  (a real `~/.chronicle/chronicle.db`, not the seeded E2E fixture) and judge the captured
-  screenshots/probe JSON against BOTH `.claude/design-rubric.md` AND
-  `.claude/product-contract.md` — **product-contract conformance is a 5th lens** (does every
-  surface still match the frozen product shape / IA?) on top of the rubric's four (function,
-  responsiveness, data-scale, product completeness). **Any IA drift — a surface deviating from
-  `.claude/product-contract.md` without a matching, Chi-signed-off contract edit — is a P0
-  (publish-blocking).** **Publish is blocked while any P0/P1 finding is open** (fix or explicitly
-  defer as P2 first) → `npm publish`
-  (`prepublishOnly` gates on typecheck+test; `prepack` builds `dist/` + `dist-server/`) →
-  verify `npm view chronicle-cli version` → clean-dir npx smoke (see npm / npx) → tag the
-  bump commit `git tag vX.Y.Z <commit> && git push origin vX.Y.Z` → `gh release create
-  vX.Y.Z`. Tag = `package.json` version = published version.
-- **Plan-fidelity gate (drift prevention).** Before executing ANY implementation plan derived
-  from a spec/brainstorm, run a dedicated conformance pass diffing the plan against the source
-  agreement sentence-by-sentence. Any divergence — the plan compressing, dropping, or reshaping a
-  decision Chi confirmed — goes to Chi BEFORE Task 1, not after the surface ships. Task briefs for
-  product-shaping tasks (a surface's routes/blocks/enumerables) MUST carry the relevant spec
-  section VERBATIM, not only the plan's compression of it — reviews then judge against the source,
-  not a lossy paraphrase. (This is the class of failure that produced the Home/Insights + Projects
-  drift: the plan compressed the spec, briefs inherited the compression, reviews/walk never saw
-  the product shape. `.claude/product-contract.md` is the durable capture of that shape.)
-- **Screenshot checkpoint (surface reshaping is a spec-level decision).** Any task that reshapes a
-  top-level surface — a NEW, MERGED, MOVED, or REDESIGNED page — produces a screenshot for Chi
-  BEFORE its batch merges. Surface reshaping crosses the authorization boundary (it changes agreed
-  product shape), so it is never green-lit by passing gates alone; Chi sees the pixels first.
-- **Branch + PR for non-trivial changes** (Chi's preference) — don't commit straight to
-  `main`; make a `fix/…`/`feat/…` branch, push, `gh pr create`, even solo. Reserve
-  direct-to-`main` for trivial/agreed one-offs. **After a PR merges, return the local
-  checkout to `main`** (`git checkout main && git pull && git fetch --prune && git branch -D
-  <branch>`) — see the git-pill gotcha below.
-- **Squash-merge leaves stale head branches; they read as "not merged".** GitHub's squash
-  merge rewrites the PR into ONE new commit on `main`, so the original branch's commits are
-  NOT ancestors of `main` — `git merge-base --is-ancestor origin/<b> origin/main` returns
-  false even though its content shipped. Before deleting, confirm the work landed via a
-  MERGED PR (`gh pr list --state all --head <b>`), NOT `is-ancestor`. Then
-  `git push origin --delete <b>`.
-- **The docs site is a separate deployable.** `website/` (VitePress, EN-only, `srcDir: docs`,
-  `base: '/docs/'`) serves getchronicle.dev/docs + a static landing at `/`, deployed to the
-  `chronicle-web` Vercel project via `.github/workflows/deploy-docs.yml` on any push to
-  `main` touching `docs/**`/`CHANGELOG.md`/`website/**` (secret: `VERCEL_TOKEN`). Edit
-  `docs/`, never `website/docs/` (regenerated at build by `website/scripts/build-content.mjs`
-  + `assemble.mjs`). The changelog page is GENERATED from repo-root `CHANGELOG.md`.
-- **Timezone convention: ALL user-facing day/hour bucketing/labels are LOCAL time, converted once.**
-  Server-side (`server/windowUsage.ts`, `server/explore.ts`, `server/insights.ts`,
-  `server/routes/projects.ts`): `strftime(..., 'localtime')` on the SQL side, bucket keys in
-  'YYYY-MM-DD' (day/week) or 'YYYY-MM-DDTHH' (hour) or 'YYYY-MM' (month) format.
-  Client-side (`src/charts/timeBuckets.ts`): bucket keys are formatted directly with local getters
-  (`getFullYear()`, `getMonth()`, etc.) — **NEVER reconstruct a Date from a day key via**
-  `${key}T00:00:00Z`, which re-parses an already-local calendar string as UTC midnight and shifts
-  the displayed day by ±1 in any non-UTC timezone (the root cause of the Aug-12-label-on-Aug-13
-  double-conversion bug).  `dayKeyOf`/`hourKeyOf`/`monthKeyOf` produce the same format as the
-  server; a client-computed Date goes through the local (non-UTC) constructor (`new Date(y, mo-1, d)`),
-  never parsed ISO. One exception: `server/activity.ts`'s `medianBaseline` uses internal UTC-anchored
-  join keys (never displayed).
-- **Windowed-usage semantics (feedback-round): a session belongs to a time window iff its activity
-  span overlaps the window**, not the old `COALESCE(s.started_at,'9') >= cutoff` gate which drops
-  sessions that started before the window but ran INTO it. Primitive: `server/windowUsage.ts`
-  `windowedUsage` / `bucketedUsage` (framework-free, callable by insights.ts / explore.ts / content.ts
-  / routes/projects.ts / routes/activity.ts). Billed magnitudes attributed via per-session
-  per-model calibration: scale each session's billed cell by (in-window per-message tokens ÷
-  whole-session per-message tokens), clamped 0..1 — reuses the "share of real total" idea from
-  `server/calibrate.ts`, weighted by token count. Sessions fully inside the window naturally get
-  ratio 1. Error counts stay whole-session at overlap granularity (disclosed trade-off,
-  see query comments).
-- **The STANDING RULE (feedback-round, Task 7):** any user-reported fix targeting a UI/UX pattern
-  class MUST trigger an app-wide sweep for that same pattern, with a regression pin (a new CI probe
-  or test assertion) landed in the same PR. Example: the timestamp-spacing fix (Task 18) was
-  applied site-locally once (ledger day headers, PR #79) while the same visual class shipped in the
-  Conversation Timeline; the rule prevents that recurrence. A sweep is a single pass across the
-  app's key files (search/grep), not an exhaustive audit — the probe is the durable guard.
+## Dev knowledge (hub)
 
-## Gotchas
+Deep dev-internal knowledge is hub-private (chronicle is public, so it does not go in the published `docs/` site). Under `$HUB/personal-projects/chronicle/`:
 
-- **Mount an express *app*, not a Router, into Vite middleware** — Router leaves
-  `res.json` undefined on raw Node res objects.
-- `vite.config.js` edits restart the dev server; the preview/curl port drops briefly.
-- Merge commits show empty `diff-tree` without `-m --first-parent` (already handled).
-- OpenCode/Cursor DBs are WAL — copying only the `.db` file yields an EMPTY database;
-  always copy `-wal`/`-shm` too (parsers do).
-- Claude Code JSONL: skip `<command-name>`/`<local-command` user strings and
-  `<system-reminder>` text blocks, or imports fill with noise. (Sidechain/subagent entries
-  are NOW imported deliberately — see the Subagents decision — not skipped.)
-- `messages.seq` from live SSE starts at 1,000,000 to avoid colliding with stored seqs;
-  live messages exist only in client state until re-import.
-- Session import is `replaceSession` (delete + reinsert): re-import is idempotent, but
-  live-only messages are unaffected by design.
-- **`replaceSession` preserves the user-set `name`** across its delete+reinsert (reads
-  `prev.name` first) — `summary`/`usage` are re-derived each import, but a Chronicle rename
-  must survive re-sync. A stale process sharing `~/.chronicle/chronicle.db` that predates the
-  `name` column will wipe titles on any sync — kill it before debugging "my rename vanished".
-- `sessions.context_tokens` (real context size from Claude Code usage records) only
-  populates on import — after upgrading, re-import or Sync Update, else session cards fall
-  back to the ~chars/4 estimate.
-- Per-session source-file deletion is restricted to sources where one file = one session
-  (claude-code, codex); OpenCode/Cursor share one DB across sessions, so their files are
-  never deleted.
-- The tool-result error heuristic has ONE server copy: `server/errors.ts`
-  (`ERROR_RE`/`isErrorHead`), imported by `explore.ts` and by `db.ts` at import
-  time — `replaceSession` precomputes per-session `result_count`/`error_count`
-  (one-time backfill for old rows), which insights/projects SUM instead of
-  regexing tool_result heads per request. The client twin `isErrorResult` in
-  `src/SessionView.tsx` must stay in sync with it. Changing `ERROR_RE` only
-  affects sessions imported AFTER the change (stored counts are per-import) —
-  NULL out `sessions.result_count` to force a re-backfill.
-- **Never use `window.prompt()`/`confirm()`/`alert()` for input in this app** — they are
-  blocked (silently return null) in embedded/preview browser contexts, so the action
-  no-ops with no error. Use an inline edit-in-place field / inline confirm bar instead
-  (see `OverviewMode` in `SessionView.tsx`, the `RecentLedger`/`useSessionSelect` session
-  multi-select flow, and `ProjectsPage.tsx`'s `ProjectMenu` per-project inline confirm).
-- **`.info-bubble` (InfoTip ⓘ) must open DOWNWARD.** `InfoTip` (`src/InfoTip.tsx`) uses
-  Radix Popover with `side="bottom"` + `avoidCollisions={false}` — the
-  `avoidCollisions={false}` is load-bearing, not optional: Radix's default collision-flip
-  would otherwise flip it upward inside `.page` (`overflow-y: auto`, clips both axes) and
-  cut it off at the viewport top. 250px wide so long explainers stay short.
-- **Radix `Dialog.Overlay` and `Dialog.Content` render as PORTALED SIBLINGS, not nested.**
-  `.modal`'s old centering relied on being a flex child of `.modal-backdrop`, which stopped
-  working once Radix's Portal made Overlay and Content direct portal children. `.modal` now
-  self-centers via its own `position:fixed; top/left:50%; transform:translate(-50%,-50%)` —
-  and that transform must be a STATIC property on `.modal`, not only in the entrance
-  keyframe's `to` state (`animation-fill-mode` defaults to `none`, so an animated-only
-  transform reverts to `transform:none` when the 200ms `modal-in` finishes and the modal
-  snaps to the top-left of its anchor). Caught only by clicking through the built app.
-  Radix `Toast.Root` also defaults to a 5s `duration` — pass `duration={N}` explicitly if
-  app logic (e.g. an undo window) assumes a different auto-dismiss time.
-- The project-card **git pill shows the local checkout's live branch** — `repoInfo` in
-  `server/git.ts` shells out to `git` on every `/api/projects` call (NO caching), so it's
-  always accurate. If it shows a feature branch after a PR merged, the working tree is still
-  ON that branch — switch back to `main` (the pill is right, the checkout is wrong).
-- The repo has moved twice in the maintainer's home dir (2026-07-05, 2026-08-08). Each move
-  changes the munged Claude Code transcript dir under `~/.claude/projects/`; old session
-  JSONLs were migrated to the current munged path and internal `cwd` paths updated, so
-  imported sessions stay valid.
-- **The auto-mode safety classifier gates outward/irreversible steps** — Vercel prod
-  deploys, `git push` to the default branch, `gh release` / `npm publish`, `rm` of things
-  outside the repo. Explicit user authorization in the immediately preceding turn usually
-  clears it; otherwise route via a PR or hand the exact command to the user. Never work
-  around a denial.
+- `2026-08-15-chronicle-architecture.md`: architecture decisions (and why) + the Insights/Explore/Content engine.
+- `2026-08-15-chronicle-key-files.md`: the server + client code map.
+- `2026-08-15-chronicle-gotchas.md`: gotchas.
+- `2026-08-15-chronicle-patterns.md`: patterns, TypeScript rules, npm/npx publish detail, verification habits.
 
-- **`res.sendFile(absolutePath)` 404s under dot-segment install paths** (`npx ~/.npm/_npx/`,
-  `.claude/worktrees/`). Express's `sendFile` applies `dotfiles:'ignore'` to the entire path,
-  not just the filename — paths with dots in any directory component are rejected. Workaround:
-  always use `sendFile(rel, {root})`, passing the relative filename + the root directory
-  separately (already done in `server/standalone.ts`; regression test: `test/standalone-spa-fallback.test.mjs`).
-- **Any test touching server modules that start autosync must call `stopAutoSync()` in teardown**
-  — otherwise `npm test` hangs on machines with real data in `~/.chronicle/chronicle.db`. The
-  auto-sync watchers remain live and prevent the process from exiting.
-- **Never run `vite build` concurrently with an e2e run** — the build wipes `dist/` and the
-  seeded e2e server 404s mid-run. E2E tests assume `dist/` is stable for their full duration.
-## Verification habits used here
+Working plans and brainstorms also live under that hub folder (CHI-196).
 
-Features were verified against real data: this repo's own Claude Code session
-(import → time travel → causality), `~/health-analyst` (234 commits), and fixture
-DBs/JSON for Cursor/Codex/OpenCode-live in `test/fixtures/`. Prefer that over mocks: the
-fastest end-to-end check is importing Chronicle's own session and clicking around. Known
-deferrals: remote SSH (no host to test), Windows/Linux beyond the npx path.
+## spec/ (in-repo, not published)
 
-## UI/UX design-QA (how to audit + polish surfaces)
+`spec/design-rubric.md` (design-QA rubric: 4 lenses, per-surface checklist, spacing/chart/popover policies, P0/P1/P2 severity) and `spec/product-contract.md` (the frozen product shape / IA) are read at release-walk time and by reviewers. They live in `spec/`, NOT `docs/` (VitePress `srcDir: 'docs'`, so `spec/` is not built into the public site) and NOT `.claude/` (harness-machinery only). Generate UI with the `frontend-design` / `dataviz` / `ui-ux-pro-max` skills; judge with `spec/design-rubric.md`.
 
-Reusable playbook from the Batch B aesthetic pass (77 findings across every surface, resolved in
-one autonomous run). Reach for it whenever asked to "polish", "clean up the UI", or fix layout/
-aesthetic issues on a surface.
+## Visibility
 
-- **Generate with the skills, judge with the rubric.** `frontend-design` (aesthetic direction/
-  typography), `dataviz` (charts/heatmaps/stat tiles), and `ui-ux-pro-max` are good at *producing*
-  UI, but they're generic — they don't know Chronicle's house style and won't catch Chronicle
-  regressions. The house style + the checks below are what keep a change on-system.
-- **Canonical rubric: `.claude/design-rubric.md`.** Checked-in (repo-local, NOT `docs/` — that
-  publishes to the public site), distilled once (C2 Task 11) from the three design skills above +
-  this section's 8 categories + the quality-pass spec's **4 lenses** — function, responsiveness,
-  data-scale, product completeness (does it work? does it hold up at every width? does it survive
-  a big/real dataset? does it deliver what the spec promised?). It is the judge input for release
-  product walks (C4 Task 19 scores screenshots/probes against it) and holds, in full, checkable
-  form: a per-surface checklist, the alignment/container/popover policies, the spacing scale
-  (`--gap-1..--gap-5` = 4/8/12/16/24px; shared classes `.num-col`/`.ts-col`/`.pane` in
-  `src/styles.css`), chart rules, and the P0/P1/P2 severity rubric (publish blocks on open
-  P0/P1). Reach for it instead of re-deriving these rules ad hoc; extend IT when a new rule is
-  needed, not a one-off call site.
-- **Three reference widths — 1024 / 1366 / 1728** (`test/e2e/helpers.ts` `WIDTHS`, spec §4): every
-  surface must show no horizontal scroll, no element crossing the viewport, no clipped popover at
-  all three. **Popover policy** (validated against Radix `Popover.Content` docs, Task 9 — see
-  `src/InfoTip.tsx`): `avoidCollisions` is a single switch for BOTH axes, not align-only, so it
-  stays `false` always with `side="bottom"` always; horizontal shift-to-stay-in-viewport is done
-  manually (an unanimated clamp wrapper, since the entrance animation's `transform` would
-  otherwise outrank an inline one on the same element) — never let Radix flip a popover upward.
-  Full policy detail (alignment: numerics right + tabular-nums, timestamps in a fixed `.ts-col`;
-  container: no fixed-px content panes, `min-width: 0` on scrollable flex/grid children) lives in
-  the rubric file above.
-- **The 8-category design-QA rubric** (tag every finding with one; most fixes are cross-cutting):
-  **NUM** numeric alignment/format (right-aligned + `tabular-nums`, one currency/precision) ·
-  **DEDUP** no stat shown twice with unclear difference · **SPACE** no run-together label+value,
-  correct eyebrow spacing · **RHYTHM** consistent gaps, intentional density · **DISTINCT** different
-  semantic things look different (source pill vs project pill vs dot vs icon) · **AFFORD** controls
-  look interactive + ≥24px target · **LAYOUT** content fills its column, panels resize where useful,
-  no wasted fixed space · **BUG** stray gaps, misalignment, overflow, unbalanced spans.
-- **Audit → re-probe loop (do this per touched surface, not just eyeball):** with `npm run dev` up
-  on a free port (macOS has no `setsid`; `run_in_background` bash gets reaped at turn end, so launch
-  detached: `nohup npm run dev -- --port <free> --strictPort > /tmp/chr.log 2>&1 &`), drive it with
-  Playwright: navigate the surface, then `browser_evaluate` a script that ASSERTS the specific defect
-  is gone (e.g. every numeric leaf cell reports `fontVariantNumeric` containing `tabular`; card
-  `trailingPx <= 28`; no KPI tile's right edge exceeds the row at 1040px; a focused control's
-  `outlineColor` is the brass token, not blue) + screenshot. A finding is closed only when its probe
-  assertion passes. Radix dropdown/menu items portal and don't survive an `evaluate` boundary — drive
-  them with real Playwright clicks or verify the underlying logic another way. Uncommon glyphs:
-  confirm they render (not tofu) by pixel-signature diff against a private-use missing char (width
-  fails on a monospace font — every glyph is one cell wide).
-- **Two scripted counterparts to the manual loop above, for when you're not hand-driving
-  Playwright.** `npm run test:e2e` (`test/e2e/*.spec.ts`, gated in CI on every PR — see
-  Commands) is the PERMANENT regression suite: function smoke, the Subagents=120 data-scale
-  guard, and no-overflow assertions at the 3 reference widths, all against the seeded big
-  fixture — it fails the build, it doesn't just report. `npm run walk`
-  (`test/e2e/walk.mjs`) is the opposite shape: a standalone (non-Playwright-test) script that
-  walks every route/mode at the same 3 widths against a REAL Chronicle instance (your own
-  `~/.chronicle/chronicle.db`, not the seeded fixture) and writes a screenshot +
-  overflow/popover-clip/tabular-nums/console-error probe report per page plus one aggregate
-  `walk-report.json` — it never asserts/fails, it captures evidence for a human (or an
-  agent) to JUDGE against `.claude/design-rubric.md` before a release (see the npm-publish
-  checklist).
-- **App-wide invariants (must not regress; grep to confirm):** ZERO `window.prompt/confirm/alert` in
-  app code (blocked in embedded browsers — use inline edit/confirm; `test/no-window-dialogs.test.mjs`
-  guards it) · exactly ONE magnifier glyph `⌕` · one mono glyph vocabulary, no colored emoji in chrome
-  OR page content (`⌕`=search `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security
-  `∑`=insights `⚙`=settings `⌫`=destructive; `✕`=close is distinct from `⌫`) · one money-precision
-  policy via `src/format.ts` (`fmtInt`/`fmtMoney(dp)`/`pluralize`): 0dp grouped for KPIs/axes/
-  summaries/bar labels, 2dp grouped for detail tables/tooltips/per-row cost — never a raw
-  `` `$${v}` ``/`toFixed` money template · design tokens only (never re-tone `:root`; the only new var
-  the batch added was `--heat-axis-offset`, a layout offset not a color). **`▤` vs `⬚`
-  (post-C3 clarification):** `▤` now means session/chat everywhere on the content side (search
-  results, session pickers, the `▤ N sessions` import-wizard summary — `src/ImportWizard.tsx`,
-  `src/ProjectDetail.tsx`, `src/SearchModal.tsx`); `⬚` is reserved ONLY as the sidebar's
-  Overview mode icon (`src/SessionView.tsx`) — don't reuse `⬚` elsewhere, and don't use `▤`
-  for the sidebar Overview item. **Known tracked gap, not fixed here:** `src/kinds.ts`
-  `KIND_ICON` still maps `user`/`thinking`/`tool_use` to colored emoji (👤/💭/🔧), rendered
-  in every Playback row (`src/session/MessageRow.tsx`) — mono-ifying it is a product call on
-  the replacement glyphs (not a rubric violation to silently fix), tracked as CHI-192 and
-  deliberately deferred past this program.
-- **CSS-cascade traps that are invisible to typecheck/tests/build (a rendering click-through won't
-  catch them either — only a combined-diff read does):** (1) the `font:` shorthand RESETS
-  `font-variant-numeric` to `normal`, silently killing `tabular-nums` on any rule that sets `font: …`
-  — re-add `font-variant-numeric: tabular-nums;` as a trailing declaration in the same rule. (2)
-  Duplicate CSS selectors don't error; the cascade collapses to the last one (the 5d `.hbar`/
-  `.rangebar` triple-duplication scar) — grep the COMBINED diff for any selector you added that already
-  exists, and extend the existing rule instead. Scope a per-surface block under its page-root class
-  (`.project-detail`/`.insights-page`/`.overview-page`) when two surfaces might both want the class.
-- **Process:** branch + PR per surface; after each squash-merge, re-gate on freshly-pulled `main`
-  before branching the next (squash-merge does NOT preserve a hand-resolved conflict merge). Money/
-  format/label policies live in `src/format.ts` + `src/kinds.ts` + `src/models.ts` — change the
-  policy there, not at call sites. Full backlog + the per-surface finding tables: hub
-  `records/brainstorms/2026-08-11-chronicle-batch-b-aesthetic-polish.md` + plan
-  `records/plans/2026-08-12-chronicle-batch-b-aesthetic-polish.md`.
-
-## Records seam (AIOS hub)
-
-Chronicle is a registered AIOS satellite (minimal: records seam only; no runtime hub reads yet). Its dev sessions and decisions flow into the hub.
-
-- Decisions meeting the hub logging bar: top of `<hub>/records/decisions.md`, header ending `(session <id>, stream: chronicle)`. Hub = `$AIOS_HUB` or `~/chizhang-2`.
-- Brainstorms: `<hub>/records/brainstorms/`.
-- Session end: the registry-scoped Stop hook (hub `.claude/hooks/session-ledger.py`, wired in tracked `.claude/settings.json` per the hub template in `governance/satellite-repos.md`, CHI-115) appends this session's row to `<hub>/records/sessions_index.md` with `Repo = chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148 sweeper); do not fill them manually. Decisions Chi confirms live are still best logged in-flow.
-- Pre-push scan list: deferred until Chronicle reads hub data (CHI-107 decision). Chronicle never reads the hub today, so it cannot carry hub-confidential data. Standard push confirm-first still applies.
+PUBLIC repo (`chizhangucb/chronicle`), published as the unscoped npm package `chronicle-cli`. Fail-closed: nothing confidential lands here (see pre-push scan).
