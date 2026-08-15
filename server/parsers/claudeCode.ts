@@ -156,10 +156,23 @@ function sniffHead(file: string): HeadSniff {
 
 // A session can record subdirectory cwds (e.g. <repo>/server). Walk the pick up
 // to the shortest seen ancestor so grouping lands on the project root.
-function reduceCwd(pick: string, seen: Set<string>): string {
-  let out = pick;
+
+// Strip a superpowers git-worktree segment (<repo>/.claude/worktrees/<name>[/...])
+// down to the parent repo root, so worktree-origin sessions map to the parent
+// project instead of an ephemeral, unregistered worktree path (autosync skips
+// any cwd that isn't a known project — server/autosync.ts). Detection is scoped
+// to the .claude/worktrees/ convention only; a deleted worktree leaves no
+// filesystem git-metadata, so a path heuristic is the only thing that works.
+// Design: records/brainstorms/2026-08-14-worktree-cwd-collapse-design.md
+export function collapseWorktree(p: string): string {
+  return p ? p.replace(/\/\.claude\/worktrees\/[^/]+(?:\/.*)?$/, '') : p;
+}
+
+export function reduceCwd(pick: string, seen: Set<string>): string {
+  let out = collapseWorktree(pick);
   for (const c of seen) {
-    if (c && c !== out && out.startsWith(c + '/')) out = c;
+    const cc = collapseWorktree(c);
+    if (cc && cc !== out && out.startsWith(cc + '/')) out = cc;
   }
   return out;
 }
