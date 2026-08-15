@@ -5,11 +5,11 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## 1.2.0 — 2026-08-15
 
-- **New home: a live Insights dashboard at `/`.** The landing page is now a
-  Today/7d/30d KPI strip, a Today-only Activity block (live sessions + "since
-  you left"), and a Burn tile, with the recent-sessions ledger (search,
-  day-grouping, bulk select) below it. The project grid moved to its own
-  **Projects** page.
+- **New home: a live Insights dashboard at `/`.** The landing page is now the
+  Insights hub — a Today/7d/30d KPI strip, a Today-only Activity block (live
+  sessions + "since you left"), a Burn tile, and the Overview charts. The
+  recent-sessions ledger (search, day-grouping, bulk select) and the project
+  list moved together to their own **Projects** page.
 - **Explore: hourly time brush + session grouping.** A new hourly granularity
   with an "Other" rollup for long tails, plus a per-session grouping view for
   Explore's pivot table.
