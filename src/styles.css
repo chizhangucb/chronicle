@@ -1499,6 +1499,7 @@ h4 { margin: 6px 0; }
 .callout b { font: 600 13px var(--mono); }
 .callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
 .callout.warn { border-left-color: var(--warn); }
+.minor-filter-notice { margin: 6px 0 14px; }
 .note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
 
 /* ---- Home dashboard (Task 13): Insights-overview landing (`/`) ---- */
