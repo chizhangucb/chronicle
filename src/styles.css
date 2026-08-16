@@ -900,6 +900,29 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* Show all / Show less: the ≥24px click target comes from .btn.tiny{min-height}
    (its own padding would lose to the global .btn.small/.tiny rule); just space it. */
 .msg-expand { margin-top: 2px; }
+
+/* Always-visible thin scrollbars (app-wide). macOS overlay scrollbars stay
+   hidden until you actively scroll, so the ledger / right rail looked
+   unscrollable. Any author `::-webkit-scrollbar` rule opts a scroller OUT of
+   overlay mode into a classic, always-present bar in Chromium/Safari — subtle
+   at rest (translucent thumb), darker on hover. `background-clip: padding-box`
+   over a transparent border insets the thumb so it reads ~5px, not edge-to-edge.
+   CRITICAL: the standard `scrollbar-width` property, when set, makes Chromium
+   IGNORE the ::-webkit-scrollbar pseudo-elements (and macOS then keeps the
+   overlay bar). So `scrollbar-width`/`scrollbar-color` are scoped to Firefox
+   only (`@supports not selector(::-webkit-scrollbar)`), leaving Chromium/Safari
+   to the pseudo-elements. Theme-aware via --ink-3 (both light + dark blocks). */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-3) 60%, transparent);
+  border-radius: 6px; border: 3px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink-3) 60%, transparent) transparent; }
+}
 .msg.tool .msg-body, .msg.tool-result .msg-body { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
 mark { background: var(--brass); color: var(--bg0); border-radius: 2px; padding: 0 1px; }
 
@@ -1500,6 +1523,13 @@ h4 { margin: 6px 0; }
 .callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
 .callout.warn { border-left-color: var(--warn); }
 .minor-filter-notice { margin: 6px 0 14px; }
+.minor-notice-head { display: flex; align-items: center; gap: 6px; }
+.minor-notice-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; border: none; color: inherit; }
+.minor-notice-toggle b { font: 600 13px var(--mono); }
+.minor-notice-toggle .tw { color: var(--ink-3); font-size: 11px; width: 1ch; }
+.minor-notice-toggle:hover .tw { color: var(--brass-text); }
+.linklike { background: none; border: none; padding: 0; color: var(--brass-text); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.linklike:hover { color: var(--brass); }
 .note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
 
 /* ---- Home dashboard (Task 13): Insights-overview landing (`/`) ---- */

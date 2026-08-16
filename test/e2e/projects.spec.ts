@@ -120,6 +120,65 @@ test('ledger renders and survives a scroll to the bottom', async ({ page }) => {
   await expect(rows.first()).toBeVisible();
 });
 
+// ── 2026-08-16 (Chi-approved): minor-sessions surface is an INLINE notice at
+// the TOP of the ledger with a definition InfoTip; "Show them" expands the
+// sessions in place. The old bottom "Minor sessions" bucket (long scroll, read
+// as broken) is removed. The seed has exactly one minor session (minifix-minor,
+// 2 turns → few messages AND brief → minor under the AND gate). ──────────────
+test('minor-sessions notice sits at the top of the ledger with a definition InfoTip; "Show them" expands inline; no bottom bucket', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+  const ledger = page.locator('.projects-page .recent-ledger');
+  const notice = ledger.locator('.minor-filter-notice');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('minor-session filter');
+
+  // Definition InfoTip present, and it states the AND semantics.
+  const tip = notice.locator('button.info-tip');
+  await expect(tip).toBeVisible();
+  expect(await tip.getAttribute('aria-label')).toMatch(/BOTH|AND/);
+
+  // The notice is ABOVE the day groups — top of the ledger, not a bottom section.
+  const noticeBox = await notice.boundingBox();
+  const firstDay = await ledger.locator('.day').first().boundingBox();
+  expect(!!(noticeBox && firstDay && noticeBox.y < firstDay.y)).toBe(true);
+
+  // Collapsed by default — no inline session list yet.
+  await expect(notice.locator('.session-list')).toHaveCount(0);
+
+  // "Show them" expands the minor sessions INLINE, each with promote/ignore.
+  await notice.getByRole('button', { name: /Show them/ }).click();
+  const row = notice.locator('.session-list .session-row').first();
+  await expect(row).toBeVisible();
+  await expect(row.getByRole('button', { name: /Promote/ })).toBeVisible();
+  await expect(row.getByRole('button', { name: /Ignore/ })).toBeVisible();
+
+  // The OLD bottom "Minor sessions" bucket must be gone entirely.
+  await expect(page.getByText('Minor sessions', { exact: false })).toHaveCount(0);
+});
+
+// ── 2026-08-16: app-wide always-visible scrollbars. The regression this pins:
+// a global `scrollbar-width: thin` makes Chromium IGNORE the ::-webkit-scrollbar
+// styling and (on macOS) keep the hidden overlay bar — which is exactly how the
+// ledger/rail looked unscrollable. The fix keeps scrollbar-width `auto` in
+// Chromium (thin is scoped to Firefox) and styles ::-webkit-scrollbar. (CI runs
+// Linux Chromium where classic bars are the default, so this pins the CSS
+// intent — the webkit rule exists + no thin override — not the pixel on macOS.)
+test('scroll containers keep classic scrollbars: ::-webkit-scrollbar is styled and scrollbar-width is not forced thin', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await gotoProjects(page);
+  const r = await page.evaluate(() => {
+    const content = document.querySelector('.projects-page .projects-content') as HTMLElement;
+    const hasWebkitRule = [...document.styleSheets].some((s) => {
+      try { return [...s.cssRules].some((c) => c.cssText.includes('::-webkit-scrollbar') && /width\s*:\s*\d/.test(c.cssText)); }
+      catch { return false; }
+    });
+    return { hasWebkitRule, scrollbarWidth: getComputedStyle(content).scrollbarWidth };
+  });
+  expect(r.hasWebkitRule, '::-webkit-scrollbar width rule must exist').toBe(true);
+  expect(r.scrollbarWidth === 'thin', 'scroll containers must not set scrollbar-width:thin in Chromium (it disables the ::-webkit-scrollbar styling)').toBe(false);
+});
+
 // ── Task 20 (D14) drift-pin: chrome sidebar — same tone as the left app
 // sidebar, full height, flush to the window's right edge at >=1100px ─────────
 test('right rail renders as chrome: same background tone as the left app sidebar, flush to the viewport right edge', async ({ page }) => {
