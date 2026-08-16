@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/egress-pretooluse.py\"",
+            "timeout": 10,
+            "statusMessage": "Egress gate: checking for raw push/publish"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
