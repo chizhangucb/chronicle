@@ -28,12 +28,16 @@ function readNoiseGateConfig(): NoiseGateConfig {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) as NoiseGateConfig; } catch { return {}; }
 }
 
-// A session is "minor" (below the noise-gate threshold) when its agent-active
-// time is under the active-ms threshold OR it has fewer messages than the
-// message-count threshold. Both tunable via ~/.chronicle/config.json.
+// A session is "minor" (below the noise-gate threshold) only when it is short
+// on BOTH axes: agent-active time under the active-ms threshold AND fewer
+// messages than the message-count threshold. AND (not OR) so a substantive
+// session never gets hidden on one axis alone — e.g. a 37-message working
+// session that happened to run under 5 min of agent-active time is real work,
+// not noise, and stays in the main lists. Both thresholds tunable via
+// ~/.chronicle/config.json; noise is the true one-shot (few messages AND brief).
 export function isMinorSession(agentActiveMs: number, messageCount: number): boolean {
   const cfg = readNoiseGateConfig();
   const activeThreshold = cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS;
   const countThreshold = cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT;
-  return (agentActiveMs ?? 0) < activeThreshold || (messageCount ?? 0) < countThreshold;
+  return (agentActiveMs ?? 0) < activeThreshold && (messageCount ?? 0) < countThreshold;
 }

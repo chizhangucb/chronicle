@@ -210,6 +210,17 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   const loadMinor = () => api.minorSessions().then(setMinorItems).catch(() => setMinorItems([]));
   useEffect(() => { loadMinor(); }, []);
 
+  // Bucket open/scroll are lifted here so the top-of-ledger notice (below) can
+  // expand + scroll to the bucket. Without a visible notice, gated sessions
+  // read as "missing" and the product looks broken (they aren't — they synced;
+  // the noise gate just parked them). The notice makes the filter legible.
+  const [minorOpen, setMinorOpen] = useState(false);
+  const bucketRef = useRef<HTMLDivElement>(null);
+  function revealMinor() {
+    setMinorOpen(true);
+    requestAnimationFrame(() => bucketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
   function selectMinorSessions() {
     if (!minorItems || !minorItems.length) return;
     if (!recentSelect.selectMode) recentSelect.enterSelect();
@@ -281,6 +292,13 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
           </div>
         )}
       </div>
+      {isRecentMode && (minorItems?.length ?? 0) > 0 && (
+        <div className="callout minor-filter-notice" role="status">
+          <b>{pluralize(minorItems!.length, t('session'), t('sessions'))} {t('hidden by the minor-session filter')}</b>
+          <div className="why">{t('Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.')}</div>
+          <button className="btn tiny" style={{ marginTop: 6 }} onClick={revealMinor}>{t('Show them')}</button>
+        </div>
+      )}
       <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
         {recentSelect.selectMode && <span aria-hidden="true" />}
         <span>{t('Session')}</span><span>{t('Project')}</span><span className="num-col">{t('Cost')}</span>
@@ -330,7 +348,8 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
         );
       })}
       {isRecentMode && hasMore && <div ref={sentinelRef} className="ledger-sentinel" aria-hidden="true" />}
-      <MinorSessionsBucket items={minorItems} onRefresh={() => { loadMinor(); onRefresh(); }} />
+      <MinorSessionsBucket items={minorItems} open={minorOpen} setOpen={setMinorOpen} bucketRef={bucketRef}
+        onRefresh={() => { loadMinor(); onRefresh(); }} />
       {recentSelect.Toast}
     </section>
   );
@@ -392,8 +411,13 @@ interface MinorSession {
 // `items`/`onRefresh` are owned by RecentLedger (shared with the "Select
 // minor sessions" quick-select above, which needs the same list/count) —
 // this component is just the expand/promote/ignore panel over them.
-function MinorSessionsBucket({ items, onRefresh }: { items: MinorSession[] | null; onRefresh: () => void }) {
-  const [open, setOpen] = useState(false);
+function MinorSessionsBucket({ items, open, setOpen, bucketRef, onRefresh }: {
+  items: MinorSession[] | null;
+  open: boolean;
+  setOpen: (fn: (o: boolean) => boolean) => void;
+  bucketRef: React.RefObject<HTMLDivElement | null>;
+  onRefresh: () => void;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function promote(id: string) {
@@ -408,7 +432,7 @@ function MinorSessionsBucket({ items, onRefresh }: { items: MinorSession[] | nul
   if (!items || !items.length) return null;
 
   return (
-    <div className="card" style={{ marginTop: 24 }}>
+    <div className="card" style={{ marginTop: 24 }} ref={bucketRef}>
       <div className="page-title-row" style={{ margin: 0 }}>
         <button className="btn ghost" onClick={() => setOpen((o) => !o)}>
           {open ? '▾' : '▸'} {t('Minor sessions')} <span className="muted">({items.length})</span>

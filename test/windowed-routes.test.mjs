@@ -90,14 +90,16 @@ before(async () => {
     spanEvents(todayOffsets, 10),
   );
 
-  // minor: a minor session (agent_active_ms < 5min) with non-zero usage in-window,
-  // to verify the windowed KPI call correctly excludes minor sessions. This session
-  // should be excluded from all windowed aggregates even though it has tokens.
-  const minorOffsets = [-1 * HOUR, -50 * 60000];
+  // minor: a genuinely minor session — short on BOTH axes (agent_active_ms < 5min
+  // AND < 10 messages; the gate is AND, not OR — server/noiseGate.ts) with
+  // non-zero usage in-window, to verify the windowed KPI call correctly excludes
+  // minor sessions. Two messages 1 min apart => ~1min active. replaceSession
+  // recomputes `minor` at insert, so the fixture must actually clear the gate.
+  const minorOffsets = [-60 * 60000, -59 * 60000];
   replaceSession(
     {
       id: 'minor', project_id: projectId, source: 'claude-code', file_path: '/tmp/minor.jsonl',
-      started_at: iso(now - 1 * HOUR), ended_at: iso(now - 50 * 60000),
+      started_at: iso(now - 60 * 60000), ended_at: iso(now - 59 * 60000),
       usage: JSON.stringify({ [MODEL]: { input: 500, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } }),
       minor: 1,
     },
