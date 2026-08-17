@@ -70,18 +70,27 @@ before(async () => {
 
   // --- Today's sessions (window = fractional "today"; membership is by
   // absolute started_at >= cutoff, so timing them relative to now is stable). ---
+  // started_at is CLAMPED to today's UTC midnight: when the suite runs shortly
+  // after UTC midnight, "30/40 min ago" is still the PREVIOUS UTC calendar day,
+  // and medianBaseline groups the 14 complete days by substr(started_at,1,10) —
+  // so an un-clamped start would spill these today-sessions into yesterday's
+  // baseline bucket and shift the median (a real midnight-boundary flake).
+  // Liveness/recency are by ended_at (kept at now-2m/now-9m), so this clamp
+  // changes nothing except near midnight. It's a no-op the rest of the day.
+  const liveStart = Math.max(now - 30 * 60000, todayMidnight);
+  const leftStart = Math.max(now - 40 * 60000, todayMidnight);
   // s_live: ended 2 min ago → LIVE (within the 5-min window).
   replaceSession(
     { id: 's_live', project_id: p.id, source: 'claude-code', file_path: '/tmp/s_live.jsonl',
-      started_at: iso(now - 30 * 60000), ended_at: iso(now - 2 * 60000), usage: usageJson(1000) },
-    rhythmEvents(now - 30 * 60000, MODEL),
+      started_at: iso(liveStart), ended_at: iso(now - 2 * 60000), usage: usageJson(1000) },
+    rhythmEvents(liveStart, MODEL),
   );
   // s_left: ended 9 min ago → NOT live; the "since you left" row. Carries one
   // erroring tool_result so errorCount plumbing is exercised.
   replaceSession(
     { id: 's_left', project_id: p.id, source: 'claude-code', file_path: '/tmp/s_left.jsonl',
-      started_at: iso(now - 40 * 60000), ended_at: iso(now - 9 * 60000), usage: usageJson(5000) },
-    rhythmEvents(now - 40 * 60000, MODEL, [
+      started_at: iso(leftStart), ended_at: iso(now - 9 * 60000), usage: usageJson(5000) },
+    rhythmEvents(leftStart, MODEL, [
       { kind: 'tool_use', tool_name: 'Bash', ts: iso(now - 10 * 60000) },
       { kind: 'tool_result', text: 'Error: boom', ts: iso(now - 10 * 60000 + 5000) },
     ]),
