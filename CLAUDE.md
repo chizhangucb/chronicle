@@ -19,6 +19,14 @@ npm run walk       # release-walk capture (screenshots + probe JSON), judged aga
 
 `npx chronicle-cli` runs the published build. CI (`.github/workflows/ci.yml`) gates `main` and every PR on typecheck + test + build + the Playwright E2E job, on Node 24. Full publish/TypeScript/architecture detail is in the hub dev docs below.
 
+## Repo layout
+
+`src/`, `server/`, `shared/`, `scripts/`, `test/`, `spec/`, `docs/`, `dist/` follow the standard product vocabulary (`repo-contract.md`); `shared/` holds the client+server TypeScript types. Components beyond the vocabulary, declared here so the contract's vocabulary check passes:
+
+- `website/`: the self-contained Vercel marketing site (getchronicle.dev), its own `package.json` and build, deployed separately from the app. Stays in-repo for now; revisit if it grows into its own repo (CHI-209 D2).
+- `bin/`: the npm entrypoint (`bin/chronicle.mjs`, what `npx chronicle-cli` runs).
+- `index.html`: the Vite entry for the app.
+
 ## Hub link
 
 - Hub is read-only from runtime code; path comes from `AIOS_HUB` (default `~/chizhang-2`). No absolute machine paths in tracked files (path-relative + git-cloneable).
