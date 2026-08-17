@@ -3,7 +3,22 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
-## 1.2.0 — 2026-08-15
+## 1.2.1 - 2026-08-16
+
+- **Sessions no longer look "missing": noise-gate fix.** Short sessions were
+  gated out of the main lists if they ran under 5 minutes of agent-active time
+  OR had fewer than 10 messages, so a fast but real 20-to-40-message session
+  could vanish and read as "not synced." The gate now hides a session only when
+  it is small on BOTH counts (brief AND few messages), so substantive sessions
+  always show.
+- **Visible minor-sessions notice.** When any sessions are gated as "minor," the
+  recent-sessions ledger shows a notice at the top with a one-click "Show them"
+  that expands the list inline (promote or ignore each), plus an InfoTip stating
+  the exact rule, so nothing gated ever reads as broken.
+- **Always-visible scrollbars.** The recent-sessions list and the project rail
+  now show a scrollbar at rest instead of only on hover.
+
+## 1.2.0 - 2026-08-15
 
 - **New home: a live Insights dashboard at `/`.** The landing page is now the
   Insights hub — a Today/7d/30d KPI strip, a Today-only Activity block (live
@@ -36,7 +51,7 @@ https://github.com/chizhangucb/chronicle/releases
   parent repo instead of being silently skipped, so worktree-based development
   shows up in Chronicle like any other session.
 
-## 1.1.0
+## 1.1.0 - 2026-08-12
 
 - **App-wide design-system pass.** Consistent typography, spacing, control
   sizing, and interaction states across Home, Project Detail, Insights,
@@ -54,13 +69,13 @@ https://github.com/chizhangucb/chronicle/releases
 - Assorted correctness fixes in Explore/Insights (error attribution, commit
   caching) and dead-code cleanup.
 
-## 1.0.2
+## 1.0.2 - 2026-08-12
 
 - Internal: shared conversation-pane component (`WindowedConvPane`) deduped
   across playback and the subagent drill-in. No user-facing changes.
 - First release published via automated OIDC trusted publishing.
 
-## 1.0.1
+## 1.0.1 - 2026-08-12
 
 - **Quieter startup.** The foreground `npx` launcher no longer prints the
   `node:sqlite` experimental warning or `fatal: not a git repository` lines from
@@ -69,13 +84,13 @@ https://github.com/chizhangucb/chronicle/releases
 - Housekeeping: removed the inert `launchAtLogin` setting and scrubbed leftover
   desktop-shell references from code comments.
 
-## 1.0.0
+## 1.0.0 - 2026-08-11
 
 - **Install via npm.** Chronicle is now `npx chronicle-cli` (requires Node 24+). The Electron desktop app and Homebrew/DMG install are retired.
 - Tabbed **Insights** (Overview / Explore / Content), first-class **Subagents**, and per-project Explore/Content/Sessions tabs.
 - Full TypeScript, invisible sync with tombstones + noise gate, stable URL routes.
 
-## v0.2.1 — 2026-08-09
+## 0.2.1 - 2026-08-09
 
 Safety and maintenance follow-up to v0.2.0:
 
@@ -86,7 +101,7 @@ Safety and maintenance follow-up to v0.2.0:
   the app and website (all transitive; no behavior changes). The remaining 3
   are dev-server-only issues in Vite 5, pending a VitePress 2.x upgrade.
 
-## v0.2.0 — 2026-08-09
+## 0.2.0 - 2026-08-09
 
 The substrate release: Chronicle becomes a metrics-grade session database while
 staying a standalone product. Feature removals make this a minor bump.
@@ -115,7 +130,7 @@ staying a standalone product. Feature removals make this a minor bump.
   refocuses on session history and metrics; security scanning, redaction, and
   share links remain.
 
-## v0.1.10 — 2026-07-12
+## 0.1.10 - 2026-07-12
 
 A sharper session metric, delivered via auto-update:
 
@@ -126,7 +141,7 @@ A sharper session metric, delivered via auto-update:
   finishing was being charged to your idle time. On a real session this moved the
   number from 33m to 43m of a 59m span. The ⓘ tooltip explains the distinction.
 
-## v0.1.9 — 2026-07-12
+## 0.1.9 - 2026-07-12
 
 Home-page and session-metric improvements, delivered via auto-update:
 
@@ -145,7 +160,7 @@ Home-page and session-metric improvements, delivered via auto-update:
 - **Readable tooltips** — the ⓘ info bubbles open downward and are wider, so the full
   explanation is always visible.
 
-## v0.1.8 — 2026-07-09
+## 0.1.8 - 2026-07-09
 
 Download site + developer docs. **No app changes** — the desktop app is unchanged
 from v0.1.7, so there's no update to install (like the v0.1.4 docs release).
@@ -158,7 +173,7 @@ from v0.1.7, so there's no update to install (like the v0.1.4 docs release).
 - **Developer documentation** — a layered `docs/` set (guide, architecture, reference)
   covering install, time-travel, MCP/Skills, parsers, packaging, security, and more.
 
-## v0.1.7 — 2026-07-09
+## 0.1.7 - 2026-07-09
 
 Session UX polish, delivered via auto-update:
 
@@ -172,7 +187,7 @@ Session UX polish, delivered via auto-update:
 - **Feedback** — optional sender email, set as `Reply-To` so replies reach you.
 - **Fix** — switching language no longer jumps back to the home page.
 
-## v0.1.6 — 2026-07-09
+## 0.1.6 - 2026-07-09
 
 First **signed & notarized** release.
 
@@ -182,7 +197,7 @@ First **signed & notarized** release.
 - No more macOS quarantine. (0.1.5 was unsigned — upgrade to 0.1.6 once manually,
   then every update is automatic.)
 
-## v0.1.5 — 2026-07-08
+## 0.1.5 - 2026-07-08
 
 Cost & usage, global search, session titles, Japanese.
 
@@ -192,12 +207,12 @@ Cost & usage, global search, session titles, Japanese.
 - Reads Claude Code `/rename` titles; inline rename; per-session Sync Update.
 - Japanese (日本語) UI; project switcher dropdown; "Today" time filter.
 
-## v0.1.4 — 2026-07-08
+## 0.1.4 - 2026-07-08
 
 Documentation release — contributor docs (`CLAUDE.md`) captured the architecture,
 release checklist, and gotchas. No functional changes since 0.1.3.
 
-## v0.1.3 — 2026-07-07
+## 0.1.3 - 2026-07-07
 
 Moved-repo fix + sync-all.
 
@@ -205,7 +220,7 @@ Moved-repo fix + sync-all.
 - Sidebar **sync-all** button — re-import every project in one click.
 - `npm run reinstall:mac` developer helper.
 
-## v0.1.2 — 2026-07-07
+## 0.1.2 - 2026-07-07
 
 Sidebar navigation + project analytics.
 
@@ -213,7 +228,7 @@ Sidebar navigation + project analytics.
 - **Project home**: 8 stat cards, activity trend (line/bar), tool distribution, call ranking, time-range filter.
 - Breadcrumbs, session switcher, copyable session ID.
 
-## v0.1.1 — 2026-07-07
+## 0.1.1 - 2026-07-07
 
 First installable release + Refine polish.
 

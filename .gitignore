@@ -13,3 +13,6 @@ graphify-out
 
 # subagent-driven-development scratch workspace (ledger, briefs, reports)
 .superpowers/
+
+# Local Claude Code settings (personal hooks, never public)
+.claude/settings.local.json
