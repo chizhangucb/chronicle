@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
+import InfoTip from './InfoTip.js';
 import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { fmtDur } from './session/stats.js';
@@ -205,21 +206,17 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   // "recent" search branch excludes them — server/routes/search.ts), so the
   // count lives up here too: it drives BOTH the "Select minor sessions"
   // quick-select chip (now IN the command bar, sessions-only — see PR-2c
-  // below) and the bucket panel further down, off one shared fetch/refresh.
+  // below) and the top-of-ledger notice (below), off one shared fetch/refresh.
   const [minorItems, setMinorItems] = useState<MinorSession[] | null>(null);
   const loadMinor = () => api.minorSessions().then(setMinorItems).catch(() => setMinorItems([]));
   useEffect(() => { loadMinor(); }, []);
 
-  // Bucket open/scroll are lifted here so the top-of-ledger notice (below) can
-  // expand + scroll to the bucket. Without a visible notice, gated sessions
-  // read as "missing" and the product looks broken (they aren't — they synced;
-  // the noise gate just parked them). The notice makes the filter legible.
+  // The minor-sessions surface is a single INLINE panel at the top of the
+  // ledger (not a permanent section at the bottom): "Show them" expands the
+  // list in place — no long scroll, nothing hanging below. Without a visible
+  // notice, gated sessions read as "missing" and the product looks broken
+  // (they aren't — they synced; the noise gate just parked them).
   const [minorOpen, setMinorOpen] = useState(false);
-  const bucketRef = useRef<HTMLDivElement>(null);
-  function revealMinor() {
-    setMinorOpen(true);
-    requestAnimationFrame(() => bucketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  }
 
   function selectMinorSessions() {
     if (!minorItems || !minorItems.length) return;
@@ -293,11 +290,8 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
         )}
       </div>
       {isRecentMode && (minorItems?.length ?? 0) > 0 && (
-        <div className="callout minor-filter-notice" role="status">
-          <b>{pluralize(minorItems!.length, t('session'), t('sessions'))} {t('hidden by the minor-session filter')}</b>
-          <div className="why">{t('Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.')}</div>
-          <button className="btn tiny" style={{ marginTop: 6 }} onClick={revealMinor}>{t('Show them')}</button>
-        </div>
+        <MinorSessionsNotice items={minorItems} open={minorOpen} setOpen={setMinorOpen}
+          onRefresh={() => { loadMinor(); onRefresh(); }} />
       )}
       <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
         {recentSelect.selectMode && <span aria-hidden="true" />}
@@ -348,8 +342,6 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
         );
       })}
       {isRecentMode && hasMore && <div ref={sentinelRef} className="ledger-sentinel" aria-hidden="true" />}
-      <MinorSessionsBucket items={minorItems} open={minorOpen} setOpen={setMinorOpen} bucketRef={bucketRef}
-        onRefresh={() => { loadMinor(); onRefresh(); }} />
       {recentSelect.Toast}
     </section>
   );
@@ -390,11 +382,13 @@ function SessionCommandBarControls({ api, minorCount, onSelectMinor }: { api: Us
   );
 }
 
-// ---- Global "minor sessions" bucket (noise gate — Phase 5 PR 5a) ----
-// Sub-threshold sessions (short/low-message) are gated out of every main
-// list at import time (server/db.ts replaceSession + server/noiseGate.ts).
-// This is the single global collapsed surface where they still live, with
-// promote (bring it back) / ignore (=tombstone, same as delete) actions.
+// ---- Minor-sessions notice (noise gate — Phase 5 PR 5a; inline redesign) ----
+// Sub-threshold sessions (short AND low-message — server/noiseGate.ts) are
+// gated out of every main list at import time (server/db.ts replaceSession).
+// This is the single surface where they still live: an INLINE panel at the top
+// of the ledger (recent mode), collapsed by default. "Show them" expands the
+// list in place — no long scroll to a bottom section, nothing hanging below.
+// Promote (bring it back) / ignore (=tombstone, same as delete) per row.
 
 interface MinorSession {
   id: string;
@@ -408,14 +402,17 @@ interface MinorSession {
   project_name: string;
 }
 
-// `items`/`onRefresh` are owned by RecentLedger (shared with the "Select
-// minor sessions" quick-select above, which needs the same list/count) —
-// this component is just the expand/promote/ignore panel over them.
-function MinorSessionsBucket({ items, open, setOpen, bucketRef, onRefresh }: {
+// The exact gate definition, surfaced via an InfoTip so users understand WHY a
+// session is classed minor (mirrors the AND semantics in server/noiseGate.ts).
+const MINOR_DEFINITION = 'A session is “minor” only when it’s small on BOTH axes: under ~5 min of agent-active time AND fewer than 10 messages — a true one-shot. Thresholds are adjustable in Settings. Minor sessions synced fine; they’re just parked out of the main lists so they don’t clutter.';
+
+// `items`/`open`/`onRefresh` are owned by RecentLedger (shared with the "Select
+// minor sessions" quick-select in the command bar, which needs the same
+// list/count). This component is the notice + inline expand/promote/ignore.
+function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
   items: MinorSession[] | null;
   open: boolean;
   setOpen: (fn: (o: boolean) => boolean) => void;
-  bucketRef: React.RefObject<HTMLDivElement | null>;
   onRefresh: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -432,15 +429,20 @@ function MinorSessionsBucket({ items, open, setOpen, bucketRef, onRefresh }: {
   if (!items || !items.length) return null;
 
   return (
-    <div className="card" style={{ marginTop: 24 }} ref={bucketRef}>
-      <div className="page-title-row" style={{ margin: 0 }}>
-        <button className="btn ghost" onClick={() => setOpen((o) => !o)}>
-          {open ? '▾' : '▸'} {t('Minor sessions')} <span className="muted">({items.length})</span>
+    <div className="callout minor-filter-notice" role="status">
+      <div className="minor-notice-head">
+        <button className="btn tiny ghost minor-notice-toggle" onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}>
+          <span className="tw" aria-hidden="true">{open ? '▾' : '▸'}</span>
+          <b>{pluralize(items.length, t('session'), t('sessions'))} {t('hidden by the minor-session filter')}</b>
         </button>
-        <span className="muted small" style={{ marginLeft: 8 }}>
-          {t('Short, low-activity sessions kept out of the main lists — promote to restore, or ignore to remove them for good.')}
-        </span>
+        <InfoTip text={t(MINOR_DEFINITION)} />
       </div>
+      {!open && (
+        <div className="why">{t('Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.')}{' '}
+          <button className="linklike" onClick={() => setOpen(() => true)}>{t('Show them')}</button>
+        </div>
+      )}
       {open && (
         <div className="session-list" style={{ marginTop: 8 }}>
           {items.map((s) => (

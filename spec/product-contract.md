@@ -144,11 +144,18 @@ it lives in the content column and stacks first at every width (below).
   when either list is selecting (below), then `RecentLedger` (`.recent-ledger`) unchanged in its
   own logic: "Recent sessions" title + one small "☑ Select" affordance (only at rest — hidden while
   selecting), then (when any minor sessions exist, recent mode only) a visible `.minor-filter-notice`
-  callout naming the count hidden by the noise gate with a "Show them" button that expands + scrolls
-  to the bucket (so gated sessions never read as "missing/broken"), then day-grouped rows (day-header
-  tri-state checkbox in select mode), infinite lazy scroll, minor-sessions bucket. Noise gate: a
-  session is "minor" only when short on BOTH axes (agent-active under threshold AND messages under
-  threshold — AND, not OR), so substantive sessions are never hidden on one axis alone.
+  callout at the TOP of the ledger naming the count hidden by the noise gate + an InfoTip stating the
+  exact gate definition; "Show them" expands the minor sessions INLINE in place (promote/ignore per
+  row) — there is NO separate minor-sessions section at the bottom of the ledger (removed 2026-08-16,
+  Chi-approved: the bottom bucket forced a long scroll and read as broken). Then day-grouped rows
+  (day-header tri-state checkbox in select mode), infinite lazy scroll. Noise gate: a session is
+  "minor" only when short on BOTH axes (agent-active under threshold AND messages under threshold —
+  AND, not OR), so substantive sessions are never hidden on one axis alone.
+- **Scrollbars** — app-wide always-visible thin scrollbars (`::-webkit-scrollbar` styled in
+  Chromium/Safari to force classic non-overlay bars; `scrollbar-width`/`-color` scoped to Firefox via
+  `@supports not selector(::-webkit-scrollbar)` so it doesn't disable the webkit pseudo-elements).
+  The center content column and right rail must show a scrollbar at rest when overflowing, not only
+  on hover. Guard: `test/e2e/projects.spec.ts` (scroll container reserves classic-scrollbar layout width).
 - **RIGHT chrome sidebar** (`.right-rail`, ≥1100px only — see Reflow below) — same background tone
   and typography family as the LEFT app sidebar (`.sidebar`; the e2e pin checks computed-background
   equality, not a hardcoded hex), full height, flush to the window's right edge, own independent
