@@ -47,6 +47,7 @@ Get up and running.
 | --- | --- |
 | [Installation](guide/installation.md) | The `npx chronicle-cli` install, Node requirement, CLI flags, and data location |
 | [Quickstart](guide/quickstart.md) | Your first time-travel in a couple of minutes |
+| [Always-on local service](guide/local-service.md) | Run Chronicle as a login service (LaunchAgent/systemd) at a stable local URL |
 
 ## Reference
 
