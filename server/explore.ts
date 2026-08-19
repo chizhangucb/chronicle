@@ -8,7 +8,7 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, windowedUsage, type UsageCells } from './windowUsage.ts';
+import { overlapGate, windowedUsage, bucketedUsage, type UsageCells } from './windowUsage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
@@ -39,6 +39,15 @@ export interface ModelUsageCell { input: number; output: number; cacheRead: numb
 export interface ExploreRow {
   key: string; label: string;
   tokensByModel: Record<string, ModelUsageCell>;
+  // Day-bucketed (LOCAL calendar day, YYYY-MM-DD) breakdown of tokensByModel —
+  // CHI-228: lets the client price Spend per day-bucket at that day's rate
+  // (e.g. Sonnet 5's intro window) instead of one flat rate for the whole
+  // range. Only set for EXACT_USAGE_GROUPS (model/project/source/session),
+  // where token magnitude is sourced from sessions.usage; sums across every
+  // day reproduce tokensByModel's flat total exactly. Calibrated groups
+  // (tool/skill) and per-message groups (hour/subagent) omit it — their
+  // magnitude is already an approximation, priced at the latest/current rate.
+  tokensByModelByDay?: Record<string, Record<string, ModelUsageCell>>;
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
   // Only set on the synthetic key==='Other' row: how many non-topN group
@@ -355,27 +364,38 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
 
   let usageRows: SessionUsageParsed[] = [];
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
-    // Token MAGNITUDE for these groups comes from windowedUsage (Task 2): per-session,
-    // per-model billed cells scaled to their in-window share of per-message tokens — not
-    // loadSessionUsage's raw `sessions.usage` parse, which (even after its own overlapGate
-    // fix above) would over-count a spanning session's FULL billed usage instead of its
-    // in-window share.
-    const windowedCells = windowedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso);
+    // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; CHI-228 day-
+    // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
+    // in-window share of per-message tokens — not loadSessionUsage's raw `sessions.usage`
+    // parse, which (even after its own overlapGate fix above) would over-count a spanning
+    // session's FULL billed usage instead of its in-window share. Day-bucketed (rather than
+    // the plain windowedUsage) so tokensByModelByDay can be populated alongside the
+    // day-collapsed tokensByModel total, letting the client price a range straddling a rate
+    // change (e.g. Sonnet 5's intro window) correctly.
+    const bucketedCells = bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, 'day');
     const acc = new Map<string, Record<string, ModelUsageCell>>();
-    for (const c of windowedCells) {
+    const accByDay = new Map<string, Map<string, Record<string, ModelUsageCell>>>();
+    for (const c of bucketedCells) {
       const rowKey = q.group === 'model' ? c.model : q.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
         : q.group === 'session' ? c.sessionId : c.source;
       let byModel = acc.get(rowKey);
       if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
       addCell(byModel, c.model, toModelUsageCell(c.cells));
+      let byDay = accByDay.get(rowKey);
+      if (!byDay) { byDay = new Map(); accByDay.set(rowKey, byDay); }
+      let dayModel = byDay.get(c.bucket);
+      if (!dayModel) { dayModel = {}; byDay.set(c.bucket, dayModel); }
+      addCell(dayModel, c.model, toModelUsageCell(c.cells));
     }
     // group='session' still needs display labels (name → summary → first_prompt → id) —
-    // windowedUsage doesn't carry those fields (framework-free by design, see its header),
+    // bucketedUsage doesn't carry those fields (framework-free by design, see its header),
     // so a separate lightweight metadata load resolves them below; magnitude above already
-    // came from windowedCells, this is label-only.
+    // came from bucketedCells, this is label-only.
     if (q.group === 'session') usageRows = loadSessionUsage(cutoff, sc, q.scope);
     for (const row of rowMap.values()) {
       const usageCells = acc.get(row.key);
+      const dayCells = accByDay.get(row.key);
+      if (dayCells) row.tokensByModelByDay = Object.fromEntries(dayCells);
       if (usageCells) { row.tokensByModel = usageCells; continue; }
       // No sessions.usage for this group value. For model/project/source this
       // means genuinely zero billed usage in scope — blank to {} as before.
@@ -396,7 +416,14 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     // they'd show as spurious zero-request/zero-session rows under other metrics.
     if (q.metric === 'tokens' || q.metric === 'spend') {
       for (const [k, byModel] of acc) {
-        if (!rowMap.has(k)) rowMap.set(k, { key: k, label: k, tokensByModel: byModel, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] });
+        if (!rowMap.has(k)) {
+          const dayCells = accByDay.get(k);
+          rowMap.set(k, {
+            key: k, label: k, tokensByModel: byModel,
+            tokensByModelByDay: dayCells ? Object.fromEntries(dayCells) : undefined,
+            requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [],
+          });
+        }
       }
     }
   }
@@ -491,7 +518,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   if (rows.length > q.topN) {
     const keep = rows.slice(0, q.topN);
     const rest = rows.slice(q.topN);
-    const other: ExploreRow = { key: 'Other', label: 'Other', tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [], otherCount: rest.length };
+    const other: ExploreRow = { key: 'Other', label: 'Other', tokensByModel: {}, tokensByModelByDay: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [], otherCount: rest.length };
     for (const r of rest) {
       other.requests += r.requests; other.errors += r.errors; other.activeMs += r.activeMs;
       other.sessions += r.sessions;
@@ -500,7 +527,17 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
         cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cw5m += u.cw5m; cur.cw1h += u.cw1h;
         other.tokensByModel[model] = cur;
       }
+      for (const [day, byModel] of Object.entries(r.tokensByModelByDay ?? {})) {
+        const dayAcc = other.tokensByModelByDay![day] ?? {};
+        for (const [model, u] of Object.entries(byModel)) {
+          const cur = dayAcc[model] ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 };
+          cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cw5m += u.cw5m; cur.cw1h += u.cw1h;
+          dayAcc[model] = cur;
+        }
+        other.tokensByModelByDay![day] = dayAcc;
+      }
     }
+    if (Object.keys(other.tokensByModelByDay!).length === 0) other.tokensByModelByDay = undefined;
     rows = [...keep, other];
   }
 

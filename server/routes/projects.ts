@@ -5,7 +5,7 @@ import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
-import { overlapGate, windowedUsage, type WindowedUsageCell } from '../windowUsage.ts';
+import { overlapGate, bucketedUsage, type BucketedUsageCell } from '../windowUsage.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -150,7 +150,9 @@ export function mountProjects(app: Express): void {
       // Windowed per-model billed cells (Task 2): the client (Task 3) prices these for the
       // project KPIs instead of summing raw session.usage, so they agree with the session
       // list above at every window, including a spanning session's partial in-window share.
-      const windowedTokensByModel: WindowedUsageCell[] = windowedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso);
+      // Day-bucketed (CHI-228) so a session whose usage straddles a rate change (e.g.
+      // Sonnet 5's intro window) prices each day's share at that day's rate.
+      const windowedTokensByModel: BucketedUsageCell[] = bucketedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso, 'day');
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, windowedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
