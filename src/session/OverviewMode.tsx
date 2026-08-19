@@ -7,6 +7,7 @@ import { fmtMoney, pluralize } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
+import { dayKeyOf } from '../charts/timeBuckets.ts';
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
   FRIENDLY_CALL, DELETABLE_SOURCES, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
@@ -215,14 +216,19 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const usageByModel = useMemo<Record<string, ModelUsage>>(() => {
     try { return session.usage ? JSON.parse(session.usage) : {}; } catch { return {}; }
   }, [session.usage]);
+  // Prices at the session's own start day (CHI-228) when known — same
+  // documented single-day-per-session boundary as ProjectDetail.tsx's
+  // sessionCost (this aggregate has no sub-session date to split further
+  // than that; cumulativeCostSeries below DOES split per turn's own day).
+  const usageDay = session.started_at ? dayKeyOf(new Date(session.started_at)) : undefined;
   const usageRows: UsageRow[] = useMemo(() => {
     return Object.entries(usageByModel)
       // Drop token-less models (e.g. Claude Code's "<synthetic>" placeholder).
       .filter(([, u]) => (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + cacheWriteTokens(u) > 0)
-      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u), breakdown: costBreakdownOf(m, u),
-        cw: cacheWriteByTtl(u), cwCost: cacheWriteCostByTtl(m, u) }))
+      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u, usageDay), breakdown: costBreakdownOf(m, u, usageDay),
+        cw: cacheWriteByTtl(u), cwCost: cacheWriteCostByTtl(m, u, usageDay) }))
       .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
-  }, [usageByModel]);
+  }, [usageByModel, usageDay]);
 
   // Hoisted once, reused by the KPI row, the chart grid, and the token table's
   // totals row — NOT recomputed per section.

@@ -13,7 +13,7 @@
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
 import { readLaneCSpend, type LaneCSpend } from './laneC.ts';
-import { overlapGate, windowedUsage, bucketedUsage, type WindowedUsageCell, type BucketedUsageCell } from './windowUsage.ts';
+import { overlapGate, bucketedUsage, type BucketedUsageCell } from './windowUsage.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -54,13 +54,15 @@ export interface InsightsResult {
   // NOT session-linked. Honors the same `days=` cutoff as the rest of the page.
   laneC: LaneCSpend;
   // Windowed billed cells (Task 2, feedback-round P0 fix): per-session,
-  // per-model, in-window-scaled — the client (Task 3) prices these for the
-  // KPI strip / spend-by-model / sources / top-sessions instead of summing
-  // raw `sessions.usage`, so a session that started before the window but ran
-  // INTO it (the root defect — see server/windowUsage.ts) contributes its
-  // in-window share instead of vanishing (old gate) or over-counting (naive
-  // overlap-only gate).
-  windowedTokensByModel: WindowedUsageCell[];
+  // per-model, per-LOCAL-day, in-window-scaled — the client (Task 3; CHI-228
+  // day-aware pricing) prices these for the KPI strip / spend-by-model /
+  // sources / top-sessions instead of summing raw `sessions.usage`, so a
+  // session that started before the window but ran INTO it (the root defect
+  // — see server/windowUsage.ts) contributes its in-window share instead of
+  // vanishing (old gate) or over-counting (naive overlap-only gate). Day-
+  // bucketed (CHI-228) so a session whose usage straddles a rate change (e.g.
+  // Sonnet 5's intro window) prices each day's share at that day's rate.
+  windowedTokensByModel: BucketedUsageCell[];
   // Same cells, additionally bucketed by LOCAL calendar day — feeds the
   // Today/7d/30d spend-over-time chart without a UTC/local double-shift.
   dailySpend: BucketedUsageCell[];
@@ -189,7 +191,9 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // Windowed billed cells (Task 2) — see the InsightsResult field comments.
   // scopeWhere mirrors the same `COALESCE(s.minor,0)=0` gate every aggregate
   // above uses; windowedUsage/bucketedUsage apply overlapGate internally.
-  const windowedTokensByModel = windowedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso);
+  // Day-bucketed (CHI-228, not the plain windowedUsage()) so the client can
+  // price each day's share at that day's rate — see InsightsResult's comment.
+  const windowedTokensByModel = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
   const dailySpend = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
   const hourlySpend = days != null && days <= 2
     ? bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'hour')

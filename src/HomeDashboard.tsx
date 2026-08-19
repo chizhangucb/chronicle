@@ -17,7 +17,7 @@ import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { densifyBuckets, capDenseBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, sumFields, type BucketedCell } from './windowedUsage.ts';
+import { sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields, type BucketedCell } from './windowedUsage.ts';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -69,6 +69,16 @@ function fmtActive(ms: number): string {
 function priceCells(byModel: ActivityTokensByModel): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell) ?? 0;
+  return total;
+}
+// Same as priceCells, but prices EACH day's cells at that day's own rate
+// before summing (CHI-228) — for burn.windowSpendTokensByModelByDay, the
+// figure that overstates Sonnet-5-heavy spend under a single flat rate.
+function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>): number {
+  let total = 0;
+  for (const [day, byModel] of Object.entries(byDayModel)) {
+    for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day) ?? 0;
+  }
   return total;
 }
 
@@ -197,7 +207,11 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     // ran INTO it contributes only its in-window share here, instead of
     // vanishing (old gate) or counting its full historical usage.
     const byModel = sumByModel(result.windowedTokensByModel);
-    const cost = costOfCells(byModel);
+    // Day-bucketed pricing (CHI-228): each cell's own day prices at its own
+    // rate before summing — costOfCells(byModel) would collapse every day to
+    // one flat (latest) rate first, overstating Sonnet-5-heavy spend from the
+    // intro window.
+    const cost = costOfBucketedCells(result.windowedTokensByModel);
     const tokens = tokensOfCells(byModel);
     const { input, cacheRead } = sumFields(byModel);
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
@@ -335,7 +349,7 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
   const [, navigate] = useLocation();
   if (!activity) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
   const burn = activity.burn;
-  const current = priceCells(burn.windowSpendTokensByModel);
+  const current = priceCellsByDay(burn.windowSpendTokensByModelByDay);
   const baseline = priceCells(burn.baselineTokensByModel);
   const hasBaseline = baseline > 0;
   const ratio = hasBaseline ? current / baseline : null;
@@ -418,9 +432,13 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   // the window but ran INTO it contributes only its in-window share, so this
   // ranking agrees with the KPI strip's Spend and the chart below it.
   const projectSpend = useMemo(() => {
-    const byProjectModel = sumByKeyModel(result.windowedTokensByModel, (c) => String(c.projectId));
+    // Day-bucketed pricing (CHI-228): group by project first, then price each
+    // project's slice per day-bucket (costOfBucketedCells) rather than
+    // collapsing to one model bag first (sumByKeyModel + costOfCells), which
+    // would price every day at one flat (latest) rate.
+    const byProject = groupByKey(result.windowedTokensByModel, (c) => String(c.projectId));
     const m = new Map<number, number>();
-    for (const [key, byModel] of byProjectModel) m.set(Number(key), costOfCells(byModel));
+    for (const [key, cells] of byProject) m.set(Number(key), costOfBucketedCells(cells));
     return m;
   }, [result]);
   const projectsBySpend = useMemo(
@@ -451,8 +469,12 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
         byBucket.get(bucket) ?? [],
         (c) => (otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId)),
       );
+      // `bucket` is either an hour key (YYYY-MM-DDTHH) or a day key
+      // (YYYY-MM-DD); its first 10 chars are always a valid pricing day
+      // (CHI-228) — every cell in this bucket already shares that one day.
+      const day = bucket.slice(0, 10);
       const row: Record<string, string | number> = { bucket: labelOf(bucket) };
-      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel);
+      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel, day);
       return row;
     });
   }, [result, otherProjectIds, useHourly, spendBucketUnit]);
@@ -460,9 +482,12 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   // ---- Spend by model (hbar) ----
   const spendByModel = useMemo(() => {
-    const byModel = sumByModel(result.windowedTokensByModel);
+    // Day-bucketed pricing (CHI-228): group by model, then price each
+    // model's cells per day-bucket — a model bag spanning a rate change
+    // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
+    const byModel = groupByKey(result.windowedTokensByModel, (c) => c.model);
     return [...byModel.entries()]
-      .map(([name, cell]) => ({ name, value: costOf(name, cell) ?? 0 }))
+      .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
   }, [result]);
@@ -493,12 +518,15 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   // ---- Token usage by model table ----
   const tokenTable = useMemo(() => {
     const byModel = sumByModel(result.windowedTokensByModel);
+    // Day-bucketed pricing (CHI-228) for the $ column, same reasoning as
+    // spendByModel above.
+    const byModelCells = groupByKey(result.windowedTokensByModel, (c) => c.model);
     const msgsByModel = new Map(result.modelDist.map((r) => [r.model, r.count]));
     return [...byModel.entries()].map(([model, cell]) => ({
       model,
       input: cell.input, output: cell.output, cacheRead: cell.cacheRead,
       cw5m: cell.cacheWrite5m, cw1h: cell.cacheWrite1h,
-      cost: costOf(model, cell) ?? 0,
+      cost: costOfBucketedCells(byModelCells.get(model) ?? []),
       hitRate: (cell.cacheRead + cell.input) ? (cell.cacheRead / (cell.cacheRead + cell.input)) * 100 : 0,
       msgs: msgsByModel.get(model) ?? 0,
     })).sort((a, b) => b.cost - a.cost);
@@ -513,10 +541,13 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   // ---- Top sessions by cost ----
   const topSessions = useMemo(() => {
     const byModel = sumByKeyModel(result.windowedTokensByModel, (c) => c.sessionId);
+    // Day-bucketed pricing (CHI-228) for cost; tokensOfCells stays on the
+    // flat per-model map (token counts are unaffected by day).
+    const bySession = groupByKey(result.windowedTokensByModel, (c) => c.sessionId);
     return result.sessions
       .map((s) => {
         const m = byModel.get(s.id);
-        return { session: s, cost: costOfCells(m), tokens: tokensOfCells(m) };
+        return { session: s, cost: costOfBucketedCells(bySession.get(s.id) ?? []), tokens: tokensOfCells(m) };
       })
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 15);

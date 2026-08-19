@@ -5,7 +5,7 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { api, projectUrl, projectsUrl, type WindowedUsageCell } from './api.js';
+import { api, projectUrl, projectsUrl, type BucketedUsageCell } from './api.js';
 import { t } from './i18n.js';
 import { costOf, type ModelUsageInput } from './models.js';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
@@ -14,7 +14,7 @@ import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, costOfCells, tokensOfCells } from './windowedUsage.ts';
+import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './windowedUsage.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
@@ -69,12 +69,14 @@ export interface ProjectAnalytics {
   activity: ActivityRow[];
   errors: number;
   commits: number;
-  // Windowed per-session, per-model billed cells (Task 2/3, project-scoped) —
-  // the client prices these via costOf for the Cost/Tokens KPI tiles and Cost
-  // by model bars, instead of summing raw session.usage, so a session that
-  // started before the window but ran INTO it contributes only its in-window
-  // share (mirrors server/insights.ts's windowedTokensByModel).
-  windowedTokensByModel: WindowedUsageCell[];
+  // Windowed per-session, per-model, per-day billed cells (Task 2/3, project-
+  // scoped; day-bucketed per CHI-228) — the client prices these via costOf
+  // for the Cost/Tokens KPI tiles and Cost by model bars, instead of summing
+  // raw session.usage, so a session that started before the window but ran
+  // INTO it contributes only its in-window share, and one that straddles a
+  // rate change (e.g. Sonnet 5's intro window) prices each day correctly
+  // (mirrors server/insights.ts's windowedTokensByModel).
+  windowedTokensByModel: BucketedUsageCell[];
 }
 
 export interface ProjectDetailData {
@@ -94,10 +96,16 @@ function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null
     return s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
   } catch { return null; }
 }
+// Prices at the session's own start day (CHI-228) when known — a session
+// straddling a rate change (e.g. Sonnet 5's intro window) still prices at
+// one day (no sub-session split, same documented boundary as
+// server/activity.ts's topSession), but this is strictly more correct than
+// the prior flat/latest-rate pricing for every OTHER session in range.
 function sessionCost(s: ProjectSession): number {
   const usage = sessionUsage(s);
   if (!usage) return 0;
-  return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u) ?? 0), 0);
+  const day = s.started_at ? dayKeyOf(new Date(s.started_at)) : undefined;
+  return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day) ?? 0), 0);
 }
 function sessionDurationMs(s: ProjectSession): number {
   return s.agent_active_ms ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
@@ -275,13 +283,17 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     // above (which is already overlap-gated server-side) at every window.
     let totalCost = 0, totalIn = 0, totalOut = 0;
     const windowedByModel = sumByModel(analytics.windowedTokensByModel);
+    // Day-bucketed pricing (CHI-228): group by model, then price each
+    // model's cells per day-bucket — a model bag spanning a rate change
+    // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
+    const windowedByModelCells = groupByKey(analytics.windowedTokensByModel, (c) => c.model);
     const costByModelMap = new Map<string, number>();
     const modelsSeen = new Set<string>();
     for (const [m, cell] of windowedByModel) {
       modelsSeen.add(m);
       totalIn += cell.input;
       totalOut += cell.output;
-      costByModelMap.set(m, costOf(m, cell) ?? 0);
+      costByModelMap.set(m, costOfBucketedCells(windowedByModelCells.get(m) ?? []));
     }
     for (const cost of costByModelMap.values()) totalCost += cost;
     const costByModel = [...costByModelMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);

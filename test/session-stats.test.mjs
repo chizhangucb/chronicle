@@ -30,6 +30,21 @@ test('cumulativeCostSeries: running total grows monotonically with each priced a
   for (let i = 1; i < series.length; i++) assert.ok(series[i].cumCost >= series[i - 1].cumCost);
 });
 
+test('cumulativeCostSeries (CHI-228): a session straddling the Sonnet 5 intro cutover prices each day\'s turns at that day\'s rate, not one flat rate', () => {
+  const messages = [
+    { kind: 'assistant', ts: '2026-08-15T00:00:00Z', model: 'claude-sonnet-5' }, // intro window: $2/1M input
+    { kind: 'assistant', ts: '2026-08-15T00:05:00Z', model: 'claude-sonnet-5' },
+    { kind: 'assistant', ts: '2026-09-01T00:00:00Z', model: 'claude-sonnet-5' }, // post-cutover: $3/1M input
+    { kind: 'assistant', ts: '2026-09-01T00:05:00Z', model: 'claude-sonnet-5' },
+  ];
+  // 4M total input tokens, evenly split by turn count -> 2M attributed to
+  // each day. 2M @ $2/1M (2026-08-15) = $4, 2M @ $3/1M (2026-09-01) = $6.
+  // Total $10 -- NOT $12 (all 4M at the flat post-cutover rate).
+  const series = cumulativeCostSeries(messages, { 'claude-sonnet-5': { input: 4_000_000, output: 0 } });
+  const final = series[series.length - 1].cumCost;
+  assert.ok(Math.abs(final - 10) < 1e-9, `expected $10 total, got $${final}`);
+});
+
 // Task 6: the Errors KPI drill-in (OverviewMode → SessionView Playback filter)
 // runs over exactly this helper's output — see errorDrillIn's header comment.
 test('errorDrillIn: returns erroring tool_result rows plus their paired tool_use call, nothing else', () => {

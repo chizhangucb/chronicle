@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  sumByModel, sumByKeyModel, groupByBucket, costOfCells, tokensOfCells, sumFields,
+  sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields,
 } from '../src/windowedUsage.ts';
 import { costOf } from '../src/models.ts';
 
@@ -83,4 +83,41 @@ test('sumFields: flattens a per-model map into one raw (unpriced) cell — safe 
 
 test('sumFields: undefined map returns a zeroed cell, not a throw', () => {
   assert.deepEqual(sumFields(undefined), { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+});
+
+test('groupByKey: splits a cell list into one raw list per arbitrary key (e.g. sessionId), generalizing groupByBucket', () => {
+  const bySession = groupByKey([sonnetCellA, sonnetCellB, opusCellA], (c) => c.sessionId);
+  assert.deepEqual([...bySession.keys()].sort(), ['s1', 's2']);
+  assert.equal(bySession.get('s1').length, 2); // sonnetCellA + opusCellA
+  assert.equal(bySession.get('s2').length, 1);
+});
+
+test('costOfBucketedCells: a session straddling the Sonnet 5 intro cutover (CHI-228) prices EACH bucket at its own day, not one flat rate', () => {
+  const straddling = [
+    { ...sonnetCellA, bucket: '2026-08-15' }, // intro window: $2/1M input
+    { ...sonnetCellB, bucket: '2026-09-01' }, // post-cutover: $3/1M input
+  ];
+  // 1M input on 2026-08-15 @ $2/1M = $2, 1M input on 2026-09-01 @ $3/1M = $3. Total $5 —
+  // NOT $6 (both at the flat post-cutover rate) and NOT $4 (both at the intro rate).
+  assert.equal(costOfBucketedCells(straddling), 2 + 3);
+});
+
+test('costOfBucketedCells: multiple models in the same bucket are still priced at their own per-model rate before summing', () => {
+  const cells = [
+    { ...sonnetCellA, bucket: '2026-08-15' },
+    { ...opusCellA, bucket: '2026-08-15' },
+  ];
+  // sonnet intro-window input $2 + opus output (flat, unaffected by day) $25.
+  assert.equal(costOfBucketedCells(cells), 2 + 25);
+});
+
+test('costOfBucketedCells: empty/undefined input is $0, not a throw', () => {
+  assert.equal(costOfBucketedCells([]), 0);
+});
+
+test('costOfCells: accepts an optional day to resolve a date-dependent rate (e.g. non-bucketed but day-known cells)', () => {
+  const byModel = sumByModel([sonnetCellA]);
+  assert.equal(costOfCells(byModel, '2026-08-15'), 2); // intro rate
+  assert.equal(costOfCells(byModel, '2026-09-01'), 3); // post-cutover rate
+  assert.equal(costOfCells(byModel), 3); // no day -> latest rate, unchanged from today's behavior
 });

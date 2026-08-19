@@ -84,11 +84,37 @@ export function groupByBucket<T extends BucketedCell>(cells: T[]): Map<string, T
 
 // Prices a per-model cell map: each model's cell is priced at ITS OWN rate
 // (never summed across models first — see header comment) via costOf, then
-// totalled. Unpriced models (costOf returns null) contribute 0.
-export function costOfCells(byModel: Map<string, UsageCell> | undefined): number {
+// totalled. Unpriced models (costOf returns null) contribute 0. `day`
+// (YYYY-MM-DD) resolves a date-dependent rate (e.g. Sonnet 5's CHI-228 intro
+// window) for callers that already know every cell in this map shares one
+// day; omit it for the latest/current rate.
+export function costOfCells(byModel: Map<string, UsageCell> | undefined, day?: string | null): number {
   if (!byModel) return 0;
   let total = 0;
-  for (const [model, cell] of byModel) total += costOf(model, cell as ModelUsageInput) ?? 0;
+  for (const [model, cell] of byModel) total += costOf(model, cell as ModelUsageInput, day) ?? 0;
+  return total;
+}
+
+// Splits a cell list into one raw list per arbitrary key (project id, session
+// id, …) — generalizes groupByBucket to any grouping, not just bucket.
+export function groupByKey<T extends WindowedCell>(cells: T[], keyOf: (c: T) => string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const c of cells) {
+    const arr = out.get(keyOf(c));
+    if (arr) arr.push(c); else out.set(keyOf(c), [c]);
+  }
+  return out;
+}
+
+// Total $ across a day-bucketed cell list, pricing EACH bucket at its own
+// day (never the whole list at one flat rate) — the fix for CHI-228: a
+// session's usage that straddles a rate change (e.g. Sonnet 5's intro window)
+// must be split and priced per bucket, then summed, not collapsed first. Compose
+// with groupByKey for a per-key total that still prices correctly per day
+// (e.g. costOfBucketedCells(groupByKey(cells, keyOf).get(key) ?? [])).
+export function costOfBucketedCells<T extends BucketedCell>(cells: T[]): number {
+  let total = 0;
+  for (const [day, group] of groupByBucket(cells)) total += costOfCells(sumByModel(group), day);
   return total;
 }
 

@@ -12,7 +12,7 @@
 // price-free proxy) and returns with its cells so the client can price it.
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
-import { overlapGate, windowedUsage } from './windowUsage.ts';
+import { overlapGate, bucketedUsage } from './windowUsage.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -45,10 +45,22 @@ export interface ActivitySessionLite {
 
 export interface ActivityBurn {
   windowSpendTokensByModel: TokensByModel;
-  baselineTokensByModel: TokensByModel;   // Today → 14-day daily median; Nd → prior-Nd totals
+  // Day-bucketed (LOCAL calendar day, CHI-228) breakdown of windowSpendTokensByModel —
+  // lets the client price the Burn tile's current-window spend per day at that day's
+  // rate (e.g. Sonnet 5's intro window) instead of one flat rate for the whole window.
+  // This is the figure CHI-227's audit found overstated ~50% during the intro window, so
+  // it's the one burn.* field worth day-bucketing; baselineTokensByModel/
+  // topSessionTokensByModel stay flat (see their own comments below for why).
+  windowSpendTokensByModelByDay: Record<string, TokensByModel>;
+  // Today → 14-day daily median (a statistical "typical day" construct with no single
+  // real date to price at); Nd → prior-Nd totals (a comparison anchor, not the live spend
+  // figure this fix targets — deliberately left flat, see server/activity.ts CHI-228 note).
+  baselineTokensByModel: TokensByModel;
   topSessionId: string | null;
   topSessionName: string | null;
-  topSessionTokensByModel: TokensByModel; // so the client can price the top-cost block
+  // Price-free-proxy magnitude (see header) — left flat/unscaled by the same existing
+  // design as the rest of this field, day-bucketing not attempted for one session's usage.
+  topSessionTokensByModel: TokensByModel;
 }
 
 export interface ActivityResult {
@@ -234,14 +246,21 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
   const windowMs = days != null ? days * DAY : null;
   const windowCutoff = windowMs != null ? new Date(now - windowMs).toISOString() : null;
   // windowSpendTokensByModel (Task 2, the P0 fix): windowed billed cells from
-  // windowedUsage, NOT sumWindow's raw `s.started_at >= cutoff` sum — a session that
-  // started before the window but ran INTO it (e.g. spans midnight into "Today") used to
-  // vanish from this sum entirely; windowedUsage instead attributes its in-window share.
-  // windowCutoff is already null for "All" (extends-to-now semantics match windowedUsage's
+  // bucketedUsage (CHI-228: day-bucketed, was windowedUsage), NOT sumWindow's raw
+  // `s.started_at >= cutoff` sum — a session that started before the window but ran INTO
+  // it (e.g. spans midnight into "Today") used to vanish from this sum entirely;
+  // bucketedUsage instead attributes its in-window share, split by LOCAL day so the client
+  // can price a window straddling a rate change (e.g. Sonnet 5's intro window) correctly.
+  // windowCutoff is already null for "All" (extends-to-now semantics match bucketedUsage's
   // cutoffIso===null "All window" signal exactly), so no extra mapping is needed.
-  const windowedCells = windowedUsage(db, 'AND COALESCE(s.minor,0)=0', [], windowCutoff);
+  const bucketedCells = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], windowCutoff, 'day');
   const windowSpendTokensByModel: TokensByModel = {};
-  for (const c of windowedCells) addUsage(windowSpendTokensByModel, { [c.model]: c.cells });
+  const windowSpendTokensByModelByDay: Record<string, TokensByModel> = {};
+  for (const c of bucketedCells) {
+    addUsage(windowSpendTokensByModel, { [c.model]: c.cells });
+    const dayAcc = windowSpendTokensByModelByDay[c.bucket] ?? (windowSpendTokensByModelByDay[c.bucket] = {});
+    addUsage(dayAcc, { [c.model]: c.cells });
+  }
 
   let baselineTokensByModel: TokensByModel;
   if (days != null && days <= 1) {
@@ -278,6 +297,7 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
     recent,
     burn: {
       windowSpendTokensByModel,
+      windowSpendTokensByModelByDay,
       baselineTokensByModel,
       topSessionId: top?.row.id ?? null,
       topSessionName: top ? displayName(top.row) : null,
