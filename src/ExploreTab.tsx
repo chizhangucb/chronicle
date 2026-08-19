@@ -67,20 +67,42 @@ function rowTokens(row: ExploreCell): number {
 // cell, mapping ModelUsageCell's cw5m/cw1h field names to ModelUsageInput's
 // cacheWrite5m/cacheWrite1h; costOf returns null for unpriced models, which
 // contributes 0 rather than poisoning the sum.
-function rowSpend(row: ExploreCell): number {
+//
+// CHI-228: an explicit `day` prices every model cell at that one day's rate
+// (used for a per-bucket ExploreCell, whose bucket key IS a day). With no
+// `day`, a range-total ExploreRow that carries `tokensByModelByDay` (EXACT_
+// USAGE_GROUPS — model/project/source/session) is priced per its OWN day
+// breakdown instead of one flat rate, so a range straddling a rate change
+// (e.g. Sonnet 5's intro window) prices correctly. Rows without that field
+// (calibrated tool/skill, hour/subagent groups — see server/explore.ts) fall
+// back to the flat tokensByModel total at the latest rate, unchanged.
+function rowSpend(row: ExploreCell, day?: string): number {
+  const byDay = (row as ExploreRow).tokensByModelByDay;
+  if (day == null && byDay) {
+    let n = 0;
+    for (const [d, byModel] of Object.entries(byDay)) {
+      for (const [model, u] of Object.entries(byModel)) {
+        n += costOf(model, {
+          input: u.input, output: u.output, cacheRead: u.cacheRead,
+          cacheWrite5m: u.cw5m, cacheWrite1h: u.cw1h,
+        }, d) ?? 0;
+      }
+    }
+    return n;
+  }
   let n = 0;
   for (const [model, u] of Object.entries(row.tokensByModel)) {
     n += costOf(model, {
       input: u.input, output: u.output, cacheRead: u.cacheRead,
       cacheWrite5m: u.cw5m, cacheWrite1h: u.cw1h,
-    }) ?? 0;
+    }, day) ?? 0;
   }
   return n;
 }
 
-function metricValue(row: ExploreCell, metric: PivotMetric): number {
+function metricValue(row: ExploreCell, metric: PivotMetric, day?: string): number {
   switch (metric) {
-    case 'spend': return rowSpend(row);
+    case 'spend': return rowSpend(row, day);
     case 'tokens': return rowTokens(row);
     case 'requests': return row.requests;
     case 'sessions': return row.sessions;
@@ -234,9 +256,13 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     const rows = capped.keys.map((key) => {
       const b = byKey.get(key);
       const row: Record<string, string | number> = { bucket: b ? b.label : bucketLabel(key) };
+      // `key` (== b.bucket) is an hour/day/week/month bucket string whose
+      // first 10 chars are always a valid pricing day (CHI-228) — every cell
+      // in this bucket already shares that one day.
+      const day = key.slice(0, 10);
       for (const { row: r } of ranked) {
         const cell = b?.series[r.key];
-        row[r.key] = cell ? metricValue(cell, pivot.metric) : 0;
+        row[r.key] = cell ? metricValue(cell, pivot.metric, day) : 0;
       }
       return row;
     });

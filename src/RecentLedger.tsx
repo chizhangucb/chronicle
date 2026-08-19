@@ -7,6 +7,7 @@ import { sessionDisplayName } from './ProjectDetail.js';
 import InfoTip from './InfoTip.js';
 import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput } from './models.js';
+import { dayKeyOf } from './charts/timeBuckets.ts';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
 import type { SearchResultItem } from './api.js';
@@ -25,12 +26,15 @@ const RECENT_PAGE = 50;
 
 // ---- Ledger row helpers (local, trivial — not shared/tested) ----
 
+// Prices at the session's own ts day (CHI-228) when known — same documented
+// single-day-per-session boundary as ProjectDetail.tsx's sessionCost.
 function rowCost(s: SearchResultItem): number | null {
   if (!s.usage) return null;
   try {
     const usage = JSON.parse(s.usage) as Record<string, ModelUsageInput> | null;
     if (!usage) return null;
-    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u)).filter((c): c is number => c != null);
+    const day = s.ts ? dayKeyOf(new Date(s.ts)) : undefined;
+    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u, day)).filter((c): c is number => c != null);
     return costs.length ? costs.reduce((a, b) => a + b, 0) : null;
   } catch { return null; }
 }

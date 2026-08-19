@@ -130,6 +130,16 @@ export interface ProjectDetail {
     activity: DayCount[];
     errors: number;
     commits: number;
+    // Was missing from this type despite the server always returning it
+    // (server/routes/projects.ts) -- found while scoping CHI-228, whose fix
+    // touches this exact field. Day-bucketed (BucketedUsageCell, not
+    // WindowedUsageCell) so a session straddling a rate change prices
+    // correctly. src/ProjectDetail.tsx's actual fetch uses its own local
+    // ProjectDetailData/ProjectAnalytics types, not this one (this type's
+    // only other reader, SessionView.tsx, only reads `.sessions`) -- kept in
+    // sync here for accuracy, not unified into one type (out of scope for
+    // a pricing fix).
+    windowedTokensByModel: BucketedUsageCell[];
   };
 }
 
@@ -360,8 +370,10 @@ export interface InsightsResult {
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
   laneC: LaneCSpend;
-  // See the WindowedUsageCell/BucketedUsageCell comment above.
-  windowedTokensByModel: WindowedUsageCell[];
+  // See the WindowedUsageCell/BucketedUsageCell comment above. Day-bucketed
+  // (CHI-228, was WindowedUsageCell[]) so the client can price a range that
+  // straddles a rate change (e.g. Sonnet 5's intro window) correctly per day.
+  windowedTokensByModel: BucketedUsageCell[];
   dailySpend: BucketedUsageCell[];
   // Only computed server-side (non-null) for a short window (days<=2) — the
   // client falls back to dailySpend otherwise (see server/insights.ts).
@@ -385,6 +397,10 @@ export interface ActivitySessionLite {
 }
 export interface ActivityBurn {
   windowSpendTokensByModel: ActivityTokensByModel;
+  // Day-bucketed (CHI-228) breakdown of windowSpendTokensByModel — see
+  // server/activity.ts's ActivityBurn comment for why only this field (not
+  // baseline/topSession) is day-bucketed.
+  windowSpendTokensByModelByDay: Record<string, ActivityTokensByModel>;
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;
@@ -402,6 +418,10 @@ export interface ModelUsageCell { input: number; output: number; cacheRead: numb
 export interface ExploreRow {
   key: string; label: string;
   tokensByModel: Record<string, ModelUsageCell>;
+  // Day-bucketed (CHI-228) breakdown of tokensByModel, for EXACT_USAGE_GROUPS
+  // rows (model/project/source/session) only — see server/explore.ts's
+  // ExploreRow comment.
+  tokensByModelByDay?: Record<string, Record<string, ModelUsageCell>>;
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
   // Only set on the synthetic key==='Other' row — count of folded-in group
