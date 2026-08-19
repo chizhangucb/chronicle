@@ -95,6 +95,12 @@ function toolMixSorted(messages: StatMessage[]): { name: string; count: number }
 // order — an approximation (real spend is lumpier), good enough for the
 // trend shape the chart is showing. `usageByModel` is the parsed
 // `session.usage` JSON (Record<model, ModelUsageInput>).
+//
+// CHI-228: a session that straddles a rate change (e.g. Sonnet 5's intro
+// window) must price each day's share of turns at that day's rate before
+// summing — first split each model's turns into day buckets (by turn.ts's
+// local date), distribute the model's total proportionally by each bucket's
+// share of that model's turn count, then price each bucket at its own day.
 function cumulativeCostSeries(
   messages: StatMessage[],
   usageByModel: Record<string, ModelUsageInput>,
@@ -108,9 +114,26 @@ function cumulativeCostSeries(
   const points: { t: string; cost: number }[] = [];
   for (const [model, turns] of turnsByModel) {
     const usage = usageByModel[model];
-    const total = usage ? (costOf(model, usage) ?? 0) : 0;
-    const perTurn = turns.length ? total / turns.length : 0;
-    for (const turn of turns) points.push({ t: turn.ts as string, cost: perTurn });
+    if (!usage) { for (const turn of turns) points.push({ t: turn.ts as string, cost: 0 }); continue; }
+    const turnsByDay = new Map<string, StatMessage[]>();
+    for (const turn of turns) {
+      const day = (turn.ts as string).slice(0, 10);
+      if (!turnsByDay.has(day)) turnsByDay.set(day, []);
+      turnsByDay.get(day)!.push(turn);
+    }
+    for (const [day, dayTurns] of turnsByDay) {
+      const share = dayTurns.length / turns.length;
+      const dayUsage: ModelUsageInput = {
+        input: (usage.input ?? 0) * share,
+        output: (usage.output ?? 0) * share,
+        cacheWrite5m: (usage.cacheWrite5m ?? usage.cacheWrite ?? 0) * share,
+        cacheWrite1h: (usage.cacheWrite1h ?? 0) * share,
+        cacheRead: (usage.cacheRead ?? 0) * share,
+      };
+      const dayTotal = costOf(model, dayUsage, day) ?? 0;
+      const perTurn = dayTurns.length ? dayTotal / dayTurns.length : 0;
+      for (const turn of dayTurns) points.push({ t: turn.ts as string, cost: perTurn });
+    }
   }
   points.sort((a, b) => a.t.localeCompare(b.t));
   let running = 0;
