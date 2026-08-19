@@ -3,6 +3,15 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
+## Unreleased
+
+- **Cost figures now match Anthropic's actual Sonnet 5 intro pricing.**
+  Chronicle previously priced every Sonnet 5 session at the flat $3/$15 per
+  MTok rate, overstating cost by ~50% for usage during Anthropic's intro
+  window ($2/$10 per MTok through 2026-08-31). Every cost figure across
+  Insights, Explore, Project detail, the recent-sessions ledger, and Session
+  Overview now prices each day's usage at that day's actual rate.
+
 ## 1.2.1 - 2026-08-16
 
 - **Sessions no longer look "missing": noise-gate fix.** Short sessions were
