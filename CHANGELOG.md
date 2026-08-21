@@ -5,6 +5,18 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **List price vs Billed cost toggle.** A new topbar control switches every cost
+  figure between list price (the metered cost of each token) and what you
+  actually pay: models covered by a subscription (Claude tiers, the gpt-5.6
+  family / Codex) bill about $0 per token, so their billed cost shows as $0. The
+  default is list price, and the active mode is always labeled next to spend so
+  no number silently changes meaning.
+- **Automation runs are separated from your interactive session count.** Headless
+  background runs (weekly/nightly/session-close/spend-advice jobs) no longer
+  inflate the headline Sessions number. They are counted as a separate automation
+  bucket, broken out by job, and their spend is still included in the Spend
+  total (labeled, not hidden). A background run whose transcript is also imported
+  is counted once, never twice.
 - **Cost figures now match Anthropic's actual Sonnet 5 intro pricing.**
   Chronicle previously priced every Sonnet 5 session at the flat $3/$15 per
   MTok rate, overstating cost by ~50% for usage during Anthropic's intro

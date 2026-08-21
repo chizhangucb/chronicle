@@ -378,6 +378,28 @@ export interface InsightsResult {
   // Only computed server-side (non-null) for a short window (days<=2) — the
   // client falls back to dailySpend otherwise (see server/insights.ts).
   hourlySpend: BucketedUsageCell[] | null;
+  // Machine-session manifest (CHI-233 Part C) — mirrors server/machineSessions.ts.
+  // See MachineSessionsResult below.
+  machineSessions: MachineSessionsResult;
+}
+
+// Machine-session manifest (mirrors server/machineSessions.ts VERBATIM). The
+// set of AUTOMATION (headless machine `claude -p`) session_ids in range, plus
+// per-session job/model/raw token CELLS (server ships cells, the client prices
+// them via models.ts costOf — the price table stays client-side). `cost_usd` is
+// a convenience fallback only (prefer recomputing from `usage`).
+export interface MachineUsageCells { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number; }
+export interface MachineSession {
+  sessionId: string;
+  job: string;
+  model: string | null;
+  usage: MachineUsageCells;
+  cost_usd: number | null;
+  ts: string | null;
+}
+export interface MachineSessionsResult {
+  ids: string[];
+  sessions: MachineSession[];
 }
 
 // Lane C proxy-lane billed spend (mirrors server/laneC.ts) — authoritative

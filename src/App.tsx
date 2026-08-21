@@ -12,6 +12,7 @@ import ProjectsPage from './ProjectsPage.jsx';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
+import { CostModeProvider, CostModeToggle } from './costMode.tsx';
 import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
@@ -140,6 +141,7 @@ export default function App() {
   const inProjectArea = atProjects || atProject || atSession || atProjExplore || atProjContent;
 
   return (
+    <CostModeProvider>
     <Toast.Provider swipeDirection="right">
     <div className="app">
       <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}
@@ -200,6 +202,7 @@ export default function App() {
         <header className="topbar">
           <span className="brand-sub">{t('AI Session Time Machine')}</span>
           <div className="topbar-right">
+            <CostModeToggle />
             <button type="button" className={`sync sync-btn ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}
               title={t('Sync now')} onClick={sync.runNow} disabled={sync.running}>
               {sync.text}
@@ -272,6 +275,7 @@ export default function App() {
     </div>
     <Toast.Viewport className="toast-viewport" />
     </Toast.Provider>
+    </CostModeProvider>
   );
 }
 

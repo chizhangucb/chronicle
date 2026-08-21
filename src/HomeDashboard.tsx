@@ -8,7 +8,7 @@ import {
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
-import { costOf } from './models.js';
+import { costOf, type CostMode } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { t, lang } from './i18n.js';
@@ -17,7 +17,8 @@ import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { densifyBuckets, capDenseBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields, type BucketedCell } from './windowedUsage.ts';
+import { sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation, type BucketedCell } from './windowedUsage.ts';
+import { useCostMode } from './costMode.tsx';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -66,18 +67,19 @@ function fmtActive(ms: number): string {
 }
 // Price a bag of per-model token cells client-side (the price table lives ONLY
 // in src/models.ts — hard constraint; the server returns tokens, never $).
-function priceCells(byModel: ActivityTokensByModel): number {
+// `mode` (CHI-233 Part C) defaults to theoretical/list price.
+function priceCells(byModel: ActivityTokensByModel, mode: CostMode = 'theoretical'): number {
   let total = 0;
-  for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell) ?? 0;
+  for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, undefined, mode) ?? 0;
   return total;
 }
 // Same as priceCells, but prices EACH day's cells at that day's own rate
 // before summing (CHI-228) — for burn.windowSpendTokensByModelByDay, the
 // figure that overstates Sonnet-5-heavy spend under a single flat rate.
-function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>): number {
+function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>, mode: CostMode = 'theoretical'): number {
   let total = 0;
   for (const [day, byModel] of Object.entries(byDayModel)) {
-    for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day) ?? 0;
+    for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
   }
   return total;
 }
@@ -195,6 +197,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 // ---- KPI strip: headline aggregates from an InsightsResult, rendered as the
 // `.kpis` tile row. The single source of the Home hub's headline numbers. ----
 export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
+  const { mode } = useCostMode();
   const kpis = useMemo(() => {
     let agentActiveMs = 0, engagedMs = 0;
     const projectsTouched = new Set<number>();
@@ -207,13 +210,19 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     // ran INTO it contributes only its in-window share here, instead of
     // vanishing (old gate) or counting its full historical usage.
     const byModel = sumByModel(result.windowedTokensByModel);
-    // Day-bucketed pricing (CHI-228): each cell's own day prices at its own
-    // rate before summing — costOfCells(byModel) would collapse every day to
-    // one flat (latest) rate first, overstating Sonnet-5-heavy spend from the
-    // intro window.
-    const cost = costOfBucketedCells(result.windowedTokensByModel);
     const tokens = tokensOfCells(byModel);
     const { input, cacheRead } = sumFields(byModel);
+    // Automation split (CHI-233 Part C): manifest session_ids are excluded from
+    // the headline INTERACTIVE count and bucketed by job. `interactiveCells` is
+    // the windowed cells for NON-manifest sessions; automation.automationCost
+    // is present-transcript + absent-transcript automation spend. Total spend =
+    // interactive + automation (broken out, never hidden). Day-bucketed pricing
+    // (CHI-228) throughout so a rate-change straddle prices per day.
+    const manifestIds = new Set(result.machineSessions.ids);
+    const interactiveCells = result.windowedTokensByModel.filter((c) => !manifestIds.has(c.sessionId));
+    const interactiveSpend = costOfBucketedCells(interactiveCells, mode);
+    const automation = splitAutomation(result.sessions, result.windowedTokensByModel, result.machineSessions, mode);
+    const cost = interactiveSpend + automation.automationCost;
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
     const topTool = result.toolDist[0]?.name ?? null;
     const totalHeads = result.errorsByProject.reduce((n, r) => n + r.head_count, 0);
@@ -221,10 +230,18 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     const cachedPct = (cacheRead + input) ? (cacheRead / (cacheRead + input)) * 100 : 0;
     const leverage = engagedMs ? agentActiveMs / engagedMs : 0;
     return {
-      cost, tokens, agentActiveMs, engagedMs, toolCalls, topTool, errorRate, cachedPct, leverage,
-      sessionCount: result.sessions.length, projectCount: projectsTouched.size, commits: result.commits,
+      cost, interactiveSpend, automation, tokens, agentActiveMs, engagedMs, toolCalls, topTool, errorRate, cachedPct, leverage,
+      sessionCount: automation.interactiveSessionCount, projectCount: projectsTouched.size, commits: result.commits,
     };
-  }, [result]);
+  }, [result, mode]);
+  // Automation transparency (CHI-233 Part C, hard requirement): the interactive
+  // count carries a visible "N automation excluded" sub-label + a by-job
+  // tooltip; the Spend tile breaks out the automation portion.
+  const auto = kpis.automation;
+  const modeLabel = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
+  const autoByJobText = auto.byJob.length
+    ? auto.byJob.map((b) => `${b.job}: ${fmtMoney(b.cost, 2)} · ${b.sessions}`).join('; ')
+    : t('none in range');
 
   // Lane C proxy-lane billed spend — shown only when the LiteLLM log actually
   // has spend in range. Sub-cent values get 4 decimals so they read as non-zero.
@@ -246,14 +263,18 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   return (
     <div className="kpis">
       <div className="kpi">
-        <div className="l">{t('Spend')} <InfoTip text={t('Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.')} /></div>
+        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip text={t('Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Total includes automation spend, broken out below. Toggle List price vs Billed in the topbar.')} /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
-        <div className="s">{kpis.sessionCount} {t('sessions')}</div>
+        <div className="s" title={`${t('interactive')} ${fmtMoney(kpis.interactiveSpend, 2)} · ${t('automation')} ${fmtMoney(auto.automationCost, 2)} (${autoByJobText})`}>
+          {t('incl.')} {fmtMoney(auto.automationCost, auto.automationCost < 1 ? 2 : 0)} {t('automation')}
+        </div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Sessions')}</div>
+        <div className="l">{t('Sessions')} <InfoTip text={t('Interactive sessions only. Headless automation runs (weekly/nightly/session-close/spend-advice) are counted separately as automation, not here. A manifest session whose transcript is also imported is counted once, as automation.')} /></div>
         <div className="v">{kpis.sessionCount}</div>
-        <div className="s">{kpis.projectCount} {t('projects')}</div>
+        <div className="s" title={`${t('automation by job')}: ${autoByJobText}`}>
+          {kpis.projectCount} {t('projects')} · {auto.automationSessionCount} {t('automation excluded')}
+        </div>
       </div>
       <div className="kpi">
         <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
@@ -300,6 +321,7 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
 // window (a 7d/30d "since you left" makes no sense). ----
 function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult | null; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
+  const { mode } = useCostMode();
   const open = (s: ActivitySessionLite) => (onOpenSession ? onOpenSession(s.id, 0) : navigate(`/session/${encodeURIComponent(s.id)}`));
   const live = activity?.live ?? [];
   const recent = activity?.recent ?? [];
@@ -320,7 +342,7 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
       <span className="ar-proj muted" title={s.projectName}>{s.projectName}</span>
       {s.errorCount > 0 && <span className="ar-err">{pluralize(s.errorCount, t('error'), t('errors'))}</span>}
       <span className="ar-when muted">{s.live ? t('live') : formatRelativeTime(s.endedAt)}</span>
-      <span className="ar-cost num-col">{fmtMoney(priceCells(s.tokensByModel), 2)}</span>
+      <span className="ar-cost num-col">{fmtMoney(priceCells(s.tokensByModel, mode), 2)}</span>
     </div>
   );
 
@@ -347,10 +369,11 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
 // unbounded window). Warn tint (--warn) when spend runs >2× the baseline. ----
 function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult | null; win: WindowKey; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
+  const { mode } = useCostMode();
   if (!activity) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
   const burn = activity.burn;
-  const current = priceCellsByDay(burn.windowSpendTokensByModelByDay);
-  const baseline = priceCells(burn.baselineTokensByModel);
+  const current = priceCellsByDay(burn.windowSpendTokensByModelByDay, mode);
+  const baseline = priceCells(burn.baselineTokensByModel, mode);
   const hasBaseline = baseline > 0;
   const ratio = hasBaseline ? current / baseline : null;
   const hot = ratio != null && ratio > 2;
@@ -363,7 +386,7 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
   // (capped at 100% width). Only meaningful when a baseline exists.
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
-  const topCost = priceCells(burn.topSessionTokensByModel);
+  const topCost = priceCells(burn.topSessionTokensByModel, mode);
   const openTop = () => {
     if (!burn.topSessionId) return;
     if (onOpenSession) onOpenSession(burn.topSessionId, 0);
@@ -414,6 +437,7 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
 // The KPI strip is rendered by the hub above this, so it is NOT repeated here. ----
 function InsightsCharts({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
   const [, navigate] = useLocation();
+  const { mode } = useCostMode();
   // Same fix as ExploreTab.tsx's rangeLabel: days<1 (fractional
   // days-since-local-midnight, the Today window) reads "Today", not "0d" —
   // Math.round alone would silently round Today down to zero days.
@@ -438,9 +462,9 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     // would price every day at one flat (latest) rate.
     const byProject = groupByKey(result.windowedTokensByModel, (c) => String(c.projectId));
     const m = new Map<number, number>();
-    for (const [key, cells] of byProject) m.set(Number(key), costOfBucketedCells(cells));
+    for (const [key, cells] of byProject) m.set(Number(key), costOfBucketedCells(cells, mode));
     return m;
-  }, [result]);
+  }, [result, mode]);
   const projectsBySpend = useMemo(
     () => [...result.projects].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
     [result, projectSpend],
@@ -474,10 +498,10 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
       // (CHI-228) — every cell in this bucket already shares that one day.
       const day = bucket.slice(0, 10);
       const row: Record<string, string | number> = { bucket: labelOf(bucket) };
-      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel, day);
+      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel, day, mode);
       return row;
     });
-  }, [result, otherProjectIds, useHourly, spendBucketUnit]);
+  }, [result, otherProjectIds, useHourly, spendBucketUnit, mode]);
   const hasOther = otherProjectIds.size > 0;
 
   // ---- Spend by model (hbar) ----
@@ -487,10 +511,10 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
     const byModel = groupByKey(result.windowedTokensByModel, (c) => c.model);
     return [...byModel.entries()]
-      .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells) }))
+      .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
-  }, [result]);
+  }, [result, mode]);
 
   // ---- Sources (hbar) ----
   const bySource = useMemo(() => {
@@ -526,11 +550,11 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
       model,
       input: cell.input, output: cell.output, cacheRead: cell.cacheRead,
       cw5m: cell.cacheWrite5m, cw1h: cell.cacheWrite1h,
-      cost: costOfBucketedCells(byModelCells.get(model) ?? []),
+      cost: costOfBucketedCells(byModelCells.get(model) ?? [], mode),
       hitRate: (cell.cacheRead + cell.input) ? (cell.cacheRead / (cell.cacheRead + cell.input)) * 100 : 0,
       msgs: msgsByModel.get(model) ?? 0,
     })).sort((a, b) => b.cost - a.cost);
-  }, [result]);
+  }, [result, mode]);
   const tokenTotals = useMemo(() => tokenTable.reduce((acc, r) => ({
     input: acc.input + r.input, output: acc.output + r.output, cacheRead: acc.cacheRead + r.cacheRead,
     cw5m: acc.cw5m + r.cw5m, cw1h: acc.cw1h + r.cw1h, cost: acc.cost + r.cost, msgs: acc.msgs + r.msgs,
@@ -547,11 +571,11 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     return result.sessions
       .map((s) => {
         const m = byModel.get(s.id);
-        return { session: s, cost: costOfBucketedCells(bySession.get(s.id) ?? []), tokens: tokensOfCells(m) };
+        return { session: s, cost: costOfBucketedCells(bySession.get(s.id) ?? [], mode), tokens: tokensOfCells(m) };
       })
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 15);
-  }, [result]);
+  }, [result, mode]);
 
   return (
     <>

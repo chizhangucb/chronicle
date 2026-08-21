@@ -6,8 +6,9 @@ import { t, lang } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
-import { costOf } from './models.ts';
+import { costOf, type CostMode } from './models.ts';
 import { fmtMoney } from './format.ts';
+import { useCostMode } from './costMode.tsx';
 import { fmtHourOfDay, densifyBuckets, capDenseBuckets, type BucketUnit } from './charts/timeBuckets.ts';
 import { bucketLabel } from '@shared/bucketLabel.ts';
 import PivotControls, {
@@ -76,7 +77,7 @@ function rowTokens(row: ExploreCell): number {
 // (e.g. Sonnet 5's intro window) prices correctly. Rows without that field
 // (calibrated tool/skill, hour/subagent groups — see server/explore.ts) fall
 // back to the flat tokensByModel total at the latest rate, unchanged.
-function rowSpend(row: ExploreCell, day?: string): number {
+function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
   const byDay = (row as ExploreRow).tokensByModelByDay;
   if (day == null && byDay) {
     let n = 0;
@@ -85,7 +86,7 @@ function rowSpend(row: ExploreCell, day?: string): number {
         n += costOf(model, {
           input: u.input, output: u.output, cacheRead: u.cacheRead,
           cacheWrite5m: u.cw5m, cacheWrite1h: u.cw1h,
-        }, d) ?? 0;
+        }, d, mode) ?? 0;
       }
     }
     return n;
@@ -95,14 +96,14 @@ function rowSpend(row: ExploreCell, day?: string): number {
     n += costOf(model, {
       input: u.input, output: u.output, cacheRead: u.cacheRead,
       cacheWrite5m: u.cw5m, cacheWrite1h: u.cw1h,
-    }, day) ?? 0;
+    }, day, mode) ?? 0;
   }
   return n;
 }
 
-function metricValue(row: ExploreCell, metric: PivotMetric, day?: string): number {
+function metricValue(row: ExploreCell, metric: PivotMetric, day?: string, mode: CostMode = 'theoretical'): number {
   switch (metric) {
-    case 'spend': return rowSpend(row, day);
+    case 'spend': return rowSpend(row, day, mode);
     case 'tokens': return rowTokens(row);
     case 'requests': return row.requests;
     case 'sessions': return row.sessions;
@@ -114,9 +115,9 @@ function metricValue(row: ExploreCell, metric: PivotMetric, day?: string): numbe
 
 // `moneyDp` controls Spend precision: 0dp for ranked-bar labels (default),
 // 2dp for the Detail table's metric column (EXP-03).
-function fmtMetricValue(row: ExploreRow, metric: PivotMetric, moneyDp: 0 | 2 = 0): string {
+function fmtMetricValue(row: ExploreRow, metric: PivotMetric, moneyDp: 0 | 2 = 0, mode: CostMode = 'theoretical'): string {
   switch (metric) {
-    case 'spend': return fmtMoney(rowSpend(row), moneyDp);
+    case 'spend': return fmtMoney(rowSpend(row, undefined, mode), moneyDp);
     case 'tokens': return fmtTok(rowTokens(row));
     case 'requests': return row.requests.toLocaleString();
     case 'sessions': return row.sessions.toLocaleString();
@@ -133,6 +134,7 @@ const METRIC_COLUMN_KEY: Record<PivotMetric, string> = {
 
 export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Element {
   const [, navigate] = useLocation();
+  const { mode } = useCostMode();
   const [pivot, setPivot] = useState<PivotState>({
     metric: 'spend', group: 'model', subgroup: 'none', rollup: 'total', topN: 10,
   });
@@ -171,11 +173,11 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // the server's 'Other' fold-in row always pinned last regardless of value.
   const ranked = useMemo(() => {
     if (!result) return [];
-    const withValue = result.rows.map((row) => ({ row, value: metricValue(row, pivot.metric) }));
+    const withValue = result.rows.map((row) => ({ row, value: metricValue(row, pivot.metric, undefined, mode) }));
     const rest = withValue.filter((r) => r.row.key !== 'Other').sort((a, b) => b.value - a.value);
     const other = withValue.filter((r) => r.row.key === 'Other');
     return [...rest, ...other];
-  }, [result, pivot.metric]);
+  }, [result, pivot.metric, mode]);
   const maxValue = Math.max(1e-9, ...ranked.map((r) => r.value));
   const totalValue = ranked.reduce((n, r) => n + r.value, 0) || 1;
 
@@ -262,12 +264,12 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
       const day = key.slice(0, 10);
       for (const { row: r } of ranked) {
         const cell = b?.series[r.key];
-        row[r.key] = cell ? metricValue(cell, pivot.metric, day) : 0;
+        row[r.key] = cell ? metricValue(cell, pivot.metric, day, mode) : 0;
       }
       return row;
     });
     return { rows, truncated: capped.truncated, total: capped.total };
-  }, [result, ranked, pivot.metric]);
+  }, [result, ranked, pivot.metric, mode]);
   const chartData = rollupChart.rows;
   // Recharts <Brush> default window for the hourly rollup — hourly never
   // coarsens server-side any more (see server/explore.ts), so a wide range
@@ -399,7 +401,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                           })
                           : <i style={{ width: `${totalBarPct}%`, background: 'var(--c1)' }} />}
                       </div>
-                      <span className="v">{fmtMetricValue(row, pivot.metric)}</span>
+                      <span className="v">{fmtMetricValue(row, pivot.metric, 0, mode)}</span>
                       <span className="p">{((value / totalValue) * 100).toFixed(1)}%</span>
                     </div>
                   );
@@ -442,7 +444,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               <tbody>
                 {ranked.map(({ row, value }, i) => {
                   const share = (value / totalValue) * 100;
-                  const perSession = row.sessions ? rowSpend(row) / row.sessions : 0;
+                  const perSession = row.sessions ? rowSpend(row, undefined, mode) / row.sessions : 0;
                   // group=session rows carry the session id as `key` — link
                   // straight to that session's own view, independent of the
                   // project-scope-only fallback below ('Other' has no single
@@ -461,7 +463,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       onClick={onRowClick}
                     >
                       <td><span className="dot" style={{ background: rowColor(row, i) }} />{rowDisplayLabel(row)}</td>
-                      {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2)}</td>}
+                      {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2, mode)}</td>}
                       <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: rowColor(row, i) }} /></span> {share.toFixed(1)}%</td>
                       <td>{showTokenCol ? fmtTok(rowTokens(row)) : '—'}</td>
                       <td>{row.requests.toLocaleString()}</td>

@@ -58,6 +58,12 @@ drag-resizable when expanded. Contents, top to bottom:
 - Sync pill (`useSyncStatus`: "synced Xm ago" / "syncing…" / "sync failed"; click = sync now) —
   on EVERY page.
 - LIVE pill — session-scoped ONLY (renders only when `atSession` and a live SSE stream is open).
+- **Cost basis toggle** (`.cost-mode-toggle`, `CostModeToggle`, every route): two options,
+  `List price` (theoretical, default) vs `Billed` (real). Global state (`src/costMode.tsx`,
+  persisted); every cost figure across the app prices at the selected mode. `List price` = metered
+  list price; `Billed` = what Chi pays, so subscription-covered models (Claude tiers, gpt-5.6 /
+  Codex) read ~$0. The active mode is ALWAYS visibly labeled next to spend figures so no number
+  silently changes meaning.
 - Search (`⌕`, ⌘K) · "+ Import Sessions" · language dropdown (EN / 中文 / 日本語) — all every-route.
 - NO "← Projects" back link anywhere (real URL routes; browser back/forward).
 
@@ -103,6 +109,14 @@ drag-resizable when expanded. Contents, top to bottom:
    Sessions · Tokens · Agent active (InfoTip) · Your engaged (InfoTip, shows leverage) · Tool
    calls (InfoTip) · Error rate (InfoTip) · Commits, plus a conditional **Proxy lane (billed)**
    tile shown only when the LiteLLM lane has spend in range.
+   - **Spend** carries a visible mode label (`list price` / `billed ~$0 under subscription`) and a
+     sub-line breaking out the automation portion (`incl. $X automation`). The total INCLUDES
+     automation spend (broken out, never hidden).
+   - **Sessions** is the INTERACTIVE count only (headless automation excluded) and carries a
+     visible sub-label `N automation excluded` plus an InfoTip. Automation sessions come from the
+     `~/.aios/machine_sessions.jsonl` manifest (weekly/nightly/session-close/spend-advice jobs),
+     bucketed by job; a manifest session whose transcript is also imported is counted once, as
+     automation (transcript wins, never double counted).
 2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
