@@ -54,7 +54,7 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 - Branch + PR for non-trivial changes; reserve direct-to-`main` for trivial/agreed one-offs. After a squash-merge, return the local checkout to freshly-pulled `main` before branching next (squash-merge leaves stale head branches; confirm a merged PR, not `is-ancestor`, before deleting).
 - STANDING RULE (bug-sweep): any user-reported fix targeting a UI/UX pattern class MUST trigger an app-wide sweep for that same pattern, with a regression pin (new CI probe or test assertion) landed in the same PR. A sweep is one grep/search pass; the probe is the durable guard.
 - Surface reshaping (new/merged/moved/redesigned page, or any change to a route/surface/enumerable) needs a matching `spec/product-contract.md` edit + Chi's sign-off, and a screenshot for Chi before the batch merges. IA drift without a signed contract edit is a publish-blocking P0.
-- npm publish: bump `package.json` version first → PR → merge → confirm `main` green → `npm run walk` against real data, judge against `spec/design-rubric.md` + `spec/product-contract.md` (publish blocks on any open P0/P1) → `npm publish` → verify `npm view chronicle-cli version` → clean-dir npx smoke → tag + `gh release`. Full checklist: hub patterns doc below.
+- npm publish: bump `package.json` version first → PR → merge → confirm `main` green → `npm run walk` against real data, judge against `spec/design-qa-rubric.md` + `spec/product-contract.md` (publish blocks on any open P0/P1) → `npm publish` → verify `npm view chronicle-cli version` → clean-dir npx smoke → tag + `gh release`. Full checklist: hub patterns doc below.
 
 ## Pre-push scan list
 
@@ -70,6 +70,8 @@ Deeper hub-data scan is deferred until chronicle reads hub data at runtime (CHI-
 
 No `records/` in this repo. Decisions, brainstorms, and the session ledger live in the hub only; seam + Stop-hook wiring: `$HUB/governance/satellite-repos.md`. Ledger Repo column = `chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148); do not fill them manually. Decisions Chi confirms live are still best logged in-flow at the top of `$HUB/records/decisions.md` (header ending `(session <id>, stream: chronicle)`).
 
+No `plans/` or `plans/workstate/` in this repo either. Live per-task workstate is hub-only, always: `$HUB/plans/workstate/YYYY-MM-DD-<ticket-or-slug>.md`, rides the feature branch, deleted at merge (`$HUB/governance/repo-contract.md` "One memory home per project"). Applies to every task, not just confidential ones.
+
 ## Dev knowledge (hub)
 
 Deep dev-internal knowledge is hub-private (chronicle is public, so it does not go in the published `docs/` site). Under `$HUB/personal-projects/chronicle/`:
@@ -83,7 +85,7 @@ Working plans and brainstorms also live under that hub folder (CHI-196).
 
 ## spec/ (in-repo, not published)
 
-`spec/design-rubric.md` (design-QA rubric: 4 lenses, per-surface checklist, spacing/chart/popover policies, P0/P1/P2 severity) and `spec/product-contract.md` (the frozen product shape / IA) are read at release-walk time and by reviewers. They live in `spec/`, NOT `docs/` (VitePress `srcDir: 'docs'`, so `spec/` is not built into the public site) and NOT `.claude/` (harness-machinery only). Generate UI with the `frontend-design` / `dataviz` / `ui-ux-pro-max` skills; judge with `spec/design-rubric.md`.
+`spec/design-qa-rubric.md` (design-QA rubric, renamed from `design-rubric.md` CHI-244 to stop colliding with the hub's own readability-floor file of that name: 4 lenses, per-surface checklist, spacing/chart/popover policies, P0/P1/P2 severity) and `spec/product-contract.md` (the frozen product shape / IA) are read at release-walk time and by reviewers. They live in `spec/`, NOT `docs/` (VitePress `srcDir: 'docs'`, so `spec/` is not built into the public site) and NOT `.claude/` (harness-machinery only). Generate UI with the `frontend-design` / `dataviz` / `ui-ux-pro-max` skills; judge with `spec/design-qa-rubric.md`.
 
 ## Visibility
 
