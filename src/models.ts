@@ -61,36 +61,70 @@ function resolveRates(windows: PriceWindow[], day: string | null | undefined): P
   return windows[windows.length - 1].rates;
 }
 
+// Cost mode (CHI-233 Part C). "theoretical" = list price, what a metered API
+// caller would pay; the historical default, so every pre-existing caller keeps
+// its behavior. "real" = what Chi actually pays: models covered by a flat-rate
+// subscription (Claude tiers, the gpt-5.6 family / Codex) bill effectively $0
+// per token, so real cost is 0 for them. Non-covered models (raw gpt-5/gpt-4/
+// gemini metered access) cost the same in both modes.
+export type CostMode = 'theoretical' | 'real';
+
+// gpt-5.6 family cache convention (no separate 5m/1h TTL tiers like Claude):
+// cached input reads at 0.1x input, cache writes at 1.25x input. Both cw tiers
+// carry the same 1.25x figure so a single cw number prices either TTL bucket.
+const gpt56 = (input: number, output: number): Price =>
+  P(input, output, input * 1.25, input * 1.25, input * 0.1);
+
 // Sonnet 5's Chi-approved (CHI-110) intro-pricing window: $2/$10 per MTok
 // through 2026-08-31, then $3/$15 — mirrors Varde's SONNET5_INTRO_END exactly.
 const SONNET5_INTRO_END = '2026-08-31';
 
-const PRICING: [string, PriceWindow[]][] = [
-  ['claude-fable-5', flat(P(10, 50, 12.5, 20, 1))],
-  ['claude-mythos', flat(P(10, 50, 12.5, 20, 1))],
-  ['claude-opus-4-1', flat(P(15, 75, 18.75, 30, 1.5))], // Opus 4.1 (deprecated) — old tier
-  ['claude-opus-4-0', flat(P(15, 75, 18.75, 30, 1.5))], // Opus 4.0 (retired) — old tier
-  ['claude-opus', flat(P(5, 25, 6.25, 10, 0.5))],        // Opus 4.8/4.7/4.6/4.5 + default
+// [prefix, windows, subscriptionCovered]. `subscriptionCovered` marks a tier
+// as billed under Chi's flat subscription: its theoretical (list) cost is real
+// math, but its "real" cost is 0 (CHI-233 Part C). All Claude tiers and the
+// whole gpt-5.6 family (Codex is gpt-5.6-terra) are covered; raw gpt-5/gpt-4/
+// gemini metered access is not.
+const PRICING: [string, PriceWindow[], boolean][] = [
+  ['claude-fable-5', flat(P(10, 50, 12.5, 20, 1)), true],
+  ['claude-mythos', flat(P(10, 50, 12.5, 20, 1)), true],
+  ['claude-opus-4-1', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.1 (deprecated) — old tier
+  ['claude-opus-4-0', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.0 (retired) — old tier
+  ['claude-opus', flat(P(5, 25, 6.25, 10, 0.5)), true],        // Opus 4.8/4.7/4.6/4.5 + default
   ['claude-sonnet-5', [
     { to: SONNET5_INTRO_END, rates: P(2, 10, 2.5, 4, 0.2) },
     { to: null, rates: P(3, 15, 3.75, 6, 0.3) },
-  ]],
-  ['claude-sonnet', flat(P(3, 15, 3.75, 6, 0.3))],        // 4.6/4.5/4 — never intro-priced
-  ['claude-haiku', flat(P(1, 5, 1.25, 2, 0.1))],
-  ['claude', flat(P(5, 25, 6.25, 10, 0.5))],
-  // Best-effort for non-Claude sources Chronicle can import (no cache tiers).
-  ['gpt-5', flat(P(1.25, 10, 1.25, 1.25, 0.125))],
-  ['gpt-4', flat(P(2.5, 10, 2.5, 2.5, 1.25))],
-  ['gemini', flat(P(1.25, 10, 1.25, 1.25, 0.3125))],
+  ], true],
+  ['claude-sonnet', flat(P(3, 15, 3.75, 6, 0.3)), true],        // 4.6/4.5/4 — never intro-priced
+  ['claude-haiku', flat(P(1, 5, 1.25, 2, 0.1)), true],
+  ['claude', flat(P(5, 25, 6.25, 10, 0.5)), true],
+  // gpt-5.6 family (per 1M): sol 5/30, terra 2/12, luna 0.20/1.20 — subscription
+  // covered. MUST precede the broad 'gpt-5' prefix below (m.includes matching),
+  // or "gpt-5.6-terra" would fall through to the gpt-5 metered rate.
+  ['gpt-5.6-sol', flat(gpt56(5, 30)), true],
+  ['gpt-5.6-terra', flat(gpt56(2, 12)), true],
+  ['gpt-5.6-luna', flat(gpt56(0.2, 1.2)), true],
+  ['codex', flat(gpt56(2, 12)), true], // Codex = gpt-5.6-terra
+  // Best-effort for non-Claude sources Chronicle can import (no cache tiers),
+  // metered (NOT subscription covered).
+  ['gpt-5', flat(P(1.25, 10, 1.25, 1.25, 0.125)), false],
+  ['gpt-4', flat(P(2.5, 10, 2.5, 2.5, 1.25)), false],
+  ['gemini', flat(P(1.25, 10, 1.25, 1.25, 0.3125)), false],
 ];
+
+const ZERO_PRICE: Price = P(0, 0, 0, 0, 0);
 
 // `day` (YYYY-MM-DD) selects which pricing window applies for models with a
 // date-dependent rate (e.g. Sonnet 5's intro window); omit it to get the
-// latest/current rate.
-export function pricingFor(model: string | null | undefined, day?: string | null): Price | null {
+// latest/current rate. `mode` defaults to "theoretical" (list price) so every
+// pre-existing caller is unchanged; "real" returns an all-zero price for a
+// subscription-covered tier (its billed cost under Chi's plan is ~$0).
+export function pricingFor(model: string | null | undefined, day?: string | null, mode: CostMode = 'theoretical'): Price | null {
   if (!model) return null;
   const m = String(model).toLowerCase();
-  for (const [prefix, windows] of PRICING) if (m.includes(prefix)) return resolveRates(windows, day);
+  for (const [prefix, windows, covered] of PRICING) if (m.includes(prefix)) {
+    if (mode === 'real' && covered) return ZERO_PRICE;
+    return resolveRates(windows, day);
+  }
   return null;
 }
 
@@ -126,8 +160,9 @@ export function costBreakdownOf(
   model: string | null | undefined,
   u: ModelUsageInput | null | undefined,
   day?: string | null,
+  mode: CostMode = 'theoretical',
 ): CostBreakdown | null {
-  const p = pricingFor(model, day);
+  const p = pricingFor(model, day, mode);
   if (!p || !u) return null;
   const cw5 = u.cacheWrite5m ?? u.cacheWrite ?? 0;
   const cw1 = u.cacheWrite1h ?? 0;
@@ -162,15 +197,16 @@ export function cacheWriteCostByTtl(
   model: string | null | undefined,
   u: ModelUsageInput | null | undefined,
   day?: string | null,
+  mode: CostMode = 'theoretical',
 ): CacheWriteByTtl | null {
-  const p = pricingFor(model, day);
+  const p = pricingFor(model, day, mode);
   if (!p || !u) return null;
   const { cw5m, cw1h } = cacheWriteByTtl(u);
   return { cw5m: (cw5m * p.cw5m) / 1e6, cw1h: (cw1h * p.cw1h) / 1e6 };
 }
 
 // Total cost in USD for one model's aggregated token usage; null if unpriced.
-export function costOf(model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null): number | null {
-  const b = costBreakdownOf(model, u, day);
+export function costOf(model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null, mode: CostMode = 'theoretical'): number | null {
+  const b = costBreakdownOf(model, u, day, mode);
   return b ? b.input + b.output + b.cacheWrite + b.cacheRead : null;
 }

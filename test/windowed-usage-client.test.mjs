@@ -121,3 +121,22 @@ test('costOfCells: accepts an optional day to resolve a date-dependent rate (e.g
   assert.equal(costOfCells(byModel, '2026-09-01'), 3); // post-cutover rate
   assert.equal(costOfCells(byModel), 3); // no day -> latest rate, unchanged from today's behavior
 });
+
+// ---- Real / theoretical mode threaded through the aggregation helpers (CHI-233 Part C) ----
+
+test('costOfCells: real mode zeroes subscription-covered models; theoretical unchanged (default)', () => {
+  const byModel = sumByModel([sonnetCellA, opusCellA]);
+  assert.equal(costOfCells(byModel, null, 'theoretical'), 3 + 25);
+  assert.equal(costOfCells(byModel), 3 + 25); // default is theoretical
+  assert.equal(costOfCells(byModel, null, 'real'), 0); // both covered
+});
+
+test('costOfBucketedCells: real mode zeroes covered models; theoretical still day-aware per bucket', () => {
+  const straddling = [
+    { ...sonnetCellA, bucket: '2026-08-15' }, // intro $2/1M input
+    { ...sonnetCellB, bucket: '2026-09-01' }, // post-cutover $3/1M input
+  ];
+  assert.equal(costOfBucketedCells(straddling, 'theoretical'), 2 + 3);
+  assert.equal(costOfBucketedCells(straddling), 2 + 3); // default theoretical
+  assert.equal(costOfBucketedCells(straddling, 'real'), 0); // sonnet covered
+});
