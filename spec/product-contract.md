@@ -12,7 +12,7 @@ The agreed product shape as enumerable, checkable facts — reflecting the CURRE
 confirmed calls. Where this disagrees with
 the spec (`~/chizhang-2/records/plans/2026-08-12-chronicle-quality-pass-design.md`), the branch
 state wins (F1/F2 fixed the surfaces to Chi's confirmed shape after the plan compressed it).
-This is JUDGE input, a sibling of `spec/design-rubric.md`: the rubric judges *aesthetics/
+This is JUDGE input, a sibling of `spec/design-qa-rubric.md`: the rubric judges *aesthetics/
 layout*, this judges *product shape / IA*. Every statement is verifiable against `src/` on this
 branch. Each enumerable names the e2e pin that guards it, so the contract is self-auditing.
 
@@ -85,7 +85,7 @@ drag-resizable when expanded. Contents, top to bottom:
   from Chronicle`. Exactly these three actions. NO "View Details" (the row itself navigates).
   Every destructive/text step is an inline affordance — never `window.confirm/prompt/alert`.
 - **Glyph vocabulary** (mono only, zero colored emoji in chrome or page content; canonical set in
-  `spec/design-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
+  `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch. `⌂`=Home is
   retired from chrome — the sidebar item it used to label was renamed to `∑ Insights` (D2, see
@@ -293,8 +293,8 @@ client never switches on a characteristic's `key`):
 | Recent-sessions ledger (`/projects` content column) column policy (num-col / ts-col alignment) | `test/e2e/layout.spec.ts` |
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
-| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards (D5, D7) | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-rubric walk) |
-| Burn tile headline = ratio + flag, support line = absolute `$current vs $baseline` (D6) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-rubric walk |
+| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards (D5, D7) | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
+| Burn tile headline = ratio + flag, support line = absolute `$current vs $baseline` (D6) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card (D4) | `test/e2e/content-characteristics.spec.ts` |
 | Playback selection drives panels | `test/e2e/playback.spec.ts` |

@@ -1,4 +1,6 @@
-# Chronicle design rubric
+# Chronicle design QA rubric
+
+Not the readability floor (type/contrast/ink) — that's the hub's `$HUB/governance/design-rubric.md`, applies everywhere. This file judges function/responsiveness/data-scale/product-completeness for Chronicle's own release walk, renamed (CHI-244) so the two don't collide by name.
 
 Checked-in, Chronicle-specific judge input for the release product walk (spec `records/plans/
 2026-08-12-chronicle-quality-pass-design.md` §5.2; C4 Task 19 runs the audit). Distilled ONCE
