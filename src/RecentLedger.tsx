@@ -6,7 +6,8 @@ import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
 import InfoTip from './InfoTip.js';
 import { projectColorMap } from './colors.js';
-import { costOf, type ModelUsageInput } from './models.js';
+import { costOf, type ModelUsageInput, type CostMode } from './models.js';
+import { useCostMode } from './costMode.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
@@ -28,19 +29,19 @@ const RECENT_PAGE = 50;
 
 // Prices at the session's own ts day (CHI-228) when known — same documented
 // single-day-per-session boundary as ProjectDetail.tsx's sessionCost.
-function rowCost(s: SearchResultItem): number | null {
+function rowCost(s: SearchResultItem, mode: CostMode = 'theoretical'): number | null {
   if (!s.usage) return null;
   try {
     const usage = JSON.parse(s.usage) as Record<string, ModelUsageInput> | null;
     if (!usage) return null;
     const day = s.ts ? dayKeyOf(new Date(s.ts)) : undefined;
-    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u, day)).filter((c): c is number => c != null);
+    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u, day, mode)).filter((c): c is number => c != null);
     return costs.length ? costs.reduce((a, b) => a + b, 0) : null;
   } catch { return null; }
 }
 
-function costLabel(s: SearchResultItem): string {
-  const c = rowCost(s);
+function costLabel(s: SearchResultItem, mode: CostMode): string {
+  const c = rowCost(s, mode);
   return c == null ? '—' : fmtMoney(c, 2);
 }
 
@@ -78,7 +79,7 @@ function dayLabel(d: Date, diffDays: number): string {
   return `${weekday} · ${month} ${d.getDate()}`;
 }
 
-function groupByDay(sessions: SearchResultItem[]): DayGroup[] {
+function groupByDay(sessions: SearchResultItem[], mode: CostMode): DayGroup[] {
   const order: string[] = [];
   const byKey = new Map<string, { date: Date; rows: SearchResultItem[] }>();
   for (const s of sessions) {
@@ -97,7 +98,7 @@ function groupByDay(sessions: SearchResultItem[]): DayGroup[] {
   return order.map((key) => {
     const { date, rows } = byKey.get(key) as { date: Date; rows: SearchResultItem[] };
     const diffDays = Math.round((today - startOfDay(date)) / 86400000);
-    const pricedCosts = rows.map(rowCost).filter((c): c is number => c != null);
+    const pricedCosts = rows.map((r) => rowCost(r, mode)).filter((c): c is number => c != null);
     const cost = pricedCosts.length ? pricedCosts.reduce((a, b) => a + b, 0) : null;
     return { label: dayLabel(date, diffDays), sum: { count: rows.length, cost }, rows };
   });
@@ -203,8 +204,9 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   const recentSelect = useSessionSelect(selectableRecent, () => { refreshRecent(); onRefresh(); }, undefined,
     { onBeforeEnter: onBeforeEnterSelect });
 
+  const { mode } = useCostMode();
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
-  const groups = useMemo(() => groupByDay(recentSessions ?? []), [recentSessions]);
+  const groups = useMemo(() => groupByDay(recentSessions ?? [], mode), [recentSessions, mode]);
 
   // Minor (noise-gated) sessions never appear in `recentSessions` above (the
   // "recent" search branch excludes them — server/routes/search.ts), so the
@@ -336,7 +338,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
                 <div className="title"><div className="t" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
                   <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
                 <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
-                <div className="m num-col"><b>{costLabel(s)}</b></div>
+                <div className="m num-col"><b>{costLabel(s, mode)}</b></div>
                 <div className="m num-col">{activeLabel(s)}</div>
                 <div className="m num-col"><b>{msgsLabel(s)}</b></div>
                 <div className="m ts-col">{whenLabel(s)}</div>

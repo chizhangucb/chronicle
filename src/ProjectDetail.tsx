@@ -7,7 +7,8 @@ import {
 } from 'recharts';
 import { api, projectUrl, projectsUrl, type BucketedUsageCell } from './api.js';
 import { t } from './i18n.js';
-import { costOf, type ModelUsageInput } from './models.js';
+import { costOf, type ModelUsageInput, type CostMode } from './models.js';
+import { useCostMode } from './costMode.tsx';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
@@ -101,11 +102,11 @@ function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null
 // one day (no sub-session split, same documented boundary as
 // server/activity.ts's topSession), but this is strictly more correct than
 // the prior flat/latest-rate pricing for every OTHER session in range.
-function sessionCost(s: ProjectSession): number {
+function sessionCost(s: ProjectSession, mode: CostMode = 'theoretical'): number {
   const usage = sessionUsage(s);
   if (!usage) return 0;
   const day = s.started_at ? dayKeyOf(new Date(s.started_at)) : undefined;
-  return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day) ?? 0), 0);
+  return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day, mode) ?? 0), 0);
 }
 function sessionDurationMs(s: ProjectSession): number {
   return s.agent_active_ms ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
@@ -268,6 +269,8 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     refresh();
   }
 
+  const { mode } = useCostMode();
+
   const stats: Stats | null = useMemo(() => {
     if (!data) return null;
     const { sessions, analytics } = data;
@@ -293,7 +296,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       modelsSeen.add(m);
       totalIn += cell.input;
       totalOut += cell.output;
-      costByModelMap.set(m, costOfBucketedCells(windowedByModelCells.get(m) ?? []));
+      costByModelMap.set(m, costOfBucketedCells(windowedByModelCells.get(m) ?? [], mode));
     }
     for (const cost of costByModelMap.values()) totalCost += cost;
     const costByModel = [...costByModelMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
@@ -311,7 +314,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       if (!s.started_at) continue;
       const day = dayKeyOf(new Date(s.started_at));
       byDay.set(day, (byDay.get(day) || 0) + 1);
-      costByDay.set(day, (costByDay.get(day) || 0) + sessionCost(s));
+      costByDay.set(day, (costByDay.get(day) || 0) + sessionCost(s, mode));
     }
     const trend: { day: string; count: number; cost: number }[] = densifyBuckets([...byDay.keys()], 'day')
       .map((key) => ({ day: key, count: byDay.get(key) || 0, cost: costByDay.get(key) || 0 }));
@@ -336,7 +339,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       activeMs, totalCost, totalIn, totalOut, totalTokens: totalIn + totalOut, modelCount: modelsSeen.size,
       trend, sources, ranking, costByModel,
     };
-  }, [data]);
+  }, [data, mode]);
 
   // Sorted + filtered view of the session list; rendering is windowed
   // (SESSION_WINDOW rows + "Show more") so 1000-session projects stay snappy.
@@ -345,12 +348,12 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     if (sourceFilter) list = list.filter((s) => s.source === sourceFilter);
     const by: Record<string, (a: ProjectSession, b: ProjectSession) => number> = {
       recent: (a, b) => (b.started_at || '').localeCompare(a.started_at || ''),
-      cost: (a, b) => sessionCost(b) - sessionCost(a),
+      cost: (a, b) => sessionCost(b, mode) - sessionCost(a, mode),
       duration: (a, b) => sessionDurationMs(b) - sessionDurationMs(a),
       messages: (a, b) => (b.message_count || 0) - (a.message_count || 0),
     };
     return [...list].sort(by[sortKey]);
-  }, [data, sortKey, sourceFilter]);
+  }, [data, sortKey, sourceFilter, mode]);
 
   // Overview teaser: the 5 most-recent sessions, independent of the Sessions
   // tab's sort/source filters (those live only under `tab==='sessions'`).

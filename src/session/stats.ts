@@ -13,7 +13,7 @@
 // `.tsx` call sites in this file's siblings (OverviewMode.tsx, ProjectDetail.tsx,
 // which only ever run through Vite/tsc and use `../models.js`), this import
 // must point at the real `.ts` file.
-import { costOf, type ModelUsageInput } from '../models.ts';
+import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
 export interface StatMessage {
   kind: string;
   ts?: string | null;
@@ -104,6 +104,7 @@ function toolMixSorted(messages: StatMessage[]): { name: string; count: number }
 function cumulativeCostSeries(
   messages: StatMessage[],
   usageByModel: Record<string, ModelUsageInput>,
+  mode: CostMode = 'theoretical',
 ): { t: string; cumCost: number }[] {
   const turnsByModel = new Map<string, StatMessage[]>();
   for (const m of messages) {
@@ -130,7 +131,7 @@ function cumulativeCostSeries(
         cacheWrite1h: (usage.cacheWrite1h ?? 0) * share,
         cacheRead: (usage.cacheRead ?? 0) * share,
       };
-      const dayTotal = costOf(model, dayUsage, day) ?? 0;
+      const dayTotal = costOf(model, dayUsage, day, mode) ?? 0;
       const perTurn = dayTurns.length ? dayTotal / dayTurns.length : 0;
       for (const turn of dayTurns) points.push({ t: turn.ts as string, cost: perTurn });
     }

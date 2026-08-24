@@ -7,6 +7,7 @@ import { fmtMoney, pluralize } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js';
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
+import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
@@ -119,6 +120,7 @@ interface CostAgg {
 
 export default function OverviewMode({ data, messages, liveStatus, onDeleted, onRename, onOpenSubagent, onOpenContent, onOpenErrors }: OverviewModeProps): JSX.Element {
   const { session } = data;
+  const { mode } = useCostMode();
 
   // Inline rename (edit-in-place). Avoids the native window.prompt dialog, which
   // is blocked in embedded/preview browser contexts and would fail silently.
@@ -225,10 +227,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
     return Object.entries(usageByModel)
       // Drop token-less models (e.g. Claude Code's "<synthetic>" placeholder).
       .filter(([, u]) => (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + cacheWriteTokens(u) > 0)
-      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u, usageDay), breakdown: costBreakdownOf(m, u, usageDay),
-        cw: cacheWriteByTtl(u), cwCost: cacheWriteCostByTtl(m, u, usageDay) }))
+      .map(([m, u]) => ({ model: m, u, cost: costOf(m, u, usageDay, mode), breakdown: costBreakdownOf(m, u, usageDay, mode),
+        cw: cacheWriteByTtl(u), cwCost: cacheWriteCostByTtl(m, u, usageDay, mode) }))
       .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
-  }, [usageByModel, usageDay]);
+  }, [usageByModel, usageDay, mode]);
 
   // Hoisted once, reused by the KPI row, the chart grid, and the token table's
   // totals row — NOT recomputed per section.
@@ -271,7 +273,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const subagents = useMemo(() => subagentRuns(data.messages), [data.messages]);
   const subagentRunTotal = useMemo(() => subagentRunCount(data.messages), [data.messages]);
 
-  const costSeries = useMemo(() => cumulativeCostSeries(messages, usageByModel), [messages, usageByModel]);
+  const costSeries = useMemo(() => cumulativeCostSeries(messages, usageByModel, mode), [messages, usageByModel, mode]);
   const toolMix = useMemo(() => toolMixSorted(messages), [messages]);
   const maxToolCount = toolMix[0]?.count ?? 1;
   const msgCountByModel = useMemo(() => {
@@ -283,6 +285,8 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   }, [messages]);
 
   const errorPct = stats.toolResultCount > 0 ? Math.round((stats.errors / stats.toolResultCount) * 100) : 0;
+  // Visible cost-mode label so the number never silently changes meaning (CHI-233 Part C).
+  const modeNote = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
 
   const compSegments = [
     { key: 'output', label: t('output'), value: costAgg.costOutput, color: CATEGORICAL_COLORS[0] },
@@ -322,7 +326,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       </div>
 
       <div className="kpis">
-        <div className="kpi"><div className="l">{t('Cost')} <InfoTip text={t('Estimated from token counts × current list prices')} /></div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
+        <div className="kpi"><div className="l">{t('Cost')} <span className="lbl" title={modeNote}>· {modeNote}</span> <InfoTip text={t('Estimated from token counts. List price = metered list price; Billed = what you pay (subscription-covered models bill ~$0). Toggle in the topbar.')} /></div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
         <div className="kpi"><div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
         <div className="kpi"><div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
@@ -484,7 +488,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               </tr>
             </tfoot>
           </table>
-          <div className="muted small" style={{ marginTop: 6 }}>{t('Estimated from token counts × current list prices')}</div>
+          <div className="muted small" style={{ marginTop: 6 }}>{t('Estimated from token counts')} · {modeNote}</div>
         </div>
       )}
 

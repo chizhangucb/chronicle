@@ -97,7 +97,10 @@ async function assertContentNoFloatDayLeak(page: Page, label: string): Promise<v
 // sessions) is pinned to a fixed 2026-08 calendar date, so none of them ever
 // overlap "Today" regardless of what real date this suite runs on.
 async function assertTodaySessionCountIsTwo(page: Page, label: string): Promise<void> {
-  const kpi = page.locator('.kpis .kpi').filter({ has: page.locator('.l', { hasText: /^Sessions$/ }) }).first();
+  // Match "Sessions" at the label start, word-bounded: the Home Overview tile now
+  // carries an interactive-only InfoTip (CHI-233) so its .l text is "Sessions ⓘ",
+  // while the Project-detail tile stays exactly "Sessions" — both must resolve here.
+  const kpi = page.locator('.kpis .kpi').filter({ has: page.locator('.l', { hasText: /^Sessions\b/ }) }).first();
   await expect(kpi, `${label}: no Sessions KPI tile rendered`).toBeVisible();
   // Auto-retrying assertion, not a one-shot `.textContent()` read: ProjectDetail.tsx
   // defaults `range` to 'all' (unlike Home, which defaults straight to 'today'), so
