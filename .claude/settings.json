@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/branch-guard.py\" check 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Branch guard: checking commit branch"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/branch-guard.py\" pin 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Branch guard: pinning session branch"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/worktree-nudge.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Worktree nudge: checking tree contention"
+          }
+        ]
+      }
+    ]
+  }
+}
