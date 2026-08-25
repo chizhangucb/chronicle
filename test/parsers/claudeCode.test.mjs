@@ -177,6 +177,111 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     assert.equal(session.summary, 'Second rename (final)');
   });
 
+  // ── CHI-286 regression pins ────────────────────────────────────────────────
+  // Claude Code splits ONE API response's content blocks across several
+  // transcript lines, each repeating the FULL `message.usage` and the same
+  // `message.id`/`requestId`. Summing per line billed one call 2-3 times (the
+  // Insights Spend tile ran 2.2-2.4x hot). These pin the collapse.
+
+  test('CHI-286: one API call split across empty-thinking / text / tool_use lines is billed ONCE', async () => {
+    const dir = makeTmpDir();
+    const file = path.join(dir, 'split-call-session.jsonl');
+    const usage = (out) => ({
+      input_tokens: 10, output_tokens: out, cache_read_input_tokens: 5000,
+      cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 700 },
+    });
+    // The REAL observed shape: the call opens with a `thinking` block that is
+    // empty, which parseClaudeLine drops entirely — 58.8% of calls on disk look
+    // like this, so the "a later line claims the slot" path is the dominant one,
+    // not an edge case. The third line is TRUNCATED (output 40 < 900), which is
+    // why the rule is keep-MAX rather than first- or last-wins.
+    const lines = [
+      { type: 'user', sessionId: 's', cwd: '/tmp/x', uuid: 'u1', timestamp: '2026-08-01T00:00:00.000Z', message: { role: 'user', content: 'go' } },
+      { type: 'assistant', sessionId: 's', uuid: 'a1', requestId: 'req_1', timestamp: '2026-08-01T00:00:01.000Z',
+        message: { id: 'msg_1', model: 'claude-fable-5', content: [{ type: 'thinking', thinking: '' }], usage: usage(900) } },
+      { type: 'assistant', sessionId: 's', uuid: 'a2', requestId: 'req_1', timestamp: '2026-08-01T00:00:02.000Z',
+        message: { id: 'msg_1', model: 'claude-fable-5', content: [{ type: 'text', text: 'answer' }], usage: usage(900) } },
+      { type: 'assistant', sessionId: 's', uuid: 'a3', requestId: 'req_1', timestamp: '2026-08-01T00:00:03.000Z',
+        message: { id: 'msg_1', model: 'claude-fable-5', content: [{ type: 'tool_use', name: 'Bash', id: 't1', input: {} }], usage: usage(40) } },
+    ];
+    fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    const { session, events } = await parseClaudeSession(file);
+
+    // Billed once, not three times, and at the LARGEST cell seen.
+    assert.deepEqual(JSON.parse(session.usage), {
+      'claude-fable-5': { input: 10, output: 900, cacheWrite5m: 0, cacheWrite1h: 700, cacheRead: 5000 },
+    });
+    // The empty-thinking line produced no event, so the TEXT event owns the
+    // tokens — the first event-producing line of the call, not the first line.
+    const carrying = events.filter((e) => e.input_tokens != null);
+    assert.equal(carrying.length, 1);
+    assert.equal(carrying[0].kind, 'assistant');
+    assert.equal(carrying[0].text, 'answer');
+    assert.equal(carrying[0].output_tokens, 900);
+    // Every other event of the call is NULL, so summing never double-counts.
+    for (const e of events) {
+      if (e === carrying[0]) continue;
+      assert.equal(e.input_tokens ?? null, null);
+    }
+  });
+
+  test('CHI-286: the call key is stamped on every assistant event, usage-bearing or not', async () => {
+    const dir = makeTmpDir();
+    const file = path.join(dir, 'key-stamp-session.jsonl');
+    const lines = [
+      { type: 'user', sessionId: 's', cwd: '/tmp/x', uuid: 'u1', timestamp: '2026-08-01T00:00:00.000Z', message: { role: 'user', content: 'go' } },
+      { type: 'assistant', sessionId: 's', uuid: 'a1', requestId: 'req_9', timestamp: '2026-08-01T00:00:01.000Z',
+        message: { id: 'msg_9', model: 'm', content: [{ type: 'text', text: 'hi' }, { type: 'tool_use', name: 'Bash', id: 't1', input: {} }],
+                   usage: { input_tokens: 1, output_tokens: 2 } } },
+    ];
+    fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    const { events } = await parseClaudeSession(file);
+    const assistantEvents = events.filter((e) => e.kind !== 'user');
+    assert.equal(assistantEvents.length, 2);
+    // Both events of the line carry the key (only the first carries tokens), so
+    // contract_message_metrics readers can dedup or audit.
+    for (const e of assistantEvents) {
+      assert.equal(e.message_id, 'msg_9');
+      assert.equal(e.request_id, 'req_9');
+    }
+    assert.equal(events.find((e) => e.kind === 'user').message_id ?? null, null);
+  });
+
+  test('CHI-286: a line carrying neither message.id nor requestId is never collapsed', async () => {
+    const dir = makeTmpDir();
+    const file = path.join(dir, 'unkeyed-session.jsonl');
+    // Two identical-usage lines with no ids at all. They cannot be PROVEN
+    // replays, so each is billed on its own (matches Varde's `if (msgId ||
+    // reqId)` guard) — the fix must not silently swallow real spend.
+    const l = (uuid, ts) => ({ type: 'assistant', sessionId: 's', cwd: '/tmp/x', uuid, timestamp: ts,
+      message: { model: 'm', content: [{ type: 'text', text: 'x' }], usage: { input_tokens: 7, output_tokens: 3 } } });
+    fs.writeFileSync(file, [JSON.stringify(l('a1', '2026-08-01T00:00:01.000Z')), JSON.stringify(l('a2', '2026-08-01T00:00:02.000Z'))].join('\n') + '\n');
+    const { session } = await parseClaudeSession(file);
+    assert.deepEqual(JSON.parse(session.usage), {
+      m: { input: 14, output: 6, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 },
+    });
+  });
+
+  test('CHI-286 invariant: SUM(event token cells) === sessions.usage', async () => {
+    const { session, events } = await parseClaudeSession(FIXTURE_SESSION);
+    const sum = {};
+    for (const e of events) {
+      if (e.input_tokens == null) continue;
+      const m = e.model || 'unknown';
+      sum[m] ??= { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
+      sum[m].input += e.input_tokens;
+      sum[m].output += e.output_tokens;
+      sum[m].cacheWrite5m += e.cache_w5m_tokens;
+      sum[m].cacheWrite1h += e.cache_w1h_tokens;
+      sum[m].cacheRead += e.cache_read_tokens;
+    }
+    // Every billed token sits on exactly one message row. Before CHI-286 this
+    // was violated by 25.2% system-wide: an assistant line whose only content
+    // was an empty `thinking` block reached the session total but produced no
+    // event to hang its tokens on.
+    assert.deepEqual(sum, JSON.parse(session.usage));
+  });
+
   test('malformed JSON lines are counted in `skipped` and do not throw or produce events', async () => {
     const dir = makeTmpDir();
     const file = path.join(dir, 'malformed-session.jsonl');

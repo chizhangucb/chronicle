@@ -302,6 +302,7 @@ external consumers, so base tables stay free to refactor:
 CREATE VIEW contract_message_metrics AS
 SELECT m.session_id, m.seq, m.ts, m.kind, m.model,
        m.is_sidechain, m.agent_type, m.skill, m.tool_name,
+       m.message_id, m.request_id,
        m.input_tokens, m.output_tokens, m.cache_read_tokens,
        m.cache_w5m_tokens, m.cache_w1h_tokens, s.file_path AS source_file
 FROM messages m JOIN sessions s ON s.id = m.session_id;
@@ -315,6 +316,16 @@ FROM sessions s JOIN projects p ON p.id = s.project_id;
 
 `PRAGMA user_version = 1` is set at migration and bumped only on breaking view changes — a
 consumer should refuse loudly on `0` or an unknown value rather than guess at the shape.
+Adding a column is **not** a breaking change for a consumer that selects the columns it
+wants, so `message_id`/`request_id` arrived at version 1.
+
+`message_id` and `request_id` are Anthropic's own per-API-call identity. They matter because
+`seq` and the underlying `uuid` are per transcript **line**, and Claude Code splits one API
+response's content blocks across several lines — an empty `thinking` block, then text, then
+`tool_use` — each repeating the full `usage` payload. Chronicle attaches a call's tokens to
+exactly one row, so summing the token columns is already correct; the pair is exposed so a
+consumer can verify that, join rows belonging to one call, or collapse its own sources the
+same way.
 
 ## Ingestion: scan, then import
 

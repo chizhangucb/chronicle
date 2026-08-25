@@ -76,7 +76,20 @@ export interface Event {
   // column.
   agent_desc?: string | null;
   skill?: string | null;
-  // Per-message token usage (one API call's numbers on the first event of the line).
+  // Anthropic's own per-API-call identity (CHI-286). Claude Code splits ONE API
+  // response's content blocks across several transcript lines (an empty
+  // `thinking` block, then text, then tool_use), and every one of those lines
+  // repeats the SAME `message.usage`. `uuid` is per-LINE, so it cannot collapse
+  // them; `(message_id, request_id)` is the only stable per-CALL key. Stamped on
+  // every event of an assistant line, usage-bearing or not, so downstream
+  // readers (contract_message_metrics -> Varde) can apply the same dedup.
+  // Null for non-assistant events and for imports that predate these columns.
+  message_id?: string | null;
+  request_id?: string | null;
+  // Per-message token usage. One API call's numbers land on exactly ONE event —
+  // the first event-producing line of that call (see the call registry in
+  // server/parsers/claudeCode.ts). Every other line of the same call carries
+  // null, so summing these columns never double-counts a call.
   input_tokens?: number | null;
   output_tokens?: number | null;
   cache_read_tokens?: number | null;
