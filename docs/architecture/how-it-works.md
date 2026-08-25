@@ -310,7 +310,7 @@ FROM messages m JOIN sessions s ON s.id = m.session_id;
 CREATE VIEW contract_sessions AS
 SELECT s.id, s.source, p.path AS project_path, s.file_path,
        s.started_at, s.ended_at, s.message_count, s.sidechain_count,
-       s.context_tokens, s.usage, s.agent_active_ms, s.engaged_ms
+       s.context_tokens, s.usage, s.usage_source, s.agent_active_ms, s.engaged_ms
 FROM sessions s JOIN projects p ON p.id = s.project_id;
 ```
 
@@ -318,6 +318,18 @@ FROM sessions s JOIN projects p ON p.id = s.project_id;
 consumer should refuse loudly on `0` or an unknown value rather than guess at the shape.
 Adding a column is **not** a breaking change for a consumer that selects the columns it
 wants, so `message_id`/`request_id` arrived at version 1.
+
+`usage_source` is the provenance of a session's token magnitudes, so a consumer can **label**
+rebuilt numbers instead of presenting them as measured. `exact` means the transcript was
+re-parsed by the fixed parser. `rederived` means Claude Code had already pruned the
+transcript, so the CHI-286 migration rebuilt the numbers structurally from the surviving
+per-message rows; those read **low**, by 6.7% and 15.1% in the two sessions audited against
+the CLI's own usage report. `unverified` means neither was possible and the pre-fix inflated
+value stands, so it reads high. `NULL` means there was no per-call id to claim `exact` from
+(codex and cursor carry none) or the row predates the column. The message rows follow the
+session: the rederived lane cleared the replayed rows it collapsed, so
+`contract_message_metrics` agrees with `sessions.usage` for `rederived` and disagrees for
+`unverified`. It arrived at version 1 for the same reason `message_id` did.
 
 `message_id` and `request_id` are Anthropic's own per-API-call identity. They matter because
 `seq` and the underlying `uuid` are per transcript **line**, and Claude Code splits one API
