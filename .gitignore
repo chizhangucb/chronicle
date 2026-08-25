@@ -1,3 +1,8 @@
+# Both forms on purpose: the trailing-slash pattern does NOT match a SYMLINK
+# named node_modules, which is exactly what you create when linking deps into a
+# `git worktree` (worktrees get no node_modules of their own). Without the bare
+# form, `git add -A` in a worktree silently stages that symlink into a public repo.
+node_modules
 node_modules/
 dist/
 dist-server/
