@@ -85,7 +85,14 @@ export function readMachineSessions(cutoffIso: string | null = null, path: strin
   let text: string;
   try { text = readFileSync(path, 'utf8'); } catch { return { ids: [], sessions: [] }; }
 
-  const sessions: MachineSession[] = [];
+  // Keyed by session_id, LAST row wins. The manifest is append-only, so a
+  // re-spawned or retried job can write the same session_id more than once —
+  // and these cells are priced straight into the Spend tile's automation
+  // bucket, so an unguarded second row bills that run twice. Same defect class
+  // as CHI-286 (aggregating a billed magnitude with no per-call identity), found
+  // by that ticket's sweep. Last-wins because a rerun's final report supersedes
+  // the earlier one, unlike a replayed transcript line where max is correct.
+  const byId = new Map<string, MachineSession>();
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
     let r: ManifestRow;
@@ -94,7 +101,7 @@ export function readMachineSessions(cutoffIso: string | null = null, path: strin
     // Lexicographic compare is safe for fixed-width ISO-8601 UTC strings (string
     // order == chronological), same assumption server/laneC.ts documents.
     if (cutoffIso && (r.ts ?? '') < cutoffIso) continue;
-    sessions.push({
+    byId.set(r.session_id, {
       sessionId: r.session_id,
       job: r.job ?? 'unknown',
       model: r.model ?? null,
@@ -103,6 +110,7 @@ export function readMachineSessions(cutoffIso: string | null = null, path: strin
       ts: r.ts ?? null,
     });
   }
-  if (!sessions.length) return { ...EMPTY };
+  if (!byId.size) return { ...EMPTY };
+  const sessions = [...byId.values()];
   return { ids: sessions.map((s) => s.sessionId), sessions };
 }

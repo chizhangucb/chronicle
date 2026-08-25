@@ -6,7 +6,7 @@ import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from './errors.ts';
 import { invalidateCache } from './cache.ts';
-import type { Event, SessionInput, Project } from '../shared/types.ts';
+import type { Event, SessionInput, Project, ModelUsage } from '../shared/types.ts';
 
 export type ProjectRow = Project;
 
@@ -32,6 +32,13 @@ export interface SessionRow {
   minor: number;
   result_count: number | null;
   error_count: number | null;
+  // Provenance of `usage` (CHI-286). 'exact' = parsed from a transcript by a
+  // parser that collapses replayed lines on (message_id, request_id).
+  // 'rederived' = the source transcript is gone, so the CHI-286 migration
+  // rebuilt it structurally from the stored per-message token columns.
+  // 'unverified' = neither was possible; the pre-fix (inflated) value stands.
+  // NULL = imported before the column existed.
+  usage_source: string | null;
 }
 
 // Full `messages` row shape.
@@ -53,6 +60,11 @@ export interface MessageRow {
   agent_id: string | null;
   agent_desc: string | null;
   skill: string | null;
+  // Anthropic's per-API-call identity (CHI-286). `uuid` above is per transcript
+  // LINE; one API call is split across several lines, so this pair is the only
+  // stable per-CALL key. Exposed on contract_message_metrics for downstream.
+  message_id: string | null;
+  request_id: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   cache_read_tokens: number | null;
@@ -168,6 +180,24 @@ try { db.exec('ALTER TABLE messages ADD COLUMN cache_w1h_tokens INTEGER'); } cat
 // tens of thousands of tool_result heads per request (was 0.8-17s per click).
 try { db.exec('ALTER TABLE sessions ADD COLUMN result_count INTEGER'); } catch {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
+// CHI-286: Anthropic's per-API-call identity. Claude Code splits ONE API
+// response across several transcript lines (empty thinking / text / tool_use),
+// each repeating the full `message.usage`; summing per line billed a call two
+// or three times. `uuid` is per-LINE, so it can't collapse them — this pair
+// can. Persisted on every assistant row (usage-bearing or not) so downstream
+// readers of contract_message_metrics can apply the same dedup.
+try { db.exec('ALTER TABLE messages ADD COLUMN message_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN request_id TEXT'); } catch {}
+// Provenance of sessions.usage — see SessionRow.usage_source above.
+try { db.exec('ALTER TABLE sessions ADD COLUMN usage_source TEXT'); } catch {}
+// Explicit one-shot migration ledger. A data-shaped gate (e.g. "usage_source IS
+// NULL") is NOT safe here: replaceSession enumerates its INSERT columns, so any
+// re-import resets that column and a data-gated migration would re-run on the
+// next boot, forever.
+db.exec(`CREATE TABLE IF NOT EXISTS chronicle_migrations (
+  name TEXT PRIMARY KEY,
+  applied_at TEXT DEFAULT (datetime('now'))
+)`);
 
 // One-time backfill for sessions imported before the columns existed (NULL).
 // ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
@@ -202,6 +232,134 @@ try {
   console.warn('[chronicle] error-count backfill deferred (will retry next start):', (err as Error).message);
 }
 
+// ---- CHI-286 one-time backfill ------------------------------------------
+//
+// Every session imported before the parser fix billed each API call once per
+// transcript line it was split across (2.20-2.44x measured against transcript
+// truth; 1.67-2.04x against Anthropic's own reported usage). Two lanes:
+//
+//   Lane 1 (exact)  Sessions whose transcript is still on disk: NULL their
+//                   imported_at so the next autosync pass re-parses them
+//                   through the fixed parser (autosync.ts skips on
+//                   `mtime <= imported_at`, and importedAtMs(null) === 0).
+//                   replaceSession then stamps usage_source='exact'.
+//   Lane 2 (rederived)  Everything else — Claude Code prunes ~/.claude/projects,
+//                   so for most history the DB is the only surviving record.
+//                   Collapse runs of identical per-message usage signatures and
+//                   rebuild sessions.usage from the survivors. Measured +1.9%
+//                   against transcript truth on the sessions where both exist,
+//                   versus +120% left alone.
+//
+// Lane 2 runs over Lane 1's sessions too, so the number is right even if
+// auto-sync never runs; the re-import later upgrades them to 'exact'.
+const CHI286 = 'chi-286-collapse-replayed-usage';
+
+interface UsageRow {
+  id: number;
+  session_id: string;
+  model: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_w5m_tokens: number;
+  cache_w1h_tokens: number;
+}
+
+function chi286Backfill(): void {
+  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(CHI286);
+  if (done) return;
+  const targets = db.prepare(`SELECT id, file_path, usage FROM sessions
+                              WHERE source = 'claude-code' AND usage IS NOT NULL`)
+    .all() as unknown as { id: string; file_path: string; usage: string }[];
+  if (targets.length) {
+    snapshotDb(true); // unconditional: this rewrites history in place
+    // ONE ordered scan of the usage-bearing rows, not a query per session.
+    const rows = db.prepare(`SELECT m.id, m.session_id, m.model,
+             COALESCE(m.input_tokens,0) AS input_tokens, COALESCE(m.output_tokens,0) AS output_tokens,
+             COALESCE(m.cache_read_tokens,0) AS cache_read_tokens,
+             COALESCE(m.cache_w5m_tokens,0) AS cache_w5m_tokens, COALESCE(m.cache_w1h_tokens,0) AS cache_w1h_tokens
+        FROM messages m JOIN sessions s ON s.id = m.session_id
+       WHERE s.source = 'claude-code' AND m.input_tokens IS NOT NULL
+       ORDER BY m.session_id, m.seq`).all() as unknown as UsageRow[];
+    const rebuilt = new Map<string, Record<string, ModelUsage>>();
+    const drop: number[] = [];
+    let prevSession = '';
+    let prevSig = '';
+    for (const r of rows) {
+      const model = r.model || 'unknown';
+      const total = r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_w5m_tokens + r.cache_w1h_tokens;
+      const sig = `${model}|${r.input_tokens}|${r.output_tokens}|${r.cache_read_tokens}|${r.cache_w5m_tokens}|${r.cache_w1h_tokens}`;
+      if (r.session_id !== prevSession) { prevSession = r.session_id; prevSig = ''; }
+      // A replay repeats the previous row's cells exactly. `total > 0` mirrors
+      // Varde's own all-zero guard: the only false positive found across every
+      // transcript on disk was a pair of adjacent all-zero `<synthetic>` rows,
+      // and collapsing a genuinely-zero row would be a (harmless) guess.
+      if (total > 0 && sig === prevSig) { drop.push(r.id); continue; }
+      prevSig = sig;
+      let byModel = rebuilt.get(r.session_id);
+      if (!byModel) { byModel = {}; rebuilt.set(r.session_id, byModel); }
+      const agg = byModel[model] || (byModel[model] = { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 });
+      agg.input += r.input_tokens;
+      agg.output += r.output_tokens;
+      agg.cacheRead += r.cache_read_tokens;
+      agg.cacheWrite5m += r.cache_w5m_tokens;
+      agg.cacheWrite1h += r.cache_w1h_tokens;
+    }
+    const cellTotal = (u: Record<string, ModelUsage>): number => Object.values(u)
+      .reduce((n, c) => n + c.input + c.output + c.cacheRead + c.cacheWrite5m + c.cacheWrite1h, 0);
+    db.exec('BEGIN');
+    try {
+      const setUsage = db.prepare('UPDATE sessions SET usage = ?, usage_source = ? WHERE id = ?');
+      const clearRow = db.prepare(`UPDATE messages SET input_tokens = NULL, output_tokens = NULL,
+                                   cache_read_tokens = NULL, cache_w5m_tokens = NULL, cache_w1h_tokens = NULL
+                                   WHERE id = ?`);
+      let rederived = 0, unverified = 0;
+      for (const s of targets) {
+        const next = rebuilt.get(s.id);
+        // No per-message token rows at all (an import predating those columns):
+        // there is nothing to re-derive from, so leave the inflated value and
+        // SAY SO rather than silently zeroing real spend.
+        if (!next || cellTotal(next) === 0) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
+        let prevTotal = 0;
+        try { prevTotal = cellTotal(JSON.parse(s.usage) as Record<string, ModelUsage>); } catch { prevTotal = 0; }
+        // Never rewrite UPWARD. The message lane is a subset of what the old
+        // accumulator summed, so a larger result means an assumption broke.
+        if (prevTotal > 0 && cellTotal(next) > prevTotal) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
+        setUsage.run(JSON.stringify(next), 'rederived', s.id);
+        rederived++;
+      }
+      // Duplicate rows lose their token columns so contract_message_metrics
+      // stops double-counting for history too. NULL (not 0) keeps "dropped"
+      // distinguishable from "genuinely zero"; every reader COALESCEs, and
+      // messages_fts indexes only text/tool_input, so no index maintenance.
+      for (const id of drop) clearRow.run(id);
+      // Lane 1 last, inside the same transaction as the marker.
+      const relive = db.prepare('UPDATE sessions SET imported_at = NULL WHERE id = ?');
+      let reimport = 0;
+      for (const s of targets) if (fs.existsSync(s.file_path)) { relive.run(s.id); reimport++; }
+      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+      db.exec('COMMIT');
+      console.log(`[chronicle] CHI-286 backfill: ${rederived} sessions re-derived, ${unverified} unverified, ` +
+                  `${drop.length} duplicate token rows cleared, ${reimport} queued for exact re-import`);
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } else {
+    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+  }
+}
+
+// Failure must not kill startup — same rule as the error-count backfill above.
+// A second Chronicle process holding a write lock (SQLITE_BUSY) is the likely
+// cause; the marker is only written inside the committed transaction, so a
+// failed run leaves nothing half-applied and retries on the next boot.
+try {
+  chi286Backfill();
+} catch (err) {
+  console.warn('[chronicle] CHI-286 backfill deferred (will retry next start):', (err as Error).message);
+}
+
 // Contract views: the dashboard reads ONLY these; base tables stay free to
 // refactor. user_version bumps only on breaking view changes.
 db.exec(`
@@ -213,6 +371,12 @@ SELECT m.session_id, m.seq, m.ts, m.kind, m.model,
        CASE WHEN m.tool_name LIKE 'mcp__%'
             THEN substr(m.tool_name, 6, instr(substr(m.tool_name, 6), '__') - 1)
        END AS mcp_server,
+       -- CHI-286: Anthropic's per-API-call key, so a downstream reader can
+       -- collapse replayed lines the same way parseSpendLines does. Rows
+       -- imported after the fix already carry usage on exactly one row per
+       -- call, so this is for auditing and for cross-checking, not a
+       -- correction the reader is required to apply.
+       m.message_id, m.request_id,
        m.input_tokens, m.output_tokens, m.cache_read_tokens,
        m.cache_w5m_tokens, m.cache_w1h_tokens,
        s.file_path AS source_file
@@ -224,6 +388,13 @@ SELECT s.id, s.source, p.path AS project_path, s.file_path,
        s.context_tokens, s.usage,
        s.agent_active_ms, s.engaged_ms
 FROM sessions s JOIN projects p ON p.id = s.project_id;
+-- STAYS 1 (CHI-286). Adding columns to a view is not a breaking change for a
+-- reader that selects explicit columns, which Varde does
+-- (aggregator/sources/spend-chronicle.ts). Bumping would trip Varde's hard
+-- version gate at three call sites, and because its mergeSnapshots only
+-- overwrites days present in the current scan, its spend lane would go on
+-- serving the OLD INFLATED snapshot behind a contract error rather than
+-- visibly failing. CHI-287 owns the bump, alongside the reader change.
 PRAGMA user_version = 1;
 `);
 
@@ -237,6 +408,34 @@ try {
            USING fts5(text, tool_input, content=messages, content_rowid=id)`);
   ftsAvailable = true;
 } catch {}
+
+// Snapshot the whole DB. Called before destructive deletes (project/session
+// removal, via routes/_shared.ts's backupDbBeforeDelete) and before the CHI-286
+// backfill rewrites historical usage. Throttled to at most one snapshot per
+// hour so a multi-select Remove loop makes ONE backup, not N; `force` overrides
+// that for a one-shot migration, which must always be recoverable. Keeps the
+// two newest. Restore = stop the app and copy the snapshot back over
+// chronicle.db (delete any -wal/-shm sidecars alongside it first).
+export function snapshotDb(force = false): string | null {
+  try {
+    const dir = path.join(dataDir, 'backups', 'db');
+    fs.mkdirSync(dir, { recursive: true });
+    const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();
+    const newest = existing[existing.length - 1];
+    if (!force && newest && Date.now() - fs.statSync(path.join(dir, newest)).mtime.getTime() < 60 * 60 * 1000) return null;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dest = path.join(dir, `chronicle-${stamp}.db`);
+    db.exec('BEGIN'); db.exec('COMMIT'); // barrier: no open write txn while copying
+    fs.copyFileSync(path.join(dataDir, 'chronicle.db'), dest);
+    // Keep the newest two snapshots total (the one just written + one prior).
+    for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch {}
+    }
+    return dest;
+  } catch {
+    return null;
+  }
+}
 
 // ---- Tombstones (Phase 5 PR 5a: delete + undo) ----
 
@@ -301,20 +500,26 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
     // that stays sticky across re-imports — otherwise a re-sync would silently
     // undo the user's "promote" action every time.
     const minor = prev && prev.minor === 0 ? 0 : (isMinorSession(activeMs, events.length) ? 1 : 0);
+    // Only claude-code carries a per-API-call id, so only it can claim 'exact'.
+    // Codex attaches tokens from `token_count` events with no call id at all;
+    // cursor/opencode carry no token data. Stamping 'exact' unconditionally
+    // here would make the column useless as an audit signal.
+    const usageSource = session.source === 'claude-code' ? 'exact' : null;
     db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, first_prompt, context_tokens, name, summary, usage,
-                                      sidechain_count, agent_active_ms, engaged_ms, imported_at, minor, result_count, error_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                                      sidechain_count, agent_active_ms, engaged_ms, imported_at, minor, result_count, error_count, usage_source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(session.id, session.project_id, session.source, session.file_path,
            session.started_at ?? null, session.ended_at ?? null, events.length, session.first_prompt ?? null,
            session.context_tokens ?? null, session.name ?? prev?.name ?? null,
            session.summary ?? null, session.usage ?? null,
-           sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor, resultCount, errorCount);
+           sidechainCount, activeMs, engagedMs(events), new Date().toISOString(), minor, resultCount, errorCount, usageSource);
     const ins = db.prepare(`INSERT INTO messages (session_id, seq, uuid, ts, kind, text, tool_name, tool_input, tool_use_id, model,
-                                                  is_sidechain, agent_type, workflow_id, agent_id, agent_desc, skill, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                                  is_sidechain, agent_type, workflow_id, agent_id, agent_desc, skill, message_id, request_id, input_tokens, output_tokens, cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     events.forEach((e, i) => ins.run(session.id, i, e.uuid ?? null, e.ts ?? null, e.kind,
       e.text ?? null, e.tool_name ?? null, e.tool_input ?? null, e.tool_use_id ?? null, e.model ?? null,
       e.is_sidechain ? 1 : 0, e.agent_type ?? null, e.workflow_id ?? null, e.agent_id ?? null, e.agent_desc ?? null, e.skill ?? null,
+      e.message_id ?? null, e.request_id ?? null,
       e.input_tokens ?? null, e.output_tokens ?? null, e.cache_read_tokens ?? null,
       e.cache_w5m_tokens ?? null, e.cache_w1h_tokens ?? null));
     if (ftsAvailable) {

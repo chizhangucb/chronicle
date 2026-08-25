@@ -45,6 +45,9 @@ interface ClaudeMessage {
   model?: string;
   content?: string | ClaudeContentBlock[];
   usage?: ClaudeUsage;
+  // Anthropic's per-API-call message id (`msg_...`). Present on every assistant
+  // line current Claude Code writes (100% of 9,952 usage lines audited).
+  id?: string;
 }
 
 interface ClaudeLine {
@@ -62,6 +65,10 @@ interface ClaudeLine {
   // hex id in a subagent file's own name, agent-<hex>.jsonl, when that agent
   // was ALSO written to its own file).
   agentId?: string;
+  // Anthropic's per-API-request id (`req_...`), the second half of the CHI-286
+  // dedup key. Absent on a handful of lines (3 of ~10k audited), which is why
+  // the key tolerates either half being missing.
+  requestId?: string;
 }
 
 // Sidecar written next to a subagent transcript file (agent-<hex>.meta.json).
@@ -290,6 +297,13 @@ export function parseClaudeLine(o: ClaudeLine): Event[] {
           tool_name: block.name, tool_use_id: block.id, tool_input: safeStringify(block.input) });
       }
     }
+    // Anthropic's per-call identity on EVERY event of the line, usage-bearing
+    // or not (CHI-286) — `uuid` is per-line, so this pair is the only thing a
+    // downstream reader of contract_message_metrics can dedup on.
+    for (const e of events) {
+      e.message_id = o.message.id ?? null;
+      e.request_id = o.requestId ?? null;
+    }
   }
   if (o.isSidechain) for (const e of events) e.is_sidechain = 1;
   return events;
@@ -299,34 +313,154 @@ function newUsageAgg(): ModelUsage {
   return { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
 }
 
-function accumulateUsage(usageByModel: Map<string, ModelUsage>, model: string, u: ClaudeUsage): void {
-  const agg = usageByModel.get(model) || newUsageAgg();
-  agg.input += u.input_tokens || 0;
-  agg.output += u.output_tokens || 0;
-  agg.cacheRead += u.cache_read_input_tokens || 0;
-  // 5-minute and 1-hour cache writes are billed at different rates.
+// One raw `message.usage` block normalized into billed cells. 5-minute and
+// 1-hour cache writes are billed at different rates, so they stay split; a log
+// that reports an unsplit `cache_creation_input_tokens` was billed at the 5m
+// rate, so it lands in that tier.
+function usageCells(u: ClaudeUsage): ModelUsage {
   const cc = u.cache_creation;
-  if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-    agg.cacheWrite5m += cc.ephemeral_5m_input_tokens || 0;
-    agg.cacheWrite1h += cc.ephemeral_1h_input_tokens || 0;
-  } else {
-    agg.cacheWrite5m += u.cache_creation_input_tokens || 0; // default tier when unsplit
-  }
-  usageByModel.set(model, agg);
+  const split = !!cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null);
+  return {
+    input: u.input_tokens || 0,
+    output: u.output_tokens || 0,
+    cacheWrite5m: split ? (cc.ephemeral_5m_input_tokens || 0) : (u.cache_creation_input_tokens || 0),
+    cacheWrite1h: split ? (cc.ephemeral_1h_input_tokens || 0) : 0,
+    cacheRead: u.cache_read_input_tokens || 0,
+  };
 }
 
-function attachPerEventUsage(e: Event, u: ClaudeUsage): void {
-  const cc = u.cache_creation;
-  e.input_tokens = u.input_tokens || 0;
-  e.output_tokens = u.output_tokens || 0;
-  e.cache_read_tokens = u.cache_read_input_tokens || 0;
-  if (cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null)) {
-    e.cache_w5m_tokens = cc.ephemeral_5m_input_tokens || 0;
-    e.cache_w1h_tokens = cc.ephemeral_1h_input_tokens || 0;
-  } else {
-    e.cache_w5m_tokens = u.cache_creation_input_tokens || 0;
-    e.cache_w1h_tokens = 0;
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-API-call registry (CHI-286)
+//
+// Claude Code splits ONE API response's content blocks across several
+// transcript lines (an empty `thinking` block, then text, then tool_use), and
+// EVERY one of those lines repeats the full `message.usage`. Summing per line
+// billed one call two or three times — measured 2.20-2.44x against transcript
+// truth, and 1.67-2.04x against Anthropic's own reported usage in
+// ~/.aios/machine_sessions.jsonl. `uuid` is per-LINE and cannot collapse them.
+// The only stable per-CALL key is `(message.id, requestId)`, which is also the
+// exact key shape Varde's parseSpendLines uses, so the two tools reconcile.
+//
+// ATTRIBUTION, and this is the dominant path rather than an edge case: 58.8% of
+// calls OPEN with a `{"type":"thinking","thinking":""}` line that
+// parseClaudeLine drops entirely, and 25.2% of all token mass sits on such
+// event-less lines. So a call's cells are held here and attached to the FIRST
+// EVENT-PRODUCING line of that call, whichever line that turns out to be —
+// never blindly to the first line. Later lines of the same call merge into the
+// slot and rewrite the already-attached event in place, attaching nothing of
+// their own. Net effect: each call is billed exactly once, and
+// SUM(messages token columns) == sessions.usage.
+interface CallSlot {
+  model: string;
+  cells: ModelUsage;
+  event: Event | null;
+}
+
+interface CallRegistry {
+  slots: Map<string, CallSlot>;
+  anon: number;
+}
+
+function newCallRegistry(): CallRegistry {
+  return { slots: new Map(), anon: 0 };
+}
+
+// A sidechain event that still carries its run's identity. Used only to break a
+// cross-file tie — see claimCall.
+function hasRunIdentity(e: Event): boolean {
+  return e.is_sidechain === 1 && (e.agent_id != null || e.workflow_id != null);
+}
+
+function stampEventUsage(e: Event, c: ModelUsage): void {
+  e.input_tokens = c.input;
+  e.output_tokens = c.output;
+  e.cache_read_tokens = c.cacheRead;
+  e.cache_w5m_tokens = c.cacheWrite5m;
+  e.cache_w1h_tokens = c.cacheWrite1h;
+}
+
+function clearEventUsage(e: Event): void {
+  e.input_tokens = null;
+  e.output_tokens = null;
+  e.cache_read_tokens = null;
+  e.cache_w5m_tokens = null;
+  e.cache_w1h_tokens = null;
+}
+
+// Record one assistant line's usage under its call key. Returns the key so the
+// line's first event can claim the slot.
+function recordCall(reg: CallRegistry, o: ClaudeLine, u: ClaudeUsage): string {
+  const msgId = o.message?.id;
+  // A line carrying NEITHER id can never be PROVEN a replay, so it gets a
+  // private key and is billed on its own — the same guard Varde applies with
+  // `if (msgId || reqId)` (aggregator/sources/spend.ts).
+  const key = (msgId || o.requestId) ? `${msgId ?? ''}:${o.requestId ?? ''}` : `\u0000anon:${reg.anon++}`;
+  const cells = usageCells(u);
+  const slot = reg.slots.get(key);
+  if (!slot) {
+    reg.slots.set(key, { model: o.message?.model || 'unknown', cells, event: null });
+    return key;
   }
+  // Keep-max PER CELL: a replayed line can be truncated, so the largest value
+  // seen for each cell is the real one. Varde swaps the whole record when its
+  // total is larger; across all 3,132 duplicate keys on disk the two rules
+  // agree exactly (cell-wise max never once exceeded record max), so this stays
+  // reconcilable while additionally surviving a partial replay.
+  slot.cells = {
+    input: Math.max(slot.cells.input, cells.input),
+    output: Math.max(slot.cells.output, cells.output),
+    cacheWrite5m: Math.max(slot.cells.cacheWrite5m, cells.cacheWrite5m),
+    cacheWrite1h: Math.max(slot.cells.cacheWrite1h, cells.cacheWrite1h),
+    cacheRead: Math.max(slot.cells.cacheRead, cells.cacheRead),
+  };
+  if (slot.event) stampEventUsage(slot.event, slot.cells);
+  return key;
+}
+
+// The first event-producing line of a call takes ownership of its token columns.
+function claimCall(reg: CallRegistry, key: string, e: Event): void {
+  const slot = reg.slots.get(key);
+  if (!slot) return;
+  if (!slot.event) {
+    slot.event = e;
+    stampEventUsage(e, slot.cells);
+    return;
+  }
+  // Cross-file tie-break. The registry is session-scoped and shared by the main
+  // file and the subagents/agent-*.jsonl loop, because `mainUuids` dedups by
+  // UUID and so cannot catch the same call written to both files with different
+  // uuids. No such key exists on disk today, so this is insurance — but if one
+  // appears, the tokens must sit on the row that still carries the run's
+  // identity, or server/content.ts's workflowRuns/subagentTurns token shares
+  // under-count against a denominator that still includes them.
+  if (!hasRunIdentity(slot.event) && hasRunIdentity(e)) {
+    clearEventUsage(slot.event);
+    slot.event = e;
+    stampEventUsage(e, slot.cells);
+  }
+}
+
+// Fold the registry into per-model session totals.
+//
+// A call whose EVERY line was event-less still bills here, even though no
+// message row exists to carry its cells. That is deliberate: losing real spend
+// is strictly worse than breaking SUM(messages) == sessions.usage for that call.
+// Measured over 420 exactly-reimported sessions, it affects 13 of them and
+// 0.0286% of billed tokens — always a call whose only content was an empty
+// `thinking` block. So the invariant is "SUM(messages) <= sessions.usage, equal
+// except for content-less calls", not a strict equality.
+function foldCallsByModel(reg: CallRegistry): Map<string, ModelUsage> {
+  const byModel = new Map<string, ModelUsage>();
+  for (const slot of reg.slots.values()) {
+    const agg = byModel.get(slot.model) || newUsageAgg();
+    agg.input += slot.cells.input;
+    agg.output += slot.cells.output;
+    agg.cacheWrite5m += slot.cells.cacheWrite5m;
+    agg.cacheWrite1h += slot.cells.cacheWrite1h;
+    agg.cacheRead += slot.cells.cacheRead;
+    byModel.set(slot.model, agg);
+  }
+  return byModel;
 }
 
 // Parse one session JSONL file into { session, events }.
@@ -341,7 +475,9 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
   let customTitle: string | null = null;
   let skipped = 0;
   let contextTokens: number | null = null;
-  const usageByModel = new Map<string, ModelUsage>();
+  // Session-scoped, and deliberately SHARED with the subagent-file loop below —
+  // see claimCall's cross-file tie-break.
+  const calls = newCallRegistry();
   const taskPromptType = new Map<string, string>(); // Task prompt head → subagent_type (sidechain pairing)
   const uuidAgentType = new Map<string, string | null>();  // sidechain uuid → agent_type (parent-chain propagation)
   let pendingCommandSkill: string | null = null;   // set by a <command-name> turn, consumed by the next assistant event
@@ -372,14 +508,16 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
     // Same pass aggregates per-model token usage for the Cost & Usage panel —
     // sidechain usage INCLUDED (v0.2: it's real spend; context_tokens stays
     // main-chain only).
+    // `callKey` carries this line's API-call identity down to the event loop
+    // below, where the line's first event claims the call's token columns.
+    let callKey: string | null = null;
     if (o.type === 'assistant' && o.message?.usage) {
       const u = o.message.usage;
       if (!o.isSidechain) {
         const ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
         if (ctx > 0) contextTokens = ctx;
       }
-      const model = o.message.model || 'unknown';
-      accumulateUsage(usageByModel, model, u);
+      callKey = recordCall(calls, o, u);
     }
     // Skill context: a Skill tool_use row carries its own skill name; a
     // `/command` turn tags the first assistant event that follows it
@@ -407,7 +545,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       // of a given run). Left null when absent (older logs).
       if (o.agentId) for (const e of lineEvents) e.agent_id = o.agentId;
     }
-    let usageAttached = o.type !== 'assistant' || !o.message?.usage;
+    let claimed = false;
     for (const e of lineEvents) {
       if (e.kind === 'tool_use') {
         if (e.tool_name === 'Task' || e.tool_name === 'Agent') {
@@ -420,11 +558,12 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
           try { e.skill = JSON.parse(e.tool_input || '{}').skill || null; } catch {}
         }
       }
-      // Per-message usage: one API call = one set of numbers, stored on the
-      // FIRST event of that assistant line (others NULL).
-      if (!usageAttached && o.message?.usage) {
-        attachPerEventUsage(e, o.message.usage);
-        usageAttached = true;
+      // One API call = one set of numbers, on the first event this call
+      // produces anywhere in the session (others NULL). A line that repeats an
+      // already-claimed call attaches nothing — that is the CHI-286 fix.
+      if (callKey && !claimed) {
+        claimCall(calls, callKey, e);
+        claimed = true;
       }
       if (pendingCommandSkill && !o.isSidechain && (e.kind === 'assistant' || e.kind === 'thinking' || e.kind === 'tool_use')) {
         if (!e.skill) e.skill = pendingCommandSkill;
@@ -469,11 +608,11 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       let o: ClaudeLine;
       try { o = JSON.parse(line); } catch { skipped++; continue; }
       if (o.uuid && mainUuids.has(o.uuid)) continue; // dedup against inline main-file entries
-      if (o.type === 'assistant' && o.message?.usage) {
-        const u = o.message.usage;
-        const model = o.message.model || 'unknown';
-        accumulateUsage(usageByModel, model, u);
-      }
+      // Same registry as the main loop: `mainUuids` above dedups by UUID, so it
+      // cannot catch a call written to both files under different uuids —
+      // keying on (message.id, requestId) can.
+      let callKey: string | null = null;
+      if (o.type === 'assistant' && o.message?.usage) callKey = recordCall(calls, o, o.message.usage);
       const lineEvents = parseClaudeLine(o);
       if (agentType === undefined && o.type === 'user') {
         const content = o.message?.content;
@@ -481,16 +620,19 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
           : Array.isArray(content) ? content.find((b) => b.type === 'text')?.text : undefined;
         if (txt) agentType = taskPromptType.get(txt.slice(0, 300)) ?? null;
       }
-      let usageAttached = o.type !== 'assistant' || !o.message?.usage;
+      let claimed = false;
       for (const e of lineEvents) {
         e.is_sidechain = 1;
         e.workflow_id = ref.workflowId;
         e.agent_id = fileAgentId; // run-level id, from the file's own name — not the line's agentId field
         if (agentType) e.agent_type = agentType;
         if (metaDesc) e.agent_desc = metaDesc;
-        if (!usageAttached && o.message?.usage) {
-          attachPerEventUsage(e, o.message.usage);
-          usageAttached = true;
+        // Run identity is stamped ABOVE this point on purpose: claimCall's
+        // cross-file tie-break reads is_sidechain/agent_id/workflow_id off the
+        // candidate event.
+        if (callKey && !claimed) {
+          claimCall(calls, callKey, e);
+          claimed = true;
         }
         subEvents.push(e);
       }
@@ -506,6 +648,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
 
   const timestamps = events.map((e) => e.ts).filter(Boolean).sort() as string[];
   if (cwd) cwd = reduceCwd(cwd, cwdsSeen);
+  const usageByModel = foldCallsByModel(calls);
   return {
     session: {
       id: sessionId,
@@ -517,6 +660,8 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       first_prompt: firstPrompt,
       summary: customTitle || summary, // Claude Code custom title wins over legacy summary
       context_tokens: contextTokens,
+      // Folded from the call registry, NOT accumulated per line — one API call
+      // contributes once no matter how many transcript lines repeat it.
       usage: usageByModel.size ? JSON.stringify(Object.fromEntries(usageByModel)) : null,
       skipped,
     },
