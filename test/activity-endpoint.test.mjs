@@ -261,10 +261,30 @@ test('burn window spend (10d, P0 regression): a session that started before the 
   // spanner10d: billed input=4000; 12 messages @10 tokens each (120 total), 6 before the
   // 10d cutoff and 6 after → in-window ratio 6/12 = 0.5 → windowed cell = 2000 (this split
   // is itself anchored to real `now`, same as the route's cutoff, so it's never ambiguous).
+  // PER-BUCKET ROUNDING DRIFT (second time-of-day flake in this assertion, found when
+  // it failed 55999 !== 56000 on the v1.3.0 publish run). The route aggregates
+  // `bucketedUsage`, not `windowedUsage`, and bucketedUsage rounds EACH local-day bucket
+  // independently — server/windowUsage.ts says so outright: summing a session-model's
+  // bucketed cells "reproduces windowedUsage's own scaled cell for that session-model (up
+  // to per-bucket rounding drift)".
+  //
+  // spanner10d's six in-window messages sit at 9.5/9/8.8/8.6/8.4/8.2 days ago, so they
+  // straddle two or three LOCAL calendar days depending on what time of day the suite
+  // runs. Split 2+2+2 the rounded parts sum to exactly 2000; split 1+1+2+2 (or similar)
+  // they sum to 1999, because round(4000 * 10/120) = 333 loses a third of a token each
+  // time. Nothing is wrong when that happens — it is the documented cost of bucketing.
+  //
+  // So allow a few tokens of drift instead of demanding an exact total. The tolerance is
+  // deliberately tiny relative to what this test actually guards: the P0 regressions below
+  // are off by 2000 or 4000 tokens, three orders of magnitude outside this band.
   const total = tok(r.burn.windowSpendTokensByModel);
-  assert.equal(
-    total, baselineExcludingSpanner + 2000,
-    `must equal baseline(${baselineExcludingSpanner}, d10Included=${d10Included}) + spanner10d's scaled in-window share(2000)`,
+  const expected = baselineExcludingSpanner + 2000;
+  const ROUNDING_DRIFT = 5; // < 1 token per local-day bucket spanner10d can occupy
+  assert.ok(
+    Math.abs(total - expected) <= ROUNDING_DRIFT,
+    `must equal baseline(${baselineExcludingSpanner}, d10Included=${d10Included}) + spanner10d's `
+    + `scaled in-window share(2000) = ${expected}, within ${ROUNDING_DRIFT} tokens of per-bucket `
+    + `rounding drift — got ${total} (off by ${total - expected})`,
   );
   assert.ok(total > baselineExcludingSpanner, 'spanner10d must not be dropped entirely (the P0 bug: old gate excluded it)');
   assert.ok(total < baselineExcludingSpanner + 4000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-window share)');
