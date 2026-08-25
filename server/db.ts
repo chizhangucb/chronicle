@@ -386,15 +386,29 @@ CREATE VIEW contract_sessions AS
 SELECT s.id, s.source, p.path AS project_path, s.file_path,
        s.started_at, s.ended_at, s.message_count, s.sidechain_count,
        s.context_tokens, s.usage,
+       -- CHI-297: provenance of this session's token magnitudes, so a reader
+       -- can LABEL rebuilt numbers instead of presenting them as measured.
+       -- 'exact' = re-parsed from a transcript by the fixed parser.
+       -- 'rederived' = the transcript was already pruned, so CHI-286 rebuilt
+       -- the numbers structurally from the surviving per-message rows; these
+       -- read LOW (6.7% and 15.1% in the two audited against the CLI's own
+       -- usage report). 'unverified' = neither was possible, so the pre-fix
+       -- INFLATED value stands; that one reads high. NULL = no per-call id to
+       -- claim 'exact' from (codex/cursor), or an import predating the column.
+       -- The message rows follow the session: the rederived lane cleared the
+       -- replayed rows it collapsed, so contract_message_metrics agrees with
+       -- sessions.usage for 'rederived' and disagrees for 'unverified'.
+       s.usage_source,
        s.agent_active_ms, s.engaged_ms
 FROM sessions s JOIN projects p ON p.id = s.project_id;
--- STAYS 1 (CHI-286). Adding columns to a view is not a breaking change for a
--- reader that selects explicit columns, which Varde does
--- (aggregator/sources/spend-chronicle.ts). Bumping would trip Varde's hard
--- version gate at three call sites, and because its mergeSnapshots only
--- overwrites days present in the current scan, its spend lane would go on
--- serving the OLD INFLATED snapshot behind a contract error rather than
--- visibly failing. CHI-287 owns the bump, alongside the reader change.
+-- STAYS 1, twice now (CHI-286 message_id/request_id, CHI-297 usage_source).
+-- Adding columns to a view is not a breaking change for a reader that selects
+-- explicit columns, which Varde does (aggregator/sources/spend-chronicle.ts,
+-- aggregator/sources/chronicle.ts). Bumping would trip Varde's hard version
+-- gate at three call sites, and because its mergeSnapshots only overwrites
+-- days present in the current scan, its spend lane would go on serving the OLD
+-- INFLATED snapshot behind a contract error rather than visibly failing. A
+-- bump therefore only ever ships if both repos land in the same merge.
 PRAGMA user_version = 1;
 `);
 

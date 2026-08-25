@@ -163,13 +163,29 @@ describe('CHI-286 backfill', () => {
   test('contract stays at user_version 1 — added columns are not a breaking view change', () => {
     // Bumping would trip Varde's hard version gate and, because its
     // mergeSnapshots only overwrites days present in the current scan, leave it
-    // serving the OLD INFLATED snapshot behind a contract error. CHI-287 owns
-    // the bump, together with the reader change.
+    // serving the OLD INFLATED snapshot behind a contract error. So a bump only
+    // ever ships if both repos land in the same merge; CHI-287 and CHI-297 both
+    // consumed new columns at version 1 instead.
     assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 1);
     const cols = dbModule.db.prepare('SELECT * FROM contract_message_metrics LIMIT 1').all();
     const names = cols.length ? Object.keys(cols[0]) : [];
     assert.ok(names.includes('message_id'), 'contract view exposes message_id');
     assert.ok(names.includes('request_id'), 'contract view exposes request_id');
+    // CHI-297: usage_source rides contract_sessions so a reader can label the
+    // rebuilt sessions rather than present them as measured. PRAGMA rather than
+    // SELECT * — the assertion must hold on an empty view too.
+    const sessCols = dbModule.db.prepare('PRAGMA table_info(contract_sessions)').all().map((c) => c.name);
+    assert.ok(sessCols.includes('usage_source'), 'contract view exposes usage_source');
+  });
+
+  test('contract_sessions.usage_source carries the value the backfill stamped', () => {
+    // The column is the whole point of CHI-297: without it a reader can only
+    // infer provenance from the absent-message_id correlation, which is an
+    // artifact of how this migration ran rather than anything contractual.
+    const bySource = dbModule.db.prepare(
+      'SELECT usage_source, COUNT(*) AS n FROM contract_sessions GROUP BY usage_source').all();
+    const seen = Object.fromEntries(bySource.map((r) => [String(r.usage_source), r.n]));
+    assert.ok((seen.rederived ?? 0) > 0, 'view surfaces the rederived sessions');
   });
 });
 

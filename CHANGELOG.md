@@ -5,6 +5,15 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **Rebuilt sessions are now labeled where other tools can see it.** 1.3.0 already
+  recorded, per session, whether its token numbers were re-read from a transcript or
+  rebuilt after Claude Code had pruned one. That label now rides the `contract_sessions`
+  view as `usage_source`, so a dashboard reading Chronicle can say which spend is
+  measured and which is reconstructed instead of presenting both as equally solid.
+  Rebuilt sessions read low, by 7% to 15% in the sessions audited. No number changes,
+  and the contract stays at version 1: adding a column does not break a reader that
+  selects the columns it wants.
+
 ## 1.3.0 - 2026-08-25
 
 - **Spend was over-reported by roughly 2.2x — corrected.** Claude Code writes one
