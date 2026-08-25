@@ -40,7 +40,7 @@ marked "layout-independent." Tag findings with the Batch B 8-category rubric AND
 - [ ] Every icon in chrome is the mono glyph vocabulary (below) or an SVG — zero colored emoji.
 
 ### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
-Product shape enumerated in `spec/product-contract.md` — judge against it (IA-conformance lens).
+Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-conformance lens).
 - [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Burn tile →
       Insights charts → Recent-sessions ledger LAST. Exactly one KPI strip, one `/api/insights` fetch.
 - [ ] Tabs Overview / Explore / Content and a five-option window toggle (Today/7d/30d/90d/All) present.
