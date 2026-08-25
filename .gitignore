@@ -16,3 +16,5 @@ graphify-out
 
 # Local Claude Code settings (personal hooks, never public)
 .claude/settings.local.json
+.claude/state/
+.claude/worktrees/
