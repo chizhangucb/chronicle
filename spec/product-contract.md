@@ -32,24 +32,26 @@ No cloud, account, auth, telemetry, or outbound calls. Never writes a source too
 
 ## Invariants
 CHI SIGN-OFF TO EDIT.
-- Loopback only (binds `127.0.0.1`); no outbound network and no LLM calls, ever.
+- No outbound network: chronicle never phones home.
 - Read-only ingest: chronicle never mutates a source tool's logs.
 - The DB read seam is the `contract_*` views only; base tables are not public.
 - `PRAGMA user_version` gates breaking view changes; a bump ships only with chronicle and Varde together.
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
+Current posture, not locked: binds loopback only (`127.0.0.1`); no LLM calls today.
+
 ## Change triggers
-Update this file in the same pass when one fires.
+Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route; a new `contract_*` view column (with the `user_version` call).
 - **Two-console reality.** Chronicle, not Varde, is the actual default console. Composed-not-merged stands (CHI-292); the merge question, both directions, is owned by CHI-307.
 - **Usage-based revisit.** If Chronicle stays the default once Varde's briefing and Modules route mature, revisit the boundary, reverse merge included (CHI-307).
 
 ## Pointers
-In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`. Rationale: hub `records/decisions.md`.
+In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`; rationale: `records/decisions.md`.
 
 ## Roadmap
 Only Now is a commitment.
 - **Now:** release-walk hardening on the 1.3.x line (CHI-310).
 - **Next:** Chronicle-Varde boundary deep dive, merge question both directions (CHI-307).
-- **Later:** cloud-platform exposure; contracts and registry rendered for a wider audience (CHI-306).
+- **Later:** cloud-platform exposure; contracts/registry rendered for a wider audience (CHI-306).
