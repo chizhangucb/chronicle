@@ -440,10 +440,15 @@ function claimCall(reg: CallRegistry, key: string, e: Event): void {
   }
 }
 
-// Fold the registry into per-model session totals. A call whose every line was
-// event-less (0 of 4,556 audited, but the shape is possible) still bills here:
-// losing real spend is strictly worse than breaking the
-// SUM(messages) == sessions.usage invariant for that one call.
+// Fold the registry into per-model session totals.
+//
+// A call whose EVERY line was event-less still bills here, even though no
+// message row exists to carry its cells. That is deliberate: losing real spend
+// is strictly worse than breaking SUM(messages) == sessions.usage for that call.
+// Measured over 420 exactly-reimported sessions, it affects 13 of them and
+// 0.0286% of billed tokens — always a call whose only content was an empty
+// `thinking` block. So the invariant is "SUM(messages) <= sessions.usage, equal
+// except for content-less calls", not a strict equality.
 function foldCallsByModel(reg: CallRegistry): Map<string, ModelUsage> {
   const byModel = new Map<string, ModelUsage>();
   for (const slot of reg.slots.values()) {

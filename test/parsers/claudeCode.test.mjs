@@ -275,10 +275,18 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
       sum[m].cacheWrite1h += e.cache_w1h_tokens;
       sum[m].cacheRead += e.cache_read_tokens;
     }
-    // Every billed token sits on exactly one message row. Before CHI-286 this
-    // was violated by 25.2% system-wide: an assistant line whose only content
-    // was an empty `thinking` block reached the session total but produced no
-    // event to hang its tokens on.
+    // Every billed token sits on exactly ONE message row. Before CHI-286 the
+    // two sides disagreed by 25.2% system-wide: an assistant line whose only
+    // content was an empty `thinking` block reached the session total but
+    // produced no event to hang its tokens on, while replayed lines that DID
+    // produce events were counted repeatedly.
+    //
+    // Equality holds whenever every call produced at least one event, which is
+    // the case for this fixture and for 407 of 420 real sessions measured. The
+    // residual 13 are calls whose only content was an empty thinking block, so
+    // no row exists to hold their cells; the parser still bills them (real
+    // spend beats a tidy invariant), which makes the general rule
+    // SUM(messages) <= sessions.usage — 0.0286% of tokens in practice.
     assert.deepEqual(sum, JSON.parse(session.usage));
   });
 
