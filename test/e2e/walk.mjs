@@ -34,6 +34,7 @@ import { chromium } from '@playwright/test';
 import { parseArgs } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Same reference widths as test/e2e/helpers.ts WIDTHS (kept as a literal here
 // rather than importing that .ts helper, so this script has zero project
@@ -246,24 +247,52 @@ async function probeOverflow(page) {
 }
 
 // (b) Popover clip: if the page has an InfoTip (`.info-tip`), open the first
-// one and bounding-box test its `.info-bubble` — must stay fully inside the
-// viewport horizontally and must open downward (never flip above its
-// trigger), mirroring test/e2e/infotip.spec.ts's assertions. Pages with no
-// InfoTip report `present: false, pass: true` (nothing to check).
+// REACHABLE one and bounding-box test its `.info-bubble` — must stay fully
+// inside the viewport horizontally and must open downward (never flip above
+// its trigger), mirroring test/e2e/infotip.spec.ts's assertions. Pages with
+// no InfoTip report `present: false, pass: true` (nothing to check).
+//
+// "Reachable" matters because a route like session-security or search-modal
+// opens an overlay on top of a page that still has its own `.info-tip`
+// buttons mounted underneath (e.g. the topbar's List/Billed toggle) — those
+// are legitimately unreachable to a real user until the overlay closes, same
+// as a real user would find them. `.first()` in DOM order picks up whichever
+// tip happens to render first, which is frequently one of those buried ones,
+// so this used to report every such page as a popover-clip FAIL even though
+// there was nothing to check. Instead: find the first tip a real user could
+// actually hover (visible, and unobstructed at its own center point) and
+// test that one. If every `.info-tip` on the page is covered right now, that
+// is a distinct `notTestable` outcome, not a fail — the probe genuinely
+// could not test popover clipping here, which is different from finding one.
 async function probePopoverClip(page, width) {
   const tipCount = await page.locator('.info-tip').count();
   if (tipCount === 0) return { present: false, pass: true, note: 'no .info-tip on this page' };
 
-  const trigger = page.locator('.info-tip').first();
+  const reachableIndex = await page.evaluate(() => {
+    const tips = [...document.querySelectorAll('.info-tip')];
+    for (let i = 0; i < tips.length; i++) {
+      const el = tips[i];
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      if (top && (top === el || el.contains(top))) return i;
+    }
+    return -1;
+  });
+
+  if (reachableIndex === -1) {
+    return {
+      present: true, pass: true, notTestable: true,
+      note: `${tipCount} .info-tip element(s) present but all are covered by another element right now (e.g. behind an open modal's backdrop) — nothing here for a real user to reach, so popover clipping could not be tested on this page`,
+    };
+  }
+
+  const trigger = page.locator('.info-tip').nth(reachableIndex);
   const triggerBox = await trigger.boundingBox();
   const bubble = page.locator('.info-bubble');
   let visible = false;
   let hoverError = null;
   try {
-    // Short timeout, not the page default: an .info-tip elsewhere in the DOM
-    // can be legitimately un-interactable right now (e.g. obscured by an open
-    // modal's backdrop on the security-check route) — that's a real "can't
-    // check this probe here" outcome, not a script crash.
     await trigger.hover({ timeout: 3000 });
     await bubble.waitFor({ state: 'visible', timeout: 2000 });
     visible = true;
@@ -280,15 +309,39 @@ async function probePopoverClip(page, width) {
         : '.info-tip present but .info-bubble never became visible on hover',
     };
   } else {
-    const bubbleBox = await bubble.boundingBox();
-    const insideLeft = bubbleBox ? bubbleBox.x >= -0.5 : false;
-    const insideRight = bubbleBox ? bubbleBox.x + bubbleBox.width <= width + 0.5 : false;
-    const opensDown = bubbleBox ? bubbleBox.y >= triggerBox.y + triggerBox.height - 1 : false;
-    result = {
-      present: true,
-      pass: insideLeft && insideRight && opensDown,
-      triggerBox, bubbleBox, insideLeft, insideRight, opensDown,
-    };
+    // The bubble was just confirmed visible, but a page with live data (an
+    // actively streaming session's SSE feed, HomeDashboard's 5s poll) can
+    // re-render and remount the Popover between that confirmation and this
+    // read, detaching the locator mid-check. Previously this call had no
+    // try/catch at all, so that race threw uncaught and crashed the whole
+    // page's render (CHI-310's "1 render error", reproduced ~1/4 of the time
+    // against an actively-streaming session, 0/8 against a completed one —
+    // see the ticket for the repro). That is the harness losing a timing
+    // race with live data, not a clipping defect, so it gets the same
+    // notTestable outcome as an unreachable tip, not a fail.
+    let bubbleBox = null;
+    let boxError = null;
+    try {
+      bubbleBox = await bubble.boundingBox();
+    } catch (err) {
+      boxError = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    }
+
+    if (!bubbleBox) {
+      result = {
+        present: true, pass: true, notTestable: true,
+        note: `.info-bubble opened but became unmeasurable before its box could be read: ${boxError ?? 'boundingBox returned null'} (likely a live-data re-render racing the probe)`,
+      };
+    } else {
+      const insideLeft = bubbleBox.x >= -0.5;
+      const insideRight = bubbleBox.x + bubbleBox.width <= width + 0.5;
+      const opensDown = bubbleBox.y >= triggerBox.y + triggerBox.height - 1;
+      result = {
+        present: true,
+        pass: insideLeft && insideRight && opensDown,
+        triggerBox, bubbleBox, insideLeft, insideRight, opensDown,
+      };
+    }
   }
 
   // Dismiss so it never leaks into the screenshot or a later probe.
@@ -328,7 +381,11 @@ async function runProbes(page, width) {
 function summarize(pages) {
   const byProbe = {
     overflow: { pass: 0, fail: 0 },
-    popoverClip: { pass: 0, fail: 0 },
+    // notTestable: the probe genuinely could not run here (e.g. every
+    // .info-tip on the page is covered by an open modal's backdrop) — kept
+    // separate from pass/fail so a real popover-clip regression can never
+    // hide inside the same count as "nothing to check here".
+    popoverClip: { pass: 0, fail: 0, notTestable: 0 },
     tabularNums: { pass: 0, fail: 0 },
   };
   let renderedOk = 0;
@@ -338,6 +395,10 @@ function summarize(pages) {
     for (const key of Object.keys(byProbe)) {
       const probe = p.probes?.[key];
       if (!probe) continue;
+      if (probe.notTestable) {
+        byProbe[key].notTestable++;
+        continue;
+      }
       byProbe[key][probe.pass ? 'pass' : 'fail']++;
     }
   }
@@ -417,7 +478,13 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error('[walk] unexpected fatal error:', err);
-  process.exit(1);
-});
+// Guarded so test/e2e/walk-probes.spec.ts can `import { probePopoverClip }`
+// without running the whole CLI walk as a side effect of the import.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error('[walk] unexpected fatal error:', err);
+    process.exit(1);
+  });
+}
+
+export { probePopoverClip };
