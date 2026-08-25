@@ -5,6 +5,8 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+## 1.3.1 - 2026-08-25
+
 - **Rebuilt sessions are now labeled where other tools can see it.** 1.3.0 already
   recorded, per session, whether its token numbers were re-read from a transcript or
   rebuilt after Claude Code had pruned one. That label now rides the `contract_sessions`
