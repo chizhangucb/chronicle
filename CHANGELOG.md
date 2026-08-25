@@ -5,6 +5,27 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+## 1.3.0 - 2026-08-25
+
+- **Spend was over-reported by roughly 2.2x — corrected.** Claude Code writes one
+  API response across several transcript lines (an empty thinking block, then
+  text, then a tool call), and every one of those lines repeats the same token
+  usage. Chronicle counted each line, so a single API call was billed two or
+  three times. It now recognises Anthropic's own per-call identity and counts
+  each call once. Verified against the usage figures Claude Code itself reports:
+  17 of 17 audited sessions match exactly, where none matched before. Session
+  counts, message counts, tool calls and durations are unchanged; token counts
+  fall alongside cost, because they were double-counted for the same reason.
+- **Your historical numbers will drop on upgrade, and that is the fix working.**
+  A one-time migration rewrites stored usage for sessions already imported. It
+  snapshots your database to `~/.chronicle/backups/db/` first. Sessions whose
+  transcript is still on disk are re-read exactly; Claude Code prunes its own
+  logs, so older sessions are instead rebuilt by collapsing repeated usage rows
+  — accurate to about 2%, versus 120% too high left alone. Rebuilt sessions are
+  labeled internally so an estimate is never mistaken for a re-read.
+- **Automation spend no longer double-counts a re-run job.** The machine-session
+  manifest is append-only, so a retried background job could record a second
+  entry for the same session and be billed twice in the automation bucket.
 - **List price vs Billed cost toggle.** A new topbar control switches every cost
   figure between list price (the metered cost of each token) and what you
   actually pay: models covered by a subscription (Claude tiers, the gpt-5.6
