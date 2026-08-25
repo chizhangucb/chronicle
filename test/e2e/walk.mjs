@@ -103,7 +103,7 @@ function buildRoutes(base, ctx) {
     async setup(page) {
       // `/` is the Insights hub (Overview/Explore/Content). The recent-sessions
       // ledger moved OFF Home to /projects in the D1/D2 IA reshape (#98); wait
-      // on the Overview body marker, not the ledger. See spec/product-contract.md.
+      // on the Overview body marker, not the ledger. See spec/surface-contract.md.
       await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.insights-page', { timeout: NAV_TIMEOUT_MS });
     },
@@ -206,7 +206,7 @@ function buildRoutes(base, ctx) {
     async setup(page) {
       // Session multi-select now lives on /projects (ledger moved there in #98),
       // and the resting "☑ Select" opens the shared `.command-bar` — the old
-      // boxed `.select-toolbar` was removed. See spec/product-contract.md.
+      // boxed `.select-toolbar` was removed. See spec/surface-contract.md.
       await page.goto(`${base}/projects`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.recent-ledger', { timeout: NAV_TIMEOUT_MS });
       const btn = page.locator('.recent-ledger').getByRole('button', { name: '☑ Select', exact: true });

@@ -7,7 +7,7 @@ import { t } from './i18n.js';
 // (Today · 7 Days · 30 Days · 1 Year · All time) had independently drifted
 // option sets AND labels. This is now the single source of truth both
 // mount — do not fork a local copy or add a 6th option / relabel an
-// existing one without a matching `spec/product-contract.md` edit +
+// existing one without a matching `spec/surface-contract.md` edit +
 // Chi's sign-off (see the D10 entry there).
 export type RangeKey = 'today' | '7d' | '30d' | '90d' | 'all';
 

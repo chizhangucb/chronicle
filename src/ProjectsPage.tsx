@@ -321,7 +321,7 @@ function ProjectCommandBarControls({ api }: { api: UseProjectSelect }) {
 //
 // Sign-off: per Chi, 2026-08-14 second checkpoint reply (D14,
 // records/plans/2026-08-14-chronicle-feedback-round-plan.md) — see
-// spec/product-contract.md for the checkable enumerable shape.
+// spec/surface-contract.md for the checkable enumerable shape.
 export default function ProjectsPage({ projects, onOpenProject, onOpenSession, onImport, onRefresh }: ProjectsPageProps) {
   const projectColors = useMemo(() => projectColorMap(projects?.map((p) => p.id) ?? []), [projects]);
   const [query, setQuery] = useState('');
