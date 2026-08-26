@@ -86,6 +86,7 @@ export function makeConsoleGate(): Gate {
     audit: sqliteAuditStore(),
     backupDir: join(dataDir(), 'gate-backups'),
     surfaces: SURFACES,
+    demo: hub.mode === 'demo', // inert for writes in demo (never touches real machine state)
     hubRoot: hub.mode === 'live' && hub.root ? hub.root : undefined,
     // launchd is macOS-only; elsewhere the surface renders disabled with the
     // reason (graceful degradation, never a hidden failure).

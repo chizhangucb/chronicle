@@ -22,6 +22,9 @@ export interface ChronicleConfig {
   // D3). Read by server/hub/resolve.ts. Merged in via writeConfig so it never
   // clobbers the autosync / noise-gate keys that share this file (review #1).
   hubRoot?: string;
+  // Opt-in for the hard-gated confidential marker drill-down (CHI-323 D8),
+  // default OFF. Only honored on a live hub. Never on the public/default build.
+  confidentialMarkers?: boolean;
   [key: string]: unknown;
 }
 

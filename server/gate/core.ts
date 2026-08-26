@@ -135,6 +135,12 @@ export interface GateOptions {
    * error, never a silent no-op. */
   secondChannelSend?: (message: string) => { ok: boolean; reason?: string };
   hubRoot?: string;
+  /** Demo mode (CHRONICLE_DEMO=1): the gate is inert for WRITES. Every surface
+   * renders unavailable and propose/apply/confirm refuse (409), so a demo build
+   * never touches real machine state (e.g. ~/.hermes/config.yaml, launchd) even
+   * for surfaces that resolve against ${HOME}. Reads (the safety posture) still
+   * show synthetic data. Part 4 fail-closed. */
+  demo?: boolean;
   now?: () => number;
 }
 
@@ -165,6 +171,9 @@ export class Gate {
   listSurfaces(): SurfaceStatus[] {
     return this.opts.surfaces.map((s) => {
       const resolvedTarget = this.resolveTarget(s);
+      if (this.opts.demo) {
+        return { ...s, resolvedTarget, available: false, unavailableReason: 'demo seed, gate writes are disabled' };
+      }
       if (!resolvedTarget) {
         return { ...s, resolvedTarget, available: false, unavailableReason: 'target path has an unresolved variable (no hub configured)' };
       }
@@ -204,6 +213,7 @@ export class Gate {
   /** Step 1 of the flow. Validates the RESULTING file; invalid input is a loud
    * error and no card is ever shown (nothing is stored). */
   propose(surfaceId: string, change: unknown, reason: string): Proposal {
+    if (this.opts.demo) throw new GateError(409, 'demo seed, gate writes are disabled', 'run on a real console with a hub');
     const { surface, text } = this.readSurface(surfaceId);
     if (surface.kind === 'action') {
       const impl = this.opts.actions![surface.id];
@@ -285,6 +295,7 @@ export class Gate {
    * -> write -> verify pipeline as propose+confirm, audited as "allowed" with
    * the diff. Refuses confirm-mode surfaces. */
   apply(surfaceId: string, change: unknown, reason: string, actor = 'operator'): { applied: string; backup: string | null; target: string; diff: DiffEntry[] } {
+    if (this.opts.demo) throw new GateError(409, 'demo seed, gate writes are disabled', 'run on a real console with a hub');
     const surface = this.listSurfaces().find((s) => s.id === surfaceId);
     if (!surface) throw new GateError(404, `unknown surface "${surfaceId}"`, 'check server/gate/surfaces.ts');
     if (surface.mode !== 'allow') {

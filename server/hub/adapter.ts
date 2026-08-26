@@ -12,7 +12,12 @@
 // organ just plugs a method into Live/Demo and the route wiring already exists.
 import { resolveHub, type HubMode, type HubHandle } from './resolve.ts';
 import { collectModules, type ModulesSlice } from './slices/modules.ts';
-import { DEMO_MODULES } from './demo.ts';
+import { collectSafetyNet, type SafetyNetSlice } from './slices/safetynet.ts';
+import { collectEgress, type EgressSlice } from './slices/egress.ts';
+import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
+import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
+import { safetyGapsRegisterPath } from './paths.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS } from './demo.ts';
 
 export type { HubMode, HubHandle } from './resolve.ts';
 
@@ -28,12 +33,19 @@ export interface HubAdapter {
   status(): HubStatus;
   /** Modules registry + snapshotted product contracts (organ 1c). */
   modules(): ModulesSlice;
+  /** Egress-gate posture, emit-allowlisted, markers as counts (organ 1d). */
+  safetyNet(): SafetyNetSlice;
+  /** Egress kill-switch on/off (organ 1d). */
+  egress(): EgressSlice;
+  /** Accepted-gaps register + live posture (organ 1d). */
+  safetyGaps(): SafetyGapsSlice;
+  /** Raw confidential marker phrases (organ 1d) — HARD-GATED at the route (D8);
+   * the adapter only reads, the route decides whether it may be served. */
+  confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
   // Further per-slice reads land with their organs:
   //   jobs(): JobsSlice
   //   roster(): RosterSlice
   //   memoryGraph(scope): MemorySlice
-  //   safetyNet(): SafetyNetSlice
-  //   egress(): EgressSlice
   //   codegraphs(): CodegraphSlice
 }
 
@@ -49,6 +61,18 @@ export class LiveHubAdapter implements HubAdapter {
   modules(): ModulesSlice {
     return collectModules(this.root);
   }
+  safetyNet(): SafetyNetSlice {
+    return collectSafetyNet(this.root);
+  }
+  egress(): EgressSlice {
+    return collectEgress(this.root);
+  }
+  safetyGaps(): SafetyGapsSlice {
+    return collectSafetyGaps(safetyGapsRegisterPath(), this.safetyNet(), this.egress().enabled);
+  }
+  confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
+    return readConfidentialMarkers(this.root);
+  }
 }
 
 /** Demo hub (CHRONICLE_DEMO=1): synthetic slices so a zero-data user, or Chi on
@@ -60,6 +84,19 @@ export class DemoHubAdapter implements HubAdapter {
   }
   modules(): ModulesSlice {
     return DEMO_MODULES;
+  }
+  safetyNet(): SafetyNetSlice {
+    return DEMO_SAFETYNET;
+  }
+  egress(): EgressSlice {
+    return DEMO_EGRESS;
+  }
+  safetyGaps(): SafetyGapsSlice {
+    return collectSafetyGaps(safetyGapsRegisterPath(), DEMO_SAFETYNET, DEMO_EGRESS.enabled);
+  }
+  // Demo NEVER serves confidential phrases; the route also blocks demo (D8).
+  confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
+    return { categories: [] };
   }
 }
 
@@ -75,6 +112,18 @@ export class NullHubAdapter implements HubAdapter {
   // returns the absent sentinel. Present for interface completeness.
   modules(): ModulesSlice {
     return { found: false, rows: [] };
+  }
+  safetyNet(): SafetyNetSlice {
+    return { found: false, gateConfig: null, classification: null, markers: { categories: [] }, proxyServers: null };
+  }
+  egress(): EgressSlice {
+    return { enabled: true, gateConfigFound: false };
+  }
+  safetyGaps(): SafetyGapsSlice {
+    return { header: '', actionable: [], watch: [], posture: { classificationRules: 0, markerCategories: [], spendCaps: {}, egressEnabled: true } };
+  }
+  confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
+    return { categories: [] };
   }
 }
 

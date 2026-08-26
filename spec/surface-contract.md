@@ -32,6 +32,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
 | `/modules` | **Ops surface (hub-conditional, CHI-323 3a).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional, CHI-323 3d).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -55,8 +56,8 @@ drag-resizable when expanded. Contents, top to bottom:
   `/project/:id[/explore|/content]`, `/session/:id`) but NOT on the Insights hub.
 - **`sb-top` ops nav — hub-conditional (CHI-323).** After Projects, the ops items render ONLY
   when `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent. As
-  organs land they are added here in order: **Modules (`▦`)** [1c]. (Reserved for later organs,
-  same gating: Safety `⊘`, Jobs `⧗`, Briefing `▣`, Memory `❖`.) So on a stock public install with
+  organs land they are added here in order: **Modules (`▦`)** [1c] · **Safety (`⊘`)** [1d].
+  (Reserved for later organs, same gating: Jobs `⧗`, Briefing `▣`, Memory `❖`.) So on a stock public install with
   no hub, `sb-top` is exactly Insights + Projects (the existing pin holds); with a hub or in demo
   it also carries the ops items. See the "ops routes are hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -320,6 +321,29 @@ glyphs are D6 (delegated). This edit is landed under Chi's standing sign-off del
 phase-1 organs; the consolidated phase-1 note (all five organs, CHI-307/322/323 + plan) lands
 with 1h.
 
+### `/safety` — ops surface (hub-conditional, `SafetyPage.tsx`, CHI-323 3d)
+
+Reading order: eyebrow `SAFETY` + lede → posture tiles → gate controls → accepted-gaps register.
+- **Posture tiles** (4): Egress gate (ENABLED green / OFF fail-closed danger) · Spend caps
+  (per-tx / per-session) · Tool classes (count + read/send/publish/spend breakdown) · Confidential
+  markers (total COUNT + per-category counts, labeled "counts only" — the phrases never appear here).
+- **Gate controls** (confirm-first, only when a writable live hub is present; a single read-only
+  note otherwise, incl. demo): kill switch toggle (destructive confirm) · spend-cap inputs · JSON
+  editors for classification / confidential-markers / hermes-approvals (Tier 2). Every edit goes
+  propose -> validated diff card (`GateConfirmDialog`) -> Confirm/Deny; nothing writes without the card.
+- **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
+  `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
+  acceptance / (watch) revisit trigger + a "Work on this" launcher (`POST /api/launch/gap`: Terminal
+  print -z on macOS, clipboard fallback elsewhere, demo-refused).
+- **Confidentiality floor**: emit-ALLOWLIST per file (not a denylist) + a value-side creds scan;
+  marker phrases are COUNTS only. The raw-phrase drill-down (`GET /api/hub/safety/confidential`) is
+  HARD-GATED (D8): a live hub AND an explicit opt-in flag, else 403. The default/public build never
+  serves confidential content.
+- **Demo**: posture shows synthetic data; the gate is INERT for writes (all surfaces unavailable,
+  propose/apply 409), so a demo never touches real machine state (~/.hermes, launchd).
+
+**CHI-323 sign-off (organ 1d):** landed under the same phase-1 delegation as 1c.
+
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
 | Enumerable / shape fact | Guarding test |
@@ -328,6 +352,11 @@ with 1h.
 | Ops nav (Modules) hidden + `/api/hub/modules` absent-sentinel when the hub is absent | `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the API returns the absent sentinel" |
 | `/modules` renders the registry table + contract detail from the hub (demo synthetic) | `test/e2e/ops-modules.spec.ts` — "ops nav shows Modules and the page lists the synthetic modules with a contract detail" |
 | Modules slice reads only `product-contract.md`, refuses confidential/next-ventures paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
+| Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
+| `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
+| Confidential marker drill-down is 403 by default (never served on the public build) | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` — confidentialMarkersEnabled gating |
+| Safety slice emit-allowlist (no innocuous-key creds leak), markers as COUNTS only | `test/hub-safety.test.mjs` (node) — allowlist + planted-secret + counts assertions |
+| Gap launcher refuses demo (409); prompt built server-side | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` |
 | Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |

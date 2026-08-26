@@ -11,6 +11,7 @@
   },
   "files": [
     "bin",
+    "data",
     "dist",
     "dist-server"
   ],

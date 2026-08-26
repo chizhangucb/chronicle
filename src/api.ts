@@ -596,6 +596,31 @@ export interface ModulesSliceView { found: boolean; rows: ModuleRowView[] }
 // The route sends the slice when the hub is present, or this sentinel when absent.
 export type ModulesResult = ModulesSliceView | { hubPresent: false };
 
+// Safety (organ 1d)
+export interface SafetyNetView {
+  found: boolean;
+  gateConfig: { enabled: boolean; spend_per_tx_cap: number | null; spend_per_session_cap: number | null; unclassified_deny_daily_cap: number | null } | null;
+  classification: { tools: { name: string; class: string }[] } | null;
+  markers: { categories: { category: string; count: number }[] };
+  proxyServers: { names: string[] } | null;
+}
+export interface GapView {
+  id: string; kind: 'actionable' | 'watch'; title: string; exposure: string; acceptedWhy: string;
+  acceptedDate: string; blastRadius: string; closingEdit?: { surface: string; label: string };
+  revisitTrigger?: string; links: string[];
+}
+export interface SafetyGapsView {
+  header: string; actionable: GapView[]; watch: GapView[];
+  posture: { classificationRules: number; markerCategories: { category: string; count: number }[]; spendCaps: Record<string, number | null>; egressEnabled: boolean };
+}
+export interface SafetyResult {
+  safetyNet: SafetyNetView;
+  gaps: SafetyGapsView;
+  egress: { enabled: boolean; gateConfigFound: boolean };
+}
+export type HubSafetyResult = SafetyResult | { hubPresent: false };
+export interface LaunchGapResult { launched: boolean; buffer?: string; copyPrompt?: string; reason?: string }
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -637,6 +662,10 @@ export const api = {
   // Hub adapter (CHI-323): ops surfaces read these. status gates all ops nav.
   hubStatus: (): Promise<HubStatus> => j('/api/hub/status'),
   hubModules: (): Promise<ModulesResult> => j('/api/hub/modules'),
+  hubSafety: (): Promise<HubSafetyResult> => j('/api/hub/safety'),
+  launchGap: (id: string): Promise<LaunchGapResult> => j('/api/launch/gap', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
+  }),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {

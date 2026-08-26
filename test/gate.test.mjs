@@ -460,6 +460,20 @@ test('hermes-approvals: unknown approvals keys from a newer Hermes ride through'
   assert.equal(validate('hermes-approvals', after).ok, true);
 });
 
+test('demo gate is inert for writes: surfaces unavailable, propose/apply refused 409', () => {
+  const root = mkdtempSync(join(tmpdir(), 'gate-demo-'));
+  const target = join(root, 'gate_config.json');
+  writeFileSync(target, JSON.stringify({ enabled: true }));
+  const gate = new Gate({
+    repoRoot: root, audit: memStore(), backupDir: join(root, 'b'), demo: true,
+    surfaces: [{ id: 'test-config', title: 'T', target, schema: 'hub-gate-config', tier: 1, repeatable: false, secondChannel: null }],
+  });
+  assert.equal(gate.listSurfaces()[0].available, false);
+  assert.match(gate.listSurfaces()[0].unavailableReason, /demo seed/);
+  try { gate.propose('test-config', { enabled: false }, 'x'); assert.fail('should refuse'); }
+  catch (e) { assert.equal(e.status, 409); }
+});
+
 // ---- surface registry ----
 test('surface registry: SURFACES has no Varde-only aggregator-config, hub-egress-enabled is wired', () => {
   assert.equal(SURFACES.some((s) => s.id === 'aggregator-config'), false);
