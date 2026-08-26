@@ -23,6 +23,9 @@
  *     scope panel read as a folder list rather than regex soup.
  * Precedence: excluded beats historical beats living; unmatched -> excluded.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type MemoryTier = "living" | "historical" | "excluded";
 
@@ -83,6 +86,54 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   rotDays: 30,
   rotDaysByKind: {},
 };
+
+// ---------------------------------------------------------------------------
+// Config loading (CHI-339): the memory-scope gate surface (server/gate/
+// surfaces.ts) writes ${HOME}/.chronicle/memory-scope.json, nested under a
+// `memory` key to match the `memory-scope` schema in server/gate/validate.ts
+// (landed 1b). This is the read side: never throws, per-tier fallback to the
+// shipped defaults so a partial or malformed file degrades gracefully rather
+// than crashing a memory read.
+
+/** Where the memory-scope config lives. Always the real ${HOME} (the gate
+ * surface's target template), never CHRONICLE_DATA_DIR-relative. */
+export function memoryScopeConfigPath(): string {
+  return join(homedir(), '.chronicle', 'memory-scope.json');
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((s) => typeof s === 'string');
+}
+
+/** Load the resolved memory config: the on-disk file's `memory` block layered
+ * over the shipped defaults, or the defaults untouched when the file is
+ * absent/unreadable/malformed. Per-tier: an absent or malformed tier list
+ * falls back to its own default rather than discarding the whole scope. */
+export function loadMemoryConfig(path: string = memoryScopeConfigPath()): { config: MemoryConfig; source: "defaults" | "config" } {
+  try {
+    if (!existsSync(path)) return { config: DEFAULT_MEMORY_CONFIG, source: "defaults" };
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const memory = parsed?.memory;
+    if (typeof memory !== "object" || memory === null || Array.isArray(memory)) {
+      return { config: DEFAULT_MEMORY_CONFIG, source: "defaults" };
+    }
+    const rawScope = memory.scope;
+    const scope: MemoryScopePatterns = {
+      living: isStringArray(rawScope?.living) ? rawScope.living : DEFAULT_MEMORY_SCOPE.living,
+      historical: isStringArray(rawScope?.historical) ? rawScope.historical : DEFAULT_MEMORY_SCOPE.historical,
+      excluded: isStringArray(rawScope?.excluded) ? rawScope.excluded : DEFAULT_MEMORY_SCOPE.excluded,
+    };
+    const rotDays = typeof memory.rotDays === "number" && Number.isFinite(memory.rotDays) && memory.rotDays > 0
+      ? memory.rotDays
+      : DEFAULT_MEMORY_CONFIG.rotDays;
+    const rotDaysByKind = typeof memory.rotDaysByKind === "object" && memory.rotDaysByKind !== null && !Array.isArray(memory.rotDaysByKind)
+      ? memory.rotDaysByKind as Record<string, number>
+      : {};
+    return { config: { scope, rotDays, rotDaysByKind }, source: "config" };
+  } catch {
+    return { config: DEFAULT_MEMORY_CONFIG, source: "defaults" };
+  }
+}
 
 /** Compile one scope pattern to a full-path regex (no ancestor logic here). */
 function patternToRegExp(pattern: string): RegExp {

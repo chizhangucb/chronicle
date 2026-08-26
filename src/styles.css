@@ -1804,3 +1804,19 @@ h4 { margin: 6px 0; }
 .memory-node-path { font-family: var(--mono); font-size: 11px; word-break: break-all; margin: 4px 0; }
 .memory-inspector .btn { margin-top: 8px; }
 .memory-scope { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.memory-scope .btn { margin-top: 6px; align-self: flex-start; }
+
+/* ---- Scope panel (CHI-339, the 1g memory scope-suggest fast-follow) ---- */
+.scope-panel-modal { max-width: 640px; max-height: 82vh; overflow: auto; }
+.scope-lede { margin: 2px 0 14px; }
+.scope-definitions { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.scope-def-line { line-height: 1.55; }
+.scope-def-label { font-weight: 600; color: var(--ink); }
+.scope-def-sense { color: var(--ink-3); }
+.scope-dirs-table { margin-bottom: 14px; }
+.scope-edit-fields { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.scope-edit-field { display: block; }
+.scope-edit-field .muted { display: block; margin-bottom: 4px; }
+.scope-textarea { min-height: 64px; }
+.scope-rot-field { display: flex; align-items: center; gap: 10px; }
+.scope-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }

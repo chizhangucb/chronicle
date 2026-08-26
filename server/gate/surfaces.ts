@@ -6,8 +6,9 @@ import type { Surface } from './core.ts';
 // the published package. This is the whole registry.
 //
 // Ported from Varde MINUS its own `aggregator-config` surface (Varde's config
-// file, not a Chronicle surface). The `memory-scope` surface lands with the
-// memory organ (1g); its schema already ships in validate.ts.
+// file, not a Chronicle surface). The `memory-scope` surface's schema shipped
+// with 1b (validate.ts); the row itself lands with the scope-suggest fast-follow
+// (CHI-339).
 export const SURFACES: Surface[] = [
   {
     id: 'hub-spend-caps',
@@ -62,6 +63,16 @@ export const SURFACES: Surface[] = [
     tier: 2,
     repeatable: false,
     secondChannel: 'telegram',
+  },
+  {
+    id: 'memory-scope',
+    title: 'Memory scope (living / historical / excluded)',
+    description: "Which hub files count as knowledge, and in what tier, in Chronicle's memory-scope config. Edits apply through a confirm card and take effect on the next memory read.",
+    target: '${HOME}/.chronicle/memory-scope.json',
+    schema: 'memory-scope',
+    tier: 1,
+    repeatable: true,
+    secondChannel: null,
   },
   {
     id: 'launchd-jobs',
