@@ -403,6 +403,12 @@ Reading order: header (`MEMORY` + note/link/tier counts + communities legend) â†
   confidential segment; demo-refused; macOS `open`).
 - **Demo**: a synthetic 27-node graph (`data/memory.demo.json`, generated from a temp hub so its
   shape always matches the real slice); every real-state action fail-closes.
+- **DISCLOSED GAP (like the briefing spend-card gap)**: `scope-suggest` (a headless-claude scope
+  suggester + a `memory-scope` gate surface that edits the scope config through a confirm card) is
+  NOT in this phase. The memory graph runs on the shipped nisse-shaped default scope
+  (`DEFAULT_MEMORY_SCOPE`), which the operator can already edit by hand; the guided suggester lands
+  as a small fast-follow. The `memory-scope` schema already ships in `server/gate/validate.ts` (from
+  1b), so the fast-follow is only the surface row + runner + panel affordance.
 - **VIZ NOTE**: the Nebula 3D canvas is self-contained WebGL (theme-independent), ported from Varde's
   V2 register pixel-intact; the surrounding page shell is Chronicle-native (consistent with the other
   organs). React-19 compat verified (D4 spike): Varde ships the same React 19 + Vite 8 + rfg3d/three
