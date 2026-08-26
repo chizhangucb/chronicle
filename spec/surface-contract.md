@@ -34,6 +34,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/modules` | **Ops surface (hub-conditional, CHI-323 3a).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
 | `/safety` | **Ops surface (hub-conditional, CHI-323 3d).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional, CHI-323 3c).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
+| `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). NON-SPEND cards only this phase (D7) — the spend cards are a DISCLOSED gap that lights up in phase 2. | `src/BriefingPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -58,7 +59,7 @@ drag-resizable when expanded. Contents, top to bottom:
 - **`sb-top` ops nav — hub-conditional (CHI-323).** After Projects, the ops items render ONLY
   when `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent. As
   organs land they are added here in order: **Modules (`▦`)** [1c] · **Safety (`⊘`)** [1d] ·
-  **Jobs (`⧗`)** [1e]. (Reserved for later organs, same gating: Briefing `▣`, Memory `❖`.) So on a stock public install with
+  **Jobs (`⧗`)** [1e] · **Briefing (`▣`)** [1f]. (Reserved for the last organ, same gating: Memory `❖`.) So on a stock public install with
   no hub, `sb-top` is exactly Insights + Projects (the existing pin holds); with a hub or in demo
   it also carries the ops items. See the "ops routes are hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -362,6 +363,28 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
 
 **CHI-323 sign-off (organ 1e):** same phase-1 delegation.
 
+### `/briefing` — ops surface (hub-conditional, `BriefingPage.tsx`, CHI-323 3d)
+
+Reading order: header (`as of` + open/snoozed counts + Run-now) → scope note → card sections.
+- **Two-file contract (grandfathered)**: the run writes `~/.chronicle/briefing.json`; the UI writes
+  `~/.chronicle/briefing-state.json`. They never cross-write, so a run can never clobber a "done".
+- **Card sections**: Needs you (open + needsYou, brass accent) · For your awareness (open FYI) ·
+  Handled (done/dismissed/resolved/snoozed). Each card: domain chip · title · summary · optional
+  plain-language anatomy (what happened / means / to do) · evidence expander · an internal link ·
+  terminal actions (Done / Snooze / Dismiss, or Reopen). A card is binary (needs you or not) — no
+  severity ladder.
+- **DISCLOSED GAP (D7)**: phase-1 cards are NON-SPEND (jobs / safety / coverage; memory grounds when
+  the memory organ's snapshot lands). The spend cards (spend-anomaly / budget-posture /
+  spend-dimension) need the phase-2 spend detector; the page names this ("Spend cards arrive with the
+  spend detector"). The validator rejects a `spend` domain, so a spend card cannot slip in early.
+- **Run-now** spawns the headless runner (assembles the snapshot from the adapter slices, keeps the
+  `live-data.json` filename, spawns `claude -p --allowedTools Read,Glob,Grep` from an isolated runner
+  cwd). Demo-refused (409); the dormant launchd template is NOT installed this phase (no duplicate
+  daily run).
+
+**CHI-323 sign-off (organ 1f):** same phase-1 delegation. The disclosed briefing spend-card gap is
+the one named per-surface gap the plan requires.
+
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
 | Enumerable / shape fact | Guarding test |
@@ -379,6 +402,10 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
 | `/jobs` unified list (launchd/cron/registry/template) + log-tail drill-in (demo) | `test/e2e/ops-jobs.spec.ts` — list renders + log drill-in tails the declared log |
 | Job log tail opens only declared paths (browser sends id, never a path); tail-capped | `test/hub-jobs.test.mjs` (node) — job-logs reads only the declared path + TAIL_LINES |
 | Pause/resume refused in demo (gate inert) | `test/e2e/ops-jobs.spec.ts` — "pause is refused in demo" |
+| Briefing nav hidden when the hub is absent | `test/e2e/ops-briefing.spec.ts` — "no Briefing nav item" |
+| `/briefing` renders cards; a card action moves state (two-file split) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` (applyCardAction/resolveCards) |
+| Briefing is NON-SPEND this phase (validator rejects a spend domain); gap disclosed on the page | `test/briefing.test.mjs` — "validator rejects a spend-domain card" + the `.briefing-scope` note |
+| Briefing run refused in demo (409) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` |
 | Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
