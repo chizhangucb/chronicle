@@ -255,15 +255,17 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
   async function associate(e: React.FormEvent) {
     e.preventDefault();
-    const r = await fetch(`/api/projects/${id}/associate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: assocPath }) });
-    const body = await r.json();
-    if (!r.ok) return setError(body.error);
+    try {
+      await api.associateProject(id, assocPath); // j() attaches the gate token + surfaces the server's error
+    } catch (err) {
+      return setError(String((err as Error).message));
+    }
     invalidateClientCache(); // project may have merged/moved — every cached list/detail is now suspect
     onBack(); // project may have merged into another — go back to the list
   }
 
   async function unlink(source: string) {
-    await fetch(`/api/projects/${id}/unlink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+    await api.unlinkProjectSource(id, source);
     invalidateClientCache(); // unlinking spins off a new project — the cached project list is stale
     setConfirmUnlink(null);
     refresh();

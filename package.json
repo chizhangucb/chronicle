@@ -56,6 +56,7 @@
     "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-toast": "^1.2.23",
     "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -69,6 +70,7 @@
     "wouter": "^3.10.0"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "js-yaml": "^4.3.1"
   }
 }
