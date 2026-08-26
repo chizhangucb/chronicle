@@ -12,6 +12,7 @@ import ProjectsPage from './ProjectsPage.jsx';
 import ModulesPage from './ModulesPage.tsx';
 import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
+import BriefingPage from './BriefingPage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -71,6 +72,7 @@ export default function App() {
   const [atModules] = useRoute('/modules');
   const [atSafety] = useRoute('/safety');
   const [atJobs] = useRoute('/jobs');
+  const [atBriefing] = useRoute('/briefing');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
   const search = useSearch();
@@ -191,6 +193,12 @@ export default function App() {
               <span className="sb-icon">⧗</span><span className="sb-label">{t('Jobs')}</span>
             </button>
           )}
+          {hubPresent && (
+            <button className={`sb-item ${atBriefing && !rail ? 'on' : ''}`} title={t('Briefing')}
+              onClick={() => navigate('/briefing')}>
+              <span className="sb-icon">▣</span><span className="sb-label">{t('Briefing')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -278,6 +286,7 @@ export default function App() {
         {atModules && <ModulesPage />}
         {atSafety && <SafetyPage />}
         {atJobs && <JobsPage />}
+        {atBriefing && <BriefingPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}

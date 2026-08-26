@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-26T09:00:00.000Z",
+  "cadence": "daily",
+  "isDemo": true,
+  "cards": [
+    {
+      "id": "job-stale:health-sweep",
+      "runAt": "2026-08-26T09:00:00.000Z",
+      "kind": "job-stale",
+      "domain": "jobs",
+      "needsYou": true,
+      "title": "health-sweep is overdue",
+      "summary": "The health-sweep job last ran 9h ago against a 6h staleness threshold, so it is behind schedule.",
+      "whatHappened": "A scheduled job passed its max-staleness window without a fresh heartbeat.",
+      "whatItMeans": "Hub health probes are not current; a real problem could go unnoticed.",
+      "whatToDo": "Open Jobs and check why it stalled, or resume it if it was paused.",
+      "link": { "label": "Open Jobs", "to": "/jobs" }
+    },
+    {
+      "id": "safety-gap:no-per-transaction-spend-cap-configured",
+      "runAt": "2026-08-25T09:00:00.000Z",
+      "kind": "safety-gap",
+      "domain": "safety",
+      "needsYou": true,
+      "title": "No per-transaction spend cap configured",
+      "summary": "An actionable safety gap is still open: there is no automatic per-transaction spend ceiling.",
+      "whatToDo": "Set a per-transaction cap from the Safety page.",
+      "link": { "label": "Open Safety", "to": "/safety" }
+    },
+    {
+      "id": "coverage:healthy",
+      "runAt": "2026-08-26T09:00:00.000Z",
+      "kind": "coverage",
+      "domain": "coverage",
+      "needsYou": false,
+      "title": "Import coverage looks healthy",
+      "summary": "All known projects have recent sessions imported; nothing looks stale.",
+      "whatItMeans": "Your analytics reflect current work."
+    }
+  ],
+  "demoStates": {
+    "safety-gap:no-per-transaction-spend-cap-configured": { "state": "snoozed", "at": "2026-08-25T10:00:00.000Z", "snoozedUntil": "2026-08-28T10:00:00.000Z" }
+  }
+}

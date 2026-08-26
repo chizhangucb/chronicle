@@ -636,6 +636,22 @@ export type HubJobsResult = JobsSliceView | { hubPresent: false };
 export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
+// Briefing (organ 1f)
+export type BriefingDomainView = 'memory' | 'sessions' | 'safety' | 'jobs' | 'coverage';
+export type CardStateView = 'open' | 'done' | 'dismissed' | 'snoozed' | 'resolved';
+export type CardActionView = 'done' | 'dismiss' | 'snooze' | 'reopen';
+export interface ResolvedCardView {
+  id: string; runAt: string; kind: string; domain: BriefingDomainView; needsYou: boolean;
+  title: string; summary: string; body?: string; whatHappened?: string; whatItMeans?: string;
+  whatToDo?: string; evidence?: string; link?: { label: string; to: string }; launch?: { prompt: string; cwd?: string };
+  state: CardStateView; actedAt: string | null; snoozedUntil: string | null; workedAt: string | null; ticketRef: string | null;
+}
+export interface FollowThroughView {
+  open: number; snoozed: number; actedWithinDays: number | null; followThroughDays: number; medianHoursToAct: number | null;
+}
+export interface BriefingResult { generatedAt: string; cadence: string; cards: ResolvedCardView[]; followThrough: FollowThroughView }
+export interface BriefingRunStatus { running: boolean; startedAt: string | null; lastResult: { ok: boolean; code: number | null; at: string } | null }
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -683,6 +699,11 @@ export const api = {
   }),
   hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
   jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
+  briefing: (): Promise<BriefingResult> => j('/api/briefing'),
+  briefingAction: (cardId: string, action: CardActionView): Promise<{ cards: ResolvedCardView[]; followThrough: FollowThroughView }> =>
+    j('/api/briefing/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId, action }) }),
+  briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {
