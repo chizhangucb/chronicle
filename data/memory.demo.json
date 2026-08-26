@@ -1,14 +1,14 @@
 {
   "stats": {
-    "totalFiles": 6,
+    "totalFiles": 27,
     "totalWorkspaces": 0,
     "stale": 0,
     "missing": 0,
     "freshness": 1,
     "capSuggested": 250,
-    "totalNotes": 6,
-    "totalLinks": 5,
-    "living": 6,
+    "totalNotes": 27,
+    "totalLinks": 42,
+    "living": 27,
     "historical": 0
   },
   "scope": {
@@ -46,17 +46,27 @@
       {
         "dir": "wiki",
         "tier": "living",
-        "notes": 4
+        "notes": 10
       },
       {
         "dir": "context",
         "tier": "living",
-        "notes": 1
+        "notes": 5
       },
       {
         "dir": "governance",
         "tier": "living",
-        "notes": 1
+        "notes": 5
+      },
+      {
+        "dir": "skills",
+        "tier": "living",
+        "notes": 4
+      },
+      {
+        "dir": "references",
+        "tier": "living",
+        "notes": 3
       }
     ]
   },
@@ -68,7 +78,7 @@
         "label": "0-7d",
         "fromDays": 0,
         "toDays": 8,
-        "count": 6
+        "count": 27
       },
       {
         "label": "8-30d",
@@ -98,7 +108,7 @@
     "oldest": [],
     "oldCount": 0,
     "flagged": [],
-    "measured": 6
+    "measured": 27
   },
   "growth": {
     "series": [
@@ -999,15 +1009,15 @@
       },
       {
         "day": "2026-08-26",
-        "total": 6,
-        "births": 6
+        "total": 27,
+        "births": 27
       }
     ],
     "birthsByWindow": {
-      "7": 6,
-      "30": 6,
-      "90": 6,
-      "180": 6
+      "7": 27,
+      "30": 27,
+      "90": 27,
+      "180": 27
     },
     "deletions": null
   },
@@ -1021,40 +1031,75 @@
   },
   "connectivity": {
     "unlinked": {
-      "count": 1,
+      "count": 3,
       "list": [
         {
-          "name": "Orphan",
+          "name": "draft",
           "kind": "wiki",
-          "path": "wiki/orphan-note.md"
+          "path": "wiki/draft.md"
+        },
+        {
+          "name": "scratch",
+          "kind": "wiki",
+          "path": "wiki/scratch.md"
+        },
+        {
+          "name": "tmp note",
+          "kind": "wiki",
+          "path": "wiki/tmp-note.md"
         }
       ]
     },
     "mostConnected": [
       {
-        "name": "Atlas",
-        "links": 3,
+        "name": "atlas",
+        "links": 11,
         "path": "wiki/atlas.md"
       },
       {
-        "name": "Beacon",
-        "links": 2,
+        "name": "beacon",
+        "links": 6,
         "path": "wiki/beacon.md"
       },
       {
-        "name": "Ledger",
-        "links": 2,
+        "name": "ledger",
+        "links": 6,
         "path": "wiki/ledger.md"
       },
       {
-        "name": "Rules",
-        "links": 2,
+        "name": "onboarding",
+        "links": 6,
+        "path": "context/onboarding.md"
+      },
+      {
+        "name": "rules",
+        "links": 6,
         "path": "governance/rules.md"
       },
       {
-        "name": "Onboarding",
-        "links": 1,
-        "path": "context/onboarding.md"
+        "name": "contracts",
+        "links": 4,
+        "path": "governance/contracts.md"
+      },
+      {
+        "name": "glossary",
+        "links": 4,
+        "path": "context/glossary.md"
+      },
+      {
+        "name": "briefing skill",
+        "links": 3,
+        "path": "skills/briefing-skill.md"
+      },
+      {
+        "name": "cache",
+        "links": 3,
+        "path": "wiki/cache.md"
+      },
+      {
+        "name": "design tokens",
+        "links": 3,
+        "path": "references/design-tokens.md"
       }
     ],
     "deadLinks": {
@@ -1064,75 +1109,410 @@
   },
   "nodes": [
     {
+      "id": "context/conventions",
+      "name": "conventions",
+      "kind": "context",
+      "tier": "living",
+      "val": 4,
+      "color": "#249781",
+      "path": "context/conventions.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "context/faq",
+      "name": "faq",
+      "kind": "context",
+      "tier": "living",
+      "val": 4,
+      "color": "#249781",
+      "path": "context/faq.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "context/glossary",
+      "name": "glossary",
+      "kind": "context",
+      "tier": "living",
+      "val": 4,
+      "color": "#249781",
+      "path": "context/glossary.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
       "id": "context/onboarding",
-      "name": "Onboarding",
+      "name": "onboarding",
       "kind": "context",
       "tier": "living",
       "val": 4,
       "color": "#249781",
       "path": "context/onboarding.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "id": "context/setup",
+      "name": "setup",
+      "kind": "context",
+      "tier": "living",
+      "val": 4,
+      "color": "#249781",
+      "path": "context/setup.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "governance/confidentiality",
+      "name": "confidentiality",
+      "kind": "governance",
+      "tier": "living",
+      "val": 4,
+      "color": "#5488CB",
+      "path": "governance/confidentiality.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "governance/contracts",
+      "name": "contracts",
+      "kind": "governance",
+      "tier": "living",
+      "val": 4,
+      "color": "#5488CB",
+      "path": "governance/contracts.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "governance/egress",
+      "name": "egress",
+      "kind": "governance",
+      "tier": "living",
+      "val": 4,
+      "color": "#5488CB",
+      "path": "governance/egress.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "governance/review-floor",
+      "name": "review floor",
+      "kind": "governance",
+      "tier": "living",
+      "val": 4,
+      "color": "#5488CB",
+      "path": "governance/review-floor.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
       "id": "governance/rules",
-      "name": "Rules",
+      "name": "rules",
       "kind": "governance",
       "tier": "living",
       "val": 4,
       "color": "#5488CB",
       "path": "governance/rules.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "references/api-spec",
+      "name": "api spec",
+      "kind": "reference",
+      "tier": "living",
+      "val": 4,
+      "color": "#6BA05A",
+      "path": "references/api-spec.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "references/design-tokens",
+      "name": "design tokens",
+      "kind": "reference",
+      "tier": "living",
+      "val": 4,
+      "color": "#6BA05A",
+      "path": "references/design-tokens.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "references/palette",
+      "name": "palette",
+      "kind": "reference",
+      "tier": "living",
+      "val": 4,
+      "color": "#6BA05A",
+      "path": "references/palette.md",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "id": "skills/briefing-skill",
+      "name": "briefing skill",
+      "kind": "skill",
+      "tier": "living",
+      "val": 4,
+      "color": "#B8892F",
+      "path": "skills/briefing-skill.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "skills/graphify",
+      "name": "graphify",
+      "kind": "skill",
+      "tier": "living",
+      "val": 4,
+      "color": "#B8892F",
+      "path": "skills/graphify.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "skills/scope-suggest",
+      "name": "scope suggest",
+      "kind": "skill",
+      "tier": "living",
+      "val": 4,
+      "color": "#B8892F",
+      "path": "skills/scope-suggest.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "id": "skills/walk",
+      "name": "walk",
+      "kind": "skill",
+      "tier": "living",
+      "val": 4,
+      "color": "#B8892F",
+      "path": "skills/walk.md",
+      "mtime": "2026-08-26T19:33:03.818Z"
     },
     {
       "id": "wiki/atlas",
-      "name": "Atlas",
+      "name": "atlas",
       "kind": "wiki",
       "tier": "living",
       "val": 4,
       "color": "#9C7BD4",
       "path": "wiki/atlas.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.819Z"
     },
     {
       "id": "wiki/beacon",
-      "name": "Beacon",
+      "name": "beacon",
       "kind": "wiki",
       "tier": "living",
       "val": 4,
       "color": "#9C7BD4",
       "path": "wiki/beacon.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "wiki/cache",
+      "name": "cache",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/cache.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "wiki/draft",
+      "name": "draft",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/draft.md",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "id": "wiki/index-engine",
+      "name": "index engine",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/index-engine.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
       "id": "wiki/ledger",
-      "name": "Ledger",
+      "name": "ledger",
       "kind": "wiki",
       "tier": "living",
       "val": 4,
       "color": "#9C7BD4",
       "path": "wiki/ledger.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
-      "id": "wiki/orphan-note",
-      "name": "Orphan",
+      "id": "wiki/router",
+      "name": "router",
       "kind": "wiki",
       "tier": "living",
       "val": 4,
       "color": "#9C7BD4",
-      "path": "wiki/orphan-note.md",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "path": "wiki/router.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "wiki/scratch",
+      "name": "scratch",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/scratch.md",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "id": "wiki/stream",
+      "name": "stream",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/stream.md",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "id": "wiki/tmp-note",
+      "name": "tmp note",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/tmp-note.md",
+      "mtime": "2026-08-26T19:33:03.819Z"
     }
   ],
   "links": [
+    {
+      "source": "context/conventions",
+      "target": "context/onboarding",
+      "kind": "cross"
+    },
+    {
+      "source": "context/conventions",
+      "target": "context/glossary",
+      "kind": "cross"
+    },
+    {
+      "source": "context/faq",
+      "target": "context/onboarding",
+      "kind": "cross"
+    },
+    {
+      "source": "context/faq",
+      "target": "context/glossary",
+      "kind": "cross"
+    },
+    {
+      "source": "context/glossary",
+      "target": "context/onboarding",
+      "kind": "cross"
+    },
     {
       "source": "context/onboarding",
       "target": "governance/rules",
       "kind": "cross"
     },
     {
-      "source": "governance/rules",
+      "source": "context/onboarding",
       "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "context/setup",
+      "target": "context/onboarding",
+      "kind": "cross"
+    },
+    {
+      "source": "context/setup",
+      "target": "context/glossary",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/confidentiality",
+      "target": "governance/rules",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/confidentiality",
+      "target": "governance/contracts",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/contracts",
+      "target": "governance/rules",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/contracts",
+      "target": "governance/review-floor",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/egress",
+      "target": "governance/rules",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/egress",
+      "target": "governance/contracts",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/review-floor",
+      "target": "governance/rules",
+      "kind": "cross"
+    },
+    {
+      "source": "references/api-spec",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "references/api-spec",
+      "target": "references/design-tokens",
+      "kind": "cross"
+    },
+    {
+      "source": "references/design-tokens",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "references/palette",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "references/palette",
+      "target": "references/design-tokens",
+      "kind": "cross"
+    },
+    {
+      "source": "skills/briefing-skill",
+      "target": "skills/graphify",
+      "kind": "cross"
+    },
+    {
+      "source": "skills/briefing-skill",
+      "target": "skills/scope-suggest",
+      "kind": "cross"
+    },
+    {
+      "source": "skills/graphify",
+      "target": "skills/scope-suggest",
+      "kind": "cross"
+    },
+    {
+      "source": "skills/walk",
+      "target": "skills/briefing-skill",
+      "kind": "cross"
+    },
+    {
+      "source": "skills/walk",
+      "target": "skills/graphify",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/atlas",
+      "target": "governance/rules",
       "kind": "cross"
     },
     {
@@ -1149,44 +1529,230 @@
       "source": "wiki/beacon",
       "target": "wiki/ledger",
       "kind": "cross"
+    },
+    {
+      "source": "wiki/beacon",
+      "target": "wiki/router",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/cache",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/cache",
+      "target": "wiki/ledger",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/cache",
+      "target": "wiki/beacon",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/index-engine",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/index-engine",
+      "target": "wiki/ledger",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/index-engine",
+      "target": "wiki/beacon",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/ledger",
+      "target": "wiki/router",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/router",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/stream",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/stream",
+      "target": "wiki/ledger",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/stream",
+      "target": "wiki/beacon",
+      "kind": "cross"
     }
   ],
   "noteDates": [
     {
-      "name": "Onboarding",
+      "name": "conventions",
+      "path": "context/conventions.md",
+      "kind": "context",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "faq",
+      "path": "context/faq.md",
+      "kind": "context",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "glossary",
+      "path": "context/glossary.md",
+      "kind": "context",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "onboarding",
       "path": "context/onboarding.md",
       "kind": "context",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.819Z"
     },
     {
-      "name": "Rules",
+      "name": "setup",
+      "path": "context/setup.md",
+      "kind": "context",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "confidentiality",
+      "path": "governance/confidentiality.md",
+      "kind": "governance",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "contracts",
+      "path": "governance/contracts.md",
+      "kind": "governance",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "egress",
+      "path": "governance/egress.md",
+      "kind": "governance",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "review floor",
+      "path": "governance/review-floor.md",
+      "kind": "governance",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "rules",
       "path": "governance/rules.md",
       "kind": "governance",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
-      "name": "Atlas",
+      "name": "api spec",
+      "path": "references/api-spec.md",
+      "kind": "reference",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "design tokens",
+      "path": "references/design-tokens.md",
+      "kind": "reference",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "palette",
+      "path": "references/palette.md",
+      "kind": "reference",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "name": "briefing skill",
+      "path": "skills/briefing-skill.md",
+      "kind": "skill",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "graphify",
+      "path": "skills/graphify.md",
+      "kind": "skill",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "scope suggest",
+      "path": "skills/scope-suggest.md",
+      "kind": "skill",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "walk",
+      "path": "skills/walk.md",
+      "kind": "skill",
+      "mtime": "2026-08-26T19:33:03.818Z"
+    },
+    {
+      "name": "atlas",
       "path": "wiki/atlas.md",
       "kind": "wiki",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.819Z"
     },
     {
-      "name": "Beacon",
+      "name": "beacon",
       "path": "wiki/beacon.md",
       "kind": "wiki",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
-      "name": "Ledger",
+      "name": "cache",
+      "path": "wiki/cache.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "draft",
+      "path": "wiki/draft.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "name": "index engine",
+      "path": "wiki/index-engine.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "ledger",
       "path": "wiki/ledger.md",
       "kind": "wiki",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
     },
     {
-      "name": "Orphan",
-      "path": "wiki/orphan-note.md",
+      "name": "router",
+      "path": "wiki/router.md",
       "kind": "wiki",
-      "mtime": "2026-08-26T08:47:04.089Z"
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "scratch",
+      "path": "wiki/scratch.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.819Z"
+    },
+    {
+      "name": "stream",
+      "path": "wiki/stream.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.817Z"
+    },
+    {
+      "name": "tmp note",
+      "path": "wiki/tmp-note.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T19:33:03.819Z"
     }
   ]
 }
