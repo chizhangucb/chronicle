@@ -55,3 +55,24 @@ test('readLaneCSpend: missing spend/model fields degrade gracefully', () => {
   assert.equal(r.byModel[0].model, 'unknown'); // model missing → 'unknown'
   assert.equal(r.byModel[0].tokens, 10);
 });
+
+test('readLaneCDailyCost: sums spend per LOCAL day, drops rows without a usable startTime', () => {
+  // Use midday UTC so the local-day bucket is unambiguous across common tz offsets.
+  writeFileSync(file, [
+    '{"startTime":"2026-08-09T12:00:00Z","model":"m","spend":0.01}',
+    '{"startTime":"2026-08-09T13:00:00Z","model":"m","spend":0.02}',
+    '{"startTime":"2026-08-12T12:00:00Z","model":"m","spend":0.05}',
+    '{"model":"m","spend":9.99}',            // no startTime → dropped
+    '{"startTime":"2026-08-12T12:30:00Z","model":"m","total_tokens":10}', // token-only → adds 0
+  ].join('\n'));
+  const m = laneC.readLaneCDailyCost(null, file);
+  assert.ok(Math.abs(m.get('2026-08-09') - 0.03) < 1e-9);
+  assert.ok(Math.abs(m.get('2026-08-12') - 0.05) < 1e-9); // token-only row added 0
+  assert.equal([...m.values()].reduce((a, b) => a + b, 0).toFixed(2), '0.08'); // the 9.99 no-startTime row excluded
+});
+
+test('readLaneCDailyCost: cutoff filters by startTime', () => {
+  const m = laneC.readLaneCDailyCost('2026-08-10T00:00:00.000Z', file);
+  assert.equal(m.has('2026-08-09'), false);
+  assert.ok(m.has('2026-08-12'));
+});
