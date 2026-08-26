@@ -1664,3 +1664,36 @@ h4 { margin: 6px 0; }
    itself never becomes a visible/sized box, its portaled children lay out as
    if they were direct `.command-bar` children. */
 .command-bar-slot { display: contents; }
+
+/* ---- Modules ops surface (CHI-323 3a) ---- */
+.modules-page { max-width: 1100px; }
+.modules-lede { margin: 4px 0 16px; }
+.modules-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-4); }
+@media (min-width: 960px) { .modules-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; } }
+.modules-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.modules-table th {
+  text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.modules-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.modules-row { cursor: pointer; transition: background 0.12s; }
+.modules-row:hover { background: var(--bg1); }
+.modules-row.on { background: var(--bg2); }
+.modules-name { font-weight: 600; color: var(--ink); }
+.modules-purpose { color: var(--ink-2); max-width: 40ch; }
+.modules-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); white-space: nowrap;
+}
+.modules-badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.modules-badge.pending { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.modules-badge.off { color: var(--ink-3); }
+.modules-detail {
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg1);
+  padding: 14px 16px; position: sticky; top: 12px;
+}
+.modules-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.modules-contract {
+  font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink-2);
+  white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 60vh; overflow-y: auto;
+}

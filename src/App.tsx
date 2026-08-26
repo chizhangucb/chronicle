@@ -9,6 +9,8 @@ import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
+import ModulesPage from './ModulesPage.tsx';
+import { useHubStatus } from './useHubStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
@@ -62,6 +64,11 @@ export default function App() {
   // `/insights` is the OLD Insights URL (may be bookmarked). It now redirects to
   // `/` (the merged Home/Insights hub), preserving a `?tab=` deep-link if present.
   const [atInsights] = useRoute('/insights');
+  // Ops routes (CHI-323) are hub-conditional: rendered only when the hub adapter
+  // reports present (live or demo). Hidden + unreachable when absent.
+  const [atModules] = useRoute('/modules');
+  const hub = useHubStatus();
+  const hubPresent = hub?.present ?? false;
   const search = useSearch();
   const projectId = projectParams?.id ?? peParams?.id ?? pcParams?.id;
   const sessionId = sessionParams?.id;
@@ -160,6 +167,14 @@ export default function App() {
             onClick={() => navigate('/projects')}>
             <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
           </button>
+          {/* Ops nav (CHI-323): hub-conditional. Rendered only when the hub is
+              present (live or demo); hidden when absent. Enumerable: spec/surface-contract.md */}
+          {hubPresent && (
+            <button className={`sb-item ${atModules && !rail ? 'on' : ''}`} title={t('Modules')}
+              onClick={() => navigate('/modules')}>
+              <span className="sb-icon">▦</span><span className="sb-label">{t('Modules')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -244,6 +259,7 @@ export default function App() {
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
+        {atModules && <ModulesPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}

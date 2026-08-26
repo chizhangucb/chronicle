@@ -11,6 +11,8 @@
 // interface + `status()` + the three implementations + the factory, so every
 // organ just plugs a method into Live/Demo and the route wiring already exists.
 import { resolveHub, type HubMode, type HubHandle } from './resolve.ts';
+import { collectModules, type ModulesSlice } from './slices/modules.ts';
+import { DEMO_MODULES } from './demo.ts';
 
 export type { HubMode, HubHandle } from './resolve.ts';
 
@@ -24,9 +26,9 @@ export interface HubStatus {
 export interface HubAdapter {
   /** Cheap, always available. The client gates all ops nav on this. */
   status(): HubStatus;
-  // Per-slice typed reads land with their organs:
-  //   records(): RecordsSlice
-  //   modules(): ModulesSlice
+  /** Modules registry + snapshotted product contracts (organ 1c). */
+  modules(): ModulesSlice;
+  // Further per-slice reads land with their organs:
   //   jobs(): JobsSlice
   //   roster(): RosterSlice
   //   memoryGraph(scope): MemorySlice
@@ -42,6 +44,11 @@ export class LiveHubAdapter implements HubAdapter {
   status(): HubStatus {
     return { present: true, mode: 'live', root: this.root };
   }
+  // Modules is a LIGHT slice: read fresh per request (a handful of file reads),
+  // no on-disk cache. The heavy slices (memory, codegraphs) use freshness.ts.
+  modules(): ModulesSlice {
+    return collectModules(this.root);
+  }
 }
 
 /** Demo hub (CHRONICLE_DEMO=1): synthetic slices so a zero-data user, or Chi on
@@ -50,6 +57,9 @@ export class LiveHubAdapter implements HubAdapter {
 export class DemoHubAdapter implements HubAdapter {
   status(): HubStatus {
     return { present: true, mode: 'demo', root: null };
+  }
+  modules(): ModulesSlice {
+    return DEMO_MODULES;
   }
 }
 
@@ -60,6 +70,11 @@ export class NullHubAdapter implements HubAdapter {
   constructor(reason?: string) { this.reason = reason; }
   status(): HubStatus {
     return { present: false, mode: 'absent', root: null, reason: this.reason };
+  }
+  // Never reached in practice: the route checks status().present first and
+  // returns the absent sentinel. Present for interface completeness.
+  modules(): ModulesSlice {
+    return { found: false, rows: [] };
   }
 }
 
