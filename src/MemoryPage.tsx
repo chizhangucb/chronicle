@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api, type HubMemoryResult, type MemorySliceView } from './api.js';
 import type { MemoryNode } from './components/memory/types.ts';
 import { MEMORY_REGISTER, clusterColors, CLUSTER_PALETTE } from './components/memory/register.ts';
+import { ScopePanel } from './components/memory/ScopePanel.tsx';
+import type { GateProposal } from './gate/gate.ts';
+import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import { formatRelativeTime } from './relativeTime.js';
 import { t } from './i18n.js';
 
@@ -16,13 +19,15 @@ export default function MemoryPage() {
   const [data, setData] = useState<HubMemoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<MemoryNode | null>(null);
+  const [scopePanelOpen, setScopePanelOpen] = useState(false);
+  const [proposal, setProposal] = useState<GateProposal | null>(null);
   const reducedMotion = useMemo(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
 
-  useEffect(() => {
-    let alive = true;
-    api.hubMemory().then((d) => { if (alive) setData(d); }).catch((e) => { if (alive) setError(String((e as Error).message)); });
-    return () => { alive = false; };
-  }, []);
+  async function load() {
+    try { setData(await api.hubMemory()); }
+    catch (e) { setError(String((e as Error).message)); }
+  }
+  useEffect(() => { load(); }, []);
 
   // V2 Nebula colors by deterministic community (register.ts clusterColors).
   const slice = data && !('hubPresent' in data) ? (data as MemorySliceView) : null;
@@ -99,9 +104,23 @@ export default function MemoryPage() {
             <div className="muted small">{t('historical')}: {slice!.scope.tiers.historical.join(', ') || '—'}</div>
             <div className="muted small">{t('excluded')}: {slice!.scope.tiers.excluded.join(', ') || '—'}</div>
             <div className="muted small">{t('rot threshold')}: {slice!.scope.rotDays}d</div>
+            <button type="button" className="btn tiny" onClick={() => setScopePanelOpen(true)}>{t('Manage scope')}</button>
           </div>
         </aside>
       </div>
+
+      {scopePanelOpen && (
+        <ScopePanel
+          scope={slice!.scope}
+          onClose={() => setScopePanelOpen(false)}
+          onProposal={(p) => setProposal(p)}
+          onError={(msg) => setError(msg)}
+        />
+      )}
+      <GateConfirmDialog
+        proposal={proposal}
+        onSettled={(confirmed) => { setProposal(null); setScopePanelOpen(false); if (confirmed) load(); }}
+      />
     </div>
   );
 }

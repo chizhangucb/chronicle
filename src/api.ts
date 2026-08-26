@@ -670,6 +670,12 @@ export interface MemorySliceView {
 export type HubMemoryResult = MemorySliceView | { hubPresent: false };
 export interface OpenFileResult { ok: boolean; opened?: string; error?: string }
 
+// Memory scope-suggest (CHI-339, the 1g fast-follow): mirrors the briefing
+// run/run-status pair. Nothing writes here; a returned suggestion becomes a
+// gate proposal via the existing gatePropose('memory-scope', ...).
+export interface ScopeSuggestion { living: string[]; historical: string[]; excluded: string[] }
+export interface ScopeSuggestStatus { running: boolean; suggestion: ScopeSuggestion | null; error: string | null }
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -726,6 +732,10 @@ export const api = {
   openFile: (nodePath: string): Promise<OpenFileResult> => j('/api/open-file', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: nodePath }),
   }),
+  scopeSuggestStart: (): Promise<{ started: boolean }> => j('/api/memory/scope-suggest', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  }),
+  scopeSuggestStatus: (): Promise<ScopeSuggestStatus> => j('/api/memory/scope-suggest/status'),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {

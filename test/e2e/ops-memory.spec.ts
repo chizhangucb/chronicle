@@ -54,3 +54,27 @@ test.describe('demo hub: /memory mounts the Nebula shell', () => {
     expect(res.status()).toBe(409);
   });
 });
+
+// ScopePanel (CHI-339, the disclosed 1g fast-follow): the Manage-scope
+// affordance + the AI-suggest flow, demo-inert same as every other gate write.
+test.describe('demo hub: ScopePanel (memory scope-suggest, CHI-339)', () => {
+  let demo: DemoServer;
+  test.beforeAll(async () => { demo = await launchDemo(); });
+  test.afterAll(() => { if (demo) stopDemo(demo); });
+
+  test('Manage scope opens the panel with the current tier definitions', async ({ page }) => {
+    await page.goto(demo.baseURL + '/memory');
+    await page.getByRole('button', { name: 'Manage scope' }).click();
+    await expect(page.locator('.scope-panel-modal')).toBeVisible();
+    await expect(page.locator('.scope-definitions')).toContainText('Living');
+    await expect(page.getByRole('button', { name: 'Suggest scope' })).toBeVisible();
+  });
+
+  test('Suggest scope is refused in demo (409 surfaces, no confirm card opens)', async ({ page }) => {
+    await page.goto(demo.baseURL + '/memory');
+    await page.getByRole('button', { name: 'Manage scope' }).click();
+    await page.getByRole('button', { name: 'Suggest scope' }).click();
+    await expect(page.locator('.memory-page .gate-error')).toBeVisible();
+    await expect(page.locator('.gate-dialog')).toHaveCount(0);
+  });
+});

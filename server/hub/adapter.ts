@@ -19,8 +19,9 @@ import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slic
 import { collectJobs, type JobsSlice } from './slices/jobs.ts';
 import { collectAutomations } from './slices/automations.ts';
 import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
+import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
-import { freshSliceAsync, treeMaxMtimeMs } from './freshness.ts';
+import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs } from './freshness.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
 import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
@@ -95,7 +96,18 @@ export class LiveHubAdapter implements HubAdapter {
     return collectJobs({ registry: collectAutomations(this.root), repoRoot: packageRoot() });
   }
   memoryGraph(): Promise<MemorySlice> {
-    return freshSliceAsync('memory', () => String(treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))), () => collectMemoryGraph(this.root, {}), { ttlMs: HEAVY_TTL_MS });
+    // Sig folds in the memory-scope config file's mtime (CHI-339), not just the
+    // hub's .md tree: without it, a confirmed scope edit would never invalidate
+    // this heavy slice's cache (the config lives under ${HOME}, outside the hub).
+    return freshSliceAsync(
+      'memory',
+      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}`,
+      () => {
+        const { config, source } = loadMemoryConfig();
+        return collectMemoryGraph(this.root, { config, configSource: source });
+      },
+      { ttlMs: HEAVY_TTL_MS },
+    );
   }
   codegraphs(): Promise<DashGraphEntry[]> {
     return freshSliceAsync('codegraphs', () => String(treeMaxMtimeMs(join(this.root, 'graphs'))), () => collectCodegraphs(this.root), { ttlMs: HEAVY_TTL_MS });

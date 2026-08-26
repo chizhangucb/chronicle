@@ -19,9 +19,10 @@
 > added across sub-steps 1a-1h of the CHI-322 Chronicle/Varde merge (decision CHI-307, plan
 > `plans/2026-08-25-chi-323-chronicle-merge-phase1-port.md`, LOCKED). Landed under Chi's standing
 > phase-1 sign-off delegation (per-organ screenshots reviewed in-session; the V2 Nebula pixels
-> reviewed live before 1g merge, D4). Ops glyphs are D6 (delegated). Two disclosed phase-1 gaps,
-> both named in their per-surface inventories and tracked as fast-follows: the briefing spend cards
-> (D7, phase-2 spend detector) and memory scope-suggest (CHI-339). This paragraph is that sign-off.
+> reviewed live before 1g merge, D4). Ops glyphs are D6 (delegated). Two disclosed phase-1 gaps were
+> named in their per-surface inventories as fast-follows: memory scope-suggest shipped under
+> CHI-339 (self-signed, same delegation — see the `/memory` inventory); the briefing spend cards
+> remain open (D7, phase-2 spend detector). This paragraph is that sign-off.
 
 The agreed product shape as enumerable, checkable facts — reflecting the CURRENT
 (post-F1/F2, post-2026-08-14-feedback-round-D1/D2/D14, post-CHI-323-phase-1) branch state, which is Chi's latest
@@ -413,12 +414,20 @@ Reading order: header (`MEMORY` + note/link/tier counts + communities legend) �
   confidential segment; demo-refused; macOS `open`).
 - **Demo**: a synthetic 27-node graph (`data/memory.demo.json`, generated from a temp hub so its
   shape always matches the real slice); every real-state action fail-closes.
-- **DISCLOSED GAP (like the briefing spend-card gap)**: `scope-suggest` (a headless-claude scope
-  suggester + a `memory-scope` gate surface that edits the scope config through a confirm card) is
-  NOT in this phase. The memory graph runs on the shipped nisse-shaped default scope
-  (`DEFAULT_MEMORY_SCOPE`), which the operator can already edit by hand; the guided suggester lands
-  as a small fast-follow. The `memory-scope` schema already ships in `server/gate/validate.ts` (from
-  1b), so the fast-follow is only the surface row + runner + panel affordance.
+- **Scope-suggest (CHI-339, shipped)**: the disclosed 1g gap is closed. The `memory-scope` gate
+  surface (`server/gate/surfaces.ts`, schema from 1b) targets `${HOME}/.chronicle/memory-scope.json`;
+  `collectMemoryGraph` reads it via `loadMemoryConfig` (`server/hub/slices/memoryscope.ts`), and the
+  heavy-slice freshness signature folds in the config file's mtime so a confirmed edit takes effect on
+  the next memory read. A headless-claude runner (`scripts/run-scope-suggest.ts`, ported from Varde,
+  same seam as `run-briefing.ts`) walks the hub's top-level structure NAMES ONLY (never file
+  contents) and proposes a living/historical/excluded mapping, kicked by
+  `POST /api/memory/scope-suggest` and polled via `GET /api/memory/scope-suggest/status` (async
+  single-flight, mirroring the briefing run/run-status pair). The suggestion only ever becomes a
+  write through the existing `gatePropose('memory-scope', ...)` confirm-card flow — the route itself
+  never writes. `ScopePanel` (`src/components/memory/ScopePanel.tsx`, a "Manage scope" affordance on
+  the `.memory-scope` side panel) renders the current scope, a hand-edit form, and the AI-suggest
+  button, all Chronicle-native CSS (ported from Varde's Tailwind original). Demo-refused (409), same
+  posture as every other gate write on this page.
 - **VIZ NOTE**: the Nebula 3D canvas is self-contained WebGL (theme-independent), ported from Varde's
   V2 register pixel-intact; the surrounding page shell is Chronicle-native (consistent with the other
   organs). React-19 compat verified (D4 spike): Varde ships the same React 19 + Vite 8 + rfg3d/three
@@ -427,6 +436,9 @@ Reading order: header (`MEMORY` + note/link/tier counts + communities legend) �
 
 **CHI-323 sign-off (organ 1g):** same phase-1 delegation; the Nebula pixels are Chi's viz sign-off
 (D4) reviewed live before merge.
+
+**CHI-339 sign-off (scope-suggest fast-follow):** self-signed under the same CHI-323 phase-1
+delegation — it closes the disclosed gap on this same surface, no new IA.
 
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
@@ -453,6 +465,9 @@ Reading order: header (`MEMORY` + note/link/tier counts + communities legend) �
 | `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |
 | Memory slice prunes confidential/next-ventures + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
 | open-file bounded to a hub `.md`, never confidential; demo-refused | `test/e2e/ops-memory.spec.ts` + the route's path guard |
+| Scope-suggest walks structure NAMES only, hides confidential/next-ventures; validated tier mapping | `test/scope-suggest-route.test.mjs` (node) — `hubStructure`/`validateSuggestion` pins |
+| `loadMemoryConfig` per-tier fallback to defaults on an absent/partial/malformed config file | `test/memoryscope-config.test.mjs` (node) |
+| ScopePanel renders the current scope; Suggest scope refused in demo (409, no confirm card) | `test/e2e/ops-memory.spec.ts` — "ScopePanel (memory scope-suggest, CHI-339)" |
 | Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
