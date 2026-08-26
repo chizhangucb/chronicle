@@ -13,8 +13,18 @@
 > (IA drift = P0). "Sign-off note" = one line naming Chi's confirmation (brainstorm/message/
 > live call) for the shape change.
 
+> **CHI-323 phase-1 sign-off (consolidated).** The five hub-conditional ops surfaces (Modules
+> `/modules`, Safety `/safety`, Jobs `/jobs`, Briefing `/briefing`, Memory `/memory`), the
+> hub-conditional ops-nav enumerable, the write gate, and the per-surface inventories below were
+> added across sub-steps 1a-1h of the CHI-322 Chronicle/Varde merge (decision CHI-307, plan
+> `plans/2026-08-25-chi-323-chronicle-merge-phase1-port.md`, LOCKED). Landed under Chi's standing
+> phase-1 sign-off delegation (per-organ screenshots reviewed in-session; the V2 Nebula pixels
+> reviewed live before 1g merge, D4). Ops glyphs are D6 (delegated). Two disclosed phase-1 gaps,
+> both named in their per-surface inventories and tracked as fast-follows: the briefing spend cards
+> (D7, phase-2 spend detector) and memory scope-suggest (CHI-339). This paragraph is that sign-off.
+
 The agreed product shape as enumerable, checkable facts — reflecting the CURRENT
-(post-F1/F2, post-2026-08-14-feedback-round-D1/D2/D14) branch state, which is Chi's latest
+(post-F1/F2, post-2026-08-14-feedback-round-D1/D2/D14, post-CHI-323-phase-1) branch state, which is Chi's latest
 confirmed calls. Where this disagrees with
 the spec (`~/chizhang-2/records/plans/2026-08-12-chronicle-quality-pass-design.md`), the branch
 state wins (F1/F2 fixed the surfaces to Chi's confirmed shape after the plan compressed it).

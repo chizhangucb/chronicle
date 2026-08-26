@@ -72,4 +72,4 @@ changes are verified.
 The [`README`](../README.md) carries the full feature
 inventory, and the [`CHANGELOG`](../CHANGELOG.md) tracks releases.
 
-> **License:** Chronicle is [MIT licensed](../LICENSE).
+> **License:** Chronicle is [Apache-2.0 licensed](../LICENSE).

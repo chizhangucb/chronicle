@@ -85,4 +85,4 @@ Chronicle is one of three local-first tools that work on their own and know abou
 
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE). Third-party notices: [NOTICE](NOTICE).

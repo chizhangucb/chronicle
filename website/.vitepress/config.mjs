@@ -50,7 +50,7 @@ export default defineConfig({
     search: { provider: 'local' },
     socialLinks: [{ icon: 'github', link: GH }],
     editLink: { pattern: `${GH}/edit/main/docs/:path`, text: 'Edit this page on GitHub' },
-    footer: { message: 'Released under the MIT License.', copyright: '© 2026 Chi Zhang · Local-first, no cloud, no LLM calls.' },
+    footer: { message: 'Released under the Apache License 2.0.', copyright: '© 2026 Chi Zhang · Local-first, no cloud, no LLM calls.' },
     nav,
     sidebar,
   },
