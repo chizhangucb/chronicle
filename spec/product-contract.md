@@ -44,8 +44,9 @@ Current posture, not locked: binds loopback only (`127.0.0.1`); no LLM calls tod
 ## Change triggers
 Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route; a new `contract_*` view column (with the `user_version` call).
-- **Two-console reality.** Chronicle, not Varde, is the actual default console. Composed-not-merged stands (CHI-292); the merge question, both directions, is owned by CHI-307.
-- **Usage-based revisit.** If Chronicle stays the default once Varde's briefing and Modules route mature, revisit the boundary, reverse merge included (CHI-307).
+- **Merge decided (CHI-307, 2026-08-25).** Varde merges into Chronicle; composed-not-merged is retired. Chronicle wins every identity slot; Varde's unique surfaces migrate in over a 4-phase, no-flag-day rollout. Each phase lands with a signed surface-contract revision and rewrites the affected sections here (Surfaces, Consumers, Non-goals).
+- **Signed invariant architecture for the merged product** (applies as ported features land, per phase): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants. Rationale: decisions ledger 2026-08-25 (session 46f0f484).
+- **Cloud-scale moment.** If Chronicle plus Nisse reach online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 
 ## Pointers
 In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`; rationale: `records/decisions.md`.
@@ -53,5 +54,5 @@ In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubri
 ## Roadmap
 Only Now is a commitment.
 - **Now:** release-walk hardening on the 1.3.x line (CHI-310).
-- **Next:** Chronicle-Varde boundary deep dive, merge question both directions (CHI-307).
-- **Later:** cloud-platform exposure; contracts/registry rendered for a wider audience (CHI-306).
+- **Next:** Varde merge, 4 phases: port unique organs behind the nisse-hub adapter; consolidate spend/sessions; home merge + unified reference + demo mode + local view log; decommission Varde (CHI-307 decision, merge parent in the Chronicle Linear project).
+- **Later:** native desktop shell (deferred, bridge = PWA/dedicated window); cloud-platform exposure; contracts/registry rendered for a wider audience.
