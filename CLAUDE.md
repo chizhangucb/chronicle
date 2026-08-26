@@ -68,7 +68,7 @@ Deeper hub-data scan is deferred until chronicle reads hub data at runtime (CHI-
 
 ## Records seam
 
-No `records/` in this repo. Decisions, brainstorms, and the session ledger live in the hub only; seam + Stop-hook wiring: `$HUB/governance/satellite-repos.md`. Ledger Repo column = `chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148); do not fill them manually. Decisions Chi confirms live are still best logged in-flow at the top of `$HUB/records/decisions.md` (header ending `(session <id>, stream: chronicle)`).
+No `records/` in this repo. Decisions, brainstorms, and the session ledger live in the hub only; seam + Stop-hook wiring: `$HUB/governance/satellite-repos.md`. Ledger Repo column = `chronicle`. Focus lines and unlogged decisions are auto-swept after the session (CHI-148); do not fill them manually. Decisions Chi confirms live are still best logged in-flow to `$HUB/records/decisions.jsonl` via `python3 $HUB/scripts/aios_ledger.py append-decision` (`--stream chronicle`, `--session <id>`); never hand-edit the JSONL.
 
 No `plans/` or `plans/workstate/` in this repo either. Live per-task workstate is hub-only, always: `$HUB/plans/workstate/YYYY-MM-DD-<ticket-or-slug>.md`, rides the feature branch, deleted at merge (`$HUB/governance/repo-contract.md` "One memory home per project"). Applies to every task, not just confidential ones.
 
