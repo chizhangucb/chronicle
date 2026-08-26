@@ -24,7 +24,7 @@ import { bucketLabel } from '../shared/bucketLabel.ts';
 export { bucketLabel };
 
 export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
+export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider';
 // 'total' collapses time (ranked bars). The four time rollups bucket the range
 // into a stacked time-series; 'total' output is byte-identical to before this
 // feature (plus the two scalar rollup fields on the result). See
@@ -128,7 +128,15 @@ export function pickRollup(
   return 'monthly';
 }
 
-const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill'];
+// CHI-324 D6. `mcp` (per-MCP-server spend, finishing the dormant
+// contract_message_metrics.mcp_server column) is calibrated exactly like
+// tool/skill: an MCP call is a tool_use row, so its token magnitude is
+// estimated from its text share of the bucket's billed total. A turn can hit
+// several MCP servers, so per-server figures double-count (MCP_DOUBLE_COUNT
+// caveat). `provider` (model VENDOR — anthropic/openai/google, NOT `source`'s
+// tool vendor) rides assistant rows that carry real tokens, so it stays a plain
+// per-message group (not calibrated, not exact-override).
+const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill', 'mcp'];
 // Groups whose token MAGNITUDE is sourced from the authoritative
 // `sessions.usage` per-model billed totals (= Overview / Insights / Claude
 // /usage), NOT the per-message token columns. Per-message columns capture only
@@ -202,9 +210,25 @@ function addCell(target: Record<string, ModelUsageCell>, model: string, cell: Mo
   target[model] = cur;
 }
 
+// MCP server name derived from an `mcp__server__tool` tool_name — the SAME
+// expression as the dormant contract_message_metrics.mcp_server view column
+// (server/db.ts), keeping the `.` alias so it works against the joined query.
+const mcpServerExpr = (alias: string): string =>
+  `substr(${alias}.tool_name, 6, instr(substr(${alias}.tool_name, 6), '__') - 1)`;
+// Model VENDOR (CHI-324 D6) — NOT `source` (that is the TOOL vendor
+// claude-code/codex/…). Prefix-mapped from the model id; the new stack/pivot
+// axis for spend.
+const providerExpr = (alias: string): string =>
+  `CASE
+     WHEN ${alias}.model LIKE 'claude%' THEN 'anthropic'
+     WHEN ${alias}.model LIKE 'gpt%' OR ${alias}.model LIKE 'codex%' OR ${alias}.model LIKE 'o1%' OR ${alias}.model LIKE 'o3%' OR ${alias}.model LIKE 'o4%' THEN 'openai'
+     WHEN ${alias}.model LIKE 'gemini%' THEN 'google'
+     ELSE 'other'
+   END`;
+
 // SQL column/join to realize a group. Session-level groups (project/source)
-// join nothing extra; message-level (model/tool/skill/subagent/hour) read from
-// messages m. subagent = agent_type WHERE is_sidechain=1.
+// join nothing extra; message-level (model/tool/skill/subagent/hour/mcp/
+// provider) read from messages m. subagent = agent_type WHERE is_sidechain=1.
 function groupExpr(g: ExploreGroup): { col: string; where: string } {
   switch (g) {
     case 'project': return { col: 'p.name', where: '' };
@@ -222,6 +246,8 @@ function groupExpr(g: ExploreGroup): { col: string; where: string } {
     // the user's own clock hour, not UTC. Same 'localtime' convention as
     // bucketExpr above.
     case 'hour': return { col: "CAST(strftime('%H', m.ts, 'localtime') AS INTEGER)", where: 'AND m.ts IS NOT NULL' };
+    case 'mcp': return { col: mcpServerExpr('m'), where: "AND m.tool_name LIKE 'mcp\\_\\_%' ESCAPE '\\'" };
+    case 'provider': return { col: providerExpr('m'), where: "AND m.kind='assistant' AND m.model IS NOT NULL" };
     default: throw new Error(`explore.ts groupExpr: unknown group "${g as string}"`);
   }
 }
@@ -241,6 +267,11 @@ function errorGroupCol(g: ExploreGroup): string {
     case 'skill': return 'u.skill';
     case 'subagent': return 'u.agent_type';
     case 'hour': return "CAST(strftime('%H', r.ts, 'localtime') AS INTEGER)";
+    // errors attribute from the erroring tool_result's PAIRED tool_use row (u):
+    // mcp reads its server off u.tool_name; provider off u.model (usually null on
+    // a tool_use, so error rows simply don't attribute to a provider — correct).
+    case 'mcp': return mcpServerExpr('u');
+    case 'provider': return providerExpr('u');
     default: throw new Error(`explore.ts errorGroupCol: unknown group "${g as string}"`);
   }
 }
