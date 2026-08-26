@@ -49,7 +49,7 @@ Update this file in the same pass.
 - **Cloud-scale moment.** If Chronicle plus Nisse reach online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 
 ## Pointers
-In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`; rationale: `records/decisions.md`.
+In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`; rationale: hub `records/decisions.jsonl` (session ledger `records/sessions.jsonl`).
 
 ## Roadmap
 Only Now is a commitment.
