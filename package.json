@@ -13,7 +13,9 @@
     "bin",
     "data",
     "dist",
-    "dist-server"
+    "dist-server",
+    "launchd",
+    "scripts"
   ],
   "scripts": {
     "dev": "vite",

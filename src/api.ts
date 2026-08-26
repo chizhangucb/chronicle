@@ -621,6 +621,21 @@ export interface SafetyResult {
 export type HubSafetyResult = SafetyResult | { hubPresent: false };
 export interface LaunchGapResult { launched: boolean; buffer?: string; copyPrompt?: string; reason?: string }
 
+// Jobs (organ 1e)
+export type JobSource = 'launchd' | 'cron' | 'registry' | 'repo-template';
+export type JobStatus = 'success' | 'failed' | 'stale' | 'pending' | 'running' | 'not-installed' | 'disabled' | 'paused';
+export interface JobRowView {
+  id: string; name: string; source: JobSource; schedule: string; scheduleKind: string;
+  nextRun: string | null; lastRun: string | null; lastRunAt: string | null; status: JobStatus;
+  lastExit: number | null; runner: string | null; model: string | null; agent: string | null;
+  project: string | null; projectPath: string | null; command: string; logPath: string | null;
+  errLogPath?: string | null; missingPath?: string | null; description?: string | null; meta?: string;
+}
+export interface JobsSliceView { scannedAt: string; sources: Record<JobSource, number>; jobs: JobRowView[] }
+export type HubJobsResult = JobsSliceView | { hubPresent: false };
+export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
+export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -666,6 +681,8 @@ export const api = {
   launchGap: (id: string): Promise<LaunchGapResult> => j('/api/launch/gap', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
   }),
+  hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
+  jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {

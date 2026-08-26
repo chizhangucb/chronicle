@@ -16,8 +16,10 @@ import { collectSafetyNet, type SafetyNetSlice } from './slices/safetynet.ts';
 import { collectEgress, type EgressSlice } from './slices/egress.ts';
 import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
 import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
-import { safetyGapsRegisterPath } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS } from './demo.ts';
+import { collectJobs, type JobsSlice } from './slices/jobs.ts';
+import { collectAutomations } from './slices/automations.ts';
+import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS } from './demo.ts';
 
 export type { HubMode, HubHandle } from './resolve.ts';
 
@@ -42,12 +44,15 @@ export interface HubAdapter {
   /** Raw confidential marker phrases (organ 1d) — HARD-GATED at the route (D8);
    * the adapter only reads, the route decides whether it may be served. */
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
+  /** Scheduled jobs: launchd + cron + hub registry + repo templates (organ 1e). */
+  jobs(): JobsSlice;
   // Further per-slice reads land with their organs:
-  //   jobs(): JobsSlice
   //   roster(): RosterSlice
   //   memoryGraph(scope): MemorySlice
   //   codegraphs(): CodegraphSlice
 }
+
+const EMPTY_JOBS: JobsSlice = { scannedAt: '', sources: { launchd: 0, cron: 0, registry: 0, 'repo-template': 0 }, jobs: [] };
 
 /** Live hub: reads a real nisse-format hub at `root`. */
 export class LiveHubAdapter implements HubAdapter {
@@ -73,6 +78,11 @@ export class LiveHubAdapter implements HubAdapter {
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return readConfidentialMarkers(this.root);
   }
+  // Scans the REAL machine (launchd/cron) enriched by the hub registry +
+  // Chronicle's shipped-but-dormant templates. Read-only.
+  jobs(): JobsSlice {
+    return collectJobs({ registry: collectAutomations(this.root), repoRoot: packageRoot() });
+  }
 }
 
 /** Demo hub (CHRONICLE_DEMO=1): synthetic slices so a zero-data user, or Chi on
@@ -97,6 +107,10 @@ export class DemoHubAdapter implements HubAdapter {
   // Demo NEVER serves confidential phrases; the route also blocks demo (D8).
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };
+  }
+  // Synthetic jobs; never scans the real machine.
+  jobs(): JobsSlice {
+    return DEMO_JOBS;
   }
 }
 
@@ -124,6 +138,9 @@ export class NullHubAdapter implements HubAdapter {
   }
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };
+  }
+  jobs(): JobsSlice {
+    return EMPTY_JOBS;
   }
 }
 
