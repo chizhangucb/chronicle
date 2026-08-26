@@ -31,6 +31,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
+| `/modules` | **Ops surface (hub-conditional, CHI-323 3a).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -46,12 +47,18 @@ Exactly ONE collapsible left sidebar; collapse state persists in `localStorage`;
 drag-resizable when expanded. Contents, top to bottom:
 
 - **Brand** — `◷` Chronicle (click → `/`).
-- **`sb-top` nav — exactly two items:** Insights (`∑`) and Projects (`◫`). NO Home entry, no
+- **`sb-top` nav — two ALWAYS-ON items:** Insights (`∑`) and Projects (`◫`). NO Home entry, no
   `⌂` glyph in the sidebar — the hub at `/` is labeled **Insights** everywhere (sidebar item
   title, `/` page title), never "Home" (per Chi, 2026-08-14 feedback round, D2 —
   `records/plans/2026-08-14-chronicle-feedback-round-plan.md`; pixels checkpoint before merge
   on PR). Projects highlights across every project-scoped route (`/projects`,
   `/project/:id[/explore|/content]`, `/session/:id`) but NOT on the Insights hub.
+- **`sb-top` ops nav — hub-conditional (CHI-323).** After Projects, the ops items render ONLY
+  when `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent. As
+  organs land they are added here in order: **Modules (`▦`)** [1c]. (Reserved for later organs,
+  same gating: Safety `⊘`, Jobs `⧗`, Briefing `▣`, Memory `❖`.) So on a stock public install with
+  no hub, `sb-top` is exactly Insights + Projects (the existing pin holds); with a hub or in demo
+  it also carries the ops items. See the "ops routes are hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
   `SessionView` via `onRailChange`: Overview (`⬚`, ⌘1) · Playback (`▶`, ⌘2) · Refine (`✂`, ⌘3) ·
   Security Check (`◈`). The Subagents drill-in is reached only via the Overview Subagents card,
@@ -99,13 +106,23 @@ drag-resizable when expanded. Contents, top to bottom:
 - **Glyph vocabulary** (mono only, zero colored emoji in chrome or page content; canonical set in
   `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
-  `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch. `⌂`=Home is
+  `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
+  `▦`=modules (ops nav, CHI-323; reserved for later ops organs: `⊘`=safety `⧗`=jobs `▣`=briefing
+  `❖`=memory). `⌂`=Home is
   retired from chrome — the sidebar item it used to label was renamed to `∑ Insights` (D2, see
   above); `⌂` does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap (NOT a novel finding):** `src/kinds.ts` `KIND_ICON` still maps
     `user`/`thinking`/`tool_use` to colored emoji (👤/💭/🔧) in Playback rows — adjudicated at
     the walk, per the rubric.
+- **Ops routes are hub-conditional (CHI-323).** The ops surfaces (Modules `/modules`, and the
+  later organs Safety / Jobs / Briefing / Memory) and their `sb-top` nav items render ONLY when
+  `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
+  are hidden and their routes fail soft (the page shows a "no hub connected" line, never a broken
+  view). This is why a stock public install (no hub) still shows exactly Insights + Projects in
+  `sb-top`. Guard: `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the
+  API returns the absent sentinel" (absent) + "ops nav shows Modules and the page lists the
+  synthetic modules" (demo). The demo walk pass (1h) screenshots the rendered surfaces.
 
 ## Per-surface content inventory (what each surface MUST show)
 
@@ -281,11 +298,36 @@ client never switches on a characteristic's `key`):
   `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over unchanged — real, non-binary
   percentages even for one session.
 
+### `/modules` — ops surface (hub-conditional, `ModulesPage.tsx`, CHI-323 3a)
+
+Reading order: eyebrow `MODULES · N` + one-line lede → a registry table → a contract detail panel.
+- **Registry table** columns, in order: Module (name, bold) · Tier · Purpose · Project · Contract
+  (status badge). One row per module in the hub's `## Modules` table (operations.md), parsed by
+  header name. Rows with no Module cell are dropped.
+- **Contract status badge** = `full` / `grandfathered` (both green, contract readable) · `pending`
+  (warn, cell was `(pending CHI-NNN)`) · `n/a` (muted, unreadable/out-of-policy). A contract is
+  read ONLY from a path named `product-contract.md` that does not pass through
+  `confidential/`/`next-ventures/` — any other path degrades to `n/a`, never read.
+- **Contract detail** (right, appears on row select): the module name + status badge, then the
+  snapshotted `product-contract.md` markdown in a mono block (read-only, scrolls). Pending/
+  unreadable contracts show a one-line reason instead.
+- **Absent/empty states**: reached with no hub → "no hub connected" line; hub present but no
+  `## Modules` table → "no module registry found" line. Never a blank or broken page.
+
+**CHI-323 sign-off (phase-1 merge, organ 1c):** first ops organ of the CHI-322 Chronicle/Varde
+merge (decision CHI-307, plan `plans/2026-08-25-chi-323-chronicle-merge-phase1-port.md`). Ops
+glyphs are D6 (delegated). This edit is landed under Chi's standing sign-off delegation for the
+phase-1 organs; the consolidated phase-1 note (all five organs, CHI-307/322/323 + plan) lands
+with 1h.
+
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
 | Enumerable / shape fact | Guarding test |
 |---|---|
-| Sidebar = exactly Insights + Projects, no Home entry, no `⌂` | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
+| Sidebar = exactly Insights + Projects, no Home entry, no `⌂` (hub ABSENT — the default e2e harness) | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
+| Ops nav (Modules) hidden + `/api/hub/modules` absent-sentinel when the hub is absent | `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the API returns the absent sentinel" |
+| `/modules` renders the registry table + contract detail from the hub (demo synthetic) | `test/e2e/ops-modules.spec.ts` — "ops nav shows Modules and the page lists the synthetic modules with a contract detail" |
+| Modules slice reads only `product-contract.md`, refuses confidential/next-ventures paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
 | Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |

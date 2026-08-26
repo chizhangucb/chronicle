@@ -572,6 +572,30 @@ export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | n
   return '/api/content?' + p.toString();
 }
 
+// ---- Hub adapter (CHI-323) ----
+export type HubMode = 'live' | 'demo' | 'absent';
+export interface HubStatus {
+  present: boolean;
+  mode: HubMode;
+  root?: string | null;
+  reason?: string;
+}
+export interface ModuleContractView {
+  status: 'full' | 'pending' | 'grandfathered';
+  raw: string;
+  pendingTicket: string | null;
+  path: string | null;
+  available: boolean;
+  markdown: string | null;
+}
+export interface ModuleRowView {
+  name: string; tier: string; purpose: string; prdHome: string; project: string;
+  contract: ModuleContractView;
+}
+export interface ModulesSliceView { found: boolean; rows: ModuleRowView[] }
+// The route sends the slice when the hub is present, or this sentinel when absent.
+export type ModulesResult = ModulesSliceView | { hubPresent: false };
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -610,6 +634,9 @@ export const api = {
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
+  // Hub adapter (CHI-323): ops surfaces read these. status gates all ops nav.
+  hubStatus: (): Promise<HubStatus> => j('/api/hub/status'),
+  hubModules: (): Promise<ModulesResult> => j('/api/hub/modules'),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {

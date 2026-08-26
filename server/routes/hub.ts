@@ -14,6 +14,14 @@ export function mountHub(app: Express): void {
     res.json(getHubAdapter().status());
   });
 
+  // Modules slice (organ 1c). Absent hub -> a sentinel the client uses to hide
+  // ops nav + show the Nisse upsell, never a half-answer.
+  app.get('/hub/modules', (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(adapter.modules());
+  });
+
   // Setup affordance (D3): write hubRoot to ~/.chronicle/config.json. Writes
   // through writeConfig's MERGE ({...readConfig(), hubRoot}) so the existing
   // autosync / noise-gate config is preserved — never a fresh write, never a
