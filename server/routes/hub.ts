@@ -55,6 +55,21 @@ export function mountHub(app: Express): void {
     res.json(view);
   });
 
+  // Memory graph (organ 1g). HEAVY slice, freshness-cached in the adapter. Emits
+  // titles/paths only, prunes confidential/next-ventures (never body text).
+  app.get('/hub/memory', async (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(await adapter.memoryGraph());
+  });
+
+  // Built code graphs (organ 1g): graphs/index.json + per-graph god-nodes.
+  app.get('/hub/codegraphs', async (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json({ graphs: await adapter.codegraphs() });
+  });
+
   // Confidential marker drill-down (organ 1d) — HARD-GATED (D8): a live hub AND
   // an explicit opt-in flag (env CHRONICLE_CONFIDENTIAL_MARKERS=1 or config
   // confidentialMarkers:true). The default/public build returns 403, so no

@@ -1,0 +1,1192 @@
+{
+  "stats": {
+    "totalFiles": 6,
+    "totalWorkspaces": 0,
+    "stale": 0,
+    "missing": 0,
+    "freshness": 1,
+    "capSuggested": 250,
+    "totalNotes": 6,
+    "totalLinks": 5,
+    "living": 6,
+    "historical": 0
+  },
+  "scope": {
+    "source": "defaults",
+    "configured": true,
+    "tiers": {
+      "living": [
+        "wiki",
+        "governance",
+        "skills",
+        "context",
+        "contacts",
+        "references",
+        "*.md"
+      ],
+      "historical": [
+        "records/decisions*",
+        "records/sessions*",
+        "records/brainstorms",
+        "records/reports",
+        "archives",
+        "wiki/sources",
+        "wiki/raw"
+      ],
+      "excluded": [
+        "plans",
+        "wiki/metadata",
+        "node_modules",
+        "dist"
+      ]
+    },
+    "rotDays": 30,
+    "rotDaysByKind": {},
+    "dirs": [
+      {
+        "dir": "wiki",
+        "tier": "living",
+        "notes": 4
+      },
+      {
+        "dir": "context",
+        "tier": "living",
+        "notes": 1
+      },
+      {
+        "dir": "governance",
+        "tier": "living",
+        "notes": 1
+      }
+    ]
+  },
+  "rot": {
+    "thresholdDays": 30,
+    "thresholdsByKind": {},
+    "buckets": [
+      {
+        "label": "0-7d",
+        "fromDays": 0,
+        "toDays": 8,
+        "count": 6
+      },
+      {
+        "label": "8-30d",
+        "fromDays": 8,
+        "toDays": 31,
+        "count": 0
+      },
+      {
+        "label": "31-90d",
+        "fromDays": 31,
+        "toDays": 91,
+        "count": 0
+      },
+      {
+        "label": "91-180d",
+        "fromDays": 91,
+        "toDays": 181,
+        "count": 0
+      },
+      {
+        "label": "180d+",
+        "fromDays": 181,
+        "toDays": null,
+        "count": 0
+      }
+    ],
+    "oldest": [],
+    "oldCount": 0,
+    "flagged": [],
+    "measured": 6
+  },
+  "growth": {
+    "series": [
+      {
+        "day": "2026-02-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-26",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-27",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-29",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-30",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-03-31",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-26",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-27",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-29",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-04-30",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-26",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-27",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-29",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-30",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-05-31",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-26",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-27",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-29",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-06-30",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-26",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-27",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-28",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-29",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-30",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-07-31",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-01",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-02",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-03",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-04",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-05",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-06",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-07",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-08",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-09",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-10",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-11",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-12",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-13",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-14",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-15",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-16",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-17",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-18",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-19",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-20",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-21",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-22",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-23",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-24",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-25",
+        "total": 0,
+        "births": 0
+      },
+      {
+        "day": "2026-08-26",
+        "total": 6,
+        "births": 6
+      }
+    ],
+    "birthsByWindow": {
+      "7": 6,
+      "30": 6,
+      "90": 6,
+      "180": 6
+    },
+    "deletions": null
+  },
+  "usage": {
+    "totals": {
+      "transcript": 0,
+      "wikilink": 0,
+      "briefing": 0
+    },
+    "perNote": []
+  },
+  "connectivity": {
+    "unlinked": {
+      "count": 1,
+      "list": [
+        {
+          "name": "Orphan",
+          "kind": "wiki",
+          "path": "wiki/orphan-note.md"
+        }
+      ]
+    },
+    "mostConnected": [
+      {
+        "name": "Atlas",
+        "links": 3,
+        "path": "wiki/atlas.md"
+      },
+      {
+        "name": "Beacon",
+        "links": 2,
+        "path": "wiki/beacon.md"
+      },
+      {
+        "name": "Ledger",
+        "links": 2,
+        "path": "wiki/ledger.md"
+      },
+      {
+        "name": "Rules",
+        "links": 2,
+        "path": "governance/rules.md"
+      },
+      {
+        "name": "Onboarding",
+        "links": 1,
+        "path": "context/onboarding.md"
+      }
+    ],
+    "deadLinks": {
+      "count": 0,
+      "list": []
+    }
+  },
+  "nodes": [
+    {
+      "id": "context/onboarding",
+      "name": "Onboarding",
+      "kind": "context",
+      "tier": "living",
+      "val": 4,
+      "color": "#249781",
+      "path": "context/onboarding.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "id": "governance/rules",
+      "name": "Rules",
+      "kind": "governance",
+      "tier": "living",
+      "val": 4,
+      "color": "#5488CB",
+      "path": "governance/rules.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "id": "wiki/atlas",
+      "name": "Atlas",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/atlas.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "id": "wiki/beacon",
+      "name": "Beacon",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/beacon.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "id": "wiki/ledger",
+      "name": "Ledger",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/ledger.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "id": "wiki/orphan-note",
+      "name": "Orphan",
+      "kind": "wiki",
+      "tier": "living",
+      "val": 4,
+      "color": "#9C7BD4",
+      "path": "wiki/orphan-note.md",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    }
+  ],
+  "links": [
+    {
+      "source": "context/onboarding",
+      "target": "governance/rules",
+      "kind": "cross"
+    },
+    {
+      "source": "governance/rules",
+      "target": "wiki/atlas",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/atlas",
+      "target": "wiki/ledger",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/atlas",
+      "target": "wiki/beacon",
+      "kind": "cross"
+    },
+    {
+      "source": "wiki/beacon",
+      "target": "wiki/ledger",
+      "kind": "cross"
+    }
+  ],
+  "noteDates": [
+    {
+      "name": "Onboarding",
+      "path": "context/onboarding.md",
+      "kind": "context",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "name": "Rules",
+      "path": "governance/rules.md",
+      "kind": "governance",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "name": "Atlas",
+      "path": "wiki/atlas.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "name": "Beacon",
+      "path": "wiki/beacon.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "name": "Ledger",
+      "path": "wiki/ledger.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    },
+    {
+      "name": "Orphan",
+      "path": "wiki/orphan-note.md",
+      "kind": "wiki",
+      "mtime": "2026-08-26T08:47:04.089Z"
+    }
+  ]
+}
