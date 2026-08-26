@@ -35,6 +35,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/safety` | **Ops surface (hub-conditional, CHI-323 3d).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional, CHI-323 3c).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). NON-SPEND cards only this phase (D7) — the spend cards are a DISCLOSED gap that lights up in phase 2. | `src/BriefingPage.tsx` |
+| `/memory` | **Ops surface (hub-conditional, CHI-323 3e).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -59,7 +60,8 @@ drag-resizable when expanded. Contents, top to bottom:
 - **`sb-top` ops nav — hub-conditional (CHI-323).** After Projects, the ops items render ONLY
   when `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent. As
   organs land they are added here in order: **Modules (`▦`)** [1c] · **Safety (`⊘`)** [1d] ·
-  **Jobs (`⧗`)** [1e] · **Briefing (`▣`)** [1f]. (Reserved for the last organ, same gating: Memory `❖`.) So on a stock public install with
+  **Jobs (`⧗`)** [1e] · **Briefing (`▣`)** [1f] · **Memory (`❖`)** [1g] — all five ops organs now
+  present. So on a stock public install with
   no hub, `sb-top` is exactly Insights + Projects (the existing pin holds); with a hub or in demo
   it also carries the ops items. See the "ops routes are hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -385,6 +387,37 @@ Reading order: header (`as of` + open/snoozed counts + Run-now) → scope note �
 **CHI-323 sign-off (organ 1f):** same phase-1 delegation. The disclosed briefing spend-card gap is
 the one named per-surface gap the plan requires.
 
+### `/memory` — ops surface (hub-conditional, `MemoryPage.tsx`, CHI-323 3e)
+
+Reading order: header (`MEMORY` + note/link/tier counts + communities legend) → the Nebula canvas
+(left) + a side rail (right: node inspector + scope readout).
+- **V2 Nebula** (`register.ts` MEMORY_REGISTER_NAME="v2", Chi's Round-4 pick): a 3D force-graph
+  (`MemoryGraph.tsx`, `react-force-graph-3d` + `three`, **lazy-loaded** so three.js stays out of the
+  entry chunk), colored by deterministic community (hub-attenuated label propagation), flow-arc
+  edges, deep-space atmosphere, idle drift (disabled under `prefers-reduced-motion`).
+- **Confidentiality**: the server slice walks the whole markdown corpus but hard-prunes
+  confidential/next-ventures before reading, emits titles/paths only (NEVER body text), lstat-only,
+  and is read-only (deletion/degree snapshots are opt-in, never enabled here).
+- **Interactions**: click a node → inspector (name/kind/tier/path/last-touched); double-click or Open
+  note → `POST /api/open-file` (bounded HARD to a `.md` under the live hub root, never a
+  confidential segment; demo-refused; macOS `open`).
+- **Demo**: a synthetic 27-node graph (`data/memory.demo.json`, generated from a temp hub so its
+  shape always matches the real slice); every real-state action fail-closes.
+- **DISCLOSED GAP (like the briefing spend-card gap)**: `scope-suggest` (a headless-claude scope
+  suggester + a `memory-scope` gate surface that edits the scope config through a confirm card) is
+  NOT in this phase. The memory graph runs on the shipped nisse-shaped default scope
+  (`DEFAULT_MEMORY_SCOPE`), which the operator can already edit by hand; the guided suggester lands
+  as a small fast-follow. The `memory-scope` schema already ships in `server/gate/validate.ts` (from
+  1b), so the fast-follow is only the surface row + runner + panel affordance.
+- **VIZ NOTE**: the Nebula 3D canvas is self-contained WebGL (theme-independent), ported from Varde's
+  V2 register pixel-intact; the surrounding page shell is Chronicle-native (consistent with the other
+  organs). React-19 compat verified (D4 spike): Varde ships the same React 19 + Vite 8 + rfg3d/three
+  stack; no shim. WebGL pixels are not e2e-asserted (headless GL is unreliable); the release walk
+  runs /memory with a software-GL flag (1h).
+
+**CHI-323 sign-off (organ 1g):** same phase-1 delegation; the Nebula pixels are Chi's viz sign-off
+(D4) reviewed live before merge.
+
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
 | Enumerable / shape fact | Guarding test |
@@ -406,6 +439,10 @@ the one named per-surface gap the plan requires.
 | `/briefing` renders cards; a card action moves state (two-file split) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` (applyCardAction/resolveCards) |
 | Briefing is NON-SPEND this phase (validator rejects a spend domain); gap disclosed on the page | `test/briefing.test.mjs` — "validator rejects a spend-domain card" + the `.briefing-scope` note |
 | Briefing run refused in demo (409) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` |
+| Memory nav hidden + `/api/hub/memory` absent-sentinel when the hub is absent | `test/e2e/ops-memory.spec.ts` — "no Memory nav item; /api/hub/memory absent sentinel" |
+| `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |
+| Memory slice prunes confidential/next-ventures + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
+| open-file bounded to a hub `.md`, never confidential; demo-refused | `test/e2e/ops-memory.spec.ts` + the route's path guard |
 | Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |

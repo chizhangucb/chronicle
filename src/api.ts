@@ -4,6 +4,7 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import type { MemoryNode, MemoryLink, MemoryScopeEcho } from './components/memory/types.js';
 import { gateToken } from './gate/token.ts';
 
 // Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
@@ -652,6 +653,23 @@ export interface FollowThroughView {
 export interface BriefingResult { generatedAt: string; cadence: string; cards: ResolvedCardView[]; followThrough: FollowThroughView }
 export interface BriefingRunStatus { running: boolean; startedAt: string | null; lastResult: { ok: boolean; code: number | null; at: string } | null }
 
+// Memory (organ 1g). The node/link shapes mirror src/components/memory/types.ts.
+export interface MemoryStatsView {
+  totalFiles: number; totalWorkspaces: number; stale: number; missing: number; freshness: number;
+  capSuggested: number; totalNotes: number; totalLinks: number; living: number; historical: number;
+}
+export interface MemorySliceView {
+  stats: MemoryStatsView;
+  scope: MemoryScopeEcho;
+  nodes: MemoryNode[];
+  links: MemoryLink[];
+  // The rich reads (rot/growth/usage/connectivity/noteDates) ride along untyped
+  // here; the canvas uses stats + scope + nodes + links.
+  [key: string]: unknown;
+}
+export type HubMemoryResult = MemorySliceView | { hubPresent: false };
+export interface OpenFileResult { ok: boolean; opened?: string; error?: string }
+
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
     j('/api/scan' + (params ? `?${new URLSearchParams(params as Record<string, string>)}` : '')),
@@ -704,6 +722,10 @@ export const api = {
     j('/api/briefing/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId, action }) }),
   briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
+  hubMemory: (): Promise<HubMemoryResult> => j('/api/hub/memory'),
+  openFile: (nodePath: string): Promise<OpenFileResult> => j('/api/open-file', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: nodePath }),
+  }),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {

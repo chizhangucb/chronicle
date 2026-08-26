@@ -18,8 +18,17 @@ import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
 import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
 import { collectJobs, type JobsSlice } from './slices/jobs.ts';
 import { collectAutomations } from './slices/automations.ts';
+import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
+import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
+import { freshSliceAsync, treeMaxMtimeMs } from './freshness.ts';
+import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS } from './demo.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
+
+// The two HEAVY slices re-check freshness at most this often (a stat-walk over
+// the whole hub markdown corpus / every built graph is not free); inside the
+// window the cached value is served without touching the filesystem.
+const HEAVY_TTL_MS = 30_000;
 
 export type { HubMode, HubHandle } from './resolve.ts';
 
@@ -46,10 +55,12 @@ export interface HubAdapter {
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
   /** Scheduled jobs: launchd + cron + hub registry + repo templates (organ 1e). */
   jobs(): JobsSlice;
-  // Further per-slice reads land with their organs:
-  //   roster(): RosterSlice
-  //   memoryGraph(scope): MemorySlice
-  //   codegraphs(): CodegraphSlice
+  /** Memory graph over the hub markdown corpus, titles/paths only (organ 1g).
+   * HEAVY: freshness-cached. */
+  memoryGraph(): Promise<MemorySlice>;
+  /** Built code graphs (graphs/index.json + per-graph god-nodes) (organ 1g).
+   * HEAVY: freshness-cached. */
+  codegraphs(): Promise<DashGraphEntry[]>;
 }
 
 const EMPTY_JOBS: JobsSlice = { scannedAt: '', sources: { launchd: 0, cron: 0, registry: 0, 'repo-template': 0 }, jobs: [] };
@@ -83,6 +94,12 @@ export class LiveHubAdapter implements HubAdapter {
   jobs(): JobsSlice {
     return collectJobs({ registry: collectAutomations(this.root), repoRoot: packageRoot() });
   }
+  memoryGraph(): Promise<MemorySlice> {
+    return freshSliceAsync('memory', () => String(treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))), () => collectMemoryGraph(this.root, {}), { ttlMs: HEAVY_TTL_MS });
+  }
+  codegraphs(): Promise<DashGraphEntry[]> {
+    return freshSliceAsync('codegraphs', () => String(treeMaxMtimeMs(join(this.root, 'graphs'))), () => collectCodegraphs(this.root), { ttlMs: HEAVY_TTL_MS });
+  }
 }
 
 /** Demo hub (CHRONICLE_DEMO=1): synthetic slices so a zero-data user, or Chi on
@@ -111,6 +128,12 @@ export class DemoHubAdapter implements HubAdapter {
   // Synthetic jobs; never scans the real machine.
   jobs(): JobsSlice {
     return DEMO_JOBS;
+  }
+  memoryGraph(): Promise<MemorySlice> {
+    return Promise.resolve(demoMemory());
+  }
+  codegraphs(): Promise<DashGraphEntry[]> {
+    return Promise.resolve(demoCodegraphs());
   }
 }
 
@@ -141,6 +164,12 @@ export class NullHubAdapter implements HubAdapter {
   }
   jobs(): JobsSlice {
     return EMPTY_JOBS;
+  }
+  memoryGraph(): Promise<MemorySlice> {
+    return Promise.resolve(EMPTY_MEMORY);
+  }
+  codegraphs(): Promise<DashGraphEntry[]> {
+    return Promise.resolve([]);
   }
 }
 

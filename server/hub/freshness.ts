@@ -125,6 +125,47 @@ export function freshSlice<T>(
   return value;
 }
 
+/**
+ * Async variant for the HEAVY slices (memoryGraph over the whole hub markdown
+ * corpus, codegraphs over every built graph.json). Same TTL gate as freshSlice,
+ * but `compute` is async and the resolved value is mirrored to the on-disk
+ * hub-cache so it survives a process restart. Inside the TTL window it returns
+ * the cached value WITHOUT the stat-walk; past it, the signature is recomputed
+ * and `compute` runs only on an actual change. On a cold start it warms from the
+ * on-disk cache (still verified against the current signature).
+ */
+export async function freshSliceAsync<T>(
+  key: string,
+  computeSig: () => string,
+  compute: () => Promise<T>,
+  opts: { ttlMs?: number } = {},
+): Promise<T> {
+  const now = Date.now();
+  let prev = state.entries.get(key) as FreshEntry<T> | undefined;
+
+  if (prev && opts.ttlMs && now - prev.checkedAt < opts.ttlMs) return prev.value;
+
+  const sig = computeSig();
+  if (!prev) {
+    // Cold start: warm from disk if the on-disk signature still matches.
+    const disk = readHubCache<T>(key);
+    if (disk && disk.sig === sig) {
+      prev = { sig: disk.sig, value: disk.value, checkedAt: now };
+      state.entries.set(key, prev);
+      return prev.value;
+    }
+  }
+  if (prev && prev.sig === sig) {
+    prev.checkedAt = now;
+    return prev.value;
+  }
+
+  const value = await compute();
+  state.entries.set(key, { sig, value, checkedAt: now });
+  try { writeHubCache(key, sig, value); } catch { /* cache write is best-effort */ }
+  return value;
+}
+
 /** Drop a slice's memoized entry (test seam; also lets a write path force the
  * next read to recompute). */
 export function invalidateSlice(key: string): void {

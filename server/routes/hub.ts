@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getHubAdapter } from '../hub/adapter.ts';
 import { resolveHub, isNisseHub, expandTilde } from '../hub/resolve.ts';
@@ -53,6 +53,42 @@ export function mountHub(app: Express): void {
     const view = jobLogView(adapter.jobs().jobs, id);
     if (!view) return res.status(404).json({ error: `unknown job "${id}"`, fix: 'reload the Jobs page' });
     res.json(view);
+  });
+
+  // Memory graph (organ 1g). HEAVY slice, freshness-cached in the adapter. Emits
+  // titles/paths only, prunes confidential/next-ventures (never body text).
+  app.get('/hub/memory', async (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(await adapter.memoryGraph());
+  });
+
+  // Open a memory note in the operator's editor (organ 1g). Bounded HARD: only a
+  // .md file that resolves UNDER the live hub root, never a confidential/next-
+  // ventures segment. Mutating (opens an app) -> rides the gate token. Demo-refused.
+  app.post('/open-file', (req: Request, res: Response) => {
+    const h = resolveHub();
+    if (h.mode === 'demo') return res.status(409).json({ ok: false, error: 'demo seed, open-file disabled' });
+    if (!h.root) return res.status(409).json({ ok: false, error: 'no hub connected' });
+    const rel = String(req.body?.path ?? '');
+    const abs = resolve(h.root, rel);
+    if (!abs.startsWith(h.root + sep) || !abs.endsWith('.md')) {
+      return res.status(400).json({ ok: false, error: 'path must be a .md file inside the hub' });
+    }
+    if (abs.split(sep).some((seg) => seg === 'confidential' || seg === 'next-ventures')) {
+      return res.status(403).json({ ok: false, error: 'refusing to open a confidential path' });
+    }
+    if (process.platform !== 'darwin') return res.json({ ok: false, error: 'open is macOS-only', opened: abs });
+    const r = spawnSync('open', [abs], { encoding: 'utf-8', timeout: 10_000 });
+    if (r.status !== 0) return res.json({ ok: false, error: (r.stderr || '').trim() || 'open failed', opened: abs });
+    res.json({ ok: true, opened: abs });
+  });
+
+  // Built code graphs (organ 1g): graphs/index.json + per-graph god-nodes.
+  app.get('/hub/codegraphs', async (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json({ graphs: await adapter.codegraphs() });
   });
 
   // Confidential marker drill-down (organ 1d) — HARD-GATED (D8): a live hub AND

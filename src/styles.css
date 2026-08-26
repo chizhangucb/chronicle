@@ -1788,3 +1788,19 @@ h4 { margin: 6px 0; }
 .bc-evidence-body { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 6px 0 0; white-space: pre-wrap; }
 .bc-actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .bc-spacer { flex: 1; }
+
+/* ---- Memory ops surface / V2 Nebula (CHI-323 3e) ---- */
+.memory-page { max-width: none; display: flex; flex-direction: column; height: 100%; padding: 20px 24px; }
+.memory-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.memory-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.memory-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-2); }
+.memory-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); flex: 1; min-height: 0; }
+@media (min-width: 900px) { .memory-layout { grid-template-columns: minmax(0, 1fr) 260px; } }
+.memory-canvas-wrap { position: relative; min-height: 480px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
+.memory-side { display: flex; flex-direction: column; gap: 16px; }
+.memory-inspector { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
+.memory-node-name { font-weight: 600; color: var(--ink); }
+.memory-node-path { font-family: var(--mono); font-size: 11px; word-break: break-all; margin: 4px 0; }
+.memory-inspector .btn { margin-top: 8px; }
+.memory-scope { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
