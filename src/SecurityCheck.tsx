@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Modal from './Modal.tsx';
+import { api } from './api.js';
 
 // One-Click Security Check (FR-SEC-4): preview detections highlighted next to
 // redacted output; manage custom rules; export a one-way redacted copy.
@@ -76,22 +77,16 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
   async function submitRule(e: React.FormEvent) {
     e.preventDefault();
     if (!form.pattern.trim()) return;
-    await fetch('/api/security/rules', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, name: form.pattern }),
-    });
+    await api.createSecurityRule({ ...form, name: form.pattern });
     setForm({ pattern: '', replacement: '****', kind: 'redact' });
     refresh();
   }
   async function removeRule(id: number) {
-    await fetch(`/api/security/rules/${id}`, { method: 'DELETE' });
+    await api.deleteSecurityRule(id);
     refresh();
   }
   async function toggle(rule: SecurityRule) {
-    await fetch(`/api/security/rules/${rule.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: !rule.enabled }),
-    });
+    await api.toggleSecurityRule(rule.id, !rule.enabled);
     refresh();
   }
 

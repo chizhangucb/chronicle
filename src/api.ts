@@ -4,9 +4,24 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import { gateToken } from './gate/token.ts';
+
+// Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
+// the app funnels through j(), so attaching the token here is the whole client
+// half of "token on all writes" — no per-call plumbing.
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function j<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, opts);
+  const method = (opts?.method ?? 'GET').toUpperCase();
+  const once = async (refetch: boolean): Promise<Response> => {
+    if (!MUTATING.has(method)) return fetch(url, opts);
+    const headers = { ...(opts?.headers as Record<string, string> | undefined), 'x-gate-token': await gateToken(refetch) };
+    return fetch(url, { ...opts, headers });
+  };
+  let res = await once(false);
+  // The per-boot token rotates on a server restart; one refetch+retry recovers
+  // an open tab (matches Varde's tokenPost). Retry only the CSRF 403, mutating only.
+  if (res.status === 403 && MUTATING.has(method)) res = await once(true);
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => ({}));
     const message = (body && typeof body === 'object' && 'error' in body) ? (body as { error?: string }).error : undefined;
@@ -595,6 +610,20 @@ export const api = {
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
+  // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
+  // so they carry the gate token like every other write, CHI-323 review #2).
+  associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
+  }),
+  unlinkProjectSource: (id: number | string, source: string): Promise<unknown> => j(`/api/projects/${id}/unlink`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }),
+  }),
+  // Security-rule CRUD (were raw fetches in SecurityCheck.tsx; same reason).
+  createSecurityRule: (rule: { pattern: string; replacement: string; kind: string; name: string }): Promise<unknown> =>
+    j('/api/security/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rule) }),
+  deleteSecurityRule: (id: number): Promise<unknown> => j(`/api/security/rules/${id}`, { method: 'DELETE' }),
+  toggleSecurityRule: (id: number, enabled: boolean): Promise<unknown> =>
+    j(`/api/security/rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }),
   // Open live-watcher list (server/live.ts liveStatus()) — used to detect "a
   // session in this project/view is live" from state that didn't necessarily
   // originate from THIS tab's own EventSource (another tab, or a test's raw
