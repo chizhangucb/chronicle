@@ -18,6 +18,10 @@ import type { ParseResult } from '../shared/types.ts';
 export interface ChronicleConfig {
   autoSync?: boolean;
   autoSyncPaused?: boolean;
+  // Path to a nisse-format hub, written by the hub setup affordance (CHI-323
+  // D3). Read by server/hub/resolve.ts. Merged in via writeConfig so it never
+  // clobbers the autosync / noise-gate keys that share this file (review #1).
+  hubRoot?: string;
   [key: string]: unknown;
 }
 

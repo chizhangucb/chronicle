@@ -23,3 +23,5 @@ graphify-out
 .claude/settings.local.json
 .claude/state/
 .claude/worktrees/
+# aios_worktree.py drops this marker at a worktree's root; never a repo artifact.
+.aios-worktree

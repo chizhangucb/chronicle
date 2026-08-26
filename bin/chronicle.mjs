@@ -2,6 +2,9 @@
 // Chronicle launcher — `npx chronicle-cli`. Starts the local web app, opens the
 // dashboard, runs in the foreground until Ctrl-C. Node built-ins only.
 import net from 'node:net';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -24,6 +27,68 @@ const major = Number(process.versions.node.split('.')[0]);
 if (Number.isNaN(major) || major < 24) {
   console.error(`Chronicle requires Node.js 24 or newer (you have ${process.versions.node}).`);
   console.error('Install the latest Node from https://nodejs.org and re-run `npx chronicle-cli`.');
+  process.exit(1);
+}
+
+// --- Setup affordance: `chronicle hub set|status|clear [path]` (CHI-323 D3). ---
+// Points Chronicle at a nisse-format hub before first launch. Reads/writes
+// ~/.chronicle/config.json with a MERGE (never a fresh write) so it can't clobber
+// the autosync / noise-gate keys that share the file — the plain-JS twin of the
+// server's writeConfig({...readConfig(), hubRoot}). Kept in built-ins so it runs
+// without the compiled server.
+function hubConfigPath() {
+  const dir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+  return { dir, file: path.join(dir, 'config.json') };
+}
+function readHubConfig(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
+}
+function isNisseHub(root) {
+  try {
+    return fs.statSync(path.join(root, 'operations.md')).isFile()
+      && fs.statSync(path.join(root, 'records')).isDirectory()
+      && fs.statSync(path.join(root, 'governance')).isDirectory();
+  } catch { return false; }
+}
+function expandTilde(p) {
+  if (p === '~') return os.homedir();
+  if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
+if (process.argv[2] === 'hub') {
+  const sub = process.argv[3];
+  const { dir, file } = hubConfigPath();
+  const cfg = readHubConfig(file);
+  if (sub === 'status') {
+    const envHub = process.env.CHRONICLE_HUB || process.env.AIOS_HUB;
+    const configured = envHub || cfg.hubRoot;
+    if (process.env.CHRONICLE_DEMO === '1') console.log('Hub: demo mode (CHRONICLE_DEMO=1) — synthetic data.');
+    else if (configured && isNisseHub(path.resolve(expandTilde(configured)))) console.log(`Hub: ${path.resolve(expandTilde(configured))} (nisse-format, live).`);
+    else if (configured) console.log(`Hub: ${configured} is set but is not a nisse-format hub (need operations.md + records/ + governance/).`);
+    else console.log('Hub: none configured. Run `chronicle hub set <path>` to connect one.');
+    process.exit(0);
+  }
+  if (sub === 'set') {
+    const raw = process.argv[4];
+    if (!raw) { console.error('Usage: chronicle hub set <path-to-nisse-hub>'); process.exit(1); }
+    const root = path.resolve(expandTilde(raw));
+    if (!isNisseHub(root)) {
+      console.error(`${root} is not a nisse-format hub (need operations.md + records/ + governance/).`);
+      process.exit(1);
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ ...cfg, hubRoot: root }, null, 2));
+    console.log(`Hub set to ${root}. Ops panels will light up on next launch.`);
+    process.exit(0);
+  }
+  if (sub === 'clear') {
+    const { hubRoot, ...rest } = cfg;
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(rest, null, 2));
+    console.log('Hub cleared. Ops panels hidden until a hub is set.');
+    process.exit(0);
+  }
+  console.error('Usage: chronicle hub <set <path> | status | clear>');
   process.exit(1);
 }
 
