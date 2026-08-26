@@ -10,6 +10,8 @@
     "node": ">=24"
   },
   "files": [
+    "LICENSE",
+    "NOTICE",
     "bin",
     "data",
     "dist",
@@ -42,7 +44,7 @@
     "cli"
   ],
   "author": "Chi Zhang",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",

@@ -1,0 +1,44 @@
+Chronicle
+Copyright 2026 Chi Zhang
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Chronicle is a local-first session-data engine and operator console for your AI
+coding stack. It reads what your tools already write to disk and never writes to
+their data. It is an independent project, not affiliated with, endorsed by, or
+sponsored by any of the tools or companies it observes.
+
+--------------------------------------------------------------------------------
+Third-party notices
+
+1. "Claude" trademark
+   "Claude" is a trademark of Anthropic PBC. Chronicle is an independent project
+   and is NOT affiliated with, endorsed by, or connected to Anthropic PBC. The
+   name is used descriptively, to identify the assistant Chronicle observes on
+   the operator's own machine, alongside the other coding tools it reads (Codex,
+   Cursor, OpenCode). Each is the trademark of its respective holder and is used
+   nominatively, never as a claim of partnership, sponsorship or endorsement.
+
+2. Bundled runtime dependencies
+   The published package depends on these libraries at runtime, all under the MIT
+   license:
+     - Express            https://expressjs.com/
+     - js-yaml            https://github.com/nodeca/js-yaml
+     - three              https://threejs.org/
+     - react-force-graph-3d  https://github.com/vasturiano/react-force-graph
+   three and react-force-graph-3d back the Memory graph's 3D canvas and are
+   loaded lazily. Everything else in the dependency tree is a build-time or
+   test-time tool and is not distributed with the package. Chronicle bundles no
+   web fonts (it uses the operating system's own UI and monospace faces) and no
+   third-party icon set (its glyphs are original monospace characters).
+
+3. Local-only data
+   Chronicle never bundles, transmits, or commits the operator's machine data. It
+   writes its imported-session database and app state to the app data directory
+   (~/.chronicle by default, CHRONICLE_DATA_DIR override), which is gitignored,
+   and reads source tool logs read-only. When connected to a nisse-format hub it
+   reads the hub read-only and emits titles/paths/counts only, never note or
+   record body text, and never confidential content. Only sanitized templates
+   ship with the project: the example seeds (data/*.example.json) and wholly
+   synthetic demo fixtures (data/*.demo.json, data/demo-logs/) whose every
+   number, project and note name is invented.

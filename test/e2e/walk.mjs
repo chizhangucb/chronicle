@@ -61,7 +61,22 @@ function parseCliArgs() {
 // buildRoutes below), so a fresh/empty Chronicle instance still produces a
 // complete (if mostly-errored) report rather than crashing.
 async function discoverContext(base) {
-  const ctx = { projectId: null, sessionId: null, notes: [] };
+  const ctx = { projectId: null, sessionId: null, hubPresent: false, hubMode: 'absent', notes: [] };
+  // Hub adapter status (CHI-323): the ops routes (/modules, /safety, /jobs,
+  // /briefing, /memory) render only when the hub is present (live or demo). A
+  // walk against a stock no-hub instance simply omits them; run the walk against
+  // a CHRONICLE_DEMO=1 (or live-hub) server to cover them.
+  try {
+    const res = await fetch(`${base}/api/hub/status`);
+    if (res.ok) {
+      const s = await res.json();
+      ctx.hubPresent = s.present === true;
+      ctx.hubMode = s.mode ?? 'absent';
+      if (!ctx.hubPresent) ctx.notes.push('hub absent -> ops routes (modules/safety/jobs/briefing/memory) skipped; run against CHRONICLE_DEMO=1 to cover them');
+    }
+  } catch (err) {
+    ctx.notes.push(`hub status probe failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
   try {
     const res = await fetch(`${base}/api/projects`);
     if (!res.ok) throw new Error(`GET /api/projects -> ${res.status}`);
@@ -200,6 +215,56 @@ function buildRoutes(base, ctx) {
       await page.waitForSelector('.search-modal', { timeout: NAV_TIMEOUT_MS });
     },
   });
+
+  // ---- Hub-conditional ops routes (CHI-323). Only reachable when the hub is
+  // present (live or demo); a no-hub walk omits them entirely (they are not
+  // errors — the nav item does not render). Run the walk against CHRONICLE_DEMO=1
+  // to cover them. /memory's WebGL noise is allowlisted (consoleAllow) so a
+  // working three.js canvas is not flagged, and the walk browser launches with
+  // software GL (see main()).
+  if (ctx.hubPresent) {
+    routes.push({
+      slug: 'modules',
+      async setup(page) {
+        await page.goto(`${base}/modules`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.modules-page, .page.center', { timeout: NAV_TIMEOUT_MS });
+      },
+    });
+    routes.push({
+      slug: 'safety',
+      async setup(page) {
+        await page.goto(`${base}/safety`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.safety-page, .page.center', { timeout: NAV_TIMEOUT_MS });
+      },
+    });
+    routes.push({
+      slug: 'jobs',
+      async setup(page) {
+        await page.goto(`${base}/jobs`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.jobs-page, .page.center', { timeout: NAV_TIMEOUT_MS });
+      },
+    });
+    routes.push({
+      slug: 'briefing',
+      async setup(page) {
+        await page.goto(`${base}/briefing`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.briefing-page, .page.center', { timeout: NAV_TIMEOUT_MS });
+      },
+    });
+    routes.push({
+      slug: 'memory',
+      // The Nebula 3D canvas emits benign WebGL/three console noise in headless
+      // no-GPU chromium; allowlist it so a working canvas is not a walk fail.
+      consoleAllow: [/webgl/i, /three/i, /GPU stall/i, /Fallback to SwiftShader/i, /GroupMarkerNotSet/i, /Automatic fallback to software WebGL/i, /software rendering/i],
+      async setup(page) {
+        await page.goto(`${base}/memory`, { waitUntil: 'domcontentloaded' });
+        // the shell renders immediately; the lazy three.js canvas follows
+        await page.waitForSelector('.memory-page, .page.center', { timeout: NAV_TIMEOUT_MS });
+        await page.waitForSelector('.memory-canvas-wrap canvas', { timeout: NAV_TIMEOUT_MS }).catch(() => {});
+        await page.waitForTimeout(1500); // let the force sim + camera settle before the shot
+      },
+    });
+  }
 
   routes.push({
     slug: 'select-mode',
@@ -415,7 +480,12 @@ async function main() {
   console.log(`[walk] projectId=${ctx.projectId} sessionId=${ctx.sessionId}${ctx.notes.length ? ` notes=${ctx.notes.join('; ')}` : ''}`);
 
   const routes = buildRoutes(base, ctx);
-  const browser = await chromium.launch();
+  // Software WebGL (swiftshader) so the /memory Nebula canvas initializes in a
+  // headless no-GPU environment (CHI-323 walk hardening). Harmless for every
+  // other route.
+  const browser = await chromium.launch({
+    args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--ignore-gpu-blocklist'],
+  });
   const pages = [];
   let renderedCount = 0;
 
@@ -428,11 +498,16 @@ async function main() {
         const page = await context.newPage();
         page.setDefaultTimeout(NAV_TIMEOUT_MS);
         const consoleErrors = [];
+        // Per-route allowlist for known-benign console noise (e.g. /memory's
+        // headless-WebGL warnings). An allowlisted message is dropped, not
+        // recorded, so a working canvas is not flagged as a walk error.
+        const allow = route.consoleAllow ?? [];
+        const allowed = (text) => allow.some((re) => re.test(text));
         page.on('console', (msg) => {
-          if (msg.type() === 'error') consoleErrors.push({ type: 'console.error', text: msg.text() });
+          if (msg.type() === 'error' && !allowed(msg.text())) consoleErrors.push({ type: 'console.error', text: msg.text() });
         });
         page.on('pageerror', (err) => {
-          consoleErrors.push({ type: 'pageerror', text: String(err) });
+          if (!allowed(String(err))) consoleErrors.push({ type: 'pageerror', text: String(err) });
         });
 
         try {
