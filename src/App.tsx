@@ -11,6 +11,7 @@ import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
 import ModulesPage from './ModulesPage.tsx';
 import SafetyPage from './SafetyPage.tsx';
+import JobsPage from './JobsPage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -69,6 +70,7 @@ export default function App() {
   // reports present (live or demo). Hidden + unreachable when absent.
   const [atModules] = useRoute('/modules');
   const [atSafety] = useRoute('/safety');
+  const [atJobs] = useRoute('/jobs');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
   const search = useSearch();
@@ -183,6 +185,12 @@ export default function App() {
               <span className="sb-icon">⊘</span><span className="sb-label">{t('Safety')}</span>
             </button>
           )}
+          {hubPresent && (
+            <button className={`sb-item ${atJobs && !rail ? 'on' : ''}`} title={t('Jobs')}
+              onClick={() => navigate('/jobs')}>
+              <span className="sb-icon">⧗</span><span className="sb-label">{t('Jobs')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -269,6 +277,7 @@ export default function App() {
         )}
         {atModules && <ModulesPage />}
         {atSafety && <SafetyPage />}
+        {atJobs && <JobsPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}

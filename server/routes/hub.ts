@@ -5,6 +5,7 @@ import { getHubAdapter } from '../hub/adapter.ts';
 import { resolveHub, isNisseHub, expandTilde } from '../hub/resolve.ts';
 import { confidentialMarkersEnabled } from '../hub/slices/confidential.ts';
 import { buildLaunchCommand, gapReviewPrompt } from '../launch.ts';
+import { jobLogView } from '../job-logs.ts';
 import { readConfig, writeConfig } from '../autosync.ts';
 
 // Hub adapter HTTP surface (CHI-323 part 1.5). Mounted under /api.
@@ -32,6 +33,26 @@ export function mountHub(app: Express): void {
     const adapter = getHubAdapter();
     if (!adapter.status().present) return res.json({ hubPresent: false });
     res.json({ safetyNet: adapter.safetyNet(), gaps: adapter.safetyGaps(), egress: adapter.egress() });
+  });
+
+  // Jobs slice (organ 1e): launchd + cron + hub registry + repo templates, with
+  // live state. Absent hub -> sentinel (page hidden).
+  app.get('/hub/jobs', (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(adapter.jobs());
+  });
+
+  // Job log tail (organ 1e): the browser sends a job ID, never a path. Only the
+  // log paths the jobs slice itself declares for that job are opened (last 100
+  // lines, tail-capped).
+  app.get('/jobs/log', (req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    const id = String(req.query.id ?? '');
+    const view = jobLogView(adapter.jobs().jobs, id);
+    if (!view) return res.status(404).json({ error: `unknown job "${id}"`, fix: 'reload the Jobs page' });
+    res.json(view);
   });
 
   // Confidential marker drill-down (organ 1d) — HARD-GATED (D8): a live hub AND

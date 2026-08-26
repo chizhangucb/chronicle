@@ -96,3 +96,44 @@ export const DEMO_SAFETYNET: SafetyNetSlice = {
 };
 
 export const DEMO_EGRESS: EgressSlice = { enabled: true, gateConfigFound: true };
+
+import type { JobsSlice } from './slices/jobs.ts';
+
+export const DEMO_JOBS: JobsSlice = {
+  scannedAt: '2026-08-26T09:05:00.000Z',
+  sources: { launchd: 2, cron: 1, registry: 1, 'repo-template': 1 },
+  jobs: [
+    {
+      id: 'com.chronicle.briefing', name: 'com.chronicle.briefing', source: 'launchd',
+      schedule: 'daily 09:00', scheduleKind: 'calendar', nextRun: null, lastRun: '2h ago', lastRunAt: null,
+      status: 'success', lastExit: 0, runner: 'node', model: null, agent: 'claude', project: 'chronicle',
+      projectPath: null, command: 'node scripts/run-briefing.ts', logPath: 'data/demo-logs/briefing.log',
+      description: 'Daily briefing run',
+    },
+    {
+      id: 'com.demo.weekly-report', name: 'com.demo.weekly-report', source: 'launchd',
+      schedule: 'Mon 08:00', scheduleKind: 'calendar', nextRun: null, lastRun: '3d ago', lastRunAt: null,
+      status: 'paused', lastExit: null, runner: 'node', model: null, agent: null, project: 'demo',
+      projectPath: null, command: 'node weekly.mjs', logPath: null,
+    },
+    {
+      id: 'cron:backup.sh', name: 'cron: backup.sh', source: 'cron',
+      schedule: '0 3 * * *', scheduleKind: 'calendar', nextRun: null, lastRun: null, lastRunAt: null,
+      status: 'pending', lastExit: null, runner: 'backup.sh', model: null, agent: null, project: null,
+      projectPath: null, command: '/usr/local/bin/backup.sh', logPath: null,
+    },
+    {
+      id: 'registry:health-sweep', name: 'health-sweep', source: 'registry',
+      schedule: 'every 6h', scheduleKind: 'prose', nextRun: null, lastRun: '9h ago', lastRunAt: null,
+      status: 'stale', lastExit: null, runner: 'hub-registry', model: null, agent: null, project: null,
+      projectPath: null, command: '', logPath: null, description: 'Probe hub health + heartbeat digest',
+      meta: 'threshold 6h',
+    },
+    {
+      id: 'com.chronicle.example-template', name: 'com.chronicle.example-template', source: 'repo-template',
+      schedule: 'not scheduled', scheduleKind: 'manual', nextRun: null, lastRun: null, lastRunAt: null,
+      status: 'not-installed', lastExit: null, runner: null, model: null, agent: null, project: 'chronicle',
+      projectPath: null, command: '', logPath: null, meta: 'ships with this repo, not installed',
+    },
+  ],
+};
