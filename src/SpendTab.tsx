@@ -1,6 +1,6 @@
-import React, { useMemo, useState, type JSX } from 'react';
+import React, { useEffect, useMemo, useState, type JSX } from 'react';
 import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult, PlanWindowsResult, AccountWindow, PlanAccount } from './api.js';
-import { insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl, planWindowsUrl } from './api.js';
+import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl, planWindowsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
@@ -25,12 +25,15 @@ import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type St
 // explore spend) land next. Chronicle's grammar; Varde content only.
 
 const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
-const BUDGET_KEY = 'chronicle.monthlyBudget';
+// Legacy home: the monthly budget used to live ONLY here (CHI-366 moved it
+// server-side so the briefing runner can read it). Read once on mount to migrate
+// an existing value up to /settings, then cleared.
+const LEGACY_BUDGET_KEY = 'chronicle.monthlyBudget';
 // Synthetic pseudo-model rows carry 0 real tokens — excluded from spend views.
 const PSEUDO_MODELS = new Set(['<synthetic>']);
 
-function readBudget(): number | null {
-  try { const v = localStorage.getItem(BUDGET_KEY); const n = v ? Number(v) : NaN; return Number.isFinite(n) && n > 0 ? n : null; }
+function readLegacyLocalBudget(): number | null {
+  try { const v = localStorage.getItem(LEGACY_BUDGET_KEY); const n = v ? Number(v) : NaN; return Number.isFinite(n) && n > 0 ? n : null; }
   catch { return null; }
 }
 
@@ -65,9 +68,35 @@ export default function SpendTab({ insights, activity, win, days }: {
 
 function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | null; today: string | null }): JSX.Element {
   const { mode } = useCostMode();
-  const [budget, setBudget] = useState<number | null>(() => readBudget());
+  // Budget is server-backed (CHI-366): load it from /settings on mount, and
+  // migrate a pre-existing localStorage budget up ONCE so upgrading users don't
+  // silently lose their cap. `loaded` gates the render so the band never flashes
+  // "no budget set" before the settings fetch resolves.
+  const [budget, setBudget] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const s = await api.settings();
+        let b = s.monthlyBudget;
+        if (b == null) {
+          const local = readLegacyLocalBudget();
+          if (local != null) {
+            try { const saved = await api.patchSettings({ monthlyBudget: local }); b = saved.monthlyBudget; } catch { b = local; }
+            try { localStorage.removeItem(LEGACY_BUDGET_KEY); } catch { /* private mode */ }
+          }
+        }
+        if (alive) { setBudget(b); setLoaded(true); }
+      } catch {
+        if (alive) setLoaded(true); // server unreachable → treat as no budget, still render
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   // Days of the CURRENT calendar month only. The month-insights fetch reaches
   // back day-of-month days, which crosses into the last day of the PRIOR month
@@ -95,12 +124,12 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   const saveBudget = () => {
     const n = Number(draft);
     const next = Number.isFinite(n) && n > 0 ? n : null;
-    setBudget(next);
-    try { if (next) localStorage.setItem(BUDGET_KEY, String(next)); else localStorage.removeItem(BUDGET_KEY); } catch { /* private mode */ }
+    setBudget(next); // optimistic; the server is the source of truth
+    api.patchSettings({ monthlyBudget: next }).then((s) => setBudget(s.monthlyBudget)).catch(() => { /* keep optimistic value */ });
     setEditing(false);
   };
 
-  if (!posture) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!posture || !loaded) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
   const share = posture.share;
   const fillPct = share != null ? Math.min(share * 100, 100) : 0;
   const projPct = budget && posture.projected ? Math.min((posture.projected / budget) * 100, 100) : null;

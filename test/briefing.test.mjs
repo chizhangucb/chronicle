@@ -111,6 +111,24 @@ test('spend-anomaly resolves when the spike day has rolled past or is no longer 
   assert.equal(r.checkCardResolved(card, {}, NOW), false);
 });
 
+// ---- budget posture (CHI-366) ----
+test('budget-posture resolves on month-roll or return to on-track, stands while over/approaching', () => {
+  const card = { id: 'budget-posture:2026-08', kind: 'budget-posture', domain: 'spend', needsYou: true, title: 't', summary: 's', runAt: NOW.toISOString() };
+  const spend = (today, word) => ({ spend: { today, budget: { state: word ? { word } : null } } });
+  // same month, still over budget -> stands
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'over budget'), NOW), false);
+  // same month, still approaching -> stands
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'approaching'), NOW), false);
+  // same month, back on track -> resolves
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'on track'), NOW), true);
+  // same month, budget cleared (state null) -> resolves
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', null), NOW), true);
+  // month rolled past the card's month -> resolves (that month is closed)
+  assert.equal(r.checkCardResolved(card, spend('2026-09-01', 'over budget'), NOW), true);
+  // no spend slice -> left alone (stands)
+  assert.equal(r.checkCardResolved(card, {}, NOW), false);
+});
+
 test('buildSpendSnapshot slice shape (empty DB is an all-quiet reading)', async () => {
   const { buildSpendSnapshot } = await import('../server/spendSnapshot.ts');
   const slice = buildSpendSnapshot(NOW);
@@ -121,6 +139,10 @@ test('buildSpendSnapshot slice shape (empty DB is an all-quiet reading)', async 
   assert.ok(Array.isArray(slice.anomaly.dimensionFlags));
   assert.ok(Array.isArray(slice.flaggedDays));
   assert.equal(slice.anomaly.flagged, false); // no sessions -> nothing flags
+  // CHI-366: the slice always carries a budget posture; with no budget configured
+  // its state is null (the briefing then emits no budget card).
+  assert.equal(typeof slice.budget.monthToDate, 'number');
+  assert.equal(slice.budget.state, null);
 });
 
 // ---- routes ----

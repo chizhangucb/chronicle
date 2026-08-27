@@ -58,7 +58,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/modules` | **Ops surface (hub-conditional, CHI-323 3a).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
 | `/safety` | **Ops surface (hub-conditional, CHI-323 3d).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional, CHI-323 3c).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
-| `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly cards, CHI-324 2i — the D7 gap closed). | `src/BriefingPage.tsx` |
+| `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards, CHI-324 2i / CHI-366 — the D7 gap closed). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional, CHI-323 3e).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
 | `/records` | **Ops surface (hub-conditional, CHI-324).** The append-only hub records, via the new `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY phase-2 type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, CHI-314) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
 | `/ask` | **Ask (CHI-351): NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
@@ -223,8 +223,10 @@ rangebar scopes the tab.
 
 1. **Budget band** — FULL-WIDTH horizontal band (CHI-324 review: the anomaly is already the Overview
    tile, so the Spend tab carries budget alone up top; a full-width horizontal layout fills the row
-   with no empty half). Eyebrow `Budget · <Month> · list price` + a `✎ edit` affordance (localStorage
-   budget; the gated `budget-config` editor is D5). Body, left→right: big `$MTD` month-to-date number
+   with no empty half). Eyebrow `Budget · <Month> · list price` + a `✎ edit` affordance (the budget is
+   server-backed via `/settings` → `~/.chronicle/config.json` as of CHI-366, so the briefing runner
+   reads the same number; still an inline editor, NOT the aspirational `budget-config` gate). Body,
+   left→right: big `$MTD` month-to-date number
    + (`of $Y · %` + `on track`/`approaching`/`over budget` state chip when a budget is set, else
    `month to date · no budget set`); a meter bar (fill + projection tick) that grows to fill the
    middle (only when a budget is set); stats `$/day pace · peak day $N · $/active-day` (+ `on pace
@@ -479,13 +481,20 @@ Reading order: header (`as of` + open/snoozed counts + Run-now) → card section
   plain-language anatomy (what happened / means / to do) · evidence expander · an internal link ·
   terminal actions (Done / Snooze / Dismiss, or Reopen). A card is binary (needs you or not) — no
   severity ladder.
-- **Spend cards (CHI-324 2i)**: the runner assembles a `spend` slice (`server/spendSnapshot.ts`) —
-  the SAME costed days + shared thresholds the Spend tab runs on, priced server-side at the fixed
-  theoretical (list) basis. The skill emits one `spend-anomaly:<today>` card when today's cost is
-  flagged vs the trailing 14-day median (needs-you when escalated); it auto-resolves once the day
-  rolls past or the reading is no longer flagged (`server/briefing-resolve.ts`). Budget-posture is
-  NOT emitted yet: the monthly budget is browser-local, so the runner has no server-visible source
-  (CHI-366 follow-up moves it server-side; then the budget card slots in the same way).
+- **Spend cards (CHI-324 2i + CHI-366)**: the runner assembles a `spend` slice
+  (`server/spendSnapshot.ts`) — the SAME costed days + shared thresholds the Spend tab runs on,
+  priced server-side at the fixed theoretical (list) basis. Two card kinds:
+  - `spend-anomaly:<today>` — emitted when today's cost is flagged vs the trailing 14-day median
+    (needs-you when escalated); auto-resolves once the day rolls past or the reading is no longer
+    flagged.
+  - `budget-posture:<YYYY-MM>` (CHI-366) — emitted when the monthly budget posture is `approaching`
+    or `over budget` (needs-you only when over). Priced Lane-C-free to match the Spend tab's budget
+    band. Auto-resolves when the month rolls or the state returns to `on track`. The monthly budget
+    now lives server-side (`monthlyBudget` in `~/.chronicle/config.json`, read/written via
+    `/settings`) so the Spend tab and the runner read the same number; `state` null (no budget set)
+    emits nothing. NB: the aspirational `budget-config` gate surface below is still unbuilt — the
+    budget is a local app pref written like the other `/settings` toggles, not an egress/hub gate.
+  Both resolve in `server/briefing-resolve.ts`.
 - **Run-now** spawns the headless runner (assembles the snapshot from the adapter slices, keeps the
   `live-data.json` filename, spawns `claude -p --allowedTools Read,Glob,Grep` from an isolated runner
   cwd). Demo-refused (409); the dormant launchd template is NOT installed this phase (no duplicate
@@ -621,7 +630,8 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days/Lane-C lines (CHI-324, keeps D6 anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the D3 artifact |
 | Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp → proxy lane; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview (CHI-324) | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers (CHI-324 2d) | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |
-| Budget editor writes only through the `budget-config` gate surface (diff card, never a raw write) | `test/e2e/spend-tab.spec.ts` + `test/gate-budget.test.mjs` — budget-config validate + gated write |
+| Monthly budget is server-backed (CHI-366): the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once), and the briefing runner reads the SAME number, priced Lane-C-free | `test/spend-snapshot-budget.test.mjs` — budget slice is Lane-C-free + reads config; `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
+| Briefing `budget-posture:<YYYY-MM>` card auto-resolves on month-roll / return to on-track (CHI-366) | `test/briefing.test.mjs` — budget-posture resolve conditions |
 | Sessions tab = [human\|all] toggle + 3-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend (CHI-324) | `test/e2e/sessions-tab.spec.ts` — "Sessions tab toggle + aggregates + one flat table" |
 | Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
 | Records nav hidden + `/api/hub/records` absent-sentinel when the hub is absent (CHI-324) | `test/e2e/ops-records.spec.ts` — "no Records nav item; /api/hub/records returns the absent sentinel" |

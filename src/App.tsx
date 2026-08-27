@@ -387,6 +387,7 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
     api.settings().then(setSettings).catch(() => setSettings({
       autoSync: true, autoSyncPaused: false, ask: false,
       minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true,
+      monthlyBudget: null,
     }));
   }, []);
   async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask' | 'planWindows') {

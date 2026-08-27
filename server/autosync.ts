@@ -34,6 +34,12 @@ export interface ChronicleConfig {
   // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
   // CLI being present AND a non-demo console (all enforced server-side).
   ask?: boolean;
+  // Monthly spend budget in USD (CHI-366). The server-visible home for what used
+  // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
+  // headless briefing runner read the SAME number (they can never disagree).
+  // null / absent = no budget set. Local app pref, written like the toggles
+  // above via /settings — NOT an egress/hub gate surface.
+  monthlyBudget?: number | null;
   [key: string]: unknown;
 }
 
