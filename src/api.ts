@@ -634,6 +634,16 @@ export interface JobRowView {
 }
 export interface JobsSliceView { scannedAt: string; sources: Record<JobSource, number>; jobs: JobRowView[] }
 export type HubJobsResult = JobsSliceView | { hubPresent: false };
+
+// Records (CHI-324 2h) — the append-only hub records, index fields only.
+export interface RecordsLedgerRowView { date: string; sessionId: string; focus: string; repo: string | null }
+export interface RecordsDecisionView { date: string | null; title: string }
+export interface RecordsSliceView {
+  found: boolean;
+  decisions: { total: number; recent: RecordsDecisionView[] };
+  ledger: { total: number; recent: RecordsLedgerRowView[]; rows: RecordsLedgerRowView[] };
+}
+export type HubRecordsResult = RecordsSliceView | { hubPresent: false };
 export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
@@ -722,6 +732,7 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
   }),
   hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
+  hubRecords: (): Promise<HubRecordsResult> => j('/api/hub/records'),
   jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
   briefing: (): Promise<BriefingResult> => j('/api/briefing'),
   briefingAction: (cardId: string, action: CardActionView): Promise<{ cards: ResolvedCardView[]; followThrough: FollowThroughView }> =>

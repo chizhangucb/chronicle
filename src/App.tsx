@@ -14,6 +14,7 @@ import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
 import BriefingPage from './BriefingPage.tsx';
 import MemoryPage from './MemoryPage.tsx';
+import RecordsPage from './RecordsPage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -75,6 +76,7 @@ export default function App() {
   const [atJobs] = useRoute('/jobs');
   const [atBriefing] = useRoute('/briefing');
   const [atMemory] = useRoute('/memory');
+  const [atRecords] = useRoute('/records');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
   const search = useSearch();
@@ -207,6 +209,12 @@ export default function App() {
               <span className="sb-icon">❖</span><span className="sb-label">{t('Memory')}</span>
             </button>
           )}
+          {hubPresent && (
+            <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
+              onClick={() => navigate('/records')}>
+              <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -296,6 +304,7 @@ export default function App() {
         {atJobs && <JobsPage />}
         {atBriefing && <BriefingPage />}
         {atMemory && <MemoryPage />}
+        {atRecords && <RecordsPage />}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}
