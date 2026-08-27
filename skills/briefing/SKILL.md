@@ -59,9 +59,34 @@ Emit ONE `spend-anomaly:<today>` card (id uses `today`, e.g.
 - If `includesLaneC` is true, note that proxy-lane spend rides the total with no
   attributable mover.
 
-Do NOT emit a budget card: the monthly budget is browser-local, so the snapshot
-carries no server-visible budget this phase. Do NOT invent a spend finding when
-`anomaly.flagged` is false — a quiet spend day is a good, cardless run.
+### Budget card (CHI-366)
+
+`spend.budget` is the monthly budget posture, priced Lane-C-free to match the
+Spend tab's budget band: `{ monthlyUsd, monthToDate, perDayPace, projected,
+share, state, elapsedDays, daysInMonth }`. `state` is `null` when no monthly
+budget is configured (`monthlyUsd` null) — then emit NOTHING. `state.word` is
+`on track` / `approaching` / `over budget`.
+
+Emit ONE `budget-posture:<YYYY-MM>` card (id uses the current month, e.g.
+`budget-posture:2026-08`) ONLY when `state.word` is `approaching` or `over
+budget`:
+
+- `domain` `spend`, `kind` `budget-posture`.
+- `needsYou` = `true` only when `state.word` is `over budget` (approaching is an
+  FYI).
+- `title` — e.g. `Spend is 92% of the monthly budget` (share) or `Over the
+  monthly budget` when over.
+- `summary` — `monthToDate` of `monthlyUsd` (list price), the `projected`
+  month-end figure, and `perDayPace`.
+- `evidence` — the raw `monthToDate` / `monthlyUsd` / `share` / `projected` /
+  `elapsedDays`.
+- `link` — `{ "label": "Open Spend", "to": "/?tab=spend" }`.
+- Frame all dollars as LIST PRICE (same basis as the anomaly card). The card
+  auto-resolves (server/briefing-resolve.ts) when the month rolls or the state
+  returns to `on track`, so re-emit the same id each run while it still fires.
+
+Do NOT invent a spend finding when `anomaly.flagged` is false and `state.word` is
+`on track` — a quiet spend day is a good, cardless run.
 
 ## Card shape (each object)
 
@@ -69,7 +94,7 @@ carries no server-visible budget this phase. Do NOT invent a spend finding when
   runs for the same finding so the operator's "done" sticks. Encode the subject
   in the id where natural: `job-failure:<jobId>`, `job-stale:<jobId>`,
   `egress-off`, `safety-gap:<slug-of-title>`, `source-stale`, `coverage:empty`,
-  `spend-anomaly:<today>`.
+  `spend-anomaly:<today>`, `budget-posture:<YYYY-MM>`.
 - `kind` (string, short machine-readable, e.g. `job-failure`, `egress-off`,
   `spend-anomaly`).
 - `domain` — one of: `jobs`, `safety`, `memory`, `sessions`, `coverage`, `spend`.

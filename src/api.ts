@@ -321,6 +321,9 @@ export interface Settings {
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
   planWindows: boolean;
+  // Monthly spend budget in USD, or null when unset (CHI-366). Server-visible so
+  // the Spend tab and the briefing runner read the same value.
+  monthlyBudget: number | null;
 }
 
 // Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
