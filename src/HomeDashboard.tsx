@@ -5,6 +5,7 @@ import {
   insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
 } from './api.js';
+import { sessionDisplayName } from './ProjectDetail.jsx';
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
@@ -190,7 +191,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 
             {isToday && <ActivityBlock activity={activity} onOpenSession={onOpenSession} />}
 
-            <AnomalyTile activity={activity} win={win} days={days} onOpenSession={onOpenSession} />
+            <AnomalyTile activity={activity} insights={insights} win={win} days={days} onOpenSession={onOpenSession} />
 
             {insights && (
               <div className={insightsStale ? 'range-refreshing' : undefined}>
@@ -444,7 +445,7 @@ function windowStartDay(today: string, days: number | null): string | null {
   return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
 }
 
-function AnomalyTile({ activity, win, days, onOpenSession }: { activity: ActivityResult | null; win: WindowKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
+function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activity: ActivityResult | null; insights: InsightsResult | null; win: WindowKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
   // Hooks run unconditionally (rules-of-hooks) — the null-activity guard reads
@@ -456,6 +457,22 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
     () => (burn ? computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, windowStartDay(burn.today, days) ?? undefined) : []),
     [burn, costedDays, days],
   );
+  // Top session ranked by COST in this window (CHI-324 review — the old server
+  // pick ranked by TOKENS but showed cost, so a wider window's top could show a
+  // SMALLER figure than a narrower one). The insights windowed cells give the
+  // in-window per-session share, so the max-cost pick is monotonic across widening
+  // windows and respects the List/Billed toggle. Same math the retired
+  // Top-sessions-by-cost table used.
+  const topSession = useMemo(() => {
+    if (!insights) return null;
+    const bySession = groupByKey(insights.windowedTokensByModel, (c) => c.sessionId);
+    let best: { row: InsightsResult['sessions'][number]; cost: number } | null = null;
+    for (const s of insights.sessions) {
+      const cost = costOfBucketedCells(bySession.get(s.id) ?? [], mode);
+      if (cost > 0 && (!best || cost > best.cost)) best = { row: s, cost };
+    }
+    return best;
+  }, [insights, mode]);
 
   if (!activity || !burn) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
@@ -480,11 +497,10 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
     : t('all time');
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
-  const topCost = priceCells(burn.topSessionTokensByModel, mode);
   const openTop = () => {
-    if (!burn.topSessionId) return;
-    if (onOpenSession) onOpenSession(burn.topSessionId, 0);
-    else navigate(`/session/${encodeURIComponent(burn.topSessionId)}`);
+    if (!topSession) return;
+    if (onOpenSession) onOpenSession(topSession.row.id, topSession.row.project_id);
+    else navigate(`/session/${encodeURIComponent(topSession.row.id)}`);
   };
 
   // ── Movers: the top project + top model by spend IN THIS WINDOW (CHI-324
@@ -561,12 +577,12 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
         </div>
       )}
 
-      {burn.topSessionId && (
+      {topSession && (
         <div className="burn-top" onClick={openTop} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') openTop(); }}>
           <span className="eyebrow">{t('Top session')}</span>
-          <span className="bt-name" title={burn.topSessionName ?? undefined}>{burn.topSessionName}</span>
-          <span className="bt-cost num-col">{fmtMoney(topCost, 2)}</span>
+          <span className="bt-name" title={sessionDisplayName(topSession.row)}>{sessionDisplayName(topSession.row)}</span>
+          <span className="bt-cost num-col">{fmtMoney(topSession.cost, 2)}</span>
         </div>
       )}
     </div>
