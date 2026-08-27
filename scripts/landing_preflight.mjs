@@ -50,8 +50,8 @@ function revListCount(repo, range) {
 export function runPreflight({ repo = '.', target = 'origin/main', fetch = true } = {}) {
   // Refuse to operate with uncommitted TRACKED changes: the dry-run + abort
   // below can only guarantee restoration from a clean index/worktree. Untracked
-  // files (porcelain `??`) are safe — `merge --abort` never touches them, and a
-  // merge that would clobber one aborts on its own — so they don't block.
+  // files (porcelain `??`) are safe: `merge --abort` never touches them, and a
+  // merge that would clobber one aborts on its own, so they don't block.
   const trackedDirty = (git(repo, ['status', '--porcelain']) || '')
     .split('\n')
     .filter((ln) => ln && !ln.startsWith('??'));
