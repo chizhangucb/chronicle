@@ -24,6 +24,18 @@
 > CHI-339 (self-signed, same delegation — see the `/memory` inventory); the briefing spend cards
 > remain open (D7, phase-2 spend detector). This paragraph is that sign-off.
 
+> **CHI-324 phase-2 sign-off (consolidated).** The spend/sessions consolidation reshapes the hub
+> tabs 3 → 5 (Overview / Explore / Content / **Spend** / **Sessions**), replaces the Overview
+> BurnTile with an anomaly tile, retires Overview's Top-sessions-by-cost, upgrades the spend chart
+> (project|provider stack toggle + a median dash, no flagged-day markers), and adds a 6th
+> hub-conditional ops surface **Records** (`/records`). Every surface was rendered as a mockup and
+> approved by Chi one-by-one in the CHI-324 D3 Fable design session (2026-08-26; pixel reference
+> artifact `06128eb0-1e78-46f4-915e-d0e3875f68c3`, each approved surface badged "Approved"), relayed
+> via session chronicle-2e. Plan: `plans/2026-08-26-chi-324-phase2-spend-sessions-consolidation.md`
+> (Chi-approved 2026-08-26; D1/D3/D7 signed). This paragraph is that sign-off; the release walk
+> judges the built pixels against the artifact. (The `/ask` surface floated in that session is
+> OUT of CHI-324 — it gets its own ticket + plan review, and is NOT added here.)
+
 The agreed product shape as enumerable, checkable facts — reflecting the CURRENT
 (post-F1/F2, post-2026-08-14-feedback-round-D1/D2/D14, post-CHI-323-phase-1) branch state, which is Chi's latest
 confirmed calls. Where this disagrees with
@@ -37,7 +49,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 
 | Route | Surface | Component |
 |---|---|---|
-| `/` | The ONE Insights hub, sidebar item **`∑ Insights`** — tabs Overview / Explore / Content | `src/HomeDashboard.tsx` |
+| `/` | The ONE Insights hub, sidebar item **`∑ Insights`** — tabs Overview / Explore / Content / Spend / Sessions (CHI-324) | `src/HomeDashboard.tsx` |
 | `/projects` | Chrome-sidebar layout, no h1: a CENTER content column (filter toolbar, shared select command bar, "Recent sessions" ledger — stacks first below 1100px) + a RIGHT chrome sidebar (same tone as the left app sidebar, full height, flush to the window edge >=1100px; eyebrow `PROJECTS · N`, borderless nav rows, gear visible at rest) | `src/ProjectsPage.tsx` |
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
@@ -47,6 +59,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/jobs` | **Ops surface (hub-conditional, CHI-323 3c).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). NON-SPEND cards only this phase (D7) — the spend cards are a DISCLOSED gap that lights up in phase 2. | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional, CHI-323 3e).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
+| `/records` | **Ops surface (hub-conditional, CHI-324).** The append-only hub records, via the new `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY phase-2 type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, CHI-314) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -71,8 +84,9 @@ drag-resizable when expanded. Contents, top to bottom:
 - **`sb-top` ops nav — hub-conditional (CHI-323).** After Projects, the ops items render ONLY
   when `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent. As
   organs land they are added here in order: **Modules (`▦`)** [1c] · **Safety (`⊘`)** [1d] ·
-  **Jobs (`⧗`)** [1e] · **Briefing (`▣`)** [1f] · **Memory (`❖`)** [1g] — all five ops organs now
-  present. So on a stock public install with
+  **Jobs (`⧗`)** [1e] · **Briefing (`▣`)** [1f] · **Memory (`❖`)** [1g] · **Records (`≡`)** [CHI-324]
+  — six ops organs now present (Records is the CHI-324 addition, after Memory). So on a stock public
+  install with
   no hub, `sb-top` is exactly Insights + Projects (the existing pin holds); with a hub or in demo
   it also carries the ops items. See the "ops routes are hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -88,7 +102,8 @@ drag-resizable when expanded. Contents, top to bottom:
   on EVERY page.
 - LIVE pill — session-scoped ONLY (renders only when `atSession` and a live SSE stream is open).
 - **Cost basis toggle** (`.cost-mode-toggle`, `CostModeToggle`, every route): two options,
-  `List price` (theoretical, default) vs `Billed` (real). Global state (`src/costMode.tsx`,
+  `List price` (theoretical, default) vs `Billed` (real). The control reads just `List price | Billed`
+  — the `COST` `.cm-label` prefix is REMOVED (CHI-324, cross-cutting). Global state (`src/costMode.tsx`,
   persisted); every cost figure across the app prices at the selected mode. `List price` = metered
   list price; `Billed` = what Chi pays, so subscription-covered models (Claude tiers, gpt-5.6 /
   Codex) read ~$0. The active mode is ALWAYS visibly labeled next to spend figures so no number
@@ -110,7 +125,10 @@ drag-resizable when expanded. Contents, top to bottom:
   — `1 Year` is REMOVED (90d replaces it), `All time` → `All`.** Guard:
   `test/e2e/window-matrix.spec.ts` — "the rangebar on /project/:id has exactly the same Today /
   7d / 30d / 90d / All set as the / hub".
-- **Hub tabs** (`/`): `Overview` · `Explore` · `Content`. Exactly three; Overview default.
+- **Hub tabs** (`/`): `Overview` · `Explore` · `Content` · `Spend` · `Sessions`. Exactly five
+  (CHI-324, was three); Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared
+  rangebar scopes every tab. Guard: `test/e2e/home.spec.ts` — "the hub at / shows exactly Overview /
+  Explore / Content / Spend / Sessions tabs".
 - **Project tabs** (`/project/:id`): `Overview` · `Explore` · `Content` · `Sessions`.
 - **Session modes rail**: `Overview` · `Playback` · `Refine` + `Security Check` (four rail items).
 - **Search palette scopes** (`src/SearchModal.tsx` `.search-tabs`): `All` · `Tools` · `Chat`.
@@ -123,16 +141,16 @@ drag-resizable when expanded. Contents, top to bottom:
   `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
-  `▦`=modules (ops nav, CHI-323; reserved for later ops organs: `⊘`=safety `⧗`=jobs `▣`=briefing
-  `❖`=memory). `⌂`=Home is
+  `▦`=modules (ops nav, CHI-323; `⊘`=safety `⧗`=jobs `▣`=briefing
+  `❖`=memory `≡`=records [CHI-324]). `⌂`=Home is
   retired from chrome — the sidebar item it used to label was renamed to `∑ Insights` (D2, see
   above); `⌂` does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap (NOT a novel finding):** `src/kinds.ts` `KIND_ICON` still maps
     `user`/`thinking`/`tool_use` to colored emoji (👤/💭/🔧) in Playback rows — adjudicated at
     the walk, per the rubric.
-- **Ops routes are hub-conditional (CHI-323).** The ops surfaces (Modules `/modules`, and the
-  later organs Safety / Jobs / Briefing / Memory) and their `sb-top` nav items render ONLY when
+- **Ops routes are hub-conditional (CHI-323, +Records CHI-324).** The ops surfaces (Modules
+  `/modules`, Safety / Jobs / Briefing / Memory, and Records `/records`) and their `sb-top` nav items render ONLY when
   `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
   are hidden and their routes fail soft (the page shows a "no hub connected" line, never a broken
   view). This is why a stock public install (no hub) still shows exactly Insights + Projects in
@@ -159,24 +177,80 @@ drag-resizable when expanded. Contents, top to bottom:
 2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
-3. **Burn tile** (`.burn-card`, `BurnTile`) — window spend vs a baseline (Today → 14-day daily
-   median; 7d/30d/90d → prior period of the same length; All → NO baseline). Warn tint + `×ratio`
-   + "high" flag when spend runs > 2× baseline. Comparison bar when a baseline exists. Names the
-   top contributing session (name + cost), clickable. **D6 sign-off (feedback-round Task 13,
-   `records/plans/2026-08-14-chronicle-feedback-round-plan.md`):** the headline (`.burn-now .v`) IS
-   the ratio + flag (e.g. `×3.2 high`) when a baseline exists; the support line (`.burn-now .s`) is
-   the absolute comparison, `$current vs $baseline · <baselineLabel>`. (No-baseline `All` case
-   unchanged: headline falls back to absolute spend, support line stays "all time · no baseline".)
-4. **Insights charts** (`.grid2` then `.grid2b` etc., `InsightsCharts`) — Spend over time stacked
-   by project (top 5 + neutral "Other") · Spend by model · Sources · Working Rhythm · Global tool
-   mix (top 5 + Other) · Error rate by project · Token usage by model table · Top sessions by cost.
-   **LAST** — the Overview tab ends here. The recent-sessions ledger does NOT mount on `/` (moved
-   off in Task 9, D1 — see `/projects` below; per Chi, 2026-08-14 feedback round, D1+D2,
-   `records/plans/2026-08-14-chronicle-feedback-round-plan.md`; pixels checkpoint before merge on
-   PR).
+3. **Anomaly tile** (`.burn-card`, `AnomalyTile` — REPLACES BurnTile in place, CHI-324 2c). Keeps
+   BurnTile's D6 anatomy and window rules unchanged: window spend vs a baseline (Today → 14-day
+   daily median; 7d/30d/90d → prior period of the same length; All → NO baseline); headline
+   (`.burn-now .v`) = ratio + flag with a `high` TEXT label when hot, warn tint when hot; support
+   line (`.burn-now .s`) = the absolute comparison `$current vs $baseline · <baselineLabel>`;
+   comparison bar when a baseline exists; a clickable top-session row (persists on every window; All
+   falls back to absolute spend). ADDS (CHI-324): a **top-movers line** (top 2 dimension movers,
+   e.g. `◫ chronicle +$9.40 · ▤ claude-fable-5 +$7.10`); a **flagged-days line** on multi-day
+   windows (`1 flagged day · Aug 24 →` linking to the Spend tab); and the **Lane-C note** when
+   proxy spend contributes to the total (`incl. $0.42 proxy lane, not attributable to a mover`, D8).
+   No flagged-day markers live on the chart — the tile carries flags.
+4. **Insights charts** (`.grid2` then `.grid2b` etc., `InsightsCharts`) — **Spend over time**
+   (title stays `SPEND OVER TIME`, no suffix) with a bare segmented **[project | provider]** stack
+   toggle (no "stack:" word; `provider` = model vendor anthropic/openai/google per D6, NOT `source`)
+   + a quiet **median dash** on the same y-scale, labeled on the line (`median $6.70`), NO
+   flagged-day markers (CHI-324 2d) · Spend by model · Sources · Working Rhythm · Global tool mix
+   (top 5 + Other) · Error rate by project · Token usage by model table. **Top sessions by cost is
+   RETIRED from Overview** (CHI-324 — absorbed by the Sessions tab's cost sort). **LAST** — the
+   Overview tab ends here. The recent-sessions ledger does NOT mount on `/` (Task 9, D1 — see
+   `/projects`).
 
 The Explore / Content tabs render `ExploreTab` / `ContentTab` at `scope={all}` (same components
 the project view uses per-project).
+
+### `/` Spend tab — reading order top → bottom (CHI-324 2b/2d/2e/2f, `SpendTab.tsx`)
+
+Chronicle's visual grammar wins; Varde contributes content only. Card titles use the `.card h3`
+recipe (name + window only; explanations live in InfoTips, never caption suffixes). The shared
+rangebar scopes the tab.
+
+1. **Posture row** (asymmetric `1fr : 1.4fr`): **Budget card** (`Budget · <Month> · list price`;
+   `$X of $Y · %`; an `on track`/`approaching`/`over budget` state chip; bar + a projection tick;
+   subline `$/day pace · peak day $N · $/active-day · history starts <date>`; a pencil-edit
+   affordance → the gated `budget-config` editor, D5) | **Anomaly card** (ratio + flag; today vs
+   median; flagged-day count; two movers; the Lane-C note — the deep-view sibling of the Overview
+   anomaly tile).
+2. **Chart row** (Overview `grid2` proportions): the upgraded spend-over-time chart (same
+   project|provider toggle + median dash as Overview) | **Spend by model** hbar card.
+3. **Plan windows** — ONE CARD PER ACCOUNT, `auto-fit` (a new account wraps in as one more card).
+   Claude cards mirror the official usage page rows: `5h` (current session) · `7d` (all models) ·
+   `fable` (top-tier model 7d — follow whatever the quota API reports, NEVER hardcode opus). Codex
+   cards: `7d`. A `COVERED` tag once per card head, never per meter. Caption: quota-read posture +
+   Settings opt-out (Claude) / local (Codex). Claude meters are opt-in-off outbound (D7).
+4. **Efficiency card** (Varde's ROW grammar, Chronicle-restyled): **DETECTORS** rows (name · value +
+   lowercase state word · small bar · right-muted definition): cache hit rate · jumbo outputs ·
+   long context · error rows. Below, two columns: **WASTE SIGNALS** (right-sizing approx `$/mo` ·
+   cache churn `$` · repeat file reads — each with a brass "check" affordance) | **ROUTING
+   COMPLIANCE** (on-roster % · off-roster models + `$` · Prepare promotion launcher).
+5. **grid2**: **Priced skills** (Skill · Runs · Tokens · Cost) | **MCP server spend** hbars + the
+   double-count caption (D6).
+6. **Proxy lane** slim row (`authoritative $ · not session-linked`, D8).
+- **Billed flip** everywhere (`Billed` cost basis): covered models re-rank ~$0 with a `COVERED` tag;
+  no-model-split rows gray as `theoretical · no model split`; the proxy lane stays real. D9
+  placements exactly as rendered in the D3 artifact.
+
+### `/` Sessions tab — reading order top → bottom (CHI-324 2g, `SessionsHubTab.tsx`)
+
+1. **Header row**: a muted count line at left; a right-aligned **[human | all]** toggle + InfoTip
+   (human default = interactive only, matching the KPI Sessions count; `all` adds headless
+   automation).
+2. **Three-up aggregates** (`grid3` grammar, `auto-fit` 3 → 2+1 → 1): **Busiest days** (Day ·
+   Sessions · Active · Tokens · Cost) | **Busiest projects** (Project · Sessions · Msgs · Tokens ·
+   Cost) | **Automation by job** (Job · Runs · Tokens · Cost; InfoTip: always automation, unaffected
+   by the toggle — sourced from `~/.aios/machine_sessions.jsonl` via `machineSessions.ts`, NOT
+   `automations.ts`). All three sortable, default **Cost desc**; ONLY the active column shows the
+   down-caret (hover caret otherwise); headers `nowrap`.
+3. **ONE sessions table** (replaces both the old Top-sessions and All-sessions): chips
+   **[cost | duration | recent]**, **cost default** (the default option sits far left), FLAT in
+   every mode (NO day sub-headers — day-grouping stays `/projects`-ledger-only; per-day tallies live
+   in Busiest days). Columns: Session · Project (colored dot) · Source (pill) · Tools · Ctx · Active
+   · Cost · When. **Click-to-extend** `N more sessions` (window-btn pattern, not infinite scroll);
+   row click → `/session/:id`.
+- The product ends with exactly **two** session lists: `/projects` ledger = manage; Sessions tab =
+  analyze. The split is stated via an InfoTip, not a caption.
 
 ### `/projects` — chrome-sidebar: content column (center) + chrome rail (right)
 
@@ -437,6 +511,28 @@ Reading order: header (`MEMORY` + note/link/tier counts + communities legend) �
 **CHI-323 sign-off (organ 1g):** same phase-1 delegation; the Nebula pixels are Chi's viz sign-off
 (D4) reviewed live before merge.
 
+### `/records` — ops surface (hub-conditional, `RecordsPage.tsx`, CHI-324)
+
+The append-only hub records, via the new `records()` adapter slice (reads `records/*.jsonl`).
+Renamed from "Ledger" per Chi's growth requirement (CHI-313/314): the surface is a record BROWSER,
+not one ledger.
+
+Reading order: eyebrow `RECORDS` + a record-TYPE switcher (boxed `.tabs` chrome) → the active
+type's table.
+- **Type switcher**: phase 2 ships EXACTLY ONE type, **Sessions**. Future types (Decisions from
+  `records/decisions.jsonl`; Wiki sources; CHI-314 contacts/operations) are each a switcher entry +
+  a contract line with ZERO new IA — do NOT build them in phase 2.
+- **Sessions type** (`records/sessions.jsonl`): a table **Date · Session ID · Repo · Focus**,
+  newest first, NO rangebar. A text filter + repo chips. Click-to-extend `N more` (window-btn
+  pattern). An imported session id renders as a link into `/session/:id`; an id with no imported
+  session renders as plain mono (never a dead link).
+- **Hub-conditional**: same wholesale nav toggle as the other ops organs — the `≡ Records` nav item
+  + route render only when `/api/hub/status` reports present (live or demo), hidden when absent.
+- **Demo**: synthetic session-ledger rows from the demo `records()` slice.
+
+**CHI-324 sign-off:** landed under the consolidated phase-2 sign-off paragraph at the top of this
+file (D3 Fable design session, artifact `06128eb0…`, approved 2026-08-26).
+
 **CHI-339 sign-off (scope-suggest fast-follow):** self-signed under the same CHI-323 phase-1
 delegation — it closes the disclosed gap on this same surface, no new IA.
 
@@ -468,11 +564,11 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Scope-suggest walks structure NAMES only, hides confidential/next-ventures; validated tier mapping | `test/scope-suggest-route.test.mjs` (node) — `hubStructure`/`validateSuggestion` pins |
 | `loadMemoryConfig` per-tier fallback to defaults on an absent/partial/malformed config file | `test/memoryscope-config.test.mjs` (node) |
 | ScopePanel renders the current scope; Suggest scope refused in demo (409, no confirm card) | `test/e2e/ops-memory.spec.ts` — "ScopePanel (memory scope-suggest, CHI-339)" |
-| Hub tabs = Overview / Explore / Content, Overview default | `test/e2e/home.spec.ts` — "the hub at / shows Overview / Explore / Content tabs" |
+| Hub tabs = Overview / Explore / Content / Spend / Sessions (exactly five, CHI-324), Overview default | `test/e2e/home.spec.ts` — "the hub at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
-| Overview DOM order KPIs → activity → burn → charts, no ledger | `test/e2e/home.spec.ts` — "Overview reading order…" |
-| Activity block Today-only; Burn tile persists on 7d | `test/e2e/home.spec.ts` — "window toggle to 7d hides the Activity block…" |
+| Overview DOM order KPIs → activity → anomaly tile → charts, no ledger, no top-sessions-by-cost (CHI-324) | `test/e2e/home.spec.ts` — "Overview reading order KPIs → activity → anomaly → charts" |
+| Activity block Today-only; anomaly tile persists on 7d (CHI-324, was burn) | `test/e2e/home.spec.ts` — "window toggle to 7d hides the Activity block, anomaly tile persists" |
 | Live dot in the Activity block | `test/e2e/home.spec.ts` — "live session shows a pulsing dot…" |
 | `/projects` chrome-rail rows, no `.projects-grid`, not a card | `test/e2e/projects.spec.ts` — "renders rail-style rows…", "…NOT a bordered card…" |
 | Project gear menu = Sync Update / Rename / Remove, no View Details | `test/e2e/projects.spec.ts` — "gear menu opens with…"; `chrome.spec.ts` T17.6 |
@@ -496,7 +592,16 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
 | Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards (D5, D7) | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
-| Burn tile headline = ratio + flag, support line = absolute `$current vs $baseline` (D6) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk |
+| Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days/Lane-C lines (CHI-324, keeps D6 anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the D3 artifact |
+| Spend tab renders posture row (budget + anomaly) → chart row → plan windows → efficiency → skills/mcp → proxy lane (CHI-324) | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget/anomaly cards present" |
+| Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers (CHI-324 2d) | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |
+| Budget editor writes only through the `budget-config` gate surface (diff card, never a raw write) | `test/e2e/spend-tab.spec.ts` + `test/gate-budget.test.mjs` — budget-config validate + gated write |
+| Sessions tab = [human\|all] toggle + 3-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend (CHI-324) | `test/e2e/sessions-tab.spec.ts` — "Sessions tab toggle + aggregates + one flat table" |
+| Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
+| Records nav hidden + `/api/hub/records` absent-sentinel when the hub is absent (CHI-324) | `test/e2e/ops-records.spec.ts` — "no Records nav item; /api/hub/records returns the absent sentinel" |
+| `/records` renders the sessions-type table (Date / Session ID / Repo / Focus) from the hub (demo); type switcher present | `test/e2e/ops-records.spec.ts` + `test/hub-records.test.mjs` — records slice parse + newest-first + imported-id link |
+| Explore dimensions include `mcp` (per-server, calibrated) + `provider` (model vendor) (CHI-324 D6) | `test/explore-mcp-provider.test.mjs` (node) — mcp derivation + provider mapping + calibrated flag |
+| Briefing spend cards light up (spend domain accepted; the phase-1 gap closed, CHI-324 2i) | `test/briefing.test.mjs` — "validator accepts a spend-domain card" + the removed `.briefing-scope` gap note |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card (D4) | `test/e2e/content-characteristics.spec.ts` |
 | Playback selection drives panels | `test/e2e/playback.spec.ts` |
