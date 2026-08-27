@@ -36,13 +36,38 @@ export function normalizeAskCostMode(v: unknown): AskCostMode {
 }
 
 // ---- SELECT-only guard (defense-in-depth) --------------------------------
-/** Strip SQL line and block comments so a leading comment can't smuggle a
- * non-SELECT past the prefix check. */
+/** Single pass over the SQL, STRING-LITERAL AWARE (SQLite escapes a quote as
+ * `''`). Returns `stripped` (comments removed, string literals intact — this is
+ * what executes) and `skeleton` (comments removed AND every string literal
+ * blanked to `''` — the checks run on this so a `;`, a comment marker, or a
+ * banned keyword INSIDE a string literal never trips the guard). */
+export function scanSql(sql: string): { stripped: string; skeleton: string } {
+  let stripped = '', skeleton = '';
+  let i = 0; const n = sql.length;
+  while (i < n) {
+    const c = sql[i], d = sql[i + 1];
+    if (c === "'") { // string literal (contents blanked from the skeleton)
+      stripped += "'"; skeleton += "'"; i++;
+      while (i < n) {
+        if (sql[i] === "'") {
+          if (sql[i + 1] === "'") { stripped += "''"; i += 2; continue; } // escaped quote
+          stripped += "'"; skeleton += "'"; i++; break;
+        }
+        stripped += sql[i]; i++;
+      }
+      continue;
+    }
+    if (c === '-' && d === '-') { i += 2; while (i < n && sql[i] !== '\n') i++; stripped += ' '; skeleton += ' '; continue; }
+    if (c === '/' && d === '*') { i += 2; while (i < n && !(sql[i] === '*' && sql[i + 1] === '/')) i++; i += 2; stripped += ' '; skeleton += ' '; continue; }
+    stripped += c; skeleton += c; i++;
+  }
+  return { stripped: stripped.trim(), skeleton: skeleton.trim() };
+}
+
+/** Comments removed, string literals intact. Kept as a named export (used by
+ * tests and callers that just want the cleaned SQL). */
 export function stripSqlComments(sql: string): string {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .trim();
+  return scanSql(sql).stripped;
 }
 
 export interface SanitizeOk { ok: true; sql: string; }
@@ -50,19 +75,25 @@ export interface SanitizeErr { ok: false; error: string; }
 /** Accepts a SINGLE read-only SELECT/WITH statement. Rejects everything else
  * with a clean message. The read-only handle is the real guarantee; this exists
  * so the model gets "only SELECT is allowed" instead of a raw SQLite error, and
- * so a stray second statement never runs. */
+ * so a stray second statement never runs. Checks run on the skeleton (string
+ * contents blanked), so a valid query with a `;` or `--` inside a string is NOT
+ * rejected. */
 export function sanitizeAskSql(raw: unknown): SanitizeOk | SanitizeErr {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, error: 'sql must be a non-empty string' };
-  const stripped = stripSqlComments(raw);
+  const { stripped, skeleton } = scanSql(raw);
   if (!stripped) return { ok: false, error: 'sql is only comments' };
-  // Allow a single trailing semicolon; any other semicolon means multiple
-  // statements (node:sqlite runs only the first, silently - reject instead).
-  const noTrailing = stripped.replace(/;\s*$/, '');
-  if (noTrailing.includes(';')) return { ok: false, error: 'only a single statement is allowed (no ";")' };
-  if (!/^(select|with)\b/i.test(noTrailing)) return { ok: false, error: 'only SELECT / WITH queries are allowed' };
-  // Belt-and-suspenders keyword deny (these already fail on a read-only handle):
-  if (/\b(attach|detach|pragma|vacuum)\b/i.test(noTrailing)) return { ok: false, error: 'ATTACH / DETACH / PRAGMA / VACUUM are not allowed' };
-  return { ok: true, sql: noTrailing };
+  // Allow a single trailing semicolon; any other means multiple statements
+  // (node:sqlite runs only the first, silently - reject instead).
+  const skelNoTrailing = skeleton.replace(/;\s*$/, '');
+  if (skelNoTrailing.includes(';')) return { ok: false, error: 'only a single statement is allowed (no ";")' };
+  if (!/^(select|with)\b/i.test(skeleton)) return { ok: false, error: 'only SELECT / WITH queries are allowed' };
+  // Belt-and-suspenders keyword deny (these already fail on a read-only handle
+  // with extensions disabled): matched on the skeleton so the same word inside a
+  // string literal is fine.
+  if (/\b(attach|detach|pragma|vacuum|load_extension)\b/i.test(skelNoTrailing)) {
+    return { ok: false, error: 'ATTACH / DETACH / PRAGMA / VACUUM / load_extension are not allowed' };
+  }
+  return { ok: true, sql: stripped.replace(/;\s*$/, '') };
 }
 
 /** Wrap a sanitized query so the SQLite engine itself stops after ASK_MAX_ROWS+1
@@ -122,7 +153,8 @@ export function askSchemaDoc(costMode: AskCostMode): string {
     '    Per-message, deduped (replayed rows were nulled by CHI-286). USE THIS for finer breakdowns:',
     '    subagents (is_sidechain=1, group by agent_type), tools (tool_name / mcp_server), skills, by day.',
     '    Reconciles for exact/rederived sessions; may differ slightly for legacy usage_source=\'unverified\'.',
-    '- pricing(model, input, output, cw5m, cw1h, cache_read): per-MTok rates used above (transparency).',
+    '- pricing(model, day, input, output, cw5m, cw1h, cache_read): per-MTok rates used above, per',
+    '    session-day so windowed rates match the dashboards (transparency).',
     '',
     'Base tables / contract views (raw; do NOT SUM message token columns yourself for cost - prefer the',
     'surfaces above): projects(id,path,name); sessions(id,project_id,source,started_at,ended_at,',
@@ -158,6 +190,34 @@ export function validateAskEnvelope(value: unknown): AskEnvelope {
   };
 }
 
+// ---- runner helpers (pure; kept here so tests need only this light module,
+//      not scripts/run-ask.ts which transitively opens the DB) ---------------
+/** One captured query result from the MCP server's ask-queries.jsonl. */
+export interface AskCapture { sql: string; columns: string[]; rows: unknown[][]; rowCount: number; truncated: boolean; }
+
+export const normSql = (s: string): string => s.replace(/\s+/g, ' ').replace(/;\s*$/, '').trim().toLowerCase();
+
+/** The authoritative table for a turn: the captured entry whose SQL matches the
+ * model's declared final SQL, else the LAST captured query (it ran last). An
+ * EMPTY declared SQL means the model said it couldn't answer, so return null
+ * rather than attaching an unrelated exploratory query's table. */
+export function pickCapture(captures: AskCapture[], envelopeSql: string): AskCapture | null {
+  if (!captures.length || !envelopeSql.trim()) return null;
+  const want = normSql(envelopeSql);
+  for (let i = captures.length - 1; i >= 0; i--) if (normSql(captures[i].sql) === want) return captures[i];
+  return captures[captures.length - 1];
+}
+
+/** The confined `claude -p` argv. `--tools ""` disables ALL built-ins; only the
+ * MCP query tool is allowed; `--strict-mcp-config` blocks any other configured
+ * MCP server. Exported so a regression pin asserts this never silently drifts
+ * (STANDING RULE: a security-class arg carries a pin). */
+export function askClaudeArgs(prompt: string, cfgPath: string, model?: string): string[] {
+  return ['-p', prompt, '--tools', '', '--mcp-config', cfgPath,
+    '--allowedTools', 'mcp__chronicledb__query', '--strict-mcp-config',
+    ...(model ? ['--model', model] : [])];
+}
+
 // ---- a persisted conversation turn ---------------------------------------
 export interface AskTurn {
   id: string;
@@ -178,7 +238,7 @@ export interface AskTurn {
 // ---- claude CLI presence (server-side; routes can't import scripts/**) ----
 // Same probe order as scripts/run-briefing.ts findClaude, but importable by the
 // route (which gates /ask on CLI presence) and the runner alike.
-export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | null {
+function probeClaudeBin(env: NodeJS.ProcessEnv): string | null {
   if (env.CHRONICLE_CLAUDE_BIN) return env.CHRONICLE_CLAUDE_BIN;
   try {
     const onPath = spawnSync('which', ['claude'], { encoding: 'utf-8' });
@@ -193,8 +253,24 @@ export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | nu
   return candidates.find((c) => existsSync(c)) ?? null;
 }
 
+// Cached: /ask/status is an unauthenticated GET that a poll loop could hammer,
+// and each probe spawns `which`. The CLI doesn't appear/disappear mid-session,
+// so a short TTL memo is safe. Only the default-env call is cached (tests pass a
+// custom env and must not be memoized).
+let claudeBinCache: { at: number; bin: string | null } | null = null;
+const CLAUDE_BIN_TTL_MS = 60 * 1000;
+export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env !== process.env) return probeClaudeBin(env);
+  const now = Date.now();
+  if (claudeBinCache && now - claudeBinCache.at < CLAUDE_BIN_TTL_MS) return claudeBinCache.bin;
+  const bin = probeClaudeBin(env);
+  claudeBinCache = { at: now, bin };
+  return bin;
+}
+
 // ---- durable history (~/.chronicle/ask-history.jsonl) --------------------
 export const ASK_HISTORY_MAX = 500; // newest N turns kept
+export const ASK_HISTORY_ROWS = 100; // rows persisted PER turn (bounds file size)
 
 export function dataDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
@@ -228,7 +304,13 @@ export function appendAskTurn(turn: AskTurn, env: NodeJS.ProcessEnv = process.en
   const path = askHistoryPath(env);
   try {
     mkdirSync(dirname(path), { recursive: true });
-    const kept = [...readAskHistory(env), turn].slice(-ASK_HISTORY_MAX);
+    // Bound the stored table: the full result was shown live; history keeps a
+    // preview so the whole-file rewrite + /ask/history payload stay small even
+    // at the 500-row cap. The turn returned to the caller is unchanged.
+    const stored: AskTurn = turn.rows.length > ASK_HISTORY_ROWS
+      ? { ...turn, rows: turn.rows.slice(0, ASK_HISTORY_ROWS), truncated: true }
+      : turn;
+    const kept = [...readAskHistory(env), stored].slice(-ASK_HISTORY_MAX);
     writeFileSync(path, kept.map((t) => JSON.stringify(t)).join('\n') + '\n', 'utf-8');
   } catch { /* history is best-effort */ }
 }

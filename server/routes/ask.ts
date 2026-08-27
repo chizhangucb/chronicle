@@ -72,16 +72,31 @@ export function mountAsk(app: Express): void {
 
     runState.running = true;
     runState.startedAt = new Date().toISOString();
-    const child = spawn(process.execPath, [entry, '--question', question, '--cost-mode', costMode], {
-      cwd: fileURLToPath(new URL('../..', import.meta.url)),
-      env: process.env, stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    let child;
+    try {
+      // detached: the runner leads its own process GROUP, so on timeout we can
+      // SIGKILL the whole group (runner + claude + the MCP subprocess). A pure
+      // child.kill hits only the runner PID and could orphan a heavy query
+      // (node:sqlite has no interrupt, so only SIGKILL to the group stops it).
+      child = spawn(process.execPath, [entry, '--question', question, '--cost-mode', costMode], {
+        cwd: fileURLToPath(new URL('../..', import.meta.url)),
+        env: process.env, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+      });
+    } catch {
+      runState.running = false; runState.startedAt = null;
+      return res.status(500).json({ error: 'failed to start the query run' });
+    }
+    const pid = child.pid;
+    const killGroup = (): void => {
+      try { if (pid) process.kill(-pid, 'SIGKILL'); else child.kill('SIGKILL'); }
+      catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
+    };
     let out = '', errb = '';
-    child.stdout.on('data', (d) => { out += d; });
-    child.stderr.on('data', (d) => { errb += d; });
+    child.stdout?.on('data', (d) => { out += d; });
+    child.stderr?.on('data', (d) => { errb += d; });
     let settled = false;
     const finish = (fn: () => void): void => { if (settled) return; settled = true; clearTimeout(timer); runState.running = false; runState.startedAt = null; fn(); };
-    const timer = setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* ignore */ } finish(() => res.status(504).json({ error: 'the query run timed out' })); }, OUTER_TIMEOUT_MS);
+    const timer = setTimeout(() => { killGroup(); finish(() => res.status(504).json({ error: 'the query run timed out' })); }, OUTER_TIMEOUT_MS);
 
     child.on('exit', () => finish(() => {
       let turn: AskTurn | null = null;

@@ -12,7 +12,8 @@ import { join } from 'node:path';
 import {
   sanitizeAskSql, stripSqlComments, wrapLimited, shapeRows,
   validateAskEnvelope, normalizeAskCostMode, toCostMode, costBasisLabel,
-  parseHistory, appendAskTurn, readAskHistory, ASK_HISTORY_MAX, ASK_MAX_ROWS,
+  parseHistory, appendAskTurn, readAskHistory, ASK_HISTORY_MAX, ASK_HISTORY_ROWS, ASK_MAX_ROWS,
+  pickCapture, askClaudeArgs,
 } from '../server/ask.ts';
 import { buildCostSurface } from '../server/askDb.ts';
 
@@ -43,6 +44,27 @@ test('sanitizeAskSql: a leading comment cannot smuggle a non-SELECT', () => {
   assert.equal(sanitizeAskSql('/* hi */ DELETE FROM sessions').ok, false);
   assert.equal(sanitizeAskSql('-- comment\nSELECT 1').ok, true);
   assert.equal(stripSqlComments('/* a */ -- b\n SELECT 1'), 'SELECT 1');
+});
+
+test('sanitizeAskSql: rejects load_extension', () => {
+  assert.equal(sanitizeAskSql("SELECT load_extension('/x.so')").ok, false);
+});
+
+test('sanitizeAskSql: string-literal aware — a ; or -- inside a string is fine', () => {
+  // These are single valid SELECTs; the ";" / "--" live inside string literals.
+  const a = sanitizeAskSql("SELECT * FROM messages WHERE text LIKE '%foo; bar%'");
+  assert.equal(a.ok, true);
+  assert.equal(a.sql, "SELECT * FROM messages WHERE text LIKE '%foo; bar%'");
+  const b = sanitizeAskSql("SELECT '-- not a comment' AS a");
+  assert.equal(b.ok, true);
+  assert.equal(b.sql, "SELECT '-- not a comment' AS a"); // literal preserved, not stripped
+  const c = sanitizeAskSql("SELECT '/* keep */' AS a");
+  assert.equal(c.ok, true);
+  assert.equal(c.sql, "SELECT '/* keep */' AS a");
+  // An escaped quote ('') inside a string does not end it.
+  assert.equal(sanitizeAskSql("SELECT 'it''s; fine' AS a").ok, true);
+  // A real trailing statement is still rejected.
+  assert.equal(sanitizeAskSql("SELECT '%a%'; DROP TABLE sessions").ok, false);
 });
 
 test('sanitizeAskSql: rejects empty / non-string', () => {
@@ -105,6 +127,33 @@ test('cost-basis helpers', () => {
   assert.equal(costBasisLabel('list'), 'List price');
 });
 
+// ---- runner helpers: pickCapture + confinement pin ------------------------
+test('pickCapture: matches declared sql, else last, null on empty/none', () => {
+  const caps = [
+    { sql: 'SELECT a FROM x', columns: ['a'], rows: [[1]], rowCount: 1, truncated: false },
+    { sql: 'SELECT b FROM y', columns: ['b'], rows: [[2]], rowCount: 1, truncated: false },
+  ];
+  assert.equal(pickCapture(caps, 'SELECT a FROM x').columns[0], 'a'); // exact match (not last)
+  assert.equal(pickCapture(caps, 'select A  from  x').columns[0], 'a'); // normalized match
+  assert.equal(pickCapture(caps, 'SELECT z FROM nope').columns[0], 'b'); // no match -> last
+  assert.equal(pickCapture(caps, ''), null); // model couldn't answer -> no spurious table
+  assert.equal(pickCapture(caps, '   '), null);
+  assert.equal(pickCapture([], 'SELECT 1'), null); // no captures
+});
+
+test('askClaudeArgs pins the one-tool confinement (STANDING RULE)', () => {
+  const args = askClaudeArgs('PROMPT', '/cfg.json');
+  // --tools "" disables ALL built-ins; without it the model regains Bash/Read.
+  const ti = args.indexOf('--tools');
+  assert.ok(ti >= 0 && args[ti + 1] === '');
+  assert.ok(args.includes('--strict-mcp-config'));
+  const ai = args.indexOf('--allowedTools');
+  assert.equal(args[ai + 1], 'mcp__chronicledb__query'); // exactly the one tool
+  assert.ok(!args.includes('--dangerously-skip-permissions'));
+  assert.deepEqual(args.slice(0, 2), ['-p', 'PROMPT']);
+  assert.ok(askClaudeArgs('P', '/c', 'claude-opus-5').includes('claude-opus-5'));
+});
+
 // ---- history --------------------------------------------------------------
 test('parseHistory: skips malformed lines, keeps well-formed turns', () => {
   const turns = parseHistory('{"id":"a","question":"q"}\ngarbage\n\n{"id":"b","question":"q2"}');
@@ -126,6 +175,35 @@ test('appendAskTurn: persists and prunes to ASK_HISTORY_MAX', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('appendAskTurn: caps stored rows per turn to bound file size', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ask-hist2-'));
+  const env = { CHRONICLE_DATA_DIR: dir };
+  try {
+    const rows = Array.from({ length: 300 }, (_, i) => [i]);
+    appendAskTurn({ id: 'big', ts: '', question: 'q', costBasis: 'list', ok: true, prose: 'p',
+      sql: 'SELECT 1', columns: ['a'], rows, rowCount: 300, truncated: false }, env);
+    const [t] = readAskHistory(env);
+    assert.equal(t.rows.length, ASK_HISTORY_ROWS);
+    assert.equal(t.truncated, true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- the read-only handle is the real SELECT-only wall --------------------
+test('a read-only DatabaseSync rejects writes (the actual guarantee)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ask-ro-'));
+  const p = join(dir, 'w.db');
+  try {
+    const w = new DatabaseSync(p);
+    w.exec('CREATE TABLE t(a); INSERT INTO t VALUES (1)');
+    w.close();
+    const ro = new DatabaseSync(p, { readOnly: true });
+    assert.throws(() => ro.exec('INSERT INTO t VALUES (2)'));
+    assert.throws(() => ro.exec("ATTACH DATABASE '/tmp/x.db' AS y"));
+    assert.equal(ro.prepare('SELECT COUNT(*) c FROM t').get().c, 1); // reads still work
+    ro.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---- deduped cost views (honesty-critical) --------------------------------
@@ -176,4 +254,26 @@ test('buildCostSurface: message_cost supports subagent (is_sidechain) cuts', () 
                          WHERE is_sidechain=1 GROUP BY agent_type`).get();
   assert.equal(row.agent_type, 'code-reviewer');
   assert.equal(row.c, 10.05); // same tokens, same price -> reconciles with session view
+});
+
+test('buildCostSurface: windowed model priced at its OWN day, not the run day (reconciles)', () => {
+  // Sonnet 5 intro window ends 2026-08-31 ($2/$10), then $3/$15. A session INSIDE
+  // the window must price at $2 even when the run happens AFTER the window — this
+  // is the fix that keeps /ask matching the dashboards (which price per session-day).
+  const d = new DatabaseSync(':memory:');
+  d.exec(`
+    CREATE TABLE projects(id INTEGER PRIMARY KEY, path TEXT, name TEXT);
+    CREATE TABLE sessions(id TEXT PRIMARY KEY, project_id INTEGER, source TEXT, started_at TEXT,
+      ended_at TEXT, usage TEXT, usage_source TEXT);
+    CREATE TABLE messages(session_id TEXT, seq INTEGER, ts TEXT, kind TEXT, model TEXT, tool_name TEXT,
+      skill TEXT, is_sidechain INTEGER, agent_type TEXT, agent_id TEXT, workflow_id TEXT,
+      input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER,
+      cache_w5m_tokens INTEGER, cache_w1h_tokens INTEGER);
+    INSERT INTO projects VALUES (1, '/p/x', 'x');
+    INSERT INTO sessions VALUES ('s1', 1, 'claude-code', '2026-08-15T00:00:00Z', '2026-08-15T01:00:00Z',
+      '{"claude-sonnet-5":{"input":1000000,"output":0}}', 'exact');
+  `);
+  buildCostSurface(d, 'theoretical', '2026-09-15'); // run AFTER the window closed
+  const row = d.prepare(`SELECT ROUND(cost_usd,4) AS c FROM session_model_cost`).get();
+  assert.equal(row.c, 2); // 1M * $2 intro rate, NOT $3 post-window
 });

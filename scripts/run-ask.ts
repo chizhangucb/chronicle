@@ -29,7 +29,7 @@ import { findClaude } from './run-briefing.ts';
 import { extractJson } from '../server/briefing-validate.ts';
 import {
   askSchemaDoc, validateAskEnvelope, normalizeAskCostMode, toCostMode,
-  type AskCostMode, type AskTurn,
+  pickCapture, askClaudeArgs, type AskCapture, type AskCostMode, type AskTurn,
 } from '../server/ask.ts';
 
 const RUN_TIMEOUT_MS = 90 * 1000; // short: node:sqlite has no query interrupt, so
@@ -82,18 +82,6 @@ function emptyTurn(question: string, costBasis: AskCostMode, prose: string, erro
   };
 }
 
-interface Capture { sql: string; columns: string[]; rows: unknown[][]; rowCount: number; truncated: boolean; }
-const normSql = (s: string): string => s.replace(/\s+/g, ' ').replace(/;\s*$/, '').trim().toLowerCase();
-
-/** The authoritative table for this turn: the captured entry whose SQL matches
- * the model's declared final SQL, else the LAST captured query (it ran last). */
-function pickCapture(captures: Capture[], envelopeSql: string): Capture | null {
-  if (!captures.length) return null;
-  const want = normSql(envelopeSql);
-  for (let i = captures.length - 1; i >= 0; i--) if (normSql(captures[i].sql) === want) return captures[i];
-  return captures[captures.length - 1];
-}
-
 export function main(argv: string[] = process.argv.slice(2)): number {
   const question = (flag(argv, '--question') ?? process.env.CHRONICLE_ASK_QUESTION ?? '').trim();
   const costMode = normalizeAskCostMode(flag(argv, '--cost-mode') ?? process.env.CHRONICLE_ASK_COST_MODE_UI);
@@ -123,9 +111,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     },
   };
   const prompt = buildPrompt(question, costMode);
-  const args = ['-p', prompt, '--tools', '', '--mcp-config', cfgPath,
-    '--allowedTools', 'mcp__chronicledb__query', '--strict-mcp-config',
-    ...(process.env.CHRONICLE_ASK_MODEL ? ['--model', process.env.CHRONICLE_ASK_MODEL] : [])];
+  const args = askClaudeArgs(prompt, cfgPath, process.env.CHRONICLE_ASK_MODEL);
 
   if (dryRun) {
     process.stdout.write(`[dry-run] ${claude ?? 'claude (NOT FOUND)'} ${JSON.stringify(args)}\ncfg=${JSON.stringify(cfg)}\n`);
@@ -141,6 +127,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   const run = spawnSync(claude, args, {
     cwd: runnerDir, encoding: 'utf-8', timeout: RUN_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'], // stdin ignored: claude -p won't wait on it
+    killSignal: 'SIGKILL', // hard-kill on timeout: node:sqlite has no interrupt
     env: process.env,
   });
   if (run.error || run.status !== 0) {
@@ -158,10 +145,10 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     return 0;
   }
 
-  let captures: Capture[] = [];
+  let captures: AskCapture[] = [];
   try {
     captures = readFileSync(capturePath, 'utf-8').split('\n').filter(Boolean)
-      .map((l) => JSON.parse(l) as Capture);
+      .map((l) => JSON.parse(l) as AskCapture);
   } catch { /* no captures (model answered without a successful query) */ }
   const table = pickCapture(captures, envelope.sql);
 
