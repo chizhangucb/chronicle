@@ -759,10 +759,13 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .sessions-hub .grid3 .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
 .sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sessions-hub .sh-sessions-table col.c-session { width: 44%; }
-.sessions-hub .sh-sessions-table col.c-proj { width: 12%; }
-.sessions-hub .sh-sessions-table col.c-src { width: 10%; }
-.sessions-hub .sh-sessions-table col.c-num { width: 8.5%; }
+.sessions-hub .sh-sessions-table col.c-session { width: 52%; }
+.sessions-hub .sh-sessions-table col.c-proj { width: 10%; }
+.sessions-hub .sh-sessions-table col.c-src { width: 9%; }
+.sessions-hub .sh-sessions-table col.c-ctx { width: 6%; }
+.sessions-hub .sh-sessions-table col.c-active { width: 8%; }
+.sessions-hub .sh-sessions-table col.c-cost { width: 8%; }
+.sessions-hub .sh-sessions-table col.c-when { width: 7%; }
 
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }

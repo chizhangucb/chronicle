@@ -14,7 +14,7 @@ import { rowSpend } from './ExploreTab.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
-import { MCP_DOUBLE_COUNT_DEFINITION, DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type StateWord } from '../shared/spend/thresholds.ts';
+import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type StateWord } from '../shared/spend/thresholds.ts';
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
@@ -313,7 +313,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
         {!skills.length && <div className="muted small pad8">{t('No skill spend in range.')}</div>}
       </div>
       <div className="card">
-        <h3>{t('MCP server spend')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t(MCP_DOUBLE_COUNT_DEFINITION)} /></h3>
+        <h3>{t('MCP server spend')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
         {/* A table (not hbars) to match Priced skills AND because MCP spend spans
             orders of magnitude — the double-count inflates the top server so far
             that bars leave every other row an invisible sliver. Calls makes the
@@ -325,7 +325,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Server')}</th>
               <th>{t('Calls')}</th>
               <th>{t('Tokens')}</th>
-              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
+              <th className="sort-on">{t('Turn $')} <InfoTip text={t('EXPOSURE, not the server’s own cost (MCP servers are free). It is the summed spend of the turns that used this server; a turn touching several servers is counted in each, so these do not sum to the day total.')} /><SortCaret on /></th>
             </tr>
           </thead>
           <tbody>

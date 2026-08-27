@@ -170,7 +170,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
           <table className="tbl sh-sessions-table">
             <colgroup>
               <col className="c-session" /><col className="c-proj" /><col className="c-src" />
-              <col className="c-num" /><col className="c-num" /><col className="c-num" /><col className="c-num" />
+              <col className="c-ctx" /><col className="c-active" /><col className="c-cost" /><col className="c-when" />
             </colgroup>
             <thead><tr>
               <th style={{ textAlign: 'left' }}>{t('Session')}</th><th style={{ textAlign: 'left' }}>{t('Project')}</th>
