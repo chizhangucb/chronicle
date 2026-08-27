@@ -645,6 +645,148 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .cost-mode-toggle .cm-opt:hover { color: var(--ink); }
 .cost-mode-toggle .cm-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
 
+/* CHI-324 2d: Spend-over-time header (title + bare [project|provider] stack
+   toggle) and the compact segmented toggle itself. Default option far left. */
+.sot-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.sot-head h3 { margin: 0; }
+/* Deterministic chart-card height: the ResponsiveContainer is a fixed 220px and
+   the legend is pinned to ONE non-wrapping row (scrolls sideways if crowded), so
+   the card is the SAME height on every window — no more legend-wrap or transient
+   resize making Today look different from 7d/30d (CHI-324 review). */
+.sot-card .legend { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
+.sot-card .legend span { flex: none; }
+.stack-toggle {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 2px;
+}
+.stack-toggle .st-opt {
+  cursor: pointer; background: transparent; border: none;
+  color: var(--ink-2); font-size: 11px; font-family: var(--mono);
+  border-radius: 999px; padding: 2px 9px; outline: none;
+}
+.stack-toggle .st-opt:hover { color: var(--ink); }
+.stack-toggle .st-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
+
+/* CHI-324 2b: Spend tab. */
+.spend-tab { display: flex; flex-direction: column; gap: 10px; }
+.spend-tab .sub3 { color: var(--ink-3); font-weight: 400; }
+.edit-aff {
+  cursor: pointer; background: transparent; border: none; color: var(--brass-text);
+  font: 11px var(--mono); padding: 2px 4px; border-radius: 4px; flex: none;
+}
+.edit-aff:hover { background: var(--bg2); }
+.budget-edit { display: flex; align-items: center; gap: 6px; margin-top: var(--gap-3); flex-wrap: wrap; }
+.budget-edit input { width: 90px; padding: 3px 6px; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--ink); font: 12px var(--mono); }
+.mini-btn { cursor: pointer; border: 1px solid var(--border); background: var(--brass); color: var(--bg0); border-radius: 4px; padding: 3px 10px; font: 11px var(--mono); font-weight: 600; }
+.mini-btn.ghost { background: transparent; color: var(--ink-2); }
+
+/* Budget — a full-width HORIZONTAL band (CHI-324 review): big MTD number, a
+   meter that grows to fill the middle, and the pace/peak stats at the right, so
+   the row fills the width with no empty half. */
+.budget-band .bb-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.bb-body { display: flex; align-items: center; gap: var(--gap-5); margin-top: var(--gap-3); flex-wrap: wrap; }
+.bb-num { display: flex; align-items: baseline; gap: var(--gap-2); flex: none; }
+.bb-mtd { font: 600 24px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.bb-cap { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.bb-meter { flex: 1 1 220px; min-width: 180px; }
+.bb-proj-lbl { margin-top: var(--gap-1); }
+.bb-stats { display: flex; align-items: baseline; gap: var(--gap-4); flex: none; font: 11px var(--mono); font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.bb-stats .bb-unit { color: var(--ink-3); }
+.stw { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 2px; }
+.stw.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.stw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.stw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.budget-track { position: relative; height: 8px; background: var(--bg2); border-radius: 4px; overflow: visible; }
+.bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
+.bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
+/* Global sort indicator (CHI-324 review): the active-sort column's header + cells
+   tint brass and the header carries a small ▾. Consistent across every sortable
+   table/chart so "which column is this sorted by" reads the same everywhere. */
+.sort-car { color: var(--brass-text); font-size: 9px; }
+.tbl th.sort-on { color: var(--brass-text); }
+.tbl td.sort-on { color: var(--brass-text); }
+/* MCP server names are long — fixed layout gives the Server column ~48% so the
+   `claude_ai_*` servers stay distinguishable, ellipsised only past that. */
+.mcp-table { table-layout: fixed; width: 100%; }
+.mcp-table col.c-srv { width: 48%; }
+.mcp-table td.mcp-srv { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
+.proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Efficiency detectors (CHI-324 2e): name · value+state-word · bar · definition. */
+.eff-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.eff-sub { color: var(--ink-3); font: 11px var(--mono); margin: var(--gap-3) 0 var(--gap-1); }
+/* Fixed name/value/state columns so every INDEPENDENT row-grid computes the
+   same column edges — the value, the state chip, and the bar all line up down
+   the column (each .eff-row is its own grid, so `auto` widths would misalign). */
+.eff-row { display: grid; grid-template-columns: 140px 56px 68px minmax(70px, 1.3fr) minmax(150px, 2fr); gap: var(--gap-3); align-items: center; padding: 3px 0; font: 12px var(--mono); }
+.eff-n { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eff-v { font-variant-numeric: tabular-nums; text-align: right; }
+.eff-w { justify-self: start; }
+/* Extra breathing room before the definition: the bar's track fills its column
+   edge-to-edge, so the plain grid gap read tighter than the chip→bar gap. */
+.eff-d { font-size: 11px; padding-left: var(--gap-3); }
+.eff-row .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.eff-row .seg { height: 100%; border-radius: 3px; }
+/* Bar color matches its state chip (ok = the same green, not brass) so the row
+   reads as one signal. */
+.eff-row .seg.sev-ok { background: var(--ok); }
+.eff-row .seg.sev-warn { background: var(--warn); }
+.eff-row .seg.sev-danger { background: var(--danger); }
+.sw { font-size: 10px; padding: 1px 6px; border-radius: 999px; }
+.sw.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.sw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.sw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+@media (max-width: 680px) { .eff-row { grid-template-columns: 1fr 56px 68px; } .eff-row .track, .eff-row .eff-d { display: none; } }
+/* Waste signals | routing compliance: two columns below the detectors. */
+.eff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-5); margin-top: var(--gap-2); }
+@media (max-width: 680px) { .eff-cols { grid-template-columns: 1fr; } }
+.waste-row { display: grid; grid-template-columns: 130px 64px 1fr; gap: var(--gap-3); align-items: baseline; padding: 2px 0; font: 12px var(--mono); }
+.waste-row .eff-v { text-align: right; color: var(--brass-text); font-variant-numeric: tabular-nums; }
+/* Plan windows (CHI-324 2f): one card per account, auto-fit, each with slim meters. */
+.acct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: var(--gap-2); }
+.acct { border: 1px solid var(--border); border-radius: 6px; padding: var(--gap-3); }
+.acct-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--gap-2); }
+.acct-n { font: 600 12px var(--mono); color: var(--ink); }
+.cov-tag { font: 9px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); padding: 1px 6px; border-radius: 999px; }
+.pw-win { display: grid; grid-template-columns: 44px 1fr 78px; gap: var(--gap-2); align-items: center; padding: 2px 0; font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.pw-l { color: var(--ink-2); }
+.pw-win .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.pw-win .seg { height: 100%; border-radius: 3px; }
+.pw-v { text-align: right; color: var(--ink-2); }
+.routing-body { padding: 2px 0; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.routing-line { margin-bottom: var(--gap-1); }
+.routing-line b { color: var(--ink); }
+.promote-aff { color: var(--brass-text); cursor: default; }
+
+/* CHI-324 2g: Sessions tab. */
+.sessions-hub { display: flex; flex-direction: column; gap: 10px; }
+.sh-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.sh-toggle { display: inline-flex; align-items: center; gap: var(--gap-2); }
+.sh-tablehead { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); margin-bottom: var(--gap-2); }
+.more-btn {
+  margin-top: var(--gap-3); width: 100%; cursor: pointer; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 6px; color: var(--ink-2);
+  font: 12px var(--mono); padding: 6px; text-align: center;
+}
+.more-btn:hover { color: var(--ink); background: var(--bg1); }
+/* Keep the aggregate tables inside their narrow grid3 cards (compact, first col
+   ellipsised) and cap the sessions table's Session name so the later columns
+   (Project · Source · Ctx · Active · Cost · When) stay on screen. */
+.sessions-hub .grid3 .tbl { font-size: 11px; }
+.sessions-hub .grid3 .tbl th, .sessions-hub .grid3 .tbl td { padding: 3px 5px; }
+.sessions-hub .grid3 .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
+.sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-hub .sh-sessions-table col.c-session { width: 52%; }
+.sessions-hub .sh-sessions-table col.c-proj { width: 10%; }
+.sessions-hub .sh-sessions-table col.c-src { width: 9%; }
+.sessions-hub .sh-sessions-table col.c-ctx { width: 6%; }
+.sessions-hub .sh-sessions-table col.c-active { width: 8%; }
+.sessions-hub .sh-sessions-table col.c-cost { width: 8%; }
+.sessions-hub .sh-sessions-table col.c-when { width: 7%; }
+
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }
@@ -1599,6 +1741,18 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
+/* CHI-324 anomaly-tile extras (AnomalyTile) — top-movers line, Lane-C honesty
+   note, and the multi-day flagged-days deep-link. Sit between the comparison
+   bar and the top-session row; glyph in ink-3, mover names in ink. */
+.anom-mover { margin-top: var(--gap-3); font: 11px var(--mono); color: var(--ink-2); line-height: 1.5; }
+.anom-mover .anom-glyph { color: var(--ink-3); }
+.anom-mover .anom-sep { color: var(--ink-3); }
+.anom-mover b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.anom-lanec { margin-top: var(--gap-1); font: 11px var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.anom-flagged { margin-top: var(--gap-2); font: 11px var(--mono); color: var(--warn); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.anom-flagged:hover { text-decoration: underline; }
+.anom-flagged .anom-arrow { color: var(--warn); }
+
 /* `/projects` — PR-2c chrome-sidebar redesign (Task 20, D14, supersedes the
    PR-2 two-column shape above). Three vertical zones: the left app sidebar
    (`.sidebar`, untouched), a CENTER content column (`.projects-content` —
@@ -1697,6 +1851,41 @@ h4 { margin: 6px 0; }
   font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink-2);
   white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 60vh; overflow-y: auto;
 }
+
+/* ---- Records ops surface (CHI-324 2h) ---- */
+.records-page { max-width: 1100px; }
+.records-switcher { margin: 10px 0 16px; }
+.records-toolbar { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; margin-bottom: 14px; }
+.records-filter {
+  flex: 1 1 260px; min-width: 200px; max-width: 420px; padding: 7px 11px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--bg1); color: var(--ink);
+}
+.records-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.records-count { margin-left: auto; white-space: nowrap; }
+.records-empty { margin: 20px 2px; }
+.records-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.records-table th {
+  text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.records-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.records-table .records-date { white-space: nowrap; color: var(--ink-3); width: 1%; }
+.records-table .records-id { white-space: nowrap; width: 1%; }
+.records-idcopy {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 2px 6px; margin: -2px -6px;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--brass-text);
+  font: inherit; cursor: pointer; text-align: left;
+}
+.records-idcopy:hover { border-color: var(--border); background: var(--bg1); }
+.records-idcopy.copied { color: var(--ok, #2e7d52); }
+.records-copyhint {
+  font: 600 10px var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-3); opacity: 0; transition: opacity 0.12s;
+}
+.records-idcopy:hover .records-copyhint, .records-idcopy.copied .records-copyhint { opacity: 1; }
+.records-idcopy.copied .records-copyhint { color: var(--ok, #2e7d52); }
+.records-focus { color: var(--ink-2); }
+.records-more { margin-top: 14px; }
 
 /* ---- Safety ops surface (CHI-323 3d) ---- */
 .safety-page { max-width: 900px; }

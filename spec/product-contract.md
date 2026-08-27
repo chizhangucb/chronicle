@@ -3,7 +3,7 @@
 Status: living · Owner: Chi Zhang · Location: `~/personal-projects/chronicle` (`chizhangucb/chronicle`, public, npm `chronicle-cli`) · License: Apache-2.0 (relicensed from MIT, CHI-323 D9; third-party notices in `NOTICE`)
 
 ## Purpose
-A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND (CHI-323 phase 1) a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a confirm-first write gate. On-machine and heuristic: no outbound network, no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude, identical to what Varde already incurred).
+A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND (CHI-323 phase 1) a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a confirm-first write gate. On-machine and heuristic: no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude, identical to what Varde already incurred); the one outbound call is opt-out (CHI-324 2f/D7) — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
 
 ## Surfaces
 - CLI (`npx chronicle-cli`, bins `chronicle`/`chronicle-cli`): runs the local web app in the foreground; `--port` (default 41730), `--no-open`. Node 24+. Setup subcommand `chronicle hub set|status|clear <path>` points the console at a nisse-format hub.
@@ -44,7 +44,7 @@ CHI SIGN-OFF TO EDIT. The signed floor architecture (CHI-307/323, decisions ledg
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
-**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond a hub the operator connects. The forward gate model is tiered auto-approval (reversible auto, irreversible confirm), CHI-329.
+**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond the opt-out Claude-quota read (CHI-324 2f) and a hub the operator connects. The forward gate model is tiered auto-approval (reversible auto, irreversible confirm), CHI-329.
 
 ## Change triggers
 Update this file in the same pass.

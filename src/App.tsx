@@ -14,6 +14,7 @@ import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
 import BriefingPage from './BriefingPage.tsx';
 import MemoryPage from './MemoryPage.tsx';
+import RecordsPage from './RecordsPage.tsx';
 import AskPage from './AskPage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
 import { useAskStatus } from './useAskStatus.ts';
@@ -77,6 +78,7 @@ export default function App() {
   const [atJobs] = useRoute('/jobs');
   const [atBriefing] = useRoute('/briefing');
   const [atMemory] = useRoute('/memory');
+  const [atRecords] = useRoute('/records');
   const [atAsk] = useRoute('/ask');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
@@ -220,6 +222,12 @@ export default function App() {
               <span className="sb-icon">❖</span><span className="sb-label">{t('Memory')}</span>
             </button>
           )}
+          {hubPresent && (
+            <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
+              onClick={() => navigate('/records')}>
+              <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -324,6 +332,7 @@ export default function App() {
         {atJobs && <JobsPage />}
         {atBriefing && <BriefingPage />}
         {atMemory && <MemoryPage />}
+        {atRecords && <RecordsPage />}
         {atAsk && (askEnabled
           ? <AskPage />
           : <div className="page center muted">{t('Ask is not available. Enable it in Settings (requires the claude CLI).')}</div>)}
@@ -377,10 +386,10 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
       autoSync: true, autoSyncPaused: false, ask: false,
-      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10,
+      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true,
     }));
   }, []);
-  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask') {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask' | 'planWindows') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
@@ -406,6 +415,11 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
                 onChange={() => toggle('autoSyncPaused')} />
               <span>{t('Pause auto-sync')}</span>
               <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.planWindows !== false} onChange={() => toggle('planWindows')} />
+              <span>{t('Claude plan windows (quota)')}</span>
+              <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.')}</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />

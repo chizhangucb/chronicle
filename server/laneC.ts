@@ -51,3 +51,41 @@ export function readLaneCSpend(cutoffIso: string | null = null, path: string = S
   }
   return { totalSpend, requests, byModel: [...byModel.values()].sort((a, b) => b.spend - a.spend) };
 }
+
+// Local-calendar-day key (YYYY-MM-DD) for an ISO timestamp, matching the
+// server's `strftime(..., 'localtime')` convention used everywhere else.
+function localDayKey(iso: string): string | null {
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms === 0) return null;
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Per-day proxy-lane spend (CHI-324 D8): the authoritative billed dollars Lane C
+// contributes to a day, keyed by LOCAL calendar day. Ported from Varde's
+// laneCDailyCost. Used to FOLD Lane C into HEADLINE totals + the anomaly ratio
+// (budget/anomaly only make sense over the true total) — but NEVER smeared
+// across session-level analytics, and Lane C is never an anomaly dimension
+// mover (it is unattributable; see LANE_C_UNATTRIBUTED_DEFINITION). Token-only
+// rows (no `spend`) add 0 — never a guessed dollar. Rows without a usable
+// startTime are dropped (cannot be placed on a day). Cost kept unrounded (Lane
+// C spend is routinely sub-cent).
+export function readLaneCDailyCost(cutoffIso: string | null = null, path: string = SPEND_PATH): Map<string, number> {
+  const out = new Map<string, number>();
+  let text: string;
+  try { text = readFileSync(path, 'utf8'); } catch { return out; }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let r: SpendRow;
+    try { r = JSON.parse(line) as SpendRow; } catch { continue; }
+    if (cutoffIso && (r.startTime ?? '') < cutoffIso) continue;
+    if (!r.startTime) continue;
+    const day = localDayKey(r.startTime);
+    if (!day) continue;
+    out.set(day, (out.get(day) ?? 0) + (Number(r.spend) || 0));
+  }
+  return out;
+}

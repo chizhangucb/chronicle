@@ -72,6 +72,14 @@ export function mountHub(app: Express): void {
     res.json(adapter.jobs());
   });
 
+  // Records (CHI-324 2h): the append-only hub records (decisions + session
+  // ledger), index fields only. Absent-gated like every ops slice.
+  app.get('/hub/records', (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(adapter.records());
+  });
+
   // Job log tail (organ 1e): the browser sends a job ID, never a path. Only the
   // log paths the jobs slice itself declares for that job are opened (last 100
   // lines, tail-capped).

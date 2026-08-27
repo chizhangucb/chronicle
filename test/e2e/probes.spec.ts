@@ -194,7 +194,9 @@ async function gotoHomeOverview7d(page: Page): Promise<void> {
   await page.goto(`${state.baseURL}/`);
   await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
   await page.locator('.home-dashboard .rangebar button', { hasText: /^7d$/ }).click();
-  await expect(page.locator('.grid2 .recharts-bar-rectangle').first()).toBeVisible();
+  // Spend-over-time is FULL-WIDTH now (`.sot-card`), no longer in a `.grid2` row
+  // (CHI-324 review).
+  await expect(page.locator('.sot-card .recharts-bar-rectangle').first()).toBeVisible();
 }
 
 // Drives Home's Explore tab into Rollup=Daily + 7d — bounded bucket count
@@ -247,7 +249,7 @@ test.describe('probes @ 1366px', () => {
   test('/ (Home Overview, 7d)', async ({ page }) => {
     await gotoHomeOverview7d(page);
     await runGenericProbes(page, '/ Overview');
-    const labels = await page.locator('.grid2 .recharts-xAxis-tick-labels text').allTextContents();
+    const labels = await page.locator('.sot-card .recharts-xAxis-tick-labels text').allTextContents();
     assertConsecutiveDaily(labels, parseNamedDayLabel, '/ Overview spend-over-time chart');
   });
 

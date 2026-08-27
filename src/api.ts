@@ -320,7 +320,15 @@ export interface Settings {
   ask: boolean;
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
+  planWindows: boolean;
 }
+
+// Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
+// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND + opt-in-off.
+export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
+export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
+export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
+export function planWindowsUrl(): string { return '/api/plan-windows'; }
 
 // ---- /ask (CHI-351): local claude-CLI-backed metric chat over chronicle.db ----
 export interface AskStatus {
@@ -467,6 +475,17 @@ export interface ActivityBurn {
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;
+  // CHI-324 2c: per-day per-dimension cells for the anomaly tile (client prices
+  // → CostedDay[] → shared computeAnomaly), Lane C per-day $, and the local today.
+  anomalyDays: AnomalyDayCells[];
+  laneCByDay: Record<string, number>;
+  today: string;
+}
+export interface AnomalyDayCells {
+  day: string;
+  byModel: ActivityTokensByModel;
+  byProject: Record<string, ActivityTokensByModel>;
+  bySource: Record<string, ActivityTokensByModel>;
 }
 export interface ActivityResult {
   live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;
@@ -501,8 +520,8 @@ export interface ExploreCell {
 export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
-  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | null;
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider' | null;
   calibrated: boolean; rows: ExploreRow[];
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
@@ -549,8 +568,8 @@ export interface ContentResult {
 export interface ExploreQueryParams {
   scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
   metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
-  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session';
-  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'; topN?: number;
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider'; topN?: number;
   rollup?: ExploreRollup;
 }
 
@@ -591,6 +610,45 @@ export function activityUrl(since?: string | null, days?: number | null): string
   const qs = p.toString();
   return '/api/activity' + (qs ? `?${qs}` : '');
 }
+// Efficiency detector counts (CHI-324 2e) — mirrors server/detectors.ts. The
+// client derives + grades the rates (cache hit, jumbo, long context) with the
+// shared thresholds; error rate is derived from /api/insights.
+export interface DetectorCounts {
+  assistantRows: number;
+  jumboRows: number;
+  longContextRows: number;
+  cacheReadTokens: number;
+  inputTokens: number;
+}
+export function detectorsUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/detectors' + (qs ? `?${qs}` : '');
+}
+
+// Efficiency WASTE signals (CHI-324 2e) — mirrors server/waste.ts. Ships token
+// cells + counts; the client prices the premium / savings / wasted-$.
+export interface WasteChurnSession { session: string; project: string; writeTokens: number; readTokens: number; byModel: Record<string, { cw5m: number; cw1h: number }>; }
+export interface WasteRightSizingModel { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface WasteRereadFile { path: string; rereads: number; sessions: number; }
+export interface WasteResult {
+  cacheChurn: { sessionsFlagged: number; top: WasteChurnSession[] };
+  rightSizing: { candidates: WasteRightSizingModel[] };
+  rereads: { rereadCalls: number; sessionsAffected: number; estWastedTokens: number; topFiles: WasteRereadFile[] };
+}
+export function wasteUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/waste' + (qs ? `?${qs}` : '');
+}
+
+// Routing-compliance roster (CHI-324 2e) — mirrors server/routing.ts. Just the
+// curated model families; the client classifies the window's models on/off
+// roster and prices from /api/insights. Hub-conditional.
+export interface RosterResult { present: boolean; families: string[]; }
+export function routingUrl(): string { return '/api/routing'; }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));
@@ -659,6 +717,16 @@ export interface JobRowView {
 }
 export interface JobsSliceView { scannedAt: string; sources: Record<JobSource, number>; jobs: JobRowView[] }
 export type HubJobsResult = JobsSliceView | { hubPresent: false };
+
+// Records (CHI-324 2h) — the append-only hub records, index fields only.
+export interface RecordsLedgerRowView { date: string; sessionId: string; focus: string; repo: string | null }
+export interface RecordsDecisionView { date: string | null; title: string }
+export interface RecordsSliceView {
+  found: boolean;
+  decisions: { total: number; recent: RecordsDecisionView[] };
+  ledger: { total: number; recent: RecordsLedgerRowView[]; rows: RecordsLedgerRowView[] };
+}
+export type HubRecordsResult = RecordsSliceView | { hubPresent: false };
 export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
@@ -747,6 +815,7 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
   }),
   hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
+  hubRecords: (): Promise<HubRecordsResult> => j('/api/hub/records'),
   jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
   briefing: (): Promise<BriefingResult> => j('/api/briefing'),
   briefingAction: (cardId: string, action: CardActionView): Promise<{ cards: ResolvedCardView[]; followThrough: FollowThroughView }> =>

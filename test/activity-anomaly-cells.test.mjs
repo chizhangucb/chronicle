@@ -1,0 +1,95 @@
+// CHI-324 2c: computeActivity emits per-day per-dimension token CELLS
+// (burn.anomalyDays) so the client can price → CostedDay[] → the shared
+// computeAnomaly. Server ships cells, not dollars. Also asserts burn.today and
+// burn.laneCByDay are present.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { withTempDb } from './helpers.mjs';
+
+let dbModule, teardown, activity;
+const now = Date.now();
+const iso = (ms) => new Date(ms).toISOString();
+const localToday = (() => { const d = new Date(now); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+
+function rhythm(baseMs, model) {
+  const ev = [];
+  for (let i = 0; i < 12; i++) ev.push({ kind: i % 2 === 0 ? 'user' : 'assistant', text: `m${i}`, ts: iso(baseMs + i * 120000), ...(i % 2 ? { model } : {}) });
+  return ev;
+}
+
+before(async () => {
+  const temp = await withTempDb();
+  dbModule = temp.dbModule; teardown = temp.teardown;
+  activity = await import('../server/activity.ts');
+  const { upsertProject, replaceSession } = dbModule;
+  const pa = upsertProject('/tmp/proj-a');
+  const pb = upsertProject('/tmp/proj-b');
+  // Anchor "today" sessions to LOCAL midnight of today (not now-3h, which crosses
+  // into yesterday when the suite runs in the early-morning hours) so the "today
+  // is present" assertion is time-of-day robust.
+  const td = new Date(now);
+  const base = new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime() + 60000;
+  replaceSession(
+    { id: 'sa', project_id: pa.id, source: 'claude-code', file_path: '/tmp/sa.jsonl',
+      started_at: iso(base), ended_at: iso(base + 3600000),
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 500, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythm(base, 'claude-sonnet-5'),
+  );
+  replaceSession(
+    { id: 'sb', project_id: pb.id, source: 'codex', file_path: '/tmp/sb.jsonl',
+      started_at: iso(base + 600000), ended_at: iso(base + 1200000),
+      usage: JSON.stringify({ 'gpt-5.6-terra': { input: 400, output: 200, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+    rhythm(base + 600000, 'gpt-5.6-terra'),
+  );
+  // Older sessions at ~10 / 50 / 120 days ago so widening the window reaches
+  // strictly further back — the CHI-324 monotonicity guard below (a bounded
+  // window reaches `days + MEDIAN_DAYS` = days + 14; All spans everything).
+  const DAY = 86400000;
+  for (const [id, ago] of [['s10', 10], ['s50', 50], ['s120', 120]]) {
+    const b = now - ago * DAY;
+    replaceSession(
+      { id, project_id: pa.id, source: 'claude-code', file_path: `/tmp/${id}.jsonl`,
+        started_at: iso(b), ended_at: iso(b + 600000),
+        usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 500, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+      rhythm(b, 'claude-sonnet-5'),
+    );
+  }
+});
+
+// The token magnitude across every anomaly day — the client sums the priced
+// version of this as the window total, so it MUST be non-decreasing as the
+// window widens.
+const anomalyTokenSum = (r) =>
+  r.burn.anomalyDays.reduce((s, d) => s + Object.values(d.byModel).reduce((t, c) => t + c.input + c.output, 0), 0);
+after(async () => { await teardown?.(); });
+
+test('burn carries today + laneCByDay + anomalyDays', () => {
+  const r = activity.computeActivity(null, 1);
+  assert.equal(r.burn.today, localToday);
+  assert.ok(r.burn.laneCByDay && typeof r.burn.laneCByDay === 'object'); // empty is fine (no proxy log)
+  assert.ok(Array.isArray(r.burn.anomalyDays) && r.burn.anomalyDays.length >= 1);
+});
+
+test("today's anomaly day cells split by project / model / source", () => {
+  const r = activity.computeActivity(null, 1);
+  const day = r.burn.anomalyDays.find((d) => d.day === localToday);
+  assert.ok(day, 'today is present in anomalyDays');
+  // Two projects, two models, two sources — each dimension keyed and populated.
+  assert.deepEqual(Object.keys(day.byProject).sort(), ['proj-a', 'proj-b']);
+  assert.deepEqual(Object.keys(day.byModel).sort(), ['claude-sonnet-5', 'gpt-5.6-terra']);
+  assert.deepEqual(Object.keys(day.bySource).sort(), ['claude-code', 'codex']);
+  // Cells are token magnitudes, not dollars.
+  assert.ok(day.byModel['claude-sonnet-5'].input > 0);
+});
+
+test('anomalyDays coverage is monotonic: All ≥ 90d ≥ 30d (CHI-324 review, no 90d>All)', () => {
+  const d30 = anomalyTokenSum(activity.computeActivity(null, 30));
+  const d90 = anomalyTokenSum(activity.computeActivity(null, 90));
+  const dAll = anomalyTokenSum(activity.computeActivity(null, null));
+  // 30d reaches back 44 days (today + s10); 90d reaches 104 (adds s50); All spans
+  // everything (adds s120). Strictly widening here, but assert ≥ for generality.
+  assert.ok(d90 >= d30, `90d (${d90}) must be ≥ 30d (${d30})`);
+  assert.ok(dAll >= d90, `All (${dAll}) must be ≥ 90d (${d90})`);
+  // And in THIS fixture the older sessions make it strict, proving the cap is gone.
+  assert.ok(dAll > d90 && d90 > d30, `expected strict All>90d>30d, got ${dAll}/${d90}/${d30}`);
+});

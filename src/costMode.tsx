@@ -52,7 +52,8 @@ export function CostModeToggle(): JSX.Element {
   const { mode, setMode } = useCostMode();
   return (
     <div className="cost-mode-toggle" role="group" aria-label={t('Cost basis')}>
-      <span className="cm-label">{t('Cost')}</span>
+      {/* CHI-324 cross-cutting: the COST prefix label is removed — the control
+          reads just "List price | Billed". The aria-label carries the meaning. */}
       <button type="button" className={`cm-opt ${mode === 'theoretical' ? 'on' : ''}`}
         aria-pressed={mode === 'theoretical'} onClick={() => setMode('theoretical')}>
         {t('List price')}

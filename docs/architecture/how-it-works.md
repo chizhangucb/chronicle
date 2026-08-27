@@ -110,9 +110,11 @@ watchers) lives on `globalThis` so a Vite SSR module reload in dev doesn't orpha
 
 ## Product principles
 
-1. **Local-first, offline by default.** Parsing, viewing, and managing a session require no
-   network call. The server makes zero outbound network requests — no telemetry, no update
-   check, nothing.
+1. **Local-first.** Parsing, viewing, and managing a session require no network call, and there
+   is no telemetry, analytics, or update check. The one outbound request is opt-out: the
+   **Claude plan windows** feature reads your own subscription quota from api.anthropic.com
+   (the same call Claude Code makes), on by default and off with one Settings toggle for a
+   fully offline instance; Codex plan windows are read locally.
 2. **Git is the source of truth for code state.** Snapshots are reconstructed from commit
    history matched to conversation timestamps — never from a separate snapshot store, never
    from current disk.

@@ -25,6 +25,11 @@ export interface ChronicleConfig {
   // Opt-in for the hard-gated confidential marker drill-down (CHI-323 D8),
   // default OFF. Only honored on a live hub. Never on the public/default build.
   confidentialMarkers?: boolean;
+  // Spend-tab Claude Plan windows (CHI-324 2f / D7), default ON (opt-OUT). The
+  // ONE outbound call in Chronicle: reads the user's own Claude quota from
+  // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
+  // fully offline instance. Codex windows are always local (never gated here).
+  planWindows?: boolean;
   // Opt-in for /ask (CHI-351): the local claude-CLI-backed metric chat. Default
   // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
   // CLI being present AND a non-demo console (all enforced server-side).

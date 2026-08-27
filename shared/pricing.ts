@@ -1,15 +1,25 @@
-// Per-model price core. MOVED here from src/models.ts (CHI-351) so it lives in
-// ONE place that BOTH the client bundle AND the server/scripts build can import
-// - `/ask`'s headless runner + its stdio MCP server (scripts/**, compiled into
-// the server build) must price tokens, and `src/**` is a client-only tree not
-// in the server build graph. `shared/` already carries the sibling model
-// constants (contextWindows.ts) for exactly this reason. src/models.ts now
-// re-exports every symbol below, so no client caller changed and there is still
-// ONE price table (no server-side duplication - CLAUDE.md's rule holds: this is
-// the single source, reused, not copied).
+// shared/pricing.ts
+// The ONE price table + cost math, shared by the client (src/models.ts
+// re-exports it) AND the server (the CHI-324 phase-2 briefing runner + the
+// shared spend math need dollars server-side). Relocated here from
+// src/models.ts (CHI-324 D1) — NOT duplicated: there is still exactly one
+// price table, now importable on both sides. The rule "pricing is never
+// duplicated server-side" is preserved in intent (one source), and the
+// server STILL ships only token cells to the UI (the client re-prices on the
+// List/Billed toggle with no server round-trip). This file moving is invisible
+// to the UI: src/models.ts re-exports every symbol below via a relative path,
+// so no client importer changes.
 //
-// Prices are USD per 1M tokens, from the Anthropic pricing table
-// (platform.claude.com). 5m and 1h cache writes are priced separately - Claude
+// IMPORTANT (CHI-323 review B3): every importer of this VALUE module MUST use a
+// relative path, NEVER the `@shared` alias. `@shared` is wired only in
+// vite.config.js + tsconfig `paths`, and only ever exercised by `import type`
+// elsewhere; a VALUE `from '@shared/pricing'` throws ERR_MODULE_NOT_FOUND under
+// plain `node --test` and under the tsc-compiled server. Relative resolves
+// under Vite, Node native-TS, and the server build alike (same reason
+// shared/contextWindows.ts is imported relatively).
+
+// Per-model list price in USD per 1M tokens, from the Anthropic pricing table
+// (platform.claude.com). 5m and 1h cache writes are priced separately — Claude
 // Code's /usage bills each tier, and a session can be entirely 1h-cached.
 // Used to reproduce /usage cost from raw token counts (logs carry tokens, not $).
 // Ordered: more specific prefixes first.
@@ -27,7 +37,7 @@ const P = (input: number, output: number, cw5m: number, cw1h: number, cacheRead:
 // after a launch window). `windows` is ordered earliest-to-latest; a window
 // applies while `day <= to` (inclusive, matching Varde's `spend.ts`
 // `priceForModel`, CHI-110). The last window's `to` is always null (applies
-// indefinitely) - that's also what a caller with no `day` resolves to, so
+// indefinitely) — that's also what a caller with no `day` resolves to, so
 // day-less callers keep today's flat-rate behavior with no regression.
 export interface PriceWindow {
   to: string | null;
@@ -55,7 +65,7 @@ const gpt56 = (input: number, output: number): Price =>
   P(input, output, input * 1.25, input * 1.25, input * 0.1);
 
 // Sonnet 5's Chi-approved (CHI-110) intro-pricing window: $2/$10 per MTok
-// through 2026-08-31, then $3/$15 - mirrors Varde's SONNET5_INTRO_END exactly.
+// through 2026-08-31, then $3/$15 — mirrors Varde's SONNET5_INTRO_END exactly.
 const SONNET5_INTRO_END = '2026-08-31';
 
 // [prefix, windows, subscriptionCovered]. `subscriptionCovered` marks a tier
@@ -66,17 +76,17 @@ const SONNET5_INTRO_END = '2026-08-31';
 const PRICING: [string, PriceWindow[], boolean][] = [
   ['claude-fable-5', flat(P(10, 50, 12.5, 20, 1)), true],
   ['claude-mythos', flat(P(10, 50, 12.5, 20, 1)), true],
-  ['claude-opus-4-1', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.1 (deprecated) - old tier
-  ['claude-opus-4-0', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.0 (retired) - old tier
+  ['claude-opus-4-1', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.1 (deprecated) — old tier
+  ['claude-opus-4-0', flat(P(15, 75, 18.75, 30, 1.5)), true], // Opus 4.0 (retired) — old tier
   ['claude-opus', flat(P(5, 25, 6.25, 10, 0.5)), true],        // Opus 4.8/4.7/4.6/4.5 + default
   ['claude-sonnet-5', [
     { to: SONNET5_INTRO_END, rates: P(2, 10, 2.5, 4, 0.2) },
     { to: null, rates: P(3, 15, 3.75, 6, 0.3) },
   ], true],
-  ['claude-sonnet', flat(P(3, 15, 3.75, 6, 0.3)), true],        // 4.6/4.5/4 - never intro-priced
+  ['claude-sonnet', flat(P(3, 15, 3.75, 6, 0.3)), true],        // 4.6/4.5/4 — never intro-priced
   ['claude-haiku', flat(P(1, 5, 1.25, 2, 0.1)), true],
   ['claude', flat(P(5, 25, 6.25, 10, 0.5)), true],
-  // gpt-5.6 family (per 1M): sol 5/30, terra 2/12, luna 0.20/1.20 - subscription
+  // gpt-5.6 family (per 1M): sol 5/30, terra 2/12, luna 0.20/1.20 — subscription
   // covered. MUST precede the broad 'gpt-5' prefix below (m.includes matching),
   // or "gpt-5.6-terra" would fall through to the gpt-5 metered rate.
   ['gpt-5.6-sol', flat(gpt56(5, 30)), true],
@@ -105,4 +115,109 @@ export function pricingFor(model: string | null | undefined, day?: string | null
     return resolveRates(windows, day);
   }
   return null;
+}
+
+// True when a model is billed under Chi's flat subscription (its "real" cost is
+// $0). Exposed for honesty labels (the "covered" tag) that need the flag
+// without pricing a specific usage bag.
+export function isSubscriptionCovered(model: string | null | undefined): boolean {
+  if (!model) return false;
+  const m = String(model).toLowerCase();
+  for (const [prefix, , covered] of PRICING) if (m.includes(prefix)) return covered;
+  return false;
+}
+
+// A single model's aggregated token usage, as read from `sessions.usage`
+// (parsed JSON) or built up client-side. Diverges from shared `ModelUsage`
+// (`{input,output,cacheWrite5m,cacheWrite1h,cacheRead}`): this module must also
+// accept the LEGACY shape (`cacheWrite`, pre-TTL-split imports), which the
+// shared contract deliberately excludes since new imports never write it. Kept
+// as a local, honest type rather than force-fitting `@shared`'s `Usage`.
+export interface ModelUsageInput {
+  input?: number | null;
+  output?: number | null;
+  cacheWrite5m?: number | null;
+  cacheWrite1h?: number | null;
+  /** Legacy pre-TTL-split field; treated as a 5-minute-tier write. */
+  cacheWrite?: number | null;
+  cacheRead?: number | null;
+}
+
+export interface CostBreakdown {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+// Per-category cost in USD for one model's aggregated token usage; null if the
+// model is unpriced. Handles both the new usage shape ({cacheWrite5m, cacheWrite1h})
+// and the legacy one ({cacheWrite}, treated as 5m). Static lookup — no fetch.
+// `day` (YYYY-MM-DD) selects the pricing window for date-dependent rates
+// (e.g. Sonnet 5's intro window); omit for the latest/current rate.
+export function costBreakdownOf(
+  model: string | null | undefined,
+  u: ModelUsageInput | null | undefined,
+  day?: string | null,
+  mode: CostMode = 'theoretical',
+): CostBreakdown | null {
+  const p = pricingFor(model, day, mode);
+  if (!p || !u) return null;
+  const cw5 = u.cacheWrite5m ?? u.cacheWrite ?? 0;
+  const cw1 = u.cacheWrite1h ?? 0;
+  return {
+    input: ((u.input || 0) * p.input) / 1e6,
+    output: ((u.output || 0) * p.output) / 1e6,
+    cacheWrite: (cw5 * p.cw5m + cw1 * p.cw1h) / 1e6,
+    cacheRead: ((u.cacheRead || 0) * p.cacheRead) / 1e6,
+  };
+}
+
+// Combined cache-write token count across both tiers (for display).
+export function cacheWriteTokens(u: ModelUsageInput): number {
+  return (u.cacheWrite5m ?? 0) + (u.cacheWrite1h ?? 0) || (u.cacheWrite ?? 0);
+}
+
+export interface CacheWriteByTtl {
+  cw5m: number;
+  cw1h: number;
+}
+
+// Cache-write tokens split by TTL tier, for TTL-labeled display. Legacy logs
+// only carry {cacheWrite} — those were billed at the 5-minute rate, so treat
+// them as 5m. { cw5m, cw1h } in tokens.
+export function cacheWriteByTtl(u: ModelUsageInput | null | undefined): CacheWriteByTtl {
+  if (!u) return { cw5m: 0, cw1h: 0 };
+  return { cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0 };
+}
+
+// Per-TTL cache-write cost in USD for one model's usage; null if unpriced.
+export function cacheWriteCostByTtl(
+  model: string | null | undefined,
+  u: ModelUsageInput | null | undefined,
+  day?: string | null,
+  mode: CostMode = 'theoretical',
+): CacheWriteByTtl | null {
+  const p = pricingFor(model, day, mode);
+  if (!p || !u) return null;
+  const { cw5m, cw1h } = cacheWriteByTtl(u);
+  return { cw5m: (cw5m * p.cw5m) / 1e6, cw1h: (cw1h * p.cw1h) / 1e6 };
+}
+
+// Total cost in USD for one model's aggregated token usage; null if unpriced.
+export function costOf(model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null, mode: CostMode = 'theoretical'): number | null {
+  const b = costBreakdownOf(model, u, day, mode);
+  return b ? b.input + b.output + b.cacheWrite + b.cacheRead : null;
+}
+
+// A price function bound to a cost mode, the currency the shared spend math
+// (shared/spend/*) runs on. The client passes `(m,u,day) => costOf(m,u,day,mode)`
+// at the toggled mode; the server briefing runner passes it at the fixed
+// theoretical basis (matching Varde's anomaly/budget math). ONE implementation,
+// no second pricing path.
+export type PriceFn = (model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null) => number | null;
+
+// Build a PriceFn at a fixed mode from the shared table.
+export function priceFnFor(mode: CostMode = 'theoretical'): PriceFn {
+  return (model, u, day) => costOf(model, u, day, mode);
 }

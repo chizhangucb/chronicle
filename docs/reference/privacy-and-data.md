@@ -28,11 +28,16 @@ leaves your machine, and where your data physically lives.
 
 ## What leaves the machine
 
-**Nothing, automatically.** Chronicle's server makes **zero outbound network requests** —
-there's no telemetry, no analytics, no update check, and no hosted service it talks to. This
-was verified directly against the source: the server code contains no `fetch`, no HTTP client,
-and no hardcoded external URL. The client makes exactly one network call, `fetch('/api/...')`,
-and it's local — to Chronicle's own server on your machine.
+**Nothing to a cloud, and no telemetry.** Chronicle's server makes no analytics call, no update
+check, and talks to no hosted service. There is exactly **one** outbound request it can make,
+and it is **opt-out**: the **Claude plan windows** feature reads *your own* subscription quota
+(5h / 7d / Fable utilization) from `api.anthropic.com/api/oauth/usage`, using Claude Code's own
+OAuth token — the identical request Claude Code makes to show your usage bar, to the token's own
+issuer. It runs only while the **Plan windows** toggle in Settings is on (on by default; one
+click turns it off for a fully offline instance), the token is read for that one call and never
+stored or logged, and it consumes no quota. Codex plan windows are read from local `~/.codex`
+logs and never touch the network. Apart from that one call, the client's only network activity
+is `fetch('/api/...')` to Chronicle's own server on your machine.
 
 The single external URL anywhere in the app is a plain link in the sidebar (not a network call
 Chronicle makes on your behalf), which opens `github.com/chizhangucb/chronicle/issues` in your

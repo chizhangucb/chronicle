@@ -7,6 +7,7 @@ import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
 import { costOf, type CostMode } from './models.ts';
+import SortCaret from './SortCaret.tsx';
 import { fmtMoney } from './format.ts';
 import { useCostMode } from './costMode.tsx';
 import { fmtHourOfDay, densifyBuckets, capDenseBuckets, type BucketUnit } from './charts/timeBuckets.ts';
@@ -77,7 +78,7 @@ function rowTokens(row: ExploreCell): number {
 // (e.g. Sonnet 5's intro window) prices correctly. Rows without that field
 // (calibrated tool/skill, hour/subagent groups — see server/explore.ts) fall
 // back to the flat tokensByModel total at the latest rate, unchanged.
-function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
+export function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
   const byDay = (row as ExploreRow).tokensByModelByDay;
   if (day == null && byDay) {
     let n = 0;
@@ -433,11 +434,11 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>{t('Group')}</th>
-                  {showMetricCol && <th>{t(METRIC_COLUMN_KEY[pivot.metric])}</th>}
+                  {showMetricCol && <th className="sort-on">{t(METRIC_COLUMN_KEY[pivot.metric])}<SortCaret on /></th>}
                   <th>{t('Share')}</th>
-                  <th>{t('Tokens')}</th>
-                  <th>{t('Requests')}</th>
-                  <th>{t('Sessions')}</th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens' ? 'sort-on' : ''}>{t('Tokens')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens'} /></th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Requests' ? 'sort-on' : ''}>{t('Requests')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Requests'} /></th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions' ? 'sort-on' : ''}>{t('Sessions')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions'} /></th>
                   <th>{t('$/session')}</th>
                 </tr>
               </thead>
