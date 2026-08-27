@@ -442,6 +442,17 @@ export interface ActivityBurn {
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;
+  // CHI-324 2c: per-day per-dimension cells for the anomaly tile (client prices
+  // → CostedDay[] → shared computeAnomaly), Lane C per-day $, and the local today.
+  anomalyDays: AnomalyDayCells[];
+  laneCByDay: Record<string, number>;
+  today: string;
+}
+export interface AnomalyDayCells {
+  day: string;
+  byModel: ActivityTokensByModel;
+  byProject: Record<string, ActivityTokensByModel>;
+  bySource: Record<string, ActivityTokensByModel>;
 }
 export interface ActivityResult {
   live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;

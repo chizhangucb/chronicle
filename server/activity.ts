@@ -13,6 +13,7 @@
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './windowUsage.ts';
+import { readLaneCDailyCost } from './laneC.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -61,6 +62,25 @@ export interface ActivityBurn {
   // Price-free-proxy magnitude (see header) — left flat/unscaled by the same existing
   // design as the rest of this field, day-bucketing not attempted for one session's usage.
   topSessionTokensByModel: TokensByModel;
+  // CHI-324 2c: per-day per-dimension token CELLS over a lookback window, so the
+  // client can price (at the toggled mode) → CostedDay[] → the shared
+  // computeAnomaly (movers + flagged days). Server ships cells, not dollars.
+  anomalyDays: AnomalyDayCells[];
+  // Lane C per-day $ (already priced by LiteLLM) for headline/anomaly inclusion
+  // + the unattributable note (D8). Keyed by LOCAL day.
+  laneCByDay: Record<string, number>;
+  // LOCAL "today" key (YYYY-MM-DD), the anchor computeAnomaly compares against.
+  today: string;
+}
+
+// One day's per-dimension token cells (dollars are priced client-side). project
+// is keyed by NAME for display; movers cover project/model/source (exact from
+// sessions.usage). skill/agent/mcp movers are a later refinement (calibrated).
+export interface AnomalyDayCells {
+  day: string;
+  byModel: TokensByModel;
+  byProject: Record<string, TokensByModel>;
+  bySource: Record<string, TokensByModel>;
 }
 
 export interface ActivityResult {
@@ -292,6 +312,28 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
     if (tokens > 0 && (!top || tokens > top.tokens)) top = { row: r, cells, tokens };
   }
 
+  // ---- Anomaly cells (CHI-324 2c) ----
+  // A lookback window wide enough for BOTH today's movers (needs MEDIAN_DAYS of
+  // history) and per-day flags across the current window (each day vs its own
+  // trailing median). Bounded so "All" doesn't scan forever.
+  const lookbackDays = MEDIAN_DAYS + Math.min(days ?? 30, 90);
+  const lookbackCutoff = new Date(now - lookbackDays * DAY).toISOString();
+  const projName = new Map<number, string>();
+  for (const r of db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]) projName.set(r.id, r.name);
+  const anomDayMap = new Map<string, AnomalyDayCells>();
+  for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], lookbackCutoff, 'day')) {
+    let d = anomDayMap.get(c.bucket);
+    if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
+    addUsage(d.byModel, { [c.model]: c.cells });
+    const pk = projName.get(c.projectId) ?? String(c.projectId);
+    addUsage(d.byProject[pk] ?? (d.byProject[pk] = {}), { [c.model]: c.cells });
+    addUsage(d.bySource[c.source] ?? (d.bySource[c.source] = {}), { [c.model]: c.cells });
+  }
+  const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+  const laneCByDay = Object.fromEntries(readLaneCDailyCost(lookbackCutoff));
+  const nowD = new Date(now);
+  const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+
   return {
     live,
     recent,
@@ -302,6 +344,9 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
       topSessionId: top?.row.id ?? null,
       topSessionName: top ? displayName(top.row) : null,
       topSessionTokensByModel: top?.cells ?? {},
+      anomalyDays,
+      laneCByDay,
+      today,
     },
   };
 }
