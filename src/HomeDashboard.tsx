@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
@@ -15,10 +14,10 @@ import { formatRelativeTime } from './relativeTime.js';
 import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
+import SpendOverTime from './insights/SpendOverTime.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
-import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
-import { densifyBuckets, capDenseBuckets, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation, type BucketedCell } from './windowedUsage.ts';
+import { fmtDayLabel } from './charts/timeBuckets.ts';
+import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
 import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -623,64 +622,6 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
-  // Max densified buckets for the spend chart (cap to prevent runaway rendering).
-  // This matches ExploreTab's cap; for daily/hourly-bounded windows this is rarely
-  // approached, so we cap silently without a UI note.
-  const MAX_DENSE_BUCKETS = 2000;
-
-  // ---- Spend over time · stacked by project (top 5 by spend in range + Other) ----
-  // Windowed cells (Task 2/3), not raw `s.usage`: a session that started before
-  // the window but ran INTO it contributes only its in-window share, so this
-  // ranking agrees with the KPI strip's Spend and the chart below it.
-  const projectSpend = useMemo(() => {
-    // Day-bucketed pricing (CHI-228): group by project first, then price each
-    // project's slice per day-bucket (costOfBucketedCells) rather than
-    // collapsing to one model bag first (sumByKeyModel + costOfCells), which
-    // would price every day at one flat (latest) rate.
-    const byProject = groupByKey(result.windowedTokensByModel, (c) => String(c.projectId));
-    const m = new Map<number, number>();
-    for (const [key, cells] of byProject) m.set(Number(key), costOfBucketedCells(cells, mode));
-    return m;
-  }, [result, mode]);
-  const projectsBySpend = useMemo(
-    () => [...result.projects].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
-    [result, projectSpend],
-  );
-  const topProjects = useMemo(() => projectsBySpend.slice(0, 5), [projectsBySpend]);
-  const otherProjectIds = useMemo(() => new Set(projectsBySpend.slice(5).map((p) => p.id)), [projectsBySpend]);
-  // hourlySpend is only computed server-side for a short window (days<=2, i.e.
-  // the Today window is the only WINDOWS entry that ever qualifies) — falls
-  // back to dailySpend otherwise (server/insights.ts). Both are LOCAL-time
-  // bucket keys (server strftime(...,'localtime')), so the label formatters
-  // below never need the old UTC-double-shift workaround.
-  const useHourly = result.hourlySpend != null;
-  const spendBucketUnit = useHourly ? 'hour' as const : 'day' as const;
-  const spendChartData = useMemo(() => {
-    const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
-    const byBucket = groupByBucket(cells);
-    // D12: dense-fill every bucket from first to last present, so equal bar
-    // spacing represents equal time even when some hours/days had no spend.
-    // Cap to MAX_DENSE_BUCKETS to prevent runaway rendering on very long
-    // time series (matches ExploreTab's approach).
-    const denseKeys = densifyBuckets([...byBucket.keys()], spendBucketUnit);
-    const { keys: bucketKeys } = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
-    const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
-    return bucketKeys.map((bucket) => {
-      const byGroupModel = sumByKeyModel(
-        byBucket.get(bucket) ?? [],
-        (c) => (otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId)),
-      );
-      // `bucket` is either an hour key (YYYY-MM-DDTHH) or a day key
-      // (YYYY-MM-DD); its first 10 chars are always a valid pricing day
-      // (CHI-228) — every cell in this bucket already shares that one day.
-      const day = bucket.slice(0, 10);
-      const row: Record<string, string | number> = { bucket: labelOf(bucket) };
-      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel, day, mode);
-      return row;
-    });
-  }, [result, otherProjectIds, useHourly, spendBucketUnit, mode]);
-  const hasOther = otherProjectIds.size > 0;
-
   // ---- Spend by model (hbar) ----
   const spendByModel = useMemo(() => {
     // Day-bucketed pricing (CHI-228): group by model, then price each
@@ -746,27 +687,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   return (
     <>
       <div className="grid2">
-        <div className="card">
-          <h3>{t('Spend over time · stacked by project')}{useHourly ? ` · ${t('Hourly')}` : ''}</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={spendChartData}>
-              <CartesianGrid {...GRID_PROPS} />
-              <XAxis dataKey="bucket" {...AXIS_PROPS} />
-              <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
-              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
-              {topProjects.map((p, i) => (
-                <Bar key={p.id} dataKey={String(p.id)} stackId="a" name={p.name} fill={projectColors.get(p.id) ?? CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />
-              ))}
-              {hasOther && <Bar dataKey="other" stackId="a" name={t('Other')} fill="var(--ink-3)" />}
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="legend">
-            {topProjects.map((p) => (
-              <span key={p.id}><span className="dot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</span>
-            ))}
-            {hasOther && <span style={{ color: 'var(--ink-3)' }}>+ {otherProjectIds.size} {t('in Other')}</span>}
-          </div>
-        </div>
+        <SpendOverTime result={result} />
         <div className="card">
           <h3>{t('Spend by model')} · {rangeLabel}</h3>
           {spendByModel.map((r, i) => {

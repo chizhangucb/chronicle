@@ -645,6 +645,23 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .cost-mode-toggle .cm-opt:hover { color: var(--ink); }
 .cost-mode-toggle .cm-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
 
+/* CHI-324 2d: Spend-over-time header (title + bare [project|provider] stack
+   toggle) and the compact segmented toggle itself. Default option far left. */
+.sot-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.sot-head h3 { margin: 0; }
+.stack-toggle {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 2px;
+}
+.stack-toggle .st-opt {
+  cursor: pointer; background: transparent; border: none;
+  color: var(--ink-2); font-size: 11px; font-family: var(--mono);
+  border-radius: 999px; padding: 2px 9px; outline: none;
+}
+.stack-toggle .st-opt:hover { color: var(--ink); }
+.stack-toggle .st-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
+
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }
