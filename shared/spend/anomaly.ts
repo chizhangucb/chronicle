@@ -63,6 +63,44 @@ function median(nums: number[]): number {
 }
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+// One prior day in the current window that was itself a spend spike (its own
+// cost > multiplier x the median of the active days strictly before it). Feeds
+// the anomaly tile's "N flagged days" line on multi-day windows (CHI-324 2c).
+export interface FlaggedDay {
+  day: string;
+  cost: number;
+  median: number;
+  ratio: number;
+}
+
+// Days in the window that flagged as anomalies vs their OWN trailing median,
+// newest first. `today` is excluded (it is the headline ratio, not a window
+// flag). `sinceDay` (inclusive) bounds which days are REPORTED — each day's
+// median still looks back across the full `days` series, so a flag near the
+// window start still has a real baseline. Pure over already-costed days, same
+// as computeAnomaly.
+export function computeFlaggedDays(
+  days: CostedDay[],
+  today: string,
+  thresholds: AnomalyThresholds = DEFAULT_SPEND_THRESHOLDS.anomaly,
+  sinceDay?: string,
+): FlaggedDay[] {
+  const { multiplier, windowDays } = thresholds;
+  const sorted = [...days].sort((a, b) => a.day.localeCompare(b.day));
+  const out: FlaggedDay[] = [];
+  for (const d of sorted) {
+    if (d.day >= today || d.cost <= 0) continue;
+    if (sinceDay && d.day < sinceDay) continue;
+    const prior = sorted.filter((x) => x.day < d.day && x.cost > 0).slice(-windowDays);
+    if (!prior.length) continue;
+    const m = median(prior.map((x) => x.cost));
+    if (m > 0 && d.cost / m > multiplier) {
+      out.push({ day: d.day, cost: round2(d.cost), median: round2(m), ratio: round2(d.cost / m) });
+    }
+  }
+  return out.reverse(); // newest first
+}
+
 export function computeAnomaly(
   days: CostedDay[],
   today: string,

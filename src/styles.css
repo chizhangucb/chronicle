@@ -1599,6 +1599,18 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
+/* CHI-324 anomaly-tile extras (AnomalyTile) — top-movers line, Lane-C honesty
+   note, and the multi-day flagged-days deep-link. Sit between the comparison
+   bar and the top-session row; glyph in ink-3, mover names in ink. */
+.anom-mover { margin-top: var(--gap-3); font: 11px var(--mono); color: var(--ink-2); line-height: 1.5; }
+.anom-mover .anom-glyph { color: var(--ink-3); }
+.anom-mover .anom-sep { color: var(--ink-3); }
+.anom-mover b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.anom-lanec { margin-top: var(--gap-1); font: 11px var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.anom-flagged { margin-top: var(--gap-2); font: 11px var(--mono); color: var(--warn); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.anom-flagged:hover { text-decoration: underline; }
+.anom-flagged .anom-arrow { color: var(--warn); }
+
 /* `/projects` — PR-2c chrome-sidebar redesign (Task 20, D14, supersedes the
    PR-2 two-column shape above). Three vertical zones: the left app sidebar
    (`.sidebar`, untouched), a CENTER content column (`.projects-content` —

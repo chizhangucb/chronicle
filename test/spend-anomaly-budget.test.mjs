@@ -4,7 +4,7 @@
 // series; these assert the algorithm, not pricing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeAnomaly } from '../shared/spend/anomaly.ts';
+import { computeAnomaly, computeFlaggedDays } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
@@ -82,6 +82,27 @@ test('computeAnomaly: includesLaneC flag threads through for the honesty caveat'
   const days = [...priorDays(3, 10, 1), { day: '2026-08-20', cost: 30 }];
   assert.equal(computeAnomaly(days, '2026-08-20', DEFAULT_SPEND_THRESHOLDS.anomaly, { includesLaneC: true }).includesLaneC, true);
   assert.equal(computeAnomaly(days, '2026-08-20').includesLaneC, false);
+});
+
+test('computeFlaggedDays: a prior spike day flags vs its own trailing median, newest first', () => {
+  const days = [...priorDays(14, 10, 1), { day: '2026-08-18', cost: 30 }, { day: '2026-08-19', cost: 10 }, { day: '2026-08-20', cost: 12 }];
+  const flags = computeFlaggedDays(days, '2026-08-20'); // today (08-20) is the headline, excluded
+  assert.equal(flags.length, 1);
+  assert.equal(flags[0].day, '2026-08-18'); // 30 vs a 10 median = 3x
+  assert.equal(flags[0].ratio, 3);
+});
+
+test('computeFlaggedDays: today is never counted as a flagged window day', () => {
+  const days = [...priorDays(14, 10, 1), { day: '2026-08-20', cost: 40 }];
+  assert.equal(computeFlaggedDays(days, '2026-08-20').length, 0);
+});
+
+test('computeFlaggedDays: sinceDay bounds which days are reported, not the median lookback', () => {
+  const days = [...priorDays(14, 10, 1), { day: '2026-08-16', cost: 30 }, { day: '2026-08-19', cost: 30 }, { day: '2026-08-20', cost: 10 }];
+  // Both 08-16 and 08-19 are 3x spikes, but only report from 08-18 onward.
+  const flags = computeFlaggedDays(days, '2026-08-20', DEFAULT_SPEND_THRESHOLDS.anomaly, '2026-08-18');
+  assert.equal(flags.length, 1);
+  assert.equal(flags[0].day, '2026-08-19');
 });
 
 test('computeBudgetPosture: pace + projection + share + state', () => {
