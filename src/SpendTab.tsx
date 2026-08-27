@@ -1,5 +1,5 @@
 import React, { useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult, PlanWindowsResult, PlanWindow } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult, PlanWindowsResult, AccountWindow, PlanAccount } from './api.js';
 import { insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl, planWindowsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
@@ -198,52 +198,59 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
   );
 }
 
-// ---- Plan windows (CHI-324 2f): the Claude subscription rate windows (5h / 7d
-// / top-tier). OUTBOUND + opt-in-off (D7) — the card shows an opt-in prompt until
-// the user turns it on in Settings, then the live meters. ----
-function fmtReset(iso: string | null, kind: '5h' | '7d'): string {
+// ---- Plan windows (CHI-324 2f): one card per ACCOUNT. Codex is a LOCAL read
+// (always); Claude is OUTBOUND + opt-in-off (D7) — the card shows an opt-in
+// prompt until the user turns it on in Settings, then the live meters. ----
+function fmtReset(iso: string | null, label: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return kind === '5h'
+  // Short (5h/current-session) windows show a clock; weekly windows show a day.
+  return label === '5h'
     ? d.toLocaleTimeString('en-US', { hour: 'numeric' })            // "3 PM"
     : d.toLocaleDateString('en-US', { weekday: 'short' });          // "Thu"
 }
-function PlanWindowMeter({ label, w, kind }: { label: string; w: PlanWindow | null; kind: '5h' | '7d' }): JSX.Element | null {
-  if (!w) return null;
+function PlanWindowMeter({ w }: { w: AccountWindow }): JSX.Element {
   const pct = Math.max(0, Math.min(w.utilization, 100));
+  const reset = fmtReset(w.resetsAt, w.label);
   return (
     <div className="pw-win">
-      <span className="pw-l">{label}</span>
+      <span className="pw-l">{w.label}</span>
       <div className="track"><div className={`seg ${pct >= 90 ? 'sev-danger' : pct >= 75 ? 'sev-warn' : ''}`} style={{ width: `${pct}%`, background: pct < 75 ? 'var(--brass)' : undefined }} /></div>
-      <span className="pw-v">{pct.toFixed(0)}%{fmtReset(w.resetsAt, kind) ? ` · ${fmtReset(w.resetsAt, kind)}` : ''}</span>
+      <span className="pw-v">{pct.toFixed(0)}%{reset ? ` · ${reset}` : ''}</span>
+    </div>
+  );
+}
+function AccountCard({ a }: { a: PlanAccount }): JSX.Element {
+  return (
+    <div className="acct">
+      <div className="acct-head">
+        <span className="acct-n">{a.name}{a.plan ? <span className="muted"> · {a.plan}</span> : null}</span>
+        <span className="cov-tag">{t('covered')}</span>
+      </div>
+      {a.windows.map((w) => <PlanWindowMeter key={w.label} w={w} />)}
     </div>
   );
 }
 
 function PlanWindowsCard(): JSX.Element {
   const { data: pw } = useCachedFetch<PlanWindowsResult>(planWindowsUrl());
+  const hasClaude = pw?.accounts.some((a) => a.kind === 'claude');
   return (
     <div className="card">
-      <h3>{t('Plan windows')} <span className="sub3">· {t('Claude subscription')}</span></h3>
-      {pw == null ? <div className="muted small pad8">{t('Loading…')}</div>
-        : !pw.enabled ? (
-          <div className="muted small pad8">
-            {t('Off. Plan windows read your Claude 5h / 7d / top-tier quota with one outbound call to api.anthropic.com (using Claude Code’s own token, exactly as Claude Code does). Turn it on in Settings — it stays off by default.')}
-          </div>
-        ) : !pw.available ? (
-          <div className="muted small pad8">{t('On, but no Claude credentials were found (Keychain / ~/.claude/.credentials.json). Sign in to Claude Code, then reload.')}</div>
-        ) : (
-          <div className="acct-grid">
-            <div className="acct">
-              <div className="acct-head"><span className="acct-n">{t('Claude')}</span><span className="cov-tag">{t('covered')}</span></div>
-              <PlanWindowMeter label={t('5h')} w={pw.fiveHour} kind="5h" />
-              <PlanWindowMeter label={t('7d')} w={pw.sevenDay} kind="7d" />
-              {pw.topTier && <PlanWindowMeter label={pw.topTier.label} w={pw.topTier.window} kind="7d" />}
-            </div>
-          </div>
-        )}
-      {pw?.enabled && pw.available && <div className="muted small pad8">{t('The 5h / all-models-7d / top-tier-7d windows from Anthropic’s usage endpoint · quota-read, not billed · Settings opt-out.')}</div>}
+      <h3>{t('Plan windows')} <span className="sub3">· {t('per account')}</span></h3>
+      {pw == null ? <div className="muted small pad8">{t('Loading…')}</div> : (
+        <>
+          {pw.accounts.length > 0 && <div className="acct-grid">{pw.accounts.map((a) => <AccountCard key={`${a.kind}:${a.name}`} a={a} />)}</div>}
+          {!hasClaude && !pw.claudeEnabled && (
+            <div className="muted small pad8">{t('Claude windows are off. They read your Claude 5h / 7d / Fable quota with one outbound call to api.anthropic.com (using Claude Code’s own token, exactly as Claude Code does) — turn it on in Settings. Codex windows above are read locally, no network. Off by default.')}</div>
+          )}
+          {!hasClaude && pw.claudeUnauthed && (
+            <div className="muted small pad8">{t('Claude windows are on but temporarily unavailable — no credentials found, or Anthropic’s usage endpoint is rate-limiting. Reloads on its own.')}</div>
+          )}
+          {pw.accounts.length > 0 && <div className="muted small pad8">{t('quota-read, not billed · Codex local · Claude via the usage endpoint (Settings opt-out).')}</div>}
+        </>
+      )}
     </div>
   );
 }
@@ -458,7 +465,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Server')}</th>
               <th>{t('Calls')}</th>
               <th>{t('Tokens')}</th>
-              <th className="sort-on">{t('Turn $')} <InfoTip text={t('EXPOSURE, not the server’s own cost (MCP servers are free). It is the summed spend of the turns that used this server; a turn touching several servers is counted in each, so these do not sum to the day total.')} /><SortCaret on /></th>
+              <th className="sort-on"><InfoTip text={t('EXPOSURE, not the server’s own cost (MCP servers are free). It is the summed spend of the turns that used this server; a turn touching several servers is counted in each, so these do not sum to the day total.')} /> {t('Turn $')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>

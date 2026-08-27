@@ -322,15 +322,11 @@ export interface Settings {
   planWindows: boolean;
 }
 
-// Claude subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts.
-// OUTBOUND + opt-in-off; {enabled:false} unless the Settings opt-in is on.
-export interface PlanWindow { utilization: number; resetsAt: string | null; }
-export interface PlanWindowsResult {
-  enabled: boolean; available: boolean;
-  fiveHour: PlanWindow | null; sevenDay: PlanWindow | null;
-  topTier: { label: string; window: PlanWindow } | null;
-  fetchedAt: string | null;
-}
+// Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
+// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND + opt-in-off.
+export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
+export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
+export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
 export function planWindowsUrl(): string { return '/api/plan-windows'; }
 
 export type SettingsPatch = Partial<Settings>;

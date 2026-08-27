@@ -1,35 +1,40 @@
-// CHI-324 2f: the Claude plan-windows payload parser (pure — no outbound). The
-// live fetch + opt-in gate are exercised by the route; here we pin the shape
-// parsing so a contract change in Anthropic's usage payload fails loudly.
+// CHI-324 2f: the Claude plan-windows payload parser (pure — no outbound). Reads
+// Anthropic's `limits` array (the clean labeled source: session / weekly_all /
+// weekly_scoped-with-model-display_name). Pins the shape so a contract change
+// fails loudly, and that the top-tier label follows the API's display_name
+// ("Fable"), never a hardcoded model.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePayload } from '../server/planWindows.ts';
+import { parseClaudePayload } from '../server/planWindows.ts';
 
-test('parsePayload reads five_hour / seven_day / seven_day_opus windows', () => {
-  const r = parsePayload({
-    five_hour: { utilization: 41, resets_at: '2026-08-27T15:00:00Z' },
-    seven_day: { utilization: 63, resets_at: '2026-08-29T00:00:00Z' },
-    seven_day_opus: { utilization: 22, resets_at: '2026-08-29T00:00:00Z' },
-  }, '2026-08-27T00:00:00Z');
-  assert.ok(r);
-  assert.equal(r.available, true);
-  assert.equal(r.fiveHour.utilization, 41);
-  assert.equal(r.sevenDay.utilization, 63);
-  assert.equal(r.topTier.label, 'opus');
-  assert.equal(r.topTier.window.utilization, 22);
+test('parseClaudePayload maps session→5h, weekly_all→7d, weekly_scoped→model display_name', () => {
+  const a = parseClaudePayload({
+    subscription_type: 'max',
+    limits: [
+      { kind: 'session', percent: 8, resets_at: '2026-08-27T19:40:00Z' },
+      { kind: 'weekly_all', percent: 13, resets_at: '2026-08-28T08:00:00Z' },
+      { kind: 'weekly_scoped', percent: 7, resets_at: '2026-08-28T08:00:00Z', scope: { model: { display_name: 'Fable' } } },
+    ],
+  });
+  assert.ok(a);
+  assert.equal(a.kind, 'claude');
+  assert.equal(a.plan, 'max');
+  assert.deepEqual(a.windows.map((w) => w.label), ['5h', '7d', 'Fable']);
+  assert.equal(a.windows[2].utilization, 7);
+  assert.equal(a.windows[0].resetsAt, '2026-08-27T19:40:00Z');
 });
 
-test('parsePayload falls back to seven_day_sonnet for the top tier, labeled sonnet', () => {
-  const r = parsePayload({
-    five_hour: { utilization: 5, resets_at: null },
-    seven_day: { utilization: 10, resets_at: null },
-    seven_day_sonnet: { utilization: 8, resets_at: null },
-  }, 'now');
-  assert.equal(r.topTier.label, 'sonnet');
-  assert.equal(r.topTier.window.utilization, 8);
+test('parseClaudePayload skips unknown/percent-less entries but keeps the known ones', () => {
+  const a = parseClaudePayload({ limits: [
+    { kind: 'session', percent: 5, resets_at: null },
+    { kind: 'nimbus_quill', percent: 0, resets_at: null },          // unknown kind, no model scope → skipped
+    { kind: 'weekly_all', resets_at: null },                        // no numeric percent → skipped
+  ] });
+  assert.deepEqual(a.windows.map((w) => w.label), ['5h']);
 });
 
-test('parsePayload rejects a payload with no recognizable window (contract change)', () => {
-  assert.equal(parsePayload({ something_else: 1 }, 'now'), null);
-  assert.equal(parsePayload(null, 'now'), null);
+test('parseClaudePayload rejects a payload with no recognizable window', () => {
+  assert.equal(parseClaudePayload({ limits: [] }), null);
+  assert.equal(parseClaudePayload({ foo: 1 }), null);
+  assert.equal(parseClaudePayload(null), null);
 });
