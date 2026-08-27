@@ -25,6 +25,10 @@ export interface ChronicleConfig {
   // Opt-in for the hard-gated confidential marker drill-down (CHI-323 D8),
   // default OFF. Only honored on a live hub. Never on the public/default build.
   confidentialMarkers?: boolean;
+  // Opt-in for the Spend-tab Plan windows (CHI-324 2f / D7), default OFF. The ONE
+  // outbound call in Chronicle: reads the user's own Claude quota from
+  // api.anthropic.com when ON. Off by default; never outbound unless enabled.
+  planWindows?: boolean;
   [key: string]: unknown;
 }
 

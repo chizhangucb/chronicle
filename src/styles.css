@@ -744,6 +744,17 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 @media (max-width: 680px) { .eff-cols { grid-template-columns: 1fr; } }
 .waste-row { display: grid; grid-template-columns: 130px 64px 1fr; gap: var(--gap-3); align-items: baseline; padding: 2px 0; font: 12px var(--mono); }
 .waste-row .eff-v { text-align: right; color: var(--brass-text); font-variant-numeric: tabular-nums; }
+/* Plan windows (CHI-324 2f): one card per account, auto-fit, each with slim meters. */
+.acct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: var(--gap-2); }
+.acct { border: 1px solid var(--border); border-radius: 6px; padding: var(--gap-3); }
+.acct-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--gap-2); }
+.acct-n { font: 600 12px var(--mono); color: var(--ink); }
+.cov-tag { font: 9px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); padding: 1px 6px; border-radius: 999px; }
+.pw-win { display: grid; grid-template-columns: 44px 1fr 78px; gap: var(--gap-2); align-items: center; padding: 2px 0; font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.pw-l { color: var(--ink-2); }
+.pw-win .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.pw-win .seg { height: 100%; border-radius: 3px; }
+.pw-v { text-align: right; color: var(--ink-2); }
 .routing-body { padding: 2px 0; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
 .routing-line { margin-bottom: var(--gap-1); }
 .routing-line b { color: var(--ink); }

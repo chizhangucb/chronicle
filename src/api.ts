@@ -319,7 +319,19 @@ export interface Settings {
   autoSyncPaused: boolean;
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
+  planWindows: boolean;
 }
+
+// Claude subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts.
+// OUTBOUND + opt-in-off; {enabled:false} unless the Settings opt-in is on.
+export interface PlanWindow { utilization: number; resetsAt: string | null; }
+export interface PlanWindowsResult {
+  enabled: boolean; available: boolean;
+  fiveHour: PlanWindow | null; sevenDay: PlanWindow | null;
+  topTier: { label: string; window: PlanWindow } | null;
+  fetchedAt: string | null;
+}
+export function planWindowsUrl(): string { return '/api/plan-windows'; }
 
 export type SettingsPatch = Partial<Settings>;
 

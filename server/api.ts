@@ -13,6 +13,7 @@ import { mountActivity }   from './routes/activity.ts';
 import { mountDetectors }  from './routes/detectors.ts';
 import { mountWaste }      from './routes/waste.ts';
 import { mountRouting }    from './routes/routing.ts';
+import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
@@ -52,6 +53,7 @@ mountActivity(api);
 mountDetectors(api);
 mountWaste(api);
 mountRouting(api);
+mountPlanWindows(api);
 mountHub(api);
 mountBriefing(api);
 

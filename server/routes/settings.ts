@@ -12,6 +12,7 @@ export function mountSettings(app: Express): void {
       autoSyncPaused: cfg.autoSyncPaused === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      planWindows: cfg.planWindows === true,
     });
   });
 
@@ -21,6 +22,7 @@ export function mountSettings(app: Express): void {
     if (typeof req.body?.autoSyncPaused === 'boolean') patch.autoSyncPaused = req.body.autoSyncPaused;
     if (typeof req.body?.minorActiveMsThreshold === 'number') patch.minorActiveMsThreshold = req.body.minorActiveMsThreshold;
     if (typeof req.body?.minorMessageCountThreshold === 'number') patch.minorMessageCountThreshold = req.body.minorMessageCountThreshold;
+    if (typeof req.body?.planWindows === 'boolean') patch.planWindows = req.body.planWindows;
     const cfg = writeConfig(patch);
     if ('autoSync' in patch) (patch.autoSync ? startAutoSync() : stopAutoSync());
     res.json({
@@ -28,6 +30,7 @@ export function mountSettings(app: Express): void {
       autoSyncPaused: cfg.autoSyncPaused === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      planWindows: cfg.planWindows === true,
     });
   });
 

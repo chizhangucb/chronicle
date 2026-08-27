@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult } from './api.js';
-import { insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult, PlanWindowsResult, PlanWindow } from './api.js';
+import { insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl, planWindowsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
@@ -55,7 +55,7 @@ export default function SpendTab({ insights, activity, win, days }: {
         {insights ? <SpendOverTime result={insights} /> : <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>}
         <SpendBreakdownCard insights={insights} win={win} />
       </div>
-      <PlaceholderCard title={t('Plan windows')} sub={t('per account')} note={t('Building next — one card per account (Claude 5h / 7d / top-tier · Codex 7d), quota-read, Settings opt-out.')} />
+      <PlanWindowsCard />
       <EfficiencyCard insights={insights} win={win} days={days} />
       <SkillsMcpRow win={win} days={days} />
       <ProxyLaneRow insights={insights} />
@@ -194,6 +194,56 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
           <span className="v num">{r.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- Plan windows (CHI-324 2f): the Claude subscription rate windows (5h / 7d
+// / top-tier). OUTBOUND + opt-in-off (D7) — the card shows an opt-in prompt until
+// the user turns it on in Settings, then the live meters. ----
+function fmtReset(iso: string | null, kind: '5h' | '7d'): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return kind === '5h'
+    ? d.toLocaleTimeString('en-US', { hour: 'numeric' })            // "3 PM"
+    : d.toLocaleDateString('en-US', { weekday: 'short' });          // "Thu"
+}
+function PlanWindowMeter({ label, w, kind }: { label: string; w: PlanWindow | null; kind: '5h' | '7d' }): JSX.Element | null {
+  if (!w) return null;
+  const pct = Math.max(0, Math.min(w.utilization, 100));
+  return (
+    <div className="pw-win">
+      <span className="pw-l">{label}</span>
+      <div className="track"><div className={`seg ${pct >= 90 ? 'sev-danger' : pct >= 75 ? 'sev-warn' : ''}`} style={{ width: `${pct}%`, background: pct < 75 ? 'var(--brass)' : undefined }} /></div>
+      <span className="pw-v">{pct.toFixed(0)}%{fmtReset(w.resetsAt, kind) ? ` · ${fmtReset(w.resetsAt, kind)}` : ''}</span>
+    </div>
+  );
+}
+
+function PlanWindowsCard(): JSX.Element {
+  const { data: pw } = useCachedFetch<PlanWindowsResult>(planWindowsUrl());
+  return (
+    <div className="card">
+      <h3>{t('Plan windows')} <span className="sub3">· {t('Claude subscription')}</span></h3>
+      {pw == null ? <div className="muted small pad8">{t('Loading…')}</div>
+        : !pw.enabled ? (
+          <div className="muted small pad8">
+            {t('Off. Plan windows read your Claude 5h / 7d / top-tier quota with one outbound call to api.anthropic.com (using Claude Code’s own token, exactly as Claude Code does). Turn it on in Settings — it stays off by default.')}
+          </div>
+        ) : !pw.available ? (
+          <div className="muted small pad8">{t('On, but no Claude credentials were found (Keychain / ~/.claude/.credentials.json). Sign in to Claude Code, then reload.')}</div>
+        ) : (
+          <div className="acct-grid">
+            <div className="acct">
+              <div className="acct-head"><span className="acct-n">{t('Claude')}</span><span className="cov-tag">{t('covered')}</span></div>
+              <PlanWindowMeter label={t('5h')} w={pw.fiveHour} kind="5h" />
+              <PlanWindowMeter label={t('7d')} w={pw.sevenDay} kind="7d" />
+              {pw.topTier && <PlanWindowMeter label={pw.topTier.label} w={pw.topTier.window} kind="7d" />}
+            </div>
+          </div>
+        )}
+      {pw?.enabled && pw.available && <div className="muted small pad8">{t('The 5h / all-models-7d / top-tier-7d windows from Anthropic’s usage endpoint · quota-read, not billed · Settings opt-out.')}</div>}
     </div>
   );
 }
