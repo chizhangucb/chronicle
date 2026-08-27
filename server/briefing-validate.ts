@@ -5,12 +5,13 @@
  * malformed card is dropped with reasons; the run fails outright only when the
  * payload is not the contract shape or every card was invalid.
  *
- * D7: "spend" is NOT a valid domain this phase, so a spend card is rejected here
- * — the phase-1 briefing carries the non-spend cards only.
+ * CHI-324 2i: "spend" is now a valid domain (the phase-1 D7 gap closed once the
+ * spend detector moved server-side); the runner assembles a spend slice and the
+ * skill may emit spend-anomaly cards.
  */
 import type { BriefingCard, BriefingDomain } from './briefing.ts';
 
-export const DOMAINS: BriefingDomain[] = ['memory', 'sessions', 'safety', 'jobs', 'coverage'];
+export const DOMAINS: BriefingDomain[] = ['memory', 'sessions', 'safety', 'jobs', 'coverage', 'spend'];
 export const MAX_CARDS = 12;
 const ID_RE = /^[a-z0-9][a-z0-9._:-]{0,119}$/i;
 

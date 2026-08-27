@@ -18,12 +18,13 @@ test.describe('demo hub: /briefing renders cards + actions', () => {
   test.beforeAll(async () => { demo = await launchDemo(); });
   test.afterAll(() => { if (demo) stopDemo(demo); });
 
-  test('needs-you + awareness sections render, with the disclosed spend gap note', async ({ page }) => {
+  test('needs-you + awareness sections render, including a spend card (CHI-324 2i)', async ({ page }) => {
     await page.goto(demo.baseURL + '/briefing');
     await expect(page.locator('.sidebar .sb-item[title="Briefing"]')).toHaveCount(1);
-    await expect(page.locator('.briefing-scope')).toContainText('Spend cards');
     await expect(page.locator('.briefing-card.needs-you')).not.toHaveCount(0);
     await expect(page.locator('.briefing-card', { hasText: 'health-sweep is overdue' })).toBeVisible();
+    // The spend domain now lights up (the phase-1 D7 gap closed).
+    await expect(page.locator('.briefing-card', { hasText: 'Today’s spend is' }).or(page.locator('.briefing-card', { hasText: "Today's spend is" }))).toBeVisible();
   });
 
   test('marking a card Done moves it out of the open sections (two-file state)', async ({ page }) => {
