@@ -700,6 +700,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .budget-track { position: relative; height: 8px; background: var(--bg2); border-radius: 4px; overflow: visible; }
 .bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
 .bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
+.sort-car { color: var(--brass-text); font-size: 9px; }
 .proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
 .proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 
@@ -713,7 +714,9 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .eff-n { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eff-v { font-variant-numeric: tabular-nums; text-align: right; }
 .eff-w { justify-self: start; }
-.eff-d { font-size: 11px; }
+/* Extra breathing room before the definition: the bar's track fills its column
+   edge-to-edge, so the plain grid gap read tighter than the chip→bar gap. */
+.eff-d { font-size: 11px; padding-left: var(--gap-3); }
 .eff-row .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
 .eff-row .seg { height: 100%; border-radius: 3px; }
 /* Bar color matches its state chip (ok = the same green, not brass) so the row

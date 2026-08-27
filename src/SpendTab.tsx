@@ -296,7 +296,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Skill')}</th>
               <th>{t('Runs')}</th>
               <th>{t('Tokens')}</th>
-              <th>{t('Cost')}</th>
+              <th>{t('Cost')} <span className="sort-car" aria-hidden="true">▾</span></th>
             </tr>
           </thead>
           <tbody>
