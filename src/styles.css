@@ -721,6 +721,30 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .sw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 @media (max-width: 640px) { .eff-row { grid-template-columns: 1fr auto; } .eff-row .track, .eff-row .eff-d { display: none; } }
 
+/* CHI-324 2g: Sessions tab. */
+.sessions-hub { display: flex; flex-direction: column; gap: 10px; }
+.sh-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.sh-toggle { display: inline-flex; align-items: center; gap: var(--gap-2); }
+.sh-tablehead { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); margin-bottom: var(--gap-2); }
+.more-btn {
+  margin-top: var(--gap-3); width: 100%; cursor: pointer; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 6px; color: var(--ink-2);
+  font: 12px var(--mono); padding: 6px; text-align: center;
+}
+.more-btn:hover { color: var(--ink); background: var(--bg1); }
+/* Keep the aggregate tables inside their narrow grid3 cards (compact, first col
+   ellipsised) and cap the sessions table's Session name so the later columns
+   (Project · Source · Ctx · Active · Cost · When) stay on screen. */
+.sessions-hub .grid3 .tbl { font-size: 11px; }
+.sessions-hub .grid3 .tbl th, .sessions-hub .grid3 .tbl td { padding: 3px 5px; }
+.sessions-hub .grid3 .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
+.sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-hub .sh-sessions-table col.c-session { width: 34%; }
+.sessions-hub .sh-sessions-table col.c-proj { width: 14%; }
+.sessions-hub .sh-sessions-table col.c-src { width: 12%; }
+.sessions-hub .sh-sessions-table col.c-num { width: 10%; }
+
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }

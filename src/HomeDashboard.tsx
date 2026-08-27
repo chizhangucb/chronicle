@@ -16,6 +16,7 @@ import InfoTip from './InfoTip.tsx';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import SpendTab from './SpendTab.tsx';
+import SessionsHubTab from './SessionsHubTab.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
 import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
@@ -202,19 +203,8 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
         {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
         {tab === 'spend' && <SpendTab insights={insights} activity={activity} win={win} days={days} />}
-        {tab === 'sessions' && <SessionsTabShell />}
+        {tab === 'sessions' && <SessionsHubTab insights={insights} />}
       </div>
-    </div>
-  );
-}
-
-// ---- Sessions tab shell (CHI-324 2c) — the real body arrives in 2g
-// (SessionsHubTab); this thin placeholder keeps the 5-tab scaffolding whole. ----
-function SessionsTabShell(): JSX.Element {
-  return (
-    <div className="card">
-      <h3>{t('Sessions')}</h3>
-      <div className="muted small pad8">{t('Building — the Sessions view lands next in this batch.')}</div>
     </div>
   );
 }
