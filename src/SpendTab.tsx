@@ -24,6 +24,8 @@ import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
 const BUDGET_KEY = 'chronicle.monthlyBudget';
+// Synthetic pseudo-model rows carry 0 real tokens — excluded from spend views.
+const PSEUDO_MODELS = new Set(['<synthetic>']);
 
 function readBudget(): number | null {
   try { const v = localStorage.getItem(BUDGET_KEY); const n = v ? Number(v) : NaN; return Number.isFinite(n) && n > 0 ? n : null; }
@@ -193,6 +195,7 @@ function SpendByModelCard({ insights, win }: { insights: InsightsResult | null; 
     if (!insights) return [];
     const byModel = groupByKey(insights.windowedTokensByModel, (c) => c.model);
     return [...byModel.entries()]
+      .filter(([name]) => !PSEUDO_MODELS.has(name)) // drop $0 synthetic pseudo-model
       .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);

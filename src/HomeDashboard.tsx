@@ -546,6 +546,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
     const byModel = groupByKey(result.windowedTokensByModel, (c) => c.model);
     return [...byModel.entries()]
+      .filter(([name]) => name !== '<synthetic>') // drop the $0 synthetic pseudo-model
       .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);

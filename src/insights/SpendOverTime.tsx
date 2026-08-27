@@ -6,7 +6,7 @@ import {
 } from '../windowedUsage.ts';
 import { densifyBuckets, capDenseBuckets, fmtDayLabel, fmtHourLabel } from '../charts/timeBuckets.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.tsx';
-import { CATEGORICAL_COLORS, projectColorMap } from '../colors.ts';
+import { CATEGORICAL_COLORS } from '../colors.ts';
 import { fmtMoney } from '../format.js';
 import { t, lang } from '../i18n.js';
 import { useCostMode } from '../costMode.tsx';
@@ -26,6 +26,12 @@ function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
 
 const MAX_DENSE_BUCKETS = 2000;
 type Stack = 'project' | 'provider';
+// Pseudo-models carry no real spend (synthetic events with 0 tokens) — never a
+// meaningful spend series, so they're kept out of the model-vendor stack.
+const PSEUDO_MODELS = new Set(['<synthetic>']);
+// A visible neutral for the aggregated "Other" bucket, distinct from the five
+// categorical hues and legible on both themes (ink-3 was too dim to see).
+const OTHER_COLOR = 'var(--ink-2)';
 
 interface Series { key: string; name: string; color: string }
 
@@ -33,8 +39,6 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   const { mode } = useCostMode();
   // Default option sits far left (design-QA rubric): project.
   const [stack, setStack] = useState<Stack>('project');
-
-  const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
   // Top 5 projects by windowed spend + Other (project stack).
   const { topProjects, otherProjectIds } = useMemo(() => {
@@ -46,26 +50,32 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   }, [result, mode]);
 
   // Providers present in range, in the fixed categorical order (provider stack).
+  // Pseudo-models are excluded so a $0 synthetic bucket never adds a phantom
+  // "other" vendor to the legend.
   const presentProviders = useMemo(() => {
     const present = new Set<Provider>();
-    for (const c of result.windowedTokensByModel) present.add(providerOf(c.model));
+    for (const c of result.windowedTokensByModel) if (!PSEUDO_MODELS.has(c.model)) present.add(providerOf(c.model));
     return PROVIDER_ORDER.filter((p) => present.has(p));
   }, [result]);
 
+  // Series get their color by RANK (distinct-by-construction from the 5-hue
+  // palette), NOT by the app-wide per-project identity color — that one is
+  // assigned by project id, so two different top-5-by-spend projects could land
+  // on the same hue (CHI-324 review: aios-dashboard vs healthverse collided).
   const series: Series[] = useMemo(() => {
     if (stack === 'provider') {
       return presentProviders.map((p) => ({ key: p, name: p, color: CATEGORICAL_COLORS[PROVIDER_ORDER.indexOf(p) % CATEGORICAL_COLORS.length] }));
     }
-    const s: Series[] = topProjects.map((p, i) => ({ key: String(p.id), name: p.name, color: projectColors.get(p.id) ?? CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }));
-    if (otherProjectIds.size) s.push({ key: 'other', name: t('Other'), color: 'var(--ink-3)' });
-    return s;
-  }, [stack, presentProviders, topProjects, otherProjectIds, projectColors]);
+    return topProjects.map((p, i) => ({ key: String(p.id), name: p.name, color: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }));
+  }, [stack, presentProviders, topProjects]);
 
   const useHourly = result.hourlySpend != null;
   const bucketUnit = useHourly ? 'hour' as const : 'day' as const;
 
-  const groupKeyOf = (c: BucketedCell): string =>
-    stack === 'provider' ? providerOf(c.model) : (otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId));
+  const groupKeyOf = (c: BucketedCell): string => {
+    if (stack === 'provider') return PSEUDO_MODELS.has(c.model) ? '__pseudo' : providerOf(c.model);
+    return otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId);
+  };
 
   const chartData = useMemo(() => {
     const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
@@ -95,6 +105,10 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
     return totals.length % 2 ? totals[mid] : (totals[mid - 1] + totals[mid]) / 2;
   }, [chartData]);
 
+  // Show the aggregated Other bar + legend only when it actually carries spend
+  // (project stack only) — never advertise "+N in Other" with no visible bar.
+  const hasOtherSpend = stack === 'project' && chartData.some((r) => Number(r.other) > 0);
+
   return (
     <div className="card">
       <div className="sot-head">
@@ -108,7 +122,10 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
         <BarChart data={chartData}>
           <CartesianGrid {...GRID_PROPS} />
           <XAxis dataKey="bucket" {...AXIS_PROPS} />
-          <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
+          {/* Fixed width so the plot area starts at the same x on every window,
+              regardless of tick-label magnitude ($140 vs $1,000) — CHI-324
+              review: charts looked different widths across windows. */}
+          <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v: number) => fmtMoney(v, 0)} />
           <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
           {median != null && (
             <ReferenceLine y={median} stroke="var(--ink-3)" strokeDasharray="4 3" strokeWidth={1}
@@ -117,14 +134,15 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
           {series.map((s) => (
             <Bar key={s.key} dataKey={s.key} stackId="a" name={s.name} fill={s.color} />
           ))}
+          {hasOtherSpend && <Bar dataKey="other" stackId="a" name={t('Other')} fill={OTHER_COLOR} />}
         </BarChart>
       </ResponsiveContainer>
       <div className="legend">
-        {series.filter((s) => s.key !== 'other').map((s) => (
+        {series.map((s) => (
           <span key={s.key}><span className="dot" style={{ background: s.color }} />{s.name}</span>
         ))}
-        {stack === 'project' && otherProjectIds.size > 0 && (
-          <span style={{ color: 'var(--ink-3)' }}>+ {otherProjectIds.size} {t('in Other')}</span>
+        {hasOtherSpend && (
+          <span><span className="dot" style={{ background: OTHER_COLOR }} />{t('Other')} (+{otherProjectIds.size})</span>
         )}
       </div>
     </div>
