@@ -1,8 +1,9 @@
 import React, { useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts } from './api.js';
-import { insightsUrl, exploreUrl, detectorsUrl } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult } from './api.js';
+import { insightsUrl, exploreUrl, detectorsUrl, wasteUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
+import { costOf, pricingFor } from './models.js';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
 import { t } from './i18n.js';
@@ -206,7 +207,44 @@ interface DetectorRow { name: string; pct: number; state: StateWord; barPct: num
 
 function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | null; win: RangeKey; days: number | null }): JSX.Element {
   const { data: det } = useCachedFetch<DetectorCounts>(detectorsUrl(days));
+  const { data: waste } = useCachedFetch<WasteResult>(wasteUrl(days));
   const th = DEFAULT_SPEND_THRESHOLDS;
+
+  // Waste $ priced client-side from the shipped cells (the price table is
+  // client-only). All at list price — these are "what could you save" estimates.
+  const wasteRows = useMemo(() => {
+    if (!waste) return null;
+    // Cache churn: premium paid on cache writes in churn sessions (1h = 1x input
+    // premium over base, 5m = 0.25x), summed per model.
+    let churnCost = 0;
+    for (const s of waste.cacheChurn.top) {
+      for (const [model, c] of Object.entries(s.byModel)) {
+        const p = pricingFor(model);
+        if (p) churnCost += (c.cw1h * 1.0 * p.input + c.cw5m * 0.25 * p.input) / 1_000_000;
+      }
+    }
+    // Right-sizing: premium-model small turns repriced at Sonnet — the estimated
+    // saving. Premium = input rate >= threshold (fable/mythos, opus >= 4.5).
+    const sonnet = pricingFor('claude-sonnet-5');
+    let rsSavings = 0; let rsMessages = 0;
+    if (sonnet) {
+      for (const r of waste.rightSizing.candidates) {
+        const p = pricingFor(r.model);
+        if (!p || p.input < th.detectors.premiumInputRate) continue;
+        const actual = costOf(r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite5m: r.cw5m, cacheWrite1h: r.cw1h }) ?? 0;
+        const repriced = (r.input * sonnet.input + r.output * sonnet.output + r.cacheRead * 0.1 * sonnet.input + r.cw1h * 2 * sonnet.input + r.cw5m * 1.25 * sonnet.input) / 1_000_000;
+        const delta = actual - repriced;
+        if (delta > 0) { rsSavings += delta; rsMessages += r.messages; }
+      }
+    }
+    // Rereads: wasted re-read tokens re-sent as input, priced at Sonnet input.
+    const rereadCost = sonnet ? (waste.rereads.estWastedTokens * sonnet.input) / 1_000_000 : 0;
+    return {
+      churnCost, churnSessions: waste.cacheChurn.sessionsFlagged,
+      rsSavings, rsMessages,
+      rereadCalls: waste.rereads.rereadCalls, rereadCost,
+    };
+  }, [waste, th]);
 
   const rows = useMemo<DetectorRow[]>(() => {
     if (!det) return [];
@@ -254,8 +292,23 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
         </div>
       ))}
       {!rows.length && <div className="muted small pad8">{t('Loading…')}</div>}
-      <div className="eff-sub">— {t('waste signals · routing compliance')}</div>
-      <div className="muted small pad8">{t('Building next — right-sizing, cache churn, repeat file reads, and on/off-roster routing.')}</div>
+
+      <div className="eff-cols">
+        <div>
+          <div className="eff-sub">— {t('waste signals · estimates')} <InfoTip text={t('List-price estimates of avoidable spend, not a bill. Right-sizing and cache-churn are heuristics; they cannot know whether a small premium reply needed frontier reasoning.')} /></div>
+          {wasteRows ? (
+            <>
+              <div className="waste-row"><span className="eff-n">{t('Right-sizing')}</span><span className="eff-v">≈{fmtMoney(wasteRows.rsSavings, 2)}</span><span className="muted small">{fmtInt(wasteRows.rsMessages)} {t('premium small turns')}</span></div>
+              <div className="waste-row"><span className="eff-n">{t('Cache churn')}</span><span className="eff-v">{fmtMoney(wasteRows.churnCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.churnSessions)} {t('sessions')}</span></div>
+              <div className="waste-row"><span className="eff-n">{t('Repeat file reads')}</span><span className="eff-v">{fmtMoney(wasteRows.rereadCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.rereadCalls)} {t('re-reads')}</span></div>
+            </>
+          ) : <div className="muted small pad8">{t('Loading…')}</div>}
+        </div>
+        <div>
+          <div className="eff-sub">— {t('routing compliance')}</div>
+          <div className="muted small pad8">{t('Building next — on/off-roster models vs your hub’s model-routing.md, with a Prepare-promotion launcher.')}</div>
+        </div>
+      </div>
     </div>
   );
 }

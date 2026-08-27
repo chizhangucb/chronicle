@@ -739,6 +739,11 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .sw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .sw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 @media (max-width: 680px) { .eff-row { grid-template-columns: 1fr 56px 68px; } .eff-row .track, .eff-row .eff-d { display: none; } }
+/* Waste signals | routing compliance: two columns below the detectors. */
+.eff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-5); margin-top: var(--gap-2); }
+@media (max-width: 680px) { .eff-cols { grid-template-columns: 1fr; } }
+.waste-row { display: grid; grid-template-columns: 130px 64px 1fr; gap: var(--gap-3); align-items: baseline; padding: 2px 0; font: 12px var(--mono); }
+.waste-row .eff-v { text-align: right; color: var(--brass-text); font-variant-numeric: tabular-nums; }
 
 /* CHI-324 2g: Sessions tab. */
 .sessions-hub { display: flex; flex-direction: column; gap: 10px; }

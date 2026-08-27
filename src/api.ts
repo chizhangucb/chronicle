@@ -593,6 +593,23 @@ export function detectorsUrl(days?: number | null): string {
   const qs = p.toString();
   return '/api/detectors' + (qs ? `?${qs}` : '');
 }
+
+// Efficiency WASTE signals (CHI-324 2e) — mirrors server/waste.ts. Ships token
+// cells + counts; the client prices the premium / savings / wasted-$.
+export interface WasteChurnSession { session: string; project: string; writeTokens: number; readTokens: number; byModel: Record<string, { cw5m: number; cw1h: number }>; }
+export interface WasteRightSizingModel { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface WasteRereadFile { path: string; rereads: number; sessions: number; }
+export interface WasteResult {
+  cacheChurn: { sessionsFlagged: number; top: WasteChurnSession[] };
+  rightSizing: { candidates: WasteRightSizingModel[] };
+  rereads: { rereadCalls: number; sessionsAffected: number; estWastedTokens: number; topFiles: WasteRereadFile[] };
+}
+export function wasteUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/waste' + (qs ? `?${qs}` : '');
+}
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));

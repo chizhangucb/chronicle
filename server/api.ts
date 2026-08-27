@@ -11,6 +11,7 @@ import { mountExplore }    from './routes/explore.ts';
 import { mountContent }    from './routes/content.ts';
 import { mountActivity }   from './routes/activity.ts';
 import { mountDetectors }  from './routes/detectors.ts';
+import { mountWaste }      from './routes/waste.ts';
 import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
@@ -48,6 +49,7 @@ mountExplore(api);
 mountContent(api);
 mountActivity(api);
 mountDetectors(api);
+mountWaste(api);
 mountHub(api);
 mountBriefing(api);
 
