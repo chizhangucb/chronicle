@@ -27,6 +27,38 @@ test.describe('demo hub: /briefing renders cards + actions', () => {
     await expect(page.locator('.briefing-card', { hasText: 'Today’s spend is' }).or(page.locator('.briefing-card', { hasText: "Today's spend is" }))).toBeVisible();
   });
 
+  // CHI-374 pin: the needs-you accent is the dedicated --attention terracotta, NOT
+  // the everyday --brass, and the card face carries the faint warm wash that the
+  // neutral awareness cards do not. Guards the binary treatment from drifting back
+  // into the brand accent.
+  test('needs-you cards use the off-brass attention accent, awareness cards do not', async ({ page }) => {
+    await page.goto(demo.baseURL + '/briefing');
+    const needsYou = page.locator('.briefing-card.needs-you').first();
+    await expect(needsYou).toBeVisible();
+    const accent = await needsYou.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const root = getComputedStyle(document.documentElement);
+      return {
+        border: cs.borderLeftColor,
+        bg: cs.backgroundColor,
+        brass: root.getPropertyValue('--brass').trim(),
+        attention: root.getPropertyValue('--attention').trim(),
+      };
+    });
+    expect(accent.attention).not.toBe(accent.brass);
+    expect(accent.border).toBe('rgb(205, 95, 60)'); // --attention #cd5f3c
+    expect(accent.border).not.toBe('rgb(192, 138, 30)'); // --brass #c08a1e
+
+    const plain = page.locator('.briefing-card:not(.needs-you)').first();
+    await expect(plain).toBeVisible();
+    const plainStyle = await plain.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { border: cs.borderLeftColor, bg: cs.backgroundColor };
+    });
+    expect(plainStyle.border).not.toBe(accent.border);
+    expect(plainStyle.bg).not.toBe(accent.bg);
+  });
+
   test('marking a card Done moves it out of the open sections (two-file state)', async ({ page }) => {
     await page.goto(demo.baseURL + '/briefing');
     const card = page.locator('.briefing-card', { hasText: 'health-sweep is overdue' });
