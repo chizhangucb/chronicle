@@ -206,6 +206,25 @@ function buildRoutes(base, ctx) {
       await page.waitForTimeout(100);
     },
   });
+  routes.push({
+    slug: 'insights-spend',
+    async setup(page) {
+      await gotoInsights(page);
+      await page.locator('.tabs .tab', { hasText: 'Spend' }).click();
+      // Spend fetches detectors/waste/routing/plan-windows async — give them a beat.
+      await page.waitForSelector('.spend-tab .budget-band', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForTimeout(600);
+    },
+  });
+  routes.push({
+    slug: 'insights-sessions',
+    async setup(page) {
+      await gotoInsights(page);
+      await page.locator('.tabs .tab', { hasText: 'Sessions' }).click();
+      await page.waitForSelector('.sessions-hub .sh-sessions-table', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForTimeout(300);
+    },
+  });
 
   routes.push({
     slug: 'search-modal',
