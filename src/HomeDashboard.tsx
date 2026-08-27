@@ -17,6 +17,7 @@ import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import SpendTab from './SpendTab.tsx';
 import SessionsHubTab from './SessionsHubTab.tsx';
+import SortCaret from './SortCaret.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
 import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
@@ -626,7 +627,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               <th>{t('Cache Write')} <span className="ttl-tag">1h</span></th>
               <th>{t('Hit rate')} <InfoTip text={t('Cache read ÷ (cache read + input): the share of prompt-side tokens served from cache instead of re-sent at full input price. Higher = cheaper turns.')} /></th>
               <th>{t('Msgs')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></th>
-              <th>{t('Cost')}</th>
+              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>

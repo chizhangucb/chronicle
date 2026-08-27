@@ -700,7 +700,12 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .budget-track { position: relative; height: 8px; background: var(--bg2); border-radius: 4px; overflow: visible; }
 .bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
 .bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
+/* Global sort indicator (CHI-324 review): the active-sort column's header + cells
+   tint brass and the header carries a small ▾. Consistent across every sortable
+   table/chart so "which column is this sorted by" reads the same everywhere. */
 .sort-car { color: var(--brass-text); font-size: 9px; }
+.tbl th.sort-on { color: var(--brass-text); }
+.tbl td.sort-on { color: var(--brass-text); }
 /* MCP server names are long — fixed layout gives the Server column ~48% so the
    `claude_ai_*` servers stay distinguishable, ellipsised only past that. */
 .mcp-table { table-layout: fixed; width: 100%; }
@@ -754,10 +759,10 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .sessions-hub .grid3 .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
 .sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sessions-hub .sh-sessions-table col.c-session { width: 34%; }
-.sessions-hub .sh-sessions-table col.c-proj { width: 14%; }
-.sessions-hub .sh-sessions-table col.c-src { width: 12%; }
-.sessions-hub .sh-sessions-table col.c-num { width: 10%; }
+.sessions-hub .sh-sessions-table col.c-session { width: 44%; }
+.sessions-hub .sh-sessions-table col.c-proj { width: 12%; }
+.sessions-hub .sh-sessions-table col.c-src { width: 10%; }
+.sessions-hub .sh-sessions-table col.c-num { width: 8.5%; }
 
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }

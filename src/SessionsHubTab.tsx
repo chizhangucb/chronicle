@@ -6,6 +6,7 @@ import { groupByKey, costOfBucketedCells, tokensOfCells, sumByKeyModel } from '.
 import { fmtMoney, fmtInt } from './format.js';
 import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
+import SortCaret from './SortCaret.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import { formatRelativeTime } from './relativeTime.js';
@@ -132,7 +133,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
       <div className="grid3">
         <div className="card">
           <h3>{t('Busiest days')}</h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Day')}</th><th>{t('Sessions')}</th><th>{t('Active')}</th><th>{t('Tokens')}</th><th>{t('Cost')}</th></tr></thead>
+          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Day')}</th><th>{t('Sessions')}</th><th>{t('Active')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
             <tbody>{busiestDays.map((d) => (
               <tr key={d.day}><td style={{ textAlign: 'left' }}>{fmtDayLabel(d.day, localeOf())}</td><td>{d.sessions}</td><td>{fmtActive(d.active)}</td><td>{fmtTok(d.tokens)}</td><td className="cost">{fmtMoney(d.cost, 2)}</td></tr>
             ))}</tbody></table>
@@ -140,7 +141,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
         </div>
         <div className="card">
           <h3>{t('Busiest projects')}</h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Project')}</th><th>{t('Sessions')}</th><th>{t('Msgs')}</th><th>{t('Tokens')}</th><th>{t('Cost')}</th></tr></thead>
+          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Project')}</th><th>{t('Sessions')}</th><th>{t('Msgs')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
             <tbody>{busiestProjects.map((p) => (
               <tr key={p.id}><td style={{ textAlign: 'left' }}><span className="dot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</td><td>{p.sessions}</td><td>{fmtInt(p.msgs)}</td><td>{fmtTok(p.tokens)}</td><td className="cost">{fmtMoney(p.cost, 2)}</td></tr>
             ))}</tbody></table>
@@ -148,7 +149,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
         </div>
         <div className="card">
           <h3>{t('Automation by job')} <InfoTip text={t('Always automation, unaffected by the human/all toggle — sourced from the ~/.aios/machine_sessions.jsonl manifest (weekly / nightly / session-close / spend-advice jobs).')} /></h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Job')}</th><th>{t('Runs')}</th><th>{t('Tokens')}</th><th>{t('Cost')}</th></tr></thead>
+          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Job')}</th><th>{t('Runs')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
             <tbody>{automationByJob.map((j) => (
               <tr key={j.job}><td style={{ textAlign: 'left' }}>{j.job}</td><td>{j.runs}</td><td>{fmtTok(j.tokens)}</td><td className="cost">{fmtMoney(j.cost, 2)}</td></tr>
             ))}</tbody></table>
@@ -173,7 +174,11 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
             </colgroup>
             <thead><tr>
               <th style={{ textAlign: 'left' }}>{t('Session')}</th><th style={{ textAlign: 'left' }}>{t('Project')}</th>
-              <th style={{ textAlign: 'left' }}>{t('Source')}</th><th>{t('Ctx')}</th><th>{t('Active')}</th><th>{t('Cost')}</th><th>{t('When')}</th>
+              <th style={{ textAlign: 'left' }}>{t('Source')}</th>
+              <th>{t('Ctx')} <InfoTip text={t('Context tokens — the size of the context window fed to the model for this session (input + cache-read), a proxy for how heavy the session ran.')} /></th>
+              <th className={sort === 'duration' ? 'sort-on' : ''}>{t('Active')}<SortCaret on={sort === 'duration'} /></th>
+              <th className={sort === 'cost' ? 'sort-on' : ''}>{t('Cost')}<SortCaret on={sort === 'cost'} /></th>
+              <th className={sort === 'recent' ? 'sort-on' : ''}>{t('When')}<SortCaret on={sort === 'recent'} /></th>
             </tr></thead>
             <tbody>{visible.map(({ s, cost, active }) => (
               <tr key={s.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(s.id)}`)}>
@@ -181,9 +186,9 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
                 <td style={{ textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.project_name}><span className="dot" style={{ background: projectColors.get(s.project_id) ?? 'var(--ink-3)' }} />{s.project_name}</td>
                 <td style={{ textAlign: 'left' }}><span className="src-pill">{s.source}</span></td>
                 <td>{s.context_tokens ? fmtTok(s.context_tokens) : '—'}</td>
-                <td>{fmtActive(active)}</td>
-                <td className="cost">{fmtMoney(cost, 2)}</td>
-                <td>{formatRelativeTime(s.started_at)}</td>
+                <td className={sort === 'duration' ? 'sort-on' : ''}>{fmtActive(active)}</td>
+                <td className={sort === 'cost' ? 'sort-on' : ''}>{fmtMoney(cost, 2)}</td>
+                <td className={sort === 'recent' ? 'sort-on' : ''}>{formatRelativeTime(s.started_at)}</td>
               </tr>
             ))}</tbody>
           </table>

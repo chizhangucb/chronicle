@@ -7,6 +7,7 @@ import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } fro
 import { fmtMoney, fmtInt } from './format.js';
 import { t } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
+import SortCaret from './SortCaret.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import { rowSpend } from './ExploreTab.tsx';
@@ -295,7 +296,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Skill')}</th>
               <th>{t('Runs')}</th>
               <th>{t('Tokens')}</th>
-              <th>{t('Cost')} <span className="sort-car" aria-hidden="true">▾</span></th>
+              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
@@ -324,7 +325,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Server')}</th>
               <th>{t('Calls')}</th>
               <th>{t('Tokens')}</th>
-              <th>{t('Cost')} <span className="sort-car" aria-hidden="true">▾</span></th>
+              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
