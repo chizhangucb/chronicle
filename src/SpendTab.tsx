@@ -1,17 +1,19 @@
 import React, { useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult } from './api.js';
-import { insightsUrl } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow } from './api.js';
+import { insightsUrl, exploreUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
-import { fmtMoney } from './format.js';
+import { fmtMoney, fmtInt } from './format.js';
 import { t } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
+import { rowSpend } from './ExploreTab.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
+import { MCP_DOUBLE_COUNT_DEFINITION } from '../shared/spend/thresholds.ts';
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
@@ -53,7 +55,7 @@ export default function SpendTab({ insights, activity, win, days }: {
       </div>
       <PlaceholderCard title={t('Plan windows')} sub={t('per account')} note={t('Building next — one card per account (Claude 5h / 7d / top-tier · Codex 7d), quota-read, Settings opt-out.')} />
       <PlaceholderCard title={t('Efficiency')} note={t('Building next — detectors (cache hit · jumbo · long context · error rows), waste signals, and routing compliance.')} />
-      <PlaceholderCard title={t('Priced skills & MCP spend')} note={t('Building next — skill and per-server spend from the Explore engine.')} />
+      <SkillsMcpRow win={win} days={days} />
       <ProxyLaneRow insights={insights} />
     </div>
   );
@@ -190,6 +192,75 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
           <span className="v num">{r.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- Priced skills | MCP server spend (CHI-324 2b section 5) — both from the
+// Explore engine (client prices tokensByModel). MCP is calibrated + double-counts
+// (one turn can hit several servers), so its total does not sum to the day (D6). ----
+function tokensOfRow(row: ExploreRow): number {
+  let n = 0;
+  for (const u of Object.values(row.tokensByModel)) n += u.input + u.output + u.cacheRead + u.cw5m + u.cw1h;
+  return n;
+}
+function fmtTok(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return String(Math.round(n));
+}
+
+function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JSX.Element {
+  const { mode } = useCostMode();
+  const { data: skillRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'skill', days }));
+  const { data: mcpRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'mcp', days }));
+
+  const skills = useMemo(() => (skillRes?.rows ?? [])
+    .map((r) => ({ name: r.label, runs: r.requests, tokens: tokensOfRow(r), cost: rowSpend(r, undefined, mode) }))
+    .sort((a, b) => b.cost - a.cost).slice(0, 8), [skillRes, mode]);
+  const mcp = useMemo(() => (mcpRes?.rows ?? [])
+    .map((r) => ({ name: r.label, cost: rowSpend(r, undefined, mode) }))
+    .sort((a, b) => b.cost - a.cost).slice(0, 8), [mcpRes, mode]);
+  const mcpMax = mcp[0]?.cost || 1;
+
+  return (
+    <div className="grid2">
+      <div className="card">
+        <h3>{t('Priced skills')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t('Calibrated estimate: a turn’s spend is attributed to the skills and slash-commands it invoked, so a command that mostly sets up an expensive turn (e.g. /model) can carry a large figure. Read it as exposure, not a partition of spend.')} /></h3>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>{t('Skill')}</th>
+              <th>{t('Runs')}</th>
+              <th>{t('Tokens')}</th>
+              <th>{t('Cost')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {skills.map((s) => (
+              <tr key={s.name}>
+                <td style={{ textAlign: 'left' }}>{s.name}</td>
+                <td>{fmtInt(s.runs)}</td>
+                <td>{fmtTok(s.tokens)}</td>
+                <td className="cost">{fmtMoney(s.cost, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!skills.length && <div className="muted small pad8">{t('No skill spend in range.')}</div>}
+      </div>
+      <div className="card">
+        <h3>{t('MCP server spend')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t(MCP_DOUBLE_COUNT_DEFINITION)} /></h3>
+        {mcp.map((r, i) => (
+          <div className="hbar" key={r.name}>
+            <span className="n" title={r.name}>{r.name}</span>
+            <div className="track"><div className="seg" style={{ width: `${(r.cost / mcpMax) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+            <span className="v num">{fmtMoney(r.cost, 2)}</span>
+          </div>
+        ))}
+        {!mcp.length && <div className="muted small pad8">{t('No MCP spend in range.')}</div>}
+        {mcp.length > 0 && <div className="muted small pad8">{t('A call can fan out to several servers — rows double-count and do not sum to the day total.')}</div>}
+      </div>
     </div>
   );
 }

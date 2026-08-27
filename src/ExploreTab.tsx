@@ -77,7 +77,7 @@ function rowTokens(row: ExploreCell): number {
 // (e.g. Sonnet 5's intro window) prices correctly. Rows without that field
 // (calibrated tool/skill, hour/subagent groups — see server/explore.ts) fall
 // back to the flat tokensByModel total at the latest rate, unchanged.
-function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
+export function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
   const byDay = (row as ExploreRow).tokensByModelByDay;
   if (day == null && byDay) {
     let n = 0;
