@@ -541,12 +541,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   // Spend by model retired from Overview (CHI-324 review #4) — see the render.
 
-  // ---- Sources (hbar) ----
-  const bySource = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of result.sessions) m.set(s.source, (m.get(s.source) ?? 0) + 1);
-    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [result]);
+  // Sources moved to the Spend tab (CHI-324 review) — paired with Spend by model.
 
   // ---- Global tool mix (top 5 + Other) ----
   const toolMix = useMemo(() => {
@@ -593,27 +588,11 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   return (
     <>
-      <div className="grid2">
-        <SpendOverTime result={result} />
-        {/* Spend by model is RETIRED from Overview (CHI-324 review #4 —
-            de-duped; it lives on the Spend tab, paired with the spend chart
-            there). Overview keeps Sources: a usage distribution (session count
-            by tool vendor), not a $ breakdown, so it belongs with the at-a-glance
-            view rather than the deep spend view. */}
-        <div className="card">
-          <h3>{t('Sources')} · {rangeLabel}</h3>
-          {bySource.map((r, i) => {
-            const max = bySource[0]?.value || 1;
-            return (
-              <div className="hbar" key={r.name}>
-                <span className="n" title={r.name}>{r.name}</span>
-                <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{r.value}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Spend-over-time is FULL-WIDTH on Overview (CHI-324 review): it's the
+          headline chart, and Spend by model + Sources both moved to the Spend
+          tab (de-duped, and pairing the tall chart with a 2-row Sources card
+          left an ugly empty half). */}
+      <SpendOverTime result={result} />
 
       <div className="grid2b">
         <WorkingRhythm result={result} />

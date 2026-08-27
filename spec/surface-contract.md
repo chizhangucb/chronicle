@@ -188,21 +188,21 @@ drag-resizable when expanded. Contents, top to bottom:
    windows (`1 flagged day · Aug 24 →` linking to the Spend tab); and the **Lane-C note** when
    proxy spend contributes to the total (`incl. $0.42 proxy lane, not attributable to a mover`, D8).
    No flagged-day markers live on the chart — the tile carries flags.
-4. **Insights charts** (`.grid2` then `.grid2b` etc., `InsightsCharts`) — **Spend over time**
-   (title stays `SPEND OVER TIME`, no suffix) with a bare segmented **[project | provider]** stack
-   toggle (no "stack:" word; `provider` = model vendor anthropic/openai/google per D6, NOT `source`)
-   + a quiet **median dash** on the same y-scale, labeled on the line (`median $6.70`), NO
-   flagged-day markers (CHI-324 2d) · Sources · Working Rhythm · Global tool mix
-   (top 5 + Other) · Error rate by project · Token usage by model table. **Spend by model is
-   RETIRED from Overview** (CHI-324 review — de-duped; it lives on the Spend tab, paired with the
-   spend chart. Overview keeps **Sources**, a usage distribution by tool vendor, not a $ breakdown).
-   **Top sessions by cost is RETIRED from Overview** (CHI-324 — absorbed by the Sessions tab's cost
-   sort). Chart series (spend-over-time + spend-by-model) are colored by **spend RANK** from the
-   fixed `--c1..--c5` palette (distinct by construction), NOT the per-project identity hue (which is
-   assigned by project id and would collide for two top-5-by-spend projects); the `<synthetic>`
-   pseudo-model is excluded from every spend view. **LAST** — the
-   Overview tab ends here. The recent-sessions ledger does NOT mount on `/` (Task 9, D1 — see
-   `/projects`).
+4. **Insights charts** (`InsightsCharts`) — **Spend over time** **FULL-WIDTH** (CHI-324 review: the
+   headline chart, no half-width partner; title stays `SPEND OVER TIME`, no suffix) with a bare
+   segmented **[project | provider]** stack toggle (no "stack:" word; `provider` = model vendor
+   anthropic/openai/google per D6, NOT `source`) + a quiet **median dash** on the same y-scale,
+   labeled on the line (`median $6.70`), NO flagged-day markers (CHI-324 2d) · then `.grid2b`
+   Working Rhythm | (Global tool mix (top 5 + Other) · Error rate by project) · Token usage by model
+   table. **Spend by model AND Sources are RETIRED from Overview** (CHI-324 review — both moved to
+   the Spend tab, paired there; pairing the tall spend chart with a 2-row Sources card left an empty
+   half). **Top sessions by cost is RETIRED from Overview** (CHI-324 — absorbed by the Sessions tab's
+   cost sort). Spend-chart series are colored by **spend RANK** from the fixed `--c1..--c5` palette
+   (distinct by construction), NOT the per-project identity hue (assigned by project id, which would
+   collide for two top-5-by-spend projects); the aggregated **Other** bar uses a visible neutral and
+   shows only when it carries spend; the `<synthetic>` pseudo-model is excluded from every spend
+   view. **LAST** — the Overview tab ends here. The recent-sessions ledger does NOT mount on `/`
+   (Task 9, D1 — see `/projects`).
 
 The Explore / Content tabs render `ExploreTab` / `ContentTab` at `scope={all}` (same components
 the project view uses per-project).
@@ -213,14 +213,19 @@ Chronicle's visual grammar wins; Varde contributes content only. Card titles use
 recipe (name + window only; explanations live in InfoTips, never caption suffixes). The shared
 rangebar scopes the tab.
 
-1. **Posture row** (asymmetric `1fr : 1.4fr`): **Budget card** (`Budget · <Month> · list price`;
-   `$X of $Y · %`; an `on track`/`approaching`/`over budget` state chip; bar + a projection tick;
-   subline `$/day pace · peak day $N · $/active-day · history starts <date>`; a pencil-edit
-   affordance → the gated `budget-config` editor, D5) | **Anomaly card** (ratio + flag; today vs
-   median; flagged-day count; two movers; the Lane-C note — the deep-view sibling of the Overview
-   anomaly tile).
+1. **Budget band** — FULL-WIDTH horizontal band (CHI-324 review: the anomaly is already the Overview
+   tile, so the Spend tab carries budget alone up top; a full-width horizontal layout fills the row
+   with no empty half). Eyebrow `Budget · <Month> · list price` + a `✎ edit` affordance (localStorage
+   budget; the gated `budget-config` editor is D5). Body, left→right: big `$MTD` month-to-date number
+   + (`of $Y · %` + `on track`/`approaching`/`over budget` state chip when a budget is set, else
+   `month to date · no budget set`); a meter bar (fill + projection tick) that grows to fill the
+   middle (only when a budget is set); stats `$/day pace · peak day $N · $/active-day` (+ `on pace
+   for ≈$Z` when no budget). **The Spend-tab Anomaly card is RETIRED** (CHI-324 review — it duplicated
+   the Overview tile; anomaly lives in exactly one place, the Overview `AnomalyTile`).
 2. **Chart row** (Overview `grid2` proportions): the upgraded spend-over-time chart (same
-   project|provider toggle + median dash as Overview) | **Spend by model** hbar card.
+   project|provider toggle + median dash as Overview) | a **breakdown card** stacking **Spend by
+   model** hbars ($, `<synthetic>` excluded) + **Sources** hbars (session count by tool vendor,
+   moved here from Overview) — the two together match the chart's height.
 3. **Plan windows** — ONE CARD PER ACCOUNT, `auto-fit` (a new account wraps in as one more card).
    Claude cards mirror the official usage page rows: `5h` (current session) · `7d` (all models) ·
    `fable` (top-tier model 7d — follow whatever the quota API reports, NEVER hardcode opus). Codex
@@ -600,7 +605,7 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
 | Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards (D5, D7) | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
 | Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days/Lane-C lines (CHI-324, keeps D6 anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the D3 artifact |
-| Spend tab renders posture row (budget + anomaly) → chart row → plan windows → efficiency → skills/mcp → proxy lane (CHI-324) | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget/anomaly cards present" |
+| Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp → proxy lane; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview (CHI-324) | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers (CHI-324 2d) | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |
 | Budget editor writes only through the `budget-config` gate surface (diff card, never a raw write) | `test/e2e/spend-tab.spec.ts` + `test/gate-budget.test.mjs` — budget-config validate + gated write |
 | Sessions tab = [human\|all] toggle + 3-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend (CHI-324) | `test/e2e/sessions-tab.spec.ts` — "Sessions tab toggle + aggregates + one flat table" |

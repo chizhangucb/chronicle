@@ -6,14 +6,11 @@ import { useCostMode } from './costMode.tsx';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
 import { fmtMoney } from './format.js';
 import { t } from './i18n.js';
-import InfoTip from './InfoTip.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
-import { LANE_C_UNATTRIBUTED_DEFINITION } from '../shared/spend/thresholds.ts';
-import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
@@ -45,10 +42,13 @@ export default function SpendTab({ insights, activity, win, days }: {
 
   return (
     <div className="spend-tab">
-      <PostureRow insights={insights} activity={activity} monthInsights={monthInsights} win={win} days={days} />
+      {/* Budget is a full-width horizontal band (CHI-324 review): the anomaly is
+          already the Overview tile, so the Spend tab shows budget alone up top,
+          laid out horizontally so it fills the row with no empty half. */}
+      <BudgetBand monthInsights={monthInsights} today={today} />
       <div className="grid2">
         {insights ? <SpendOverTime result={insights} /> : <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>}
-        <SpendByModelCard insights={insights} win={win} />
+        <SpendBreakdownCard insights={insights} win={win} />
       </div>
       <PlaceholderCard title={t('Plan windows')} sub={t('per account')} note={t('Building next — one card per account (Claude 5h / 7d / top-tier · Codex 7d), quota-read, Settings opt-out.')} />
       <PlaceholderCard title={t('Efficiency')} note={t('Building next — detectors (cache hit · jumbo · long context · error rows), waste signals, and routing compliance.')} />
@@ -58,19 +58,7 @@ export default function SpendTab({ insights, activity, win, days }: {
   );
 }
 
-// ---- Posture row: Budget (1fr) + Anomaly (1.4fr) ----
-function PostureRow({ insights, activity, monthInsights, win, days }: {
-  insights: InsightsResult | null; activity: ActivityResult | null; monthInsights: InsightsResult | null; win: RangeKey; days: number | null;
-}): JSX.Element {
-  return (
-    <div className="posture-row">
-      <BudgetCard monthInsights={monthInsights} today={activity?.burn.today ?? null} />
-      <AnomalyCard activity={activity} win={win} days={days} />
-    </div>
-  );
-}
-
-function BudgetCard({ monthInsights, today }: { monthInsights: InsightsResult | null; today: string | null }): JSX.Element {
+function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | null; today: string | null }): JSX.Element {
   const { mode } = useCostMode();
   const [budget, setBudget] = useState<number | null>(() => readBudget());
   const [editing, setEditing] = useState(false);
@@ -105,9 +93,9 @@ function BudgetCard({ monthInsights, today }: { monthInsights: InsightsResult | 
   const projPct = budget && posture.projected ? Math.min((posture.projected / budget) * 100, 100) : null;
 
   return (
-    <div className="card budget-card">
-      <div className="sot-head">
-        <h3>{t('Budget')} <span className="sub3">· {monthName} · {t('list price')}</span></h3>
+    <div className="card budget-band">
+      <div className="bb-head">
+        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')}</span>
         {!editing && (
           <button type="button" className="edit-aff" onClick={() => { setDraft(budget ? String(budget) : ''); setEditing(true); }}>✎ {t('edit')}</button>
         )}
@@ -122,27 +110,27 @@ function BudgetCard({ monthInsights, today }: { monthInsights: InsightsResult | 
           <button type="button" className="mini-btn ghost" onClick={() => setEditing(false)}>{t('Cancel')}</button>
         </div>
       ) : (
-        <div className="budget-meter">
-          {budget != null ? (
-            <>
-              <div className="bm-line">
-                <span><b>{fmtMoney(posture.monthToDate, 0)}</b> {t('of')} {fmtMoney(budget, 0)} · {Math.round((share ?? 0) * 100)}% {posture.state && <span className={`stw ${posture.state.severity}`}>{t(posture.state.word)}</span>}</span>
-                {posture.projected != null && <b className="proj-lbl">≈ {fmtMoney(posture.projected, 0)} {t('month-end')}</b>}
-              </div>
+        <div className="bb-body">
+          <div className="bb-num">
+            <span className="bb-mtd">{fmtMoney(posture.monthToDate, 0)}</span>
+            {budget != null
+              ? <span className="bb-cap muted">{t('of')} {fmtMoney(budget, 0)} · {Math.round((share ?? 0) * 100)}%{posture.state && <> <span className={`stw ${posture.state.severity}`}>{t(posture.state.word)}</span></>}</span>
+              : <span className="bb-cap muted">{t('month to date')} · {t('no budget set')}</span>}
+          </div>
+          {budget != null && (
+            <div className="bb-meter">
               <div className="budget-track">
                 <div className="bt-fill" style={{ width: `${fillPct}%` }} />
                 {projPct != null && <div className="bt-proj" style={{ left: `${projPct}%` }} />}
               </div>
-            </>
-          ) : (
-            <div className="bm-line">
-              <span><b>{fmtMoney(posture.monthToDate, 0)}</b> <span className="muted">{t('month to date')}</span></span>
-              <span className="muted small">{t('no budget set')}</span>
+              {posture.projected != null && <div className="bb-proj-lbl muted small">{t('projected')} ≈ {fmtMoney(posture.projected, 0)} {t('month-end')}</div>}
             </div>
           )}
-          <div className="bm-sub muted">
-            {fmtMoney(posture.perDayPace, 2)}/{t('day pace')} · {t('peak day')} {fmtMoney(peakDay, 0)} · {fmtMoney(perActiveDay, 2)}/{t('active-day')}
-            {budget == null && posture.projected != null && <> · {t('on pace for')} ≈{fmtMoney(posture.projected, 0)}</>}
+          <div className="bb-stats muted">
+            <span>{fmtMoney(posture.perDayPace, 2)}<span className="bb-unit">/{t('day pace')}</span></span>
+            <span>{t('peak day')} {fmtMoney(peakDay, 0)}</span>
+            <span>{fmtMoney(perActiveDay, 2)}<span className="bb-unit">/{t('active-day')}</span></span>
+            {budget == null && posture.projected != null && <span>{t('on pace for')} ≈{fmtMoney(posture.projected, 0)}</span>}
           </div>
         </div>
       )}
@@ -152,44 +140,10 @@ function BudgetCard({ monthInsights, today }: { monthInsights: InsightsResult | 
 
 // ---- Anomaly card: the deep-view sibling of the Overview tile. Same math
 // (window-scoped ratio + top project/model movers + flagged days + Lane-C). ----
-function AnomalyCard({ activity, win, days }: { activity: ActivityResult | null; win: RangeKey; days: number | null }): JSX.Element {
-  const { mode } = useCostMode();
-  const burn = activity?.burn ?? null;
-  // The SAME shared computation the Overview tile uses — guaranteed consistent.
-  const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
-
-  if (!activity || !burn || !anom) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
-
-  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
-  const showFlagged = win !== 'today' && flaggedDays.length > 0;
-
-  return (
-    <div className={`card anom-card ${hot ? 'warn' : ''}`}>
-      <div className="eyebrow">{t('Anomaly')} · {t(WIN_LABEL[win])} {t('window')} <InfoTip text={t(LANE_C_UNATTRIBUTED_DEFINITION)} /></div>
-      <div className="ac-headline">
-        {ratio != null
-          ? <>×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>} <span className="muted small">{fmtMoney(current, 0)} {t('vs')} {fmtMoney(baseline, 0)}</span></>
-          : <>{fmtMoney(current, current < 1 ? 2 : 0)} <span className="muted small">{t('this window · no baseline')}</span></>}
-      </div>
-      {(topProject || topModel) && (
-        <div className="anom-mover">
-          {topProject && <span><span className="anom-glyph">{MOVER_GLYPH.project}</span> <span className="muted">{t('top project')} </span><b>{topProject.value}</b> {fmtMoney(topProject.cost, topProject.cost < 1 ? 2 : 0)}</span>}
-          {topProject && topModel && <span className="anom-sep"> · </span>}
-          {topModel && <span><span className="anom-glyph">{MOVER_GLYPH.model}</span> <span className="muted">{t('top model')} </span><b>{topModel.value}</b> {fmtMoney(topModel.cost, topModel.cost < 1 ? 2 : 0)}</span>}
-        </div>
-      )}
-      {laneCToday > 0 && (
-        <div className="anom-lanec">{t('incl.')} {fmtMoney(laneCToday, 2)} {t('proxy lane, not attributable to a mover')}</div>
-      )}
-      {showFlagged && (
-        <div className="anom-flagged-static">{flaggedDays.length} {flaggedDays.length === 1 ? t('flagged day') : t('flagged days')}{t(' in window')}</div>
-      )}
-    </div>
-  );
-}
-
-// ---- Spend by model hbar (same math as the Overview card) ----
-function SpendByModelCard({ insights, win }: { insights: InsightsResult | null; win: RangeKey }): JSX.Element {
+// ---- Spend breakdown card: Spend by model ($) + Sources (session count by
+// tool vendor), stacked so this card matches the spend chart's height. Sources
+// moved here from Overview (CHI-324 review) — it pairs with the $ breakdown. ----
+function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null; win: RangeKey }): JSX.Element {
   const { mode } = useCostMode();
   const rows = useMemo(() => {
     if (!insights) return [];
@@ -200,7 +154,14 @@ function SpendByModelCard({ insights, win }: { insights: InsightsResult | null; 
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
   }, [insights, mode]);
+  const sources = useMemo(() => {
+    if (!insights) return [];
+    const m = new Map<string, number>();
+    for (const s of insights.sessions) m.set(s.source, (m.get(s.source) ?? 0) + 1);
+    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [insights]);
   const max = rows[0]?.value || 1;
+  const srcMax = sources[0]?.value || 1;
   return (
     <div className="card">
       <h3>{t('Spend by model')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
@@ -212,6 +173,14 @@ function SpendByModelCard({ insights, win }: { insights: InsightsResult | null; 
         </div>
       ))}
       {!rows.length && <div className="muted small pad8">{t('No spend in range.')}</div>}
+      <h3>{t('Sources')}</h3>
+      {sources.map((r, i) => (
+        <div className="hbar" key={r.name}>
+          <span className="n" title={r.name}>{r.name}</span>
+          <div className="track"><div className="seg" style={{ width: `${(r.value / srcMax) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
+          <span className="v num">{r.value}</span>
+        </div>
+      ))}
     </div>
   );
 }

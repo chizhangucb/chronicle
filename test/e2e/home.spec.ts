@@ -82,8 +82,10 @@ test('Overview reading order: KPIs → activity → anomaly → charts, no ledge
   await expect(page.getByRole('heading', { name: /Top sessions by cost/i })).toHaveCount(0);
   const order = await page.evaluate(() => {
     const root = document.querySelector('.home-dashboard')!;
-    // `.burn-card` is the anomaly tile's stable class (kept in place per D6).
-    const sel = ['.kpis', '.activity-card', '.burn-card', '.grid2'];
+    // `.burn-card` is the anomaly tile's stable class (kept in place per D6);
+    // `.sot-card` is the full-width spend-over-time chart (CHI-324 review — it
+    // replaced the old `.grid2` [chart | spend-by-model] row on Overview).
+    const sel = ['.kpis', '.activity-card', '.burn-card', '.sot-card'];
     const els = sel.map((s) => root.querySelector(s));
     if (els.some((e) => !e)) return 'missing';
     // Confirm each element strictly precedes the next in document order.
