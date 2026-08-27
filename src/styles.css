@@ -2009,3 +2009,82 @@ h4 { margin: 6px 0; }
 .scope-textarea { min-height: 64px; }
 .scope-rot-field { display: flex; align-items: center; gap: 10px; }
 .scope-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+
+/* ===== /ask (CHI-351): metric chat over chronicle.db ===================== */
+/* One conversation column: day dividers, right-aligned questions, answer cards
+   (prose + full-width table + SQL expander + cost-basis label). Judged against
+   the approved D3 mock. */
+.ask-page { display: flex; flex-direction: column; align-items: center; overflow: hidden; gap: 8px; }
+.ask-page > * { width: 100%; max-width: 900px; }
+.ask-sub { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; }
+
+.ask-convo { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 2px 4px; }
+
+.ask-day { text-align: center; margin: 6px 0 2px; }
+.ask-day .eyebrow { display: inline-block; }
+
+.ask-q {
+  align-self: flex-end; max-width: 75%; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 8px 8px 2px 8px;
+  padding: 6px 10px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+.ask-answer {
+  align-self: flex-start; max-width: 92%; background: var(--bg1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+}
+.ask-prose { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.ask-prose b, .ask-prose strong { color: var(--ink); }
+.ask-note { font-size: 12px; margin-top: 4px; font-style: italic; }
+
+.ask-tbl-wrap { margin-top: 8px; overflow-x: auto; }
+.ask-tbl { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+.ask-tbl th, .ask-tbl td { text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ask-tbl th { color: var(--ink-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.ask-tbl td { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ask-tbl tbody tr:last-child td { border-bottom: none; }
+.ask-tbl-more { font-size: 11px; margin-top: 4px; }
+
+.ask-answer-foot { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 11px; }
+.ask-sql-toggle { background: none; border: none; padding: 0; cursor: pointer; color: var(--brass-text); font-family: var(--mono); font-size: 11px; }
+.ask-sql-toggle.disabled { color: var(--ink-3); cursor: default; }
+.ask-basis { display: inline-flex; gap: 6px; align-items: center; }
+.ask-reask { background: none; border: none; padding: 0; cursor: pointer; color: var(--brass-text); font-family: var(--mono); font-size: 11px; }
+.ask-reask:disabled { color: var(--ink-3); cursor: default; }
+.ask-sql {
+  margin: 8px 0 0; background: var(--bg0); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  line-height: 1.5; white-space: pre-wrap; overflow-x: auto;
+}
+
+.ask-answer-err { border-color: var(--border-strong); color: var(--ink-2); }
+
+/* thinking placeholder */
+.ask-thinking { display: flex; align-items: center; gap: 8px; color: var(--ink-3); font-size: 12.5px; }
+.ask-dots { display: inline-flex; gap: 3px; }
+.ask-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--brass-text); opacity: 0.4; animation: askblink 1.2s infinite; }
+.ask-dots i:nth-child(2) { animation-delay: 0.2s; }
+.ask-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes askblink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+/* empty state */
+.ask-empty { margin: auto; text-align: center; max-width: 460px; }
+.ask-empty-mark { font-size: 34px; color: var(--brass-text); opacity: 0.7; margin-bottom: 6px; }
+.ask-examples { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.ask-examples li { font-size: 12.5px; color: var(--ink-3); font-style: italic; }
+
+/* input bar */
+.ask-input {
+  display: flex; align-items: center; gap: 8px; background: var(--bg1);
+  border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 10px; margin-top: 4px;
+}
+.ask-input-glyph { font-family: var(--mono); color: var(--ink-3); }
+.ask-input-field { flex: 1; border: none; background: transparent; color: var(--ink); outline: none; font-size: 14px; font-family: inherit; }
+.ask-input-field::placeholder { color: var(--ink-3); }
+.ask-send { background: none; border: none; color: var(--ink-3); cursor: pointer; font-size: 15px; padding: 0 4px; }
+.ask-send:disabled { opacity: 0.4; cursor: default; }
+.ask-kbd { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.ask-foot { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+
+/* sidebar entry: brass accent so the cross-cutting capability reads apart from nav */
+.sb-item.ask-item .sb-icon { color: var(--brass-text); }

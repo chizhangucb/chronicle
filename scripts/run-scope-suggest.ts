@@ -130,8 +130,11 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   const prompt = buildPrompt(hubStructure(hub.root));
   const claude = findClaude();
   // No tools at all: the structure is already in the prompt, and the run must
-  // not read hub contents.
-  const args = ['-p', prompt, '--allowedTools', ''];
+  // not read hub contents. CHI-351: `--tools ""` is what actually disables the
+  // built-in set — `--allowedTools ""` alone does NOT (verified on CLI 2.1.247:
+  // the model kept Bash/Read), which would have let this names-only run read hub
+  // file CONTENTS. The read-must-not-touch-contents intent now holds server-side.
+  const args = ['-p', prompt, '--tools', ''];
 
   if (dryRun) {
     console.log(`[dry-run] ${claude ?? 'claude (NOT FOUND)'} ${JSON.stringify(args)}`);

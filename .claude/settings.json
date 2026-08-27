@@ -45,6 +45,12 @@
             "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/worktree-nudge.py\" 2>/dev/null || true",
             "timeout": 10,
             "statusMessage": "Worktree nudge: checking tree contention"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/session-obligations.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Session obligations reminder"
           }
         ]
       }

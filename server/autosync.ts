@@ -30,6 +30,10 @@ export interface ChronicleConfig {
   // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
   // fully offline instance. Codex windows are always local (never gated here).
   planWindows?: boolean;
+  // Opt-in for /ask (CHI-351): the local claude-CLI-backed metric chat. Default
+  // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
+  // CLI being present AND a non-demo console (all enforced server-side).
+  ask?: boolean;
   [key: string]: unknown;
 }
 

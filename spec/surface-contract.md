@@ -60,6 +60,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). NON-SPEND cards only this phase (D7) — the spend cards are a DISCLOSED gap that lights up in phase 2. | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional, CHI-323 3e).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
 | `/records` | **Ops surface (hub-conditional, CHI-324).** The append-only hub records, via the new `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY phase-2 type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, CHI-314) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
+| `/ask` | **Ask (CHI-351): NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. `InsightsPage.tsx` was DELETED in the Home/Insights merge
@@ -93,8 +94,12 @@ drag-resizable when expanded. Contents, top to bottom:
   `SessionView` via `onRailChange`: Overview (`⬚`, ⌘1) · Playback (`▶`, ⌘2) · Refine (`✂`, ⌘3) ·
   Security Check (`◈`). The Subagents drill-in is reached only via the Overview Subagents card,
   never the rail.
-- **`sb-bottom` util** — Settings (`⚙`) · Feedback (`⊞`, link to GitHub issues) · Collapse
-  toggle (`⟨`/`⟩`).
+- **`sb-bottom` — Ask (`∴`, CHI-351) then util.** `∴ Ask` is its OWN one-item group at the TOP of
+  `sb-bottom`, fenced by a `sb-sep` ABOVE and BELOW (between it and Settings), signalling a
+  cross-cutting capability (not nav, not chrome). It renders ONLY when `/api/ask/status` reports
+  `enabled` (Settings `ask` toggle on AND the claude CLI present AND non-demo) — NOT hub-conditional,
+  so it can show on a stock public install. Below it, the util group: Settings (`⚙`) · Feedback
+  (`⊞`, link to GitHub issues) · Collapse toggle (`⟨`/`⟩`).
 
 ## Topbar (`src/App.tsx`, every route)
 
@@ -110,6 +115,8 @@ drag-resizable when expanded. Contents, top to bottom:
   silently changes meaning.
 - Search (`⌕`, ⌘K) · "+ Import Sessions" · language dropdown (EN / 中文 / 日本語) — all every-route.
 - NO "← Projects" back link anywhere (real URL routes; browser back/forward).
+- **⌘J (CHI-351)** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled
+  (so the shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
 
 ## Enumerables (exact sets — changing any is a contract edit)
 
@@ -573,6 +580,10 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |
 | Memory slice prunes confidential/next-ventures + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
 | open-file bounded to a hub `.md`, never confidential; demo-refused | `test/e2e/ops-memory.spec.ts` + the route's path guard |
+| `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
+| Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
+| `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
+| Ask runner SELECT-only guard (accept SELECT/WITH, reject writes/DDL/PRAGMA/ATTACH/multi-statement/comment-smuggle) + deduped cost views reconcile | `test/ask.test.mjs` (17 unit tests) |
 | Scope-suggest walks structure NAMES only, hides confidential/next-ventures; validated tier mapping | `test/scope-suggest-route.test.mjs` (node) — `hubStructure`/`validateSuggestion` pins |
 | `loadMemoryConfig` per-tier fallback to defaults on an absent/partial/malformed config file | `test/memoryscope-config.test.mjs` (node) |
 | ScopePanel renders the current scope; Suggest scope refused in demo (409, no confirm card) | `test/e2e/ops-memory.spec.ts` — "ScopePanel (memory scope-suggest, CHI-339)" |
