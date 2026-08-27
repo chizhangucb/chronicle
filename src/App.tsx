@@ -354,7 +354,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
       autoSync: true, autoSyncPaused: false,
-      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: false,
+      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true,
     }));
   }, []);
   async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'planWindows') {
@@ -383,9 +383,9 @@ function SettingsModal({ onClose }: SettingsModalProps) {
               <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
             </label>
             <label className="settings-row">
-              <input type="checkbox" checked={settings.planWindows === true} onChange={() => toggle('planWindows')} />
-              <span>{t('Plan windows (Claude quota)')}</span>
-              <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / top-tier quota from api.anthropic.com using Claude Code’s own token, only when this is on. Off by default; the token is never stored or logged.')}</span>
+              <input type="checkbox" checked={settings.planWindows !== false} onChange={() => toggle('planWindows')} />
+              <span>{t('Claude plan windows (quota)')}</span>
+              <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.')}</span>
             </label>
           </div>
         )}

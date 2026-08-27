@@ -243,7 +243,7 @@ function PlanWindowsCard(): JSX.Element {
         <>
           {pw.accounts.length > 0 && <div className="acct-grid">{pw.accounts.map((a) => <AccountCard key={`${a.kind}:${a.name}`} a={a} />)}</div>}
           {!hasClaude && !pw.claudeEnabled && (
-            <div className="muted small pad8">{t('Claude windows are off. They read your Claude 5h / 7d / Fable quota with one outbound call to api.anthropic.com (using Claude Code’s own token, exactly as Claude Code does) — turn it on in Settings. Codex windows above are read locally, no network. Off by default.')}</div>
+            <div className="muted small pad8">{t('Claude windows are turned off in Settings (they read your Claude 5h / 7d / Fable quota with one outbound call to api.anthropic.com, using Claude Code’s own token). Codex windows above are read locally. Re-enable in Settings.')}</div>
           )}
           {!hasClaude && pw.claudeUnauthed && (
             <div className="muted small pad8">{t('Claude windows are on but temporarily unavailable — no credentials found, or Anthropic’s usage endpoint is rate-limiting. Reloads on its own.')}</div>

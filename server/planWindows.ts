@@ -139,8 +139,9 @@ export async function computePlanWindows(): Promise<PlanWindowsResult> {
   // Codex: local, always (never outbound).
   const codex = readCodexAccount();
   if (codex) accounts.push(codex);
-  // Claude: outbound, opt-in-off.
-  const claudeEnabled = readConfig().planWindows === true;
+  // Claude: outbound, opt-OUT (default ON — reads your own quota from the token's
+  // own issuer, like Claude Code; turn off in Settings). Codex above stays local.
+  const claudeEnabled = readConfig().planWindows !== false;
   let claudeUnauthed = false;
   if (claudeEnabled) {
     const token = readClaudeToken();

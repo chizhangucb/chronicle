@@ -12,7 +12,7 @@ export function mountSettings(app: Express): void {
       autoSyncPaused: cfg.autoSyncPaused === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
-      planWindows: cfg.planWindows === true,
+      planWindows: cfg.planWindows !== false,
     });
   });
 
@@ -30,7 +30,7 @@ export function mountSettings(app: Express): void {
       autoSyncPaused: cfg.autoSyncPaused === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
-      planWindows: cfg.planWindows === true,
+      planWindows: cfg.planWindows !== false,
     });
   });
 
