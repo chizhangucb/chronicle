@@ -703,6 +703,24 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
 .proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 
+/* Efficiency detectors (CHI-324 2e): name · value+state-word · bar · definition. */
+.eff-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
+.eff-sub { color: var(--ink-3); font: 11px var(--mono); margin: var(--gap-3) 0 var(--gap-1); }
+.eff-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(96px, auto) minmax(70px, 1.3fr) minmax(150px, 2fr); gap: var(--gap-3); align-items: center; padding: 3px 0; font: 12px var(--mono); }
+.eff-n { color: var(--ink); }
+.eff-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.eff-d { font-size: 11px; }
+.eff-row .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.eff-row .seg { height: 100%; border-radius: 3px; }
+.eff-row .seg.sev-ok { background: var(--brass); }
+.eff-row .seg.sev-warn { background: var(--warn); }
+.eff-row .seg.sev-danger { background: var(--danger); }
+.sw { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 2px; }
+.sw.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.sw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.sw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+@media (max-width: 640px) { .eff-row { grid-template-columns: 1fr auto; } .eff-row .track, .eff-row .eff-d { display: none; } }
+
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }

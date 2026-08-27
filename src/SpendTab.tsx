@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow } from './api.js';
-import { insightsUrl, exploreUrl } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts } from './api.js';
+import { insightsUrl, exploreUrl, detectorsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
@@ -13,7 +13,7 @@ import { rowSpend } from './ExploreTab.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
-import { MCP_DOUBLE_COUNT_DEFINITION } from '../shared/spend/thresholds.ts';
+import { MCP_DOUBLE_COUNT_DEFINITION, DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type StateWord } from '../shared/spend/thresholds.ts';
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
@@ -54,7 +54,7 @@ export default function SpendTab({ insights, activity, win, days }: {
         <SpendBreakdownCard insights={insights} win={win} />
       </div>
       <PlaceholderCard title={t('Plan windows')} sub={t('per account')} note={t('Building next — one card per account (Claude 5h / 7d / top-tier · Codex 7d), quota-read, Settings opt-out.')} />
-      <PlaceholderCard title={t('Efficiency')} note={t('Building next — detectors (cache hit · jumbo · long context · error rows), waste signals, and routing compliance.')} />
+      <EfficiencyCard insights={insights} win={win} days={days} />
       <SkillsMcpRow win={win} days={days} />
       <ProxyLaneRow insights={insights} />
     </div>
@@ -192,6 +192,68 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
           <span className="v num">{r.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- Efficiency (CHI-324 2e), pass 1: DETECTORS. Four rows graded by the
+// shared state-words (cache hit rate, jumbo outputs, long context, error rows).
+// Cache-hit + error-rate derive from /api/insights; jumbo + long-context from
+// the per-message /api/detectors slice. Waste signals + routing compliance are
+// pass 2. ----
+interface DetectorRow { name: string; pct: number; state: StateWord; barPct: number; def: string }
+
+function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | null; win: RangeKey; days: number | null }): JSX.Element {
+  const { data: det } = useCachedFetch<DetectorCounts>(detectorsUrl(days));
+  const th = DEFAULT_SPEND_THRESHOLDS;
+
+  const rows = useMemo<DetectorRow[]>(() => {
+    if (!det) return [];
+    const out: DetectorRow[] = [];
+    // Cache hit rate — higher is better.
+    const cacheDenom = det.cacheReadTokens + det.inputTokens;
+    if (cacheDenom > 0) {
+      const rate = det.cacheReadTokens / cacheDenom;
+      out.push({ name: t('Cache hit rate'), pct: rate * 100, state: gradeCacheHit(rate, th.stateWords), barPct: rate * 100, def: t('input tokens served from the prompt cache') });
+    }
+    // Jumbo outputs — share of assistant outputs past the jumbo threshold.
+    if (det.assistantRows > 0) {
+      const share = det.jumboRows / det.assistantRows;
+      out.push({ name: t('Jumbo outputs'), pct: share * 100, state: gradeShareLowerBetter(share, th.stateWords.jumboHealthyMax), barPct: Math.min(share * 100, 100), def: t('share of outputs past 3k tokens') });
+      // Long context — share of assistant turns fed over the long-context threshold.
+      const lc = det.longContextRows / det.assistantRows;
+      out.push({ name: t('Long context'), pct: lc * 100, state: gradeShareLowerBetter(lc, th.stateWords.longContextHealthyMax), barPct: Math.min(lc * 100, 100), def: t('share of turns fed over 150k tokens') });
+    }
+    // Error rows — assistant rows that recorded an API error (from insights).
+    if (insights) {
+      const head = insights.errorsByProject.reduce((s, r) => s + r.head_count, 0);
+      const errs = insights.errorsByProject.reduce((s, r) => s + r.error_count, 0);
+      if (head > 0) {
+        const rate = errs / head;
+        out.push({ name: t('Error rows'), pct: rate * 100, state: gradeShareLowerBetter(rate, th.stateWords.errorHealthyMax), barPct: Math.min(rate * 100, 100), def: t('assistant rows that recorded an API error') });
+      }
+    }
+    return out;
+  }, [det, insights, th]);
+
+  return (
+    <div className="card">
+      <div className="eff-head">
+        <h3 style={{ margin: 0 }}>{t('Efficiency')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
+        <span className="muted small">{t('whole scan')}</span>
+      </div>
+      <div className="eff-sub">— {t('detectors')}</div>
+      {rows.map((r) => (
+        <div className="eff-row" key={r.name}>
+          <span className="eff-n">{r.name}</span>
+          <span className="eff-v">{r.pct < 1 ? r.pct.toFixed(2) : r.pct.toFixed(1)}% <span className={`sw ${r.state.severity}`}>{t(r.state.word)}</span></span>
+          <div className="track"><div className={`seg sev-${r.state.severity}`} style={{ width: `${r.barPct}%` }} /></div>
+          <span className="eff-d muted">{r.def}</span>
+        </div>
+      ))}
+      {!rows.length && <div className="muted small pad8">{t('Loading…')}</div>}
+      <div className="eff-sub">— {t('waste signals · routing compliance')}</div>
+      <div className="muted small pad8">{t('Building next — right-sizing, cache churn, repeat file reads, and on/off-roster routing.')}</div>
     </div>
   );
 }

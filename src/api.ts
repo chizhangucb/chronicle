@@ -577,6 +577,22 @@ export function activityUrl(since?: string | null, days?: number | null): string
   const qs = p.toString();
   return '/api/activity' + (qs ? `?${qs}` : '');
 }
+// Efficiency detector counts (CHI-324 2e) — mirrors server/detectors.ts. The
+// client derives + grades the rates (cache hit, jumbo, long context) with the
+// shared thresholds; error rate is derived from /api/insights.
+export interface DetectorCounts {
+  assistantRows: number;
+  jumboRows: number;
+  longContextRows: number;
+  cacheReadTokens: number;
+  inputTokens: number;
+}
+export function detectorsUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/detectors' + (qs ? `?${qs}` : '');
+}
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));
