@@ -45,6 +45,7 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 | Ticket lifecycle (all repos) | `$HUB/governance/ticket-tracker.md` |
 | Writing for Chi | `$HUB/governance/communication-style.md` |
 | Skill authoring + budgets | `$HUB/governance/skill-authoring.md` |
+| Credentials + shared secret store | `$HUB/governance/secrets.md` |
 
 ## Working rules
 
