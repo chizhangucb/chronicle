@@ -181,6 +181,30 @@ function assertConsecutiveDaily(
   expect(problems, problems.join('; ')).toEqual([]);
 }
 
+// Read a chart's x-axis tick labels and assert a dense consecutive-daily series,
+// RETRYING until the axis settles on the freshly-clicked window. A range-bar
+// click re-renders recharts in place — the prior window's bars and ticks linger
+// for a frame or two while the new data animates in — so a one-shot read can
+// catch the OLD window's decimated, every-other-day ticks. That is exactly how
+// the /project/:id Overview probe flaked (CHI-324 tail): its default window is
+// wide (Aug 1 -> Aug 27, ticks decimated to every 2nd day), and the goto helper
+// waits only for a `.recharts-bar-rectangle` to be visible — which the lingering
+// wide-window bars satisfy immediately — so the label read fired before the 7d
+// re-render replaced the axis. toPass reruns the read+assert until it settles;
+// a GENUINE dense-fill regression never becomes consecutive, so it still fails
+// (just after the retry budget) — the regression guard is preserved.
+async function expectDenseDailyAxis(
+  page: Page,
+  selector: string,
+  parse: (l: string) => { mo: number; d: number } | null,
+  context: string,
+): Promise<void> {
+  await expect(async () => {
+    const labels = await page.locator(selector).allTextContents();
+    assertConsecutiveDaily(labels, parse, context);
+  }).toPass({ timeout: 8000, intervals: [100, 200, 400, 800] });
+}
+
 async function fixtureProjectId(): Promise<number> {
   const res = await fetch(`${state.baseURL}/api/sessions/${encodeURIComponent(state.sessionId)}/resolve`);
   const body = (await res.json()) as { project_id: number };
@@ -249,15 +273,13 @@ test.describe('probes @ 1366px', () => {
   test('/ (Home Overview, 7d)', async ({ page }) => {
     await gotoHomeOverview7d(page);
     await runGenericProbes(page, '/ Overview');
-    const labels = await page.locator('.sot-card .recharts-xAxis-tick-labels text').allTextContents();
-    assertConsecutiveDaily(labels, parseNamedDayLabel, '/ Overview spend-over-time chart');
+    await expectDenseDailyAxis(page, '.sot-card .recharts-xAxis-tick-labels text', parseNamedDayLabel, '/ Overview spend-over-time chart');
   });
 
   test('/ (Home Explore, Daily rollup, 7d)', async ({ page }) => {
     await gotoHomeExploreDaily7d(page);
     await runGenericProbes(page, '/ Explore');
-    const labels = await page.locator('.recharts-xAxis-tick-labels text').allTextContents();
-    assertConsecutiveDaily(labels, parseNamedDayLabel, '/ Explore daily rollup chart');
+    await expectDenseDailyAxis(page, '.recharts-xAxis-tick-labels text', parseNamedDayLabel, '/ Explore daily rollup chart');
   });
 
   test('/ (Home Content)', async ({ page }) => {
@@ -276,16 +298,14 @@ test.describe('probes @ 1366px', () => {
     const projectId = await fixtureProjectId();
     await gotoProjectOverview7d(page, projectId);
     await runGenericProbes(page, '/project/:id Overview');
-    const labels = await page.locator('.trend-card .recharts-xAxis-tick-labels text').allTextContents();
-    assertConsecutiveDaily(labels, parseNumericDayLabel, '/project/:id Overview trend chart');
+    await expectDenseDailyAxis(page, '.trend-card .recharts-xAxis-tick-labels text', parseNumericDayLabel, '/project/:id Overview trend chart');
   });
 
   test('/project/:id Explore (Daily rollup, 7d)', async ({ page }) => {
     const projectId = await fixtureProjectId();
     await gotoProjectExploreDaily7d(page, projectId);
     await runGenericProbes(page, '/project/:id Explore');
-    const labels = await page.locator('.recharts-xAxis-tick-labels text').allTextContents();
-    assertConsecutiveDaily(labels, parseNamedDayLabel, '/project/:id Explore daily rollup chart');
+    await expectDenseDailyAxis(page, '.recharts-xAxis-tick-labels text', parseNamedDayLabel, '/project/:id Explore daily rollup chart');
   });
 
   test('/project/:id Content', async ({ page }) => {
