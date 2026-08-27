@@ -143,12 +143,14 @@ import type { RecordsSlice } from './slices/records.ts';
 // Synthetic session-ledger rows (generic-fictional; never real hub data). The
 // /records phase-2 UI renders the sessions type from `ledger.rows`; decisions is
 // a future switcher stub, seeded thin. Stamps sort newest-first.
+// Full UUID-style ids (matching a real hub session ledger, where `session` is
+// the client's own session uuid) — the UI renders the id whole, never truncated.
 const DEMO_LEDGER_ROWS = [
-  { date: '2026-08-26 0930', sessionId: 'a1b2c3d4', focus: 'Wire the demo records surface end to end', repo: 'chronicle' },
-  { date: '2026-08-25 1610', sessionId: 'e5f6a7b8', focus: 'Consolidate spend views into the analytics hub', repo: 'chronicle' },
-  { date: '2026-08-25 1105', sessionId: 'c9d0e1f2', focus: 'Onboarding sweep + registry hygiene', repo: 'hub' },
-  { date: '2026-08-24 1440', sessionId: 'b3c4d5e6', focus: 'Budget meter + gated editor spike', repo: 'chronicle' },
-  { date: '2026-08-24 0905', sessionId: 'f7a8b9c0', focus: 'Nightly briefing cadence tuning', repo: 'hub' },
+  { date: '2026-08-26 0930', sessionId: 'a1b2c3d4-9f8e-4a2b-b7c1-3d5e6f70a1b2', focus: 'Wire the demo records surface end to end', repo: 'chronicle' },
+  { date: '2026-08-25 1610', sessionId: 'e5f6a7b8-2c1d-4e3f-9a8b-7c6d5e4f3a2b', focus: 'Consolidate spend views into the analytics hub', repo: 'chronicle' },
+  { date: '2026-08-25 1105', sessionId: 'c9d0e1f2-6b5a-4c3d-8e7f-1a2b3c4d5e6f', focus: 'Onboarding sweep + registry hygiene', repo: 'hub' },
+  { date: '2026-08-24 1440', sessionId: 'b3c4d5e6-7a89-4b0c-9d1e-2f3a4b5c6d7e', focus: 'Budget meter + gated editor spike', repo: 'chronicle' },
+  { date: '2026-08-24 0905', sessionId: 'f7a8b9c0-1d2e-4f3a-8b9c-0d1e2f3a4b5c', focus: 'Nightly briefing cadence tuning', repo: 'hub' },
 ];
 export const DEMO_RECORDS: RecordsSlice = {
   found: true,
