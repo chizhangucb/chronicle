@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import type { Event, ModelUsage, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
+import { isSyntheticUserText } from '../../shared/synthetic.ts';
 
 export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
@@ -570,7 +571,10 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
         pendingCommandSkill = null;
       }
       events.push(e);
-      if (e.kind === 'user' && !e.is_sidechain && !firstPrompt) firstPrompt = (e.text ?? '').slice(0, 200);
+      // first_prompt is the session's DISPLAY-NAME fallback (CHI-368): skip
+      // synthetic user rows (command echoes, system reminders, cross-session IPC)
+      // so the name is a real human prompt, never a raw `<…>` wrapper.
+      if (e.kind === 'user' && !e.is_sidechain && !firstPrompt && !isSyntheticUserText(e.text)) firstPrompt = (e.text ?? '').slice(0, 200);
     }
   }
 

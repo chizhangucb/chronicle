@@ -28,11 +28,19 @@ test('isHumanPrompt: false for each synthetic user-role prefix', () => {
     '<command-message>running</command-message>',
     '<local-command-stdout>ok</local-command-stdout>',
     '[Request interrupted by user]',
+    // CHI-368: cross-session (agent-to-agent IPC) messages are synthetic too — a
+    // gap into one is now counted as active, not subtracted as human-think time.
+    'Another Claude session sent a message:\n<cross-session-message from="x">hi</cross-session-message>',
+    '<cross-session-message from="x">hi</cross-session-message>',
   ];
   for (const text of prefixes) {
     assert.equal(isHumanPrompt({ kind: 'user', text }), false, `expected false for: ${text}`);
     assert.equal(SYNTHETIC_USER_RE.test(text), true, `expected regex match for: ${text}`);
   }
+});
+
+test('isHumanPrompt: true for a prompt that merely quotes a tag mid-sentence (not anchored)', () => {
+  assert.equal(isHumanPrompt({ kind: 'user', text: 'why does a <system-reminder> get dropped?' }), true);
 });
 
 test('isHumanPrompt: false for non-user kinds even with plain text', () => {

@@ -3,15 +3,17 @@
 // client-side fallback in SessionView mirrors these rules for live sessions.
 
 import type { Event } from '../shared/types.ts';
+import { SYNTHETIC_USER_RE, isSyntheticUserText } from '../shared/synthetic.ts';
 
-// Not every role=user message is a human prompt: task notifications, system
-// reminders, command wrappers and interrupts all log with role=user. Their
-// preceding gap counts as ACTIVE (the agent/app was busy) — only a genuinely
-// typed prompt subtracts time. Mirrors SYNTHETIC_USER_RE in src/SessionView.jsx.
-export const SYNTHETIC_USER_RE = /^\s*(?:<task-notification|<launch-selected-element|<system-reminder|<command-name|<command-message|<local-command|\[Request interrupted)/;
+// SYNTHETIC_USER_RE now lives in shared/synthetic.ts (one definition shared with
+// the client session stats + the parsers' first-prompt derivation). CHI-368
+// folded cross-session (agent-to-agent IPC) messages into it: a gap INTO one is
+// no longer subtracted as human-think time — an injected IPC message isn't a
+// human typing — so it counts as active (capped) like any other synthetic turn.
+export { SYNTHETIC_USER_RE };
 
 export function isHumanPrompt(e: Event): boolean {
-  return e.kind === 'user' && !SYNTHETIC_USER_RE.test(e.text || '');
+  return e.kind === 'user' && !isSyntheticUserText(e.text);
 }
 
 const ACTIVE_GAP_CAP_MS = 10 * 60 * 1000;   // generic gaps: 10-min cap

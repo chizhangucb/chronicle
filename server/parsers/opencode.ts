@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
+import { isSyntheticUserText } from '../../shared/synthetic.ts';
 
 export const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 
@@ -132,7 +133,7 @@ export function parseOpencodeSessions(dbPath: string, directory: string | undefi
         if (part.type === 'text' && part.text?.trim()) {
           const kind = msg.role === 'user' ? 'user' : 'assistant';
           events.push({ ts, kind, text: part.text, model });
-          if (kind === 'user' && !firstPrompt) firstPrompt = part.text.slice(0, 200);
+          if (kind === 'user' && !firstPrompt && !isSyntheticUserText(part.text)) firstPrompt = part.text.slice(0, 200); // CHI-368: skip synthetic wrappers in the display-name fallback
         } else if (part.type === 'reasoning' && part.text?.trim()) {
           events.push({ ts, kind: 'thinking', text: part.text, model });
         } else if (part.type === 'tool') {

@@ -88,6 +88,22 @@ describe('parseClaudeSession — fixture-session.jsonl', () => {
     assert.equal(session.skipped, 0);
   });
 
+  test('first_prompt skips a leading cross-session / command-echo message (CHI-368)', async () => {
+    const dir = makeTmpDir();
+    const file = path.join(dir, 'ipc-first.jsonl');
+    const lines = [
+      // a cross-session IPC message logs as role=user but is NOT a human prompt
+      { type: 'user', cwd: '/tmp/x', uuid: 'u1', timestamp: '2026-08-01T10:00:00.000Z',
+        message: { role: 'user', content: 'Another Claude session sent a message:\n<cross-session-message from="x">handoff</cross-session-message>' } },
+      // the real human prompt comes next — this is what the display name should use
+      { type: 'user', cwd: '/tmp/x', uuid: 'u2', timestamp: '2026-08-01T10:01:00.000Z',
+        message: { role: 'user', content: 'actually fix the flaky test' } },
+    ];
+    fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    const { session } = await parseClaudeSession(file);
+    assert.equal(session.first_prompt, 'actually fix the flaky test');
+  });
+
   test('started_at / ended_at are sane and bracket the events', async () => {
     const { session } = await parseClaudeSession(FIXTURE_SESSION);
     assert.equal(session.started_at, '2026-08-01T10:00:00.000Z');
