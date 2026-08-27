@@ -28,6 +28,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Server-side confidentiality gate for this public satellite (CHI-353): blocks
+  # a merge that leaks an owner home path or a committed secret shape. Stdlib
+  # python3, no deps. The richer hub-vocabulary scan is client-side in the hub
+  # egress gate. Keep the job id `confidentiality` stable: branch protection
+  # requires it by that name.
+  confidentiality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confidentiality guard
+        run: python3 scripts/confidentiality_guard.py
+
   check:
     runs-on: ubuntu-latest
     steps:

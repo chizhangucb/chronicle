@@ -46,12 +46,15 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 | Writing for Chi | `$HUB/governance/communication-style.md` |
 | Skill authoring + budgets | `$HUB/governance/skill-authoring.md` |
 | Credentials + shared secret store | `$HUB/governance/secrets.md` |
+| Build + landing-to-main discipline | `$HUB/governance/build-discipline.md` |
+| Action posture (what needs Chi's OK) | `$HUB/governance/tool-actions.md` |
+| Gating model + immovable floors | `$HUB/governance/action-gating.md` |
 
 ## Working rules
 
 - Plan-first for anything non-trivial; the plan gets a yes before build.
 - No em dashes, anywhere, including files. Concise, bullets, casual, no hype.
-- Commits free as work completes; push is confirm-first, always.
+- Commits free as work completes; push is conditioned-auto (CHI-352). main is PR-protected: feature branches auto-push and `gh pr create` auto-approves via the hub egress gate; a direct push to main cards and nothing auto-merges. Pin: `scripts/gating_policy.json push_pins` (single canonical pin). Governance: `governance/satellite-repos.md` Push.
 - Branch + PR for non-trivial changes; reserve direct-to-`main` for trivial/agreed one-offs. After a squash-merge, return the local checkout to freshly-pulled `main` before branching next (squash-merge leaves stale head branches; confirm a merged PR, not `is-ancestor`, before deleting).
 - STANDING RULE (bug-sweep): any user-reported fix targeting a UI/UX pattern class MUST trigger an app-wide sweep for that same pattern, with a regression pin (new CI probe or test assertion) landed in the same PR. A sweep is one grep/search pass; the probe is the durable guard.
 - Surface reshaping (new/merged/moved/redesigned page, or any change to a route/surface/enumerable) needs a matching `spec/surface-contract.md` edit + Chi's sign-off, and a screenshot for Chi before the batch merges. IA drift without a signed contract edit is a publish-blocking P0.
@@ -65,7 +68,7 @@ Chronicle is public. Before any push, verify:
 - No absolute hub/home paths in tracked files.
 - No secrets, keys, or `.env` contents.
 
-Deeper hub-data scan is deferred until chronicle reads hub data at runtime (CHI-107); it does not today, so it cannot carry hub-confidential data. Standard push confirm-first still applies.
+Deeper hub-data scan is deferred until chronicle reads hub data at runtime (CHI-107); it does not today, so it cannot carry hub-confidential data. The conditioned-auto push gate (secrets + confidentiality scan on every push) still applies.
 
 ## Records seam
 
