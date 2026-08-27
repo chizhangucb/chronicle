@@ -22,7 +22,7 @@ import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
-import { computeAnomaly, computeFlaggedDays, type CostedDay, type AnomalyDimension } from '../shared/spend/anomaly.ts';
+import { computeFlaggedDays, type CostedDay, type AnomalyDimension } from '../shared/spend/anomaly.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
@@ -408,10 +408,6 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
 const MOVER_GLYPH: Record<AnomalyDimension, string> = {
   project: '◫', model: '▤', source: '◇', skill: '✎', agent: '⛭', mcp: '⧉',
 };
-// Short label for the singular "top <dimension>" no-baseline fallback line.
-const DIM_NOUN: Record<AnomalyDimension, string> = {
-  project: 'project', model: 'model', source: 'source', skill: 'skill', agent: 'agent', mcp: 'mcp',
-};
 
 // Price a bag of per-model token cells at a SPECIFIC day's rate (CHI-228) — the
 // anomaly day series must price each day at its own rate, same reasoning as
@@ -456,16 +452,12 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
   const burn = activity?.burn ?? null;
   const costedDays = useMemo(() => (burn ? buildCostedDays(burn, mode) : []), [burn, mode]);
   const laneCToday = burn ? (burn.laneCByDay[burn.today] ?? 0) : 0;
-  const anomaly = useMemo(
-    () => (burn ? computeAnomaly(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, { includesLaneC: laneCToday > 0 }) : null),
-    [burn, costedDays, laneCToday],
-  );
   const flaggedDays = useMemo(
     () => (burn ? computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, windowStartDay(burn.today, days) ?? undefined) : []),
     [burn, costedDays, days],
   );
 
-  if (!activity || !burn || !anomaly) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!activity || !burn) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
   // ── Headline ratio: UNCHANGED BurnTile logic (window-respecting baseline). ──
   const current = priceCellsByDay(burn.windowSpendTokensByModelByDay, mode);
@@ -478,6 +470,14 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
     : win === '30d' ? t('prior 30 days')
     : win === '90d' ? t('prior 90 days')
     : '';
+  // Window span for the no-baseline support line, so a bounded window that just
+  // lacks a full PRIOR period (not enough history yet) never mislabels as "all
+  // time" (CHI-324 review — 90d had no prior-90d in range).
+  const winSpanLabel = win === '7d' ? t('last 7 days')
+    : win === '30d' ? t('last 30 days')
+    : win === '90d' ? t('last 90 days')
+    : win === 'today' ? t('today')
+    : t('all time');
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
   const topCost = priceCells(burn.topSessionTokensByModel, mode);
@@ -487,22 +487,23 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
     else navigate(`/session/${encodeURIComponent(burn.topSessionId)}`);
   };
 
-  // ── Movers: top 2 of today's dimension flags (baseline case). `source` (the
-  // tool vendor, e.g. claude-code) is excluded — its single dominant value is
-  // ~the whole day total, so it always outranks and crowds out the informative
-  // project/model movers the D3 design leads with; source already has the
-  // Sources chart. No baseline (All) → the single top dimension value by
-  // ABSOLUTE window spend instead. ──
-  const movers = anomaly.dimensionFlags.filter((f) => f.dimension !== 'source').slice(0, 2);
-  const topAbsolute = !hasBaseline ? topDimensionAbsolute(costedDays) : null;
-  // Multi-day, baselined windows carry the flagged-days line (never Today/All).
-  const showFlaggedDays = win !== 'today' && win !== 'all' && flaggedDays.length > 0;
+  // ── Movers: the top project + top model by spend IN THIS WINDOW (CHI-324
+  // review — must move with the window; a true "increase over the prior period"
+  // per dimension needs a server-shipped per-project baseline we don't have yet,
+  // so this is window-scoped absolute spend, honest and window-responsive).
+  // `source` (tool vendor) is deliberately not a mover — it echoes the total and
+  // already has the Sources chart. ──
+  const winStart = windowStartDay(burn.today, days);
+  const topProject = topDimInWindow(costedDays, burn.today, winStart, 'project');
+  const topModel = topDimInWindow(costedDays, burn.today, winStart, 'model');
+  // Multi-day windows carry the flagged-days line (single-day Today has none).
+  const showFlaggedDays = win !== 'today' && flaggedDays.length > 0;
 
   return (
     <div className={`card burn-card ${hot ? 'warn' : ''}`}>
       <div className="burn-head">
         <span className="eyebrow">{t('Spend anomaly')}</span>
-        <InfoTip text={t('Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged. Movers are the dimensions driving today above their own typical day.')} />
+        <InfoTip text={t('Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period of equal length). Over 2× the baseline is flagged. The movers are the top project and model by spend in this window.')} />
       </div>
       <div className="burn-row">
         <div className="burn-now">
@@ -511,7 +512,7 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
             : <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>}
           {hasBaseline
             ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} {t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
-            : <div className="s muted">{t('all time · no baseline')}</div>}
+            : <div className="s muted">{win === 'all' ? t('all time · no baseline') : `${winSpanLabel} · ${t('no prior period to compare yet')}`}</div>}
         </div>
       </div>
       {hasBaseline && (
@@ -521,25 +522,25 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
         </div>
       )}
 
-      {/* Top movers (baseline case): glyph + name + today's $ for each. */}
-      {hasBaseline && movers.length > 0 && (
+      {/* Movers: top project + top model by spend in this window (moves with the
+          window). Each lens is one glyph + label + name + window spend. */}
+      {(topProject || topModel) && (
         <div className="anom-mover">
-          {movers.map((f, i) => (
-            <span key={`${f.dimension}:${f.value}`}>
-              {i > 0 && <span className="anom-sep"> · </span>}
-              <span className="anom-glyph">{MOVER_GLYPH[f.dimension as AnomalyDimension] ?? '◇'}</span>{' '}
-              {i === 0 && <span className="muted">{t('top mover')} </span>}
-              <b>{f.value}</b> +{fmtMoney(f.todayCost, 2)}
+          {topProject && (
+            <span>
+              <span className="anom-glyph">{MOVER_GLYPH.project}</span>{' '}
+              <span className="muted">{t('top project')} </span>
+              <b>{topProject.value}</b> {fmtMoney(topProject.cost, topProject.cost < 1 ? 2 : 0)}
             </span>
-          ))}
-        </div>
-      )}
-      {/* No-baseline (All) fallback: the single top dimension by absolute spend. */}
-      {!hasBaseline && topAbsolute && (
-        <div className="anom-mover">
-          <span className="anom-glyph">{MOVER_GLYPH[topAbsolute.dimension] ?? '◇'}</span>{' '}
-          <span className="muted">{t('top')} {t(DIM_NOUN[topAbsolute.dimension])} </span>
-          <b>{topAbsolute.value}</b> {fmtMoney(topAbsolute.cost, topAbsolute.cost < 1 ? 2 : 0)}
+          )}
+          {topProject && topModel && <span className="anom-sep"> · </span>}
+          {topModel && (
+            <span>
+              <span className="anom-glyph">{MOVER_GLYPH.model}</span>{' '}
+              <span className="muted">{t('top model')} </span>
+              <b>{topModel.value}</b> {fmtMoney(topModel.cost, topModel.cost < 1 ? 2 : 0)}
+            </span>
+          )}
         </div>
       )}
       {/* Lane C honesty note — the total can move on unattributable proxy spend. */}
@@ -548,12 +549,15 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
           {t('incl.')} {fmtMoney(laneCToday, 2)} {t('proxy lane, not attributable to a mover')}
         </div>
       )}
-      {/* Flagged-days line (multi-day windows) → deep-links to the Spend tab. */}
+      {/* Flagged-days line (multi-day windows) → deep-links to the Spend tab. The
+          date shows only for a lone flag; a longer window only adds OLDER flags,
+          so a single latest date would look "stuck" as the count grows. */}
       {showFlaggedDays && (
         <div className="anom-flagged" onClick={() => navigate('/?tab=spend')} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') navigate('/?tab=spend'); }}>
           {pluralize(flaggedDays.length, t('flagged day'), t('flagged days'))}
-          {' · '}{fmtDayLabel(flaggedDays[0].day, localeOf())} <span className="anom-arrow">→</span>
+          {flaggedDays.length === 1 && <>{' · '}{fmtDayLabel(flaggedDays[0].day, localeOf())}</>}
+          {' '}<span className="anom-arrow">→</span>
         </div>
       )}
 
@@ -574,19 +578,18 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
 const LANE_C_NOTE_TIP =
   'Proxy-lane (LiteLLM/OpenRouter) spend is billed on its own log with no session, project, or model attribution, so it is added to the total but never shown as a per-dimension driver.';
 
-// The single largest dimension value by absolute spend across the whole day
-// series — the All-window (no-baseline) replacement for today's movers. Prefers
-// a project (the clearest all-time attribution), matching the D3 design.
-function topDimensionAbsolute(days: CostedDay[]): { dimension: AnomalyDimension; value: string; cost: number } | null {
-  const order: AnomalyDimension[] = ['project', 'model', 'source'];
-  for (const dim of order) {
-    const totals = new Map<string, number>();
-    for (const d of days) for (const [value, cost] of Object.entries(d.byDimension?.[dim] ?? {})) totals.set(value, (totals.get(value) ?? 0) + cost);
-    let best: { value: string; cost: number } | null = null;
-    for (const [value, cost] of totals) if (!best || cost > best.cost) best = { value, cost };
-    if (best && best.cost > 0) return { dimension: dim, value: best.value, cost: Math.round(best.cost * 100) / 100 };
+// The top value of one dimension by absolute spend within [start, today]
+// (start === null → the whole series, the All window). Window-scoped, so the
+// movers move as the window changes.
+function topDimInWindow(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
+  const totals = new Map<string, number>();
+  for (const d of days) {
+    if (d.day > today || (start && d.day < start)) continue;
+    for (const [value, cost] of Object.entries(d.byDimension?.[dim] ?? {})) totals.set(value, (totals.get(value) ?? 0) + cost);
   }
-  return null;
+  let best: { value: string; cost: number } | null = null;
+  for (const [value, cost] of totals) if (!best || cost > best.cost) best = { value, cost };
+  return best && best.cost > 0 ? { value: best.value, cost: Math.round(best.cost * 100) / 100 } : null;
 }
 
 // ---- Insights Overview charts (everything the old InsightsPage Overview showed
