@@ -6,6 +6,7 @@ import { useCostMode } from './costMode.tsx';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
 import { fmtMoney } from './format.js';
 import { t } from './i18n.js';
+import InfoTip from './InfoTip.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
@@ -64,11 +65,19 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
+  // Days of the CURRENT calendar month only. The month-insights fetch reaches
+  // back day-of-month days, which crosses into the last day of the PRIOR month
+  // (e.g. Aug 27 → 27 days back → Jul 31); filtering to the `YYYY-MM-` prefix
+  // keeps peak-day / active-day honest (computeBudgetPosture already filters MTD
+  // internally, but peak/active are computed here).
+  const monthPrefix = today ? today.slice(0, 8) : '';
   const monthDays: CostedDay[] = useMemo(() => {
     if (!monthInsights) return [];
     const byBucket = groupByBucket(monthInsights.dailySpend as BucketedCell[]);
-    return [...byBucket].map(([bucket, cells]) => ({ day: bucket.slice(0, 10), cost: costOfBucketedCells(cells, mode) }));
-  }, [monthInsights, mode]);
+    return [...byBucket]
+      .map(([bucket, cells]) => ({ day: bucket.slice(0, 10), cost: costOfBucketedCells(cells, mode) }))
+      .filter((d) => d.day.startsWith(monthPrefix));
+  }, [monthInsights, mode, monthPrefix]);
 
   const posture = useMemo(
     () => (today ? computeBudgetPosture(monthDays, today, budget) : null),
@@ -95,7 +104,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   return (
     <div className="card budget-band">
       <div className="bb-head">
-        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')}</span>
+        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')} <InfoTip text={t('The budget is always the current calendar month, independent of the window toggle above. Month-to-date, projection, and the pace / peak-day / per-active-day stats are all for this month.')} /></span>
         {!editing && (
           <button type="button" className="edit-aff" onClick={() => { setDraft(budget ? String(budget) : ''); setEditing(true); }}>✎ {t('edit')}</button>
         )}
