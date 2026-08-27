@@ -32,8 +32,10 @@ test.describe('demo hub: /records renders the sessions type', () => {
     await expect(rows).toHaveCount(5);
     // Newest-first: the first row is the Aug 26 stamp.
     await expect(rows.first().locator('.records-date')).toContainText('2026-08-26');
-    // Session ids render as links into /session/:id.
-    await expect(rows.first().locator('.records-idlink')).toHaveAttribute('href', /\/session\//);
+    // The session id is a click-to-copy affordance carrying the FULL id (not truncated).
+    const idBtn = rows.first().locator('.records-idcopy');
+    await expect(idBtn).toBeVisible();
+    await expect(idBtn).toContainText('a1b2c3d4-9f8e-4a2b-b7c1-3d5e6f70a1b2');
   });
 
   test('the repo chips filter the table', async ({ page }) => {

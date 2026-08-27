@@ -524,8 +524,9 @@ type's table.
   a contract line with ZERO new IA — do NOT build them in phase 2.
 - **Sessions type** (`records/sessions.jsonl`): a table **Date · Session ID · Repo · Focus**,
   newest first, NO rangebar. A text filter + repo chips. Click-to-extend `N more` (window-btn
-  pattern). An imported session id renders as a link into `/session/:id`; an id with no imported
-  session renders as plain mono (never a dead link).
+  pattern). The session id renders as its FULL id (never truncated); clicking it copies the full id
+  to the clipboard (brief `copied` feedback) — a copy affordance, not a link, so a non-imported id
+  is never a dead link. (Chi, 2026-08-26.)
 - **Hub-conditional**: same wholesale nav toggle as the other ops organs — the `≡ Records` nav item
   + route render only when `/api/hub/status` reports present (live or demo), hidden when absent.
 - **Demo**: synthetic session-ledger rows from the demo `records()` slice.

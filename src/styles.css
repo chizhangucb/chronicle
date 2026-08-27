@@ -1717,8 +1717,19 @@ h4 { margin: 6px 0; }
 .records-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .records-table .records-date { white-space: nowrap; color: var(--ink-3); width: 1%; }
 .records-table .records-id { white-space: nowrap; width: 1%; }
-.records-idlink { color: var(--brass-text); text-decoration: none; }
-.records-idlink:hover { text-decoration: underline; }
+.records-idcopy {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 2px 6px; margin: -2px -6px;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--brass-text);
+  font: inherit; cursor: pointer; text-align: left;
+}
+.records-idcopy:hover { border-color: var(--border); background: var(--bg1); }
+.records-idcopy.copied { color: var(--ok, #2e7d52); }
+.records-copyhint {
+  font: 600 10px var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-3); opacity: 0; transition: opacity 0.12s;
+}
+.records-idcopy:hover .records-copyhint, .records-idcopy.copied .records-copyhint { opacity: 1; }
+.records-idcopy.copied .records-copyhint { color: var(--ok, #2e7d52); }
 .records-focus { color: var(--ink-2); }
 .records-more { margin-top: 14px; }
 

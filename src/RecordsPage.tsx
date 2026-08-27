@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'wouter';
 import { api, type HubRecordsResult, type RecordsLedgerRowView } from './api.js';
 import { t } from './i18n.js';
 
@@ -103,12 +102,24 @@ export default function RecordsPage() {
 }
 
 function Row({ r }: { r: RecordsLedgerRowView }) {
+  const [copied, setCopied] = useState(false);
+  // Click the id → copy the FULL id to the clipboard (Chi, 2026-08-26). No
+  // navigation: the id is a copy affordance, not a link, so a non-imported id
+  // is never a dead link. navigator.clipboard works on localhost (secure ctx).
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(r.sessionId); setCopied(true); setTimeout(() => setCopied(false), 1200); }
+    catch { /* clipboard blocked (rare); no-op */ }
+  };
   return (
     <tr className="records-row">
       <td className="records-date mono small">{r.date}</td>
-      {/* Imported session ids link into the session view; a bare id (no imported
-          session) is a fast-follow that renders plain mono (see 2h notes). */}
-      <td className="records-id"><Link className="records-idlink mono" href={`/session/${encodeURIComponent(r.sessionId)}`}>{r.sessionId}</Link></td>
+      <td className="records-id">
+        <button type="button" className={`records-idcopy mono ${copied ? 'copied' : ''}`}
+          onClick={copy} title={t('Click to copy the full session id')}>
+          {r.sessionId}
+          <span className="records-copyhint">{copied ? t('copied') : t('copy')}</span>
+        </button>
+      </td>
       <td className="records-repo">{r.repo ? <span className="pill">{r.repo}</span> : <span className="muted">—</span>}</td>
       <td className="records-focus">{r.focus || <span className="muted">—</span>}</td>
     </tr>
