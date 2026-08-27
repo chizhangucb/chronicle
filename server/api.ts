@@ -12,6 +12,7 @@ import { mountContent }    from './routes/content.ts';
 import { mountActivity }   from './routes/activity.ts';
 import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
+import { mountAsk }        from './routes/ask.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
 import type { Gate } from './gate/core.ts';
 import { startAutoSync }   from './autosync.ts';
@@ -48,6 +49,7 @@ mountContent(api);
 mountActivity(api);
 mountHub(api);
 mountBriefing(api);
+mountAsk(api);
 
 // Auto-sync starts with the server in every run mode (dev / standalone);
 // watchers + timer live on globalThis so SSR reloads don't orphan them.

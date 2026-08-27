@@ -11,7 +11,8 @@
  * SQLite layer; the fs functions aren't even compiled into node:sqlite). The
  * guard below is defense-in-depth + clean errors, NOT the security boundary.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { CostMode } from '../shared/pricing.ts';
@@ -172,6 +173,24 @@ export interface AskTurn {
   truncated: boolean;
   note?: string;
   error?: string;           // set when ok === false
+}
+
+// ---- claude CLI presence (server-side; routes can't import scripts/**) ----
+// Same probe order as scripts/run-briefing.ts findClaude, but importable by the
+// route (which gates /ask on CLI presence) and the runner alike.
+export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.CHRONICLE_CLAUDE_BIN) return env.CHRONICLE_CLAUDE_BIN;
+  try {
+    const onPath = spawnSync('which', ['claude'], { encoding: 'utf-8' });
+    if (onPath.status === 0 && onPath.stdout.trim()) return onPath.stdout.trim();
+  } catch { /* which absent; fall through to fixed paths */ }
+  const candidates = [
+    join(homedir(), '.claude', 'local', 'claude'),
+    join(homedir(), '.local', 'bin', 'claude'),
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
+  ];
+  return candidates.find((c) => existsSync(c)) ?? null;
 }
 
 // ---- durable history (~/.chronicle/ask-history.jsonl) --------------------

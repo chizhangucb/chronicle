@@ -10,6 +10,7 @@ export function mountSettings(app: Express): void {
     res.json({
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
+      ask: cfg.ask === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
     });
@@ -19,6 +20,7 @@ export function mountSettings(app: Express): void {
     const patch: ConfigPatch = {};
     if (typeof req.body?.autoSync === 'boolean') patch.autoSync = req.body.autoSync;
     if (typeof req.body?.autoSyncPaused === 'boolean') patch.autoSyncPaused = req.body.autoSyncPaused;
+    if (typeof req.body?.ask === 'boolean') patch.ask = req.body.ask;
     if (typeof req.body?.minorActiveMsThreshold === 'number') patch.minorActiveMsThreshold = req.body.minorActiveMsThreshold;
     if (typeof req.body?.minorMessageCountThreshold === 'number') patch.minorMessageCountThreshold = req.body.minorMessageCountThreshold;
     const cfg = writeConfig(patch);
@@ -26,6 +28,7 @@ export function mountSettings(app: Express): void {
     res.json({
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
+      ask: cfg.ask === true,
       minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
     });
