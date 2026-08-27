@@ -14,7 +14,9 @@ import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
 import BriefingPage from './BriefingPage.tsx';
 import MemoryPage from './MemoryPage.tsx';
+import AskPage from './AskPage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
+import { useAskStatus } from './useAskStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
@@ -75,8 +77,11 @@ export default function App() {
   const [atJobs] = useRoute('/jobs');
   const [atBriefing] = useRoute('/briefing');
   const [atMemory] = useRoute('/memory');
+  const [atAsk] = useRoute('/ask');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
+  const { status: askStatus, refresh: refreshAsk } = useAskStatus();
+  const askEnabled = askStatus?.enabled ?? false;
   const search = useSearch();
   const projectId = projectParams?.id ?? peParams?.id ?? pcParams?.id;
   const sessionId = sessionParams?.id;
@@ -139,10 +144,18 @@ export default function App() {
         e.preventDefault();
         setSearchOpen((o) => !o);
       }
+      // Cmd-J routes to /ask from anywhere and focuses the input (CHI-351).
+      // Only when Ask is enabled (toggle + CLI + non-demo) so the shortcut never
+      // lands on a soft-failed route.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && askEnabled) {
+        e.preventDefault();
+        navigate('/ask');
+        window.dispatchEvent(new Event('ask:focus'));
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [askEnabled, navigate]);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -226,6 +239,21 @@ export default function App() {
         </nav>
 
         <nav className="sb-bottom">
+          {/* Ask (CHI-351): its OWN one-item group at the top of sb-bottom,
+              fenced by a separator above AND below, signalling a cross-cutting
+              capability (not nav, not chrome). Renders ONLY when enabled
+              server-side (Settings toggle + claude CLI + non-demo). Not
+              hub-conditional. Enumerable: spec/surface-contract.md */}
+          {askEnabled && (
+            <>
+              <div className="sb-sep" />
+              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title={`${t('Ask')}  ⌘J`}
+                onClick={() => { navigate('/ask'); window.dispatchEvent(new Event('ask:focus')); }}>
+                <span className="sb-icon">∴</span><span className="sb-label">{t('Ask')}</span>
+              </button>
+              <div className="sb-sep" />
+            </>
+          )}
           <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
             <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
           </button>
@@ -296,6 +324,9 @@ export default function App() {
         {atJobs && <JobsPage />}
         {atBriefing && <BriefingPage />}
         {atMemory && <MemoryPage />}
+        {atAsk && (askEnabled
+          ? <AskPage />
+          : <div className="page center muted">{t('Ask is not available. Enable it in Settings (requires the claude CLI).')}</div>)}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}
@@ -319,7 +350,7 @@ export default function App() {
       {wizardOpen && (
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onAskChanged={refreshAsk} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid: string) => { setSearchOpen(false); navigate(`/session/${encodeURIComponent(sid)}`); }} />
@@ -338,21 +369,24 @@ export default function App() {
 
 export interface SettingsModalProps {
   onClose: () => void;
+  onAskChanged?: () => void;
 }
 
-function SettingsModal({ onClose }: SettingsModalProps) {
+function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
-      autoSync: true, autoSyncPaused: false,
+      autoSync: true, autoSyncPaused: false, ask: false,
       minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10,
     }));
   }, []);
-  async function toggle(key: 'autoSync' | 'autoSyncPaused') {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
     try { setSettings(await api.patchSettings({ [key]: next[key] })); } catch {}
+    // Re-check /ask/status so the sidebar entry appears/disappears without a reload.
+    if (key === 'ask') onAskChanged?.();
   }
   return (
     <Modal onClose={onClose} title={t('Settings')}>
@@ -372,6 +406,11 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 onChange={() => toggle('autoSyncPaused')} />
               <span>{t('Pause auto-sync')}</span>
               <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />
+              <span>{t('Ask (experimental)')}</span>
+              <span className="muted small">{t('Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.')}</span>
             </label>
           </div>
         )}

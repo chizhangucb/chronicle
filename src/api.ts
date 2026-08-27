@@ -317,8 +317,33 @@ export interface SearchResponse {
 export interface Settings {
   autoSync: boolean;
   autoSyncPaused: boolean;
+  ask: boolean;
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
+}
+
+// ---- /ask (CHI-351): local claude-CLI-backed metric chat over chronicle.db ----
+export interface AskStatus {
+  enabled: boolean;      // toggleOn && claudePresent && !demo
+  toggleOn: boolean;
+  claudePresent: boolean;
+  demo: boolean;
+}
+export type AskCostMode = 'list' | 'billed';
+export interface AskTurn {
+  id: string;
+  ts: string;
+  question: string;
+  costBasis: AskCostMode;
+  ok: boolean;
+  prose: string;
+  sql: string | null;
+  columns: string[];
+  rows: unknown[][];
+  rowCount: number;
+  truncated: boolean;
+  note?: string;
+  error?: string;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -729,6 +754,12 @@ export const api = {
   briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
   hubMemory: (): Promise<HubMemoryResult> => j('/api/hub/memory'),
+  // /ask (CHI-351)
+  askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
+  askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),
+  postAsk: (question: string, costMode: AskCostMode): Promise<{ turn: AskTurn }> => j('/api/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, costMode }),
+  }),
   openFile: (nodePath: string): Promise<OpenFileResult> => j('/api/open-file', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: nodePath }),
   }),
