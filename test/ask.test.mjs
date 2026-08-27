@@ -256,6 +256,26 @@ test('buildCostSurface: message_cost supports subagent (is_sidechain) cuts', () 
   assert.equal(row.c, 10.05); // same tokens, same price -> reconciles with session view
 });
 
+test('buildCostSurface: unpriced model is visible (priced=0, cost NULL), not silently $0', () => {
+  const d = new DatabaseSync(':memory:');
+  d.exec(`
+    CREATE TABLE projects(id INTEGER PRIMARY KEY, path TEXT, name TEXT);
+    CREATE TABLE sessions(id TEXT PRIMARY KEY, project_id INTEGER, source TEXT, started_at TEXT,
+      ended_at TEXT, usage TEXT, usage_source TEXT);
+    CREATE TABLE messages(session_id TEXT, seq INTEGER, ts TEXT, kind TEXT, model TEXT, tool_name TEXT,
+      skill TEXT, is_sidechain INTEGER, agent_type TEXT, agent_id TEXT, workflow_id TEXT,
+      input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER,
+      cache_w5m_tokens INTEGER, cache_w1h_tokens INTEGER);
+    INSERT INTO projects VALUES (1, '/p/x', 'x');
+    INSERT INTO sessions VALUES ('s1', 1, 'other', '2026-08-01T00:00:00Z', '2026-08-01T01:00:00Z',
+      '{"some-unknown-model":{"input":1000000,"output":0}}', NULL);
+  `);
+  buildCostSurface(d, 'theoretical', '2026-08-01');
+  const row = d.prepare(`SELECT cost_usd, priced FROM session_model_cost`).get();
+  assert.equal(row.priced, 0);        // flagged, not hidden
+  assert.equal(row.cost_usd, null);   // NULL, not a misleading 0
+});
+
 test('buildCostSurface: windowed model priced at its OWN day, not the run day (reconciles)', () => {
   // Sonnet 5 intro window ends 2026-08-31 ($2/$10), then $3/$15. A session INSIDE
   // the window must price at $2 even when the run happens AFTER the window — this
