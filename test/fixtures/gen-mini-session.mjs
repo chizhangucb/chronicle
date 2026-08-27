@@ -42,6 +42,13 @@ function jsonLine(obj) {
  *   (server/noiseGate.ts: messageCount < 10). 8 turns (16 events) with 50s user→assistant gaps clears
  *   BOTH the message-count (>=10) and 5-min agent-active thresholds, so it lands in the main ledger.
  * @param {number} [opts.gapSec] - seconds between each message. Ignored when `endISO` is given.
+ * @param {string} [opts.model] - assistant model id (defaults to 'claude-fable-5', byte-identical
+ *   to every pre-existing caller). Set it to seed vendor variety: the model VENDOR (shared/provider.ts
+ *   providerOf) keys off this string's prefix, so 'gpt-5' -> openai, 'gemini-2.5-pro' -> google,
+ *   'mistral-large-2' -> other (off-roster/unpriced). Used by scripts/walk-seed.mjs (CHI-324 2i).
+ * @param {{input_tokens:number,output_tokens:number,cache_read_input_tokens?:number}} [opts.usage] -
+ *   per-assistant-message token usage (defaults to a small fixed bag). Vary it per vendor so the
+ *   Spend median dash + routing table show a real spread.
  * @param {string} [opts.endISO] - UTC ISO instant the LAST message should land on. When given, the
  *   per-message gap is derived (`(endTs - startTs) / (turns * 2 - 1)`) instead of using `gapSec`, so a
  *   caller can pin both ends of a session (e.g. "started 26h ago, still going 5 minutes ago") without
@@ -50,7 +57,11 @@ function jsonLine(obj) {
  * @returns {{sessionId: string, file: string}}
  */
 export function writeMiniSession(destDir, opts) {
-  const { sessionId, dateISO, promptText, cwd = MINI_DEFAULT_CWD, turns = 8, endISO } = opts;
+  const {
+    sessionId, dateISO, promptText, cwd = MINI_DEFAULT_CWD, turns = 8, endISO,
+    model = 'claude-fable-5',
+    usage = { input_tokens: 80, output_tokens: 40, cache_read_input_tokens: 0 },
+  } = opts;
   const projectDir = path.join(destDir, mungeProjectDir(cwd));
   fs.mkdirSync(projectDir, { recursive: true });
 
@@ -100,9 +111,9 @@ export function writeMiniSession(destDir, opts) {
       timestamp: new Date(cursor).toISOString(),
       message: {
         role: 'assistant',
-        model: 'claude-fable-5',
+        model,
         content: [{ type: 'text', text: `Mini fixture response ${t + 1}.` }],
-        usage: { input_tokens: 80, output_tokens: 40, cache_read_input_tokens: 0 },
+        usage,
       },
     }));
     parentUuid = asstUuid;
