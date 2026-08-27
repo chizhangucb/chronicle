@@ -610,6 +610,12 @@ export function wasteUrl(days?: number | null): string {
   const qs = p.toString();
   return '/api/waste' + (qs ? `?${qs}` : '');
 }
+
+// Routing-compliance roster (CHI-324 2e) — mirrors server/routing.ts. Just the
+// curated model families; the client classifies the window's models on/off
+// roster and prices from /api/insights. Hub-conditional.
+export interface RosterResult { present: boolean; families: string[]; }
+export function routingUrl(): string { return '/api/routing'; }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));

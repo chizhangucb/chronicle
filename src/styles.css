@@ -744,6 +744,10 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 @media (max-width: 680px) { .eff-cols { grid-template-columns: 1fr; } }
 .waste-row { display: grid; grid-template-columns: 130px 64px 1fr; gap: var(--gap-3); align-items: baseline; padding: 2px 0; font: 12px var(--mono); }
 .waste-row .eff-v { text-align: right; color: var(--brass-text); font-variant-numeric: tabular-nums; }
+.routing-body { padding: 2px 0; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.routing-line { margin-bottom: var(--gap-1); }
+.routing-line b { color: var(--ink); }
+.promote-aff { color: var(--brass-text); cursor: default; }
 
 /* CHI-324 2g: Sessions tab. */
 .sessions-hub { display: flex; flex-direction: column; gap: 10px; }
