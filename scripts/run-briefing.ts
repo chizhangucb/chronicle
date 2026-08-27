@@ -21,6 +21,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getHubAdapter } from '../server/hub/adapter.ts';
 import { db } from '../server/db.ts';
+import { buildSpendSnapshot } from '../server/spendSnapshot.ts';
 import { packageRoot } from '../server/hub/paths.ts';
 import type { BriefingCard, BriefingFile, BriefingStateFile } from '../server/briefing.ts';
 import { autoResolve, mergeRuns } from '../server/briefing-resolve.ts';
@@ -71,7 +72,8 @@ function coverage(): unknown {
 }
 
 /** Assemble the briefing input snapshot from the adapter slices. Keeps the
- * `live-data.json` filename (CORRECTION #3). Non-spend (D7): no spend slice. */
+ * `live-data.json` filename (CORRECTION #3). CHI-324 2i: carries a spend slice
+ * (server/spendSnapshot.ts), the SAME anomaly reading the Overview tile shows. */
 export function assembleSnapshot(now: Date): Record<string, unknown> {
   const a = getHubAdapter();
   return {
@@ -84,7 +86,15 @@ export function assembleSnapshot(now: Date): Record<string, unknown> {
     // the phase-2 insights coupling. Present as an empty marker so the skill
     // knows they were considered, not forgotten.
     coverage: coverage() ?? null,
+    // Spend anomaly reading (CHI-324 2i), priced server-side at the theoretical
+    // basis from the same burn cells the Overview tile uses. Never throws.
+    spend: safeSpend(now),
   };
+}
+
+/** The spend slice must never kill the run (a fresh machine has no sessions). */
+function safeSpend(now: Date): unknown {
+  try { return buildSpendSnapshot(now); } catch { return null; }
 }
 
 export function buildPrompt(dir: string, now: Date): string {

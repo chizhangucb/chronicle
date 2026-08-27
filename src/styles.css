@@ -1959,7 +1959,6 @@ h4 { margin: 6px 0; }
 /* ---- Briefing ops surface (CHI-323 3d) ---- */
 .briefing-page { max-width: 760px; }
 .briefing-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.briefing-scope { margin: 2px 0 18px; }
 .briefing-empty { padding: 48px 0; }
 .briefing-section { margin-bottom: 22px; }
 .briefing-sec-head { margin-bottom: 8px; }
