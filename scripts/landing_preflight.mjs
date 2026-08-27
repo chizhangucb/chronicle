@@ -95,15 +95,18 @@ export function runPreflight({ repo = '.', target = 'origin/main', fetch = true 
     const unmerged = git(repo, ['diff', '--diff-filter=U', '--name-only'], { allowFail: true }) || '';
     conflicts = unmerged.split('\n').map((s) => s.trim()).filter(Boolean);
   } finally {
-    // Restore on every path. `merge --abort` is a no-op-error when the merge was
-    // "Already up to date" (no MERGE_HEAD); swallow that, then hard-verify HEAD.
+    // Cleanup only. Never throw from a finally (it would mask a try-block error;
+    // eslint no-unsafe-finally): the HEAD check is done after this block, below.
+    // `merge --abort` is a no-op-error when the merge was "Already up to date"
+    // (no MERGE_HEAD); swallow that.
     git(repo, ['merge', '--abort'], { allowFail: true });
-    const headAfter = git(repo, ['rev-parse', 'HEAD'], { allowFail: true });
-    if (headAfter !== headBefore) {
-      // Should never happen (merge --no-commit never moves HEAD), but if it did,
-      // fail loud rather than leave the tree in an unexpected state.
-      throw new Error(`staleness guard left HEAD moved (${headBefore} -> ${headAfter}); investigate manually`);
-    }
+  }
+  // Verify restoration after the finally. Should never trip (merge --no-commit
+  // never moves HEAD), but if HEAD moved, fail loud rather than leave the tree
+  // in an unexpected state.
+  const headAfter = git(repo, ['rev-parse', 'HEAD'], { allowFail: true });
+  if (headAfter !== headBefore) {
+    throw new Error(`staleness guard left HEAD moved (${headBefore} -> ${headAfter}); investigate manually`);
   }
 
   return { target, behind, ahead, stale: true, conflicts, clean: conflicts.length === 0, verdict: 'fail' };
