@@ -16,6 +16,7 @@ import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './windowedUsage.ts';
+import { isSyntheticUserText } from '../shared/synthetic.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
@@ -118,9 +119,13 @@ const FRIENDLY_CALL: Record<string, string> = {
 };
 
 // Display name for a session: user-set name → tool summary → first prompt → id.
+// A synthetic first_prompt (command echo / cross-session IPC wrapper) is treated
+// as absent (CHI-368) so it never surfaces as the name on the Sessions tab/table
+// — this read-path guard also covers rows imported before the parser fix.
 export function sessionDisplayName(s: NamedSession): string {
+  const fp = s.first_prompt && !isSyntheticUserText(s.first_prompt) ? s.first_prompt : null;
   return (s.name && s.name.trim()) || (s.summary && s.summary.trim())
-    || s.first_prompt || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
+    || fp || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
 }
 
 export interface ProjectDetailProps {
@@ -654,7 +659,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                 {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
                 {sessionDisplayName(s)}
               </div>
-              {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
+              {s.first_prompt && !isSyntheticUserText(s.first_prompt) && sessionDisplayName(s) !== s.first_prompt && (
                 <div className="session-subprompt muted small" title={s.first_prompt}>{s.first_prompt}</div>
               )}
               <div className="session-meta muted small">

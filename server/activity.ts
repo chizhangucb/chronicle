@@ -14,6 +14,7 @@ import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './windowUsage.ts';
 import { readLaneCDailyCost } from './laneC.ts';
+import { isSyntheticUserText } from '../shared/synthetic.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -110,7 +111,12 @@ interface SessionRowLite {
 // (e.g. an id/name/summary/first_prompt-only query) can pass it directly.
 export interface NamedSessionRow { id: string; name: string | null; summary: string | null; first_prompt: string | null; }
 export function displayName(r: NamedSessionRow): string {
-  return r.name || r.summary || r.first_prompt || r.id;
+  // Read-path guard (CHI-368): a first_prompt that is a synthetic wrapper (command
+  // echo / cross-session IPC) is treated as absent, so a session imported BEFORE
+  // the parser fix still never shows a raw `<…>` wrapper — it falls through to the
+  // summary or the id. Fresh imports already store a clean first_prompt.
+  const fp = r.first_prompt && !isSyntheticUserText(r.first_prompt) ? r.first_prompt : null;
+  return r.name || r.summary || fp || r.id;
 }
 
 // Parse a `sessions.usage` blob into normalized cells (legacy `cacheWrite`

@@ -14,6 +14,7 @@
 // which only ever run through Vite/tsc and use `../models.js`), this import
 // must point at the real `.ts` file.
 import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
+import { SYNTHETIC_USER_RE, isSyntheticUserText } from '../../shared/synthetic.ts';
 export interface StatMessage {
   kind: string;
   ts?: string | null;
@@ -162,17 +163,14 @@ function fmtDur(ms: number | null | undefined): string {
   return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
 }
 
-// Not every `user`-role message is a human prompt. Background-task completions
-// (`<task-notification>`), UI element selections (`<launch-selected-element>`),
-// interrupt markers, and other harness/system injections all carry role=user in
-// the logs. The pause before one of these is NOT the human thinking — the agent
-// was busy (e.g. a background build) or you were interacting with the app — so it
-// must not be subtracted from active time. Only a genuine typed prompt counts as
-// "human turn". This regex matches the injected forms; a real prompt rarely opens
-// with one of these tags.
-const SYNTHETIC_USER_RE = /^\s*(?:<task-notification|<launch-selected-element|<system-reminder|<command-name|<command-message|<local-command|\[Request interrupted)/;
+// SYNTHETIC_USER_RE is defined once in shared/synthetic.ts and reused here (the
+// client-side active-time fallback) + by the server parsers/duration math, so
+// the "not a human turn" rule can never drift between them. Background-task
+// completions, system reminders, command wrappers, interrupt markers, and
+// cross-session IPC messages all carry role=user; the pause before one is NOT
+// the human thinking, so it must not be subtracted from active time.
 function isHumanPrompt(m: StatMessage): boolean {
-  return m.kind === 'user' && !SYNTHETIC_USER_RE.test(m.text || '');
+  return m.kind === 'user' && !isSyntheticUserText(m.text);
 }
 
 // Client-side fallback for sessions imported before v0.2 (which stored

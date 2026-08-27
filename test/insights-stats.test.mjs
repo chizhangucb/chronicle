@@ -43,6 +43,25 @@ test('activeDaysCount: counts active days within a trailing window', () => {
   assert.equal(activeDaysCount(days, 30, '2026-08-10'), 1);
 });
 
+test('activeDaysCount: n never exceeds the window (CHI-370: was 31/30 on a fully-active month)', () => {
+  // 31 consecutive active days ending at asOf. The inclusive 30-day window is
+  // asOf and the 29 days before it, so exactly 30 fall inside — the 31st (the
+  // oldest) is out. The count must be 30, never 31.
+  const asOf = '2026-08-31';
+  const days = Array.from({ length: 31 }, (_, i) => ({
+    day: new Date(Date.UTC(2026, 7, 1) + i * 86400000).toISOString().slice(0, 10),
+    count: 3,
+  }));
+  const n = activeDaysCount(days, 30, asOf);
+  assert.equal(n, 30);
+  assert.ok(n <= 30, `active days ${n} must not exceed the 30-day window`);
+});
+
+test('activeDaysCount: a stray future-dated row does not inflate the count', () => {
+  const days = [{ day: '2026-08-31', count: 1 }, { day: '2026-09-05', count: 9 }];
+  assert.equal(activeDaysCount(days, 30, '2026-08-31'), 1); // the 09-05 row is after asOf
+});
+
 test('peakHour: the hour with the most total messages across all days', () => {
   const hourly = [{ dow: 1, hour: 14, count: 5 }, { dow: 2, hour: 14, count: 6 }, { dow: 1, hour: 9, count: 3 }];
   assert.equal(peakHour(hourly), 14);
