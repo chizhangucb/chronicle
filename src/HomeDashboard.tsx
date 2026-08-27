@@ -487,9 +487,13 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
     else navigate(`/session/${encodeURIComponent(burn.topSessionId)}`);
   };
 
-  // ── Movers: top 2 of today's dimension flags (baseline case). No baseline
-  // (All) → the single top dimension value by ABSOLUTE window spend instead. ──
-  const movers = anomaly.dimensionFlags.slice(0, 2);
+  // ── Movers: top 2 of today's dimension flags (baseline case). `source` (the
+  // tool vendor, e.g. claude-code) is excluded — its single dominant value is
+  // ~the whole day total, so it always outranks and crowds out the informative
+  // project/model movers the D3 design leads with; source already has the
+  // Sources chart. No baseline (All) → the single top dimension value by
+  // ABSOLUTE window spend instead. ──
+  const movers = anomaly.dimensionFlags.filter((f) => f.dimension !== 'source').slice(0, 2);
   const topAbsolute = !hasBaseline ? topDimensionAbsolute(costedDays) : null;
   // Multi-day, baselined windows carry the flagged-days line (never Today/All).
   const showFlaggedDays = win !== 'today' && win !== 'all' && flaggedDays.length > 0;
@@ -548,7 +552,7 @@ function AnomalyTile({ activity, win, days, onOpenSession }: { activity: Activit
       {showFlaggedDays && (
         <div className="anom-flagged" onClick={() => navigate('/?tab=spend')} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') navigate('/?tab=spend'); }}>
-          {flaggedDays.length} {pluralize(flaggedDays.length, t('flagged day'), t('flagged days'))}
+          {pluralize(flaggedDays.length, t('flagged day'), t('flagged days'))}
           {' · '}{fmtDayLabel(flaggedDays[0].day, localeOf())} <span className="anom-arrow">→</span>
         </div>
       )}
