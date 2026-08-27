@@ -37,7 +37,26 @@ before(async () => {
       usage: JSON.stringify({ 'gpt-5.6-terra': { input: 400, output: 200, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
     rhythm(base + 600000, 'gpt-5.6-terra'),
   );
+  // Older sessions at ~10 / 50 / 120 days ago so widening the window reaches
+  // strictly further back — the CHI-324 monotonicity guard below (a bounded
+  // window reaches `days + MEDIAN_DAYS` = days + 14; All spans everything).
+  const DAY = 86400000;
+  for (const [id, ago] of [['s10', 10], ['s50', 50], ['s120', 120]]) {
+    const b = now - ago * DAY;
+    replaceSession(
+      { id, project_id: pa.id, source: 'claude-code', file_path: `/tmp/${id}.jsonl`,
+        started_at: iso(b), ended_at: iso(b + 600000),
+        usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 500, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }) },
+      rhythm(b, 'claude-sonnet-5'),
+    );
+  }
 });
+
+// The token magnitude across every anomaly day — the client sums the priced
+// version of this as the window total, so it MUST be non-decreasing as the
+// window widens.
+const anomalyTokenSum = (r) =>
+  r.burn.anomalyDays.reduce((s, d) => s + Object.values(d.byModel).reduce((t, c) => t + c.input + c.output, 0), 0);
 after(async () => { await teardown?.(); });
 
 test('burn carries today + laneCByDay + anomalyDays', () => {
@@ -57,4 +76,16 @@ test("today's anomaly day cells split by project / model / source", () => {
   assert.deepEqual(Object.keys(day.bySource).sort(), ['claude-code', 'codex']);
   // Cells are token magnitudes, not dollars.
   assert.ok(day.byModel['claude-sonnet-5'].input > 0);
+});
+
+test('anomalyDays coverage is monotonic: All ≥ 90d ≥ 30d (CHI-324 review, no 90d>All)', () => {
+  const d30 = anomalyTokenSum(activity.computeActivity(null, 30));
+  const d90 = anomalyTokenSum(activity.computeActivity(null, 90));
+  const dAll = anomalyTokenSum(activity.computeActivity(null, null));
+  // 30d reaches back 44 days (today + s10); 90d reaches 104 (adds s50); All spans
+  // everything (adds s120). Strictly widening here, but assert ≥ for generality.
+  assert.ok(d90 >= d30, `90d (${d90}) must be ≥ 30d (${d30})`);
+  assert.ok(dAll >= d90, `All (${dAll}) must be ≥ 90d (${d90})`);
+  // And in THIS fixture the older sessions make it strict, proving the cap is gone.
+  assert.ok(dAll > d90 && d90 > d30, `expected strict All>90d>30d, got ${dAll}/${d90}/${d30}`);
 });

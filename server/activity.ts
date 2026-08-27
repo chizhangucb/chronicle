@@ -313,15 +313,18 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
   }
 
   // ---- Anomaly cells (CHI-324 2c) ----
-  // A lookback window wide enough for BOTH today's movers (needs MEDIAN_DAYS of
-  // history) and per-day flags across the current window (each day vs its own
-  // trailing median). Bounded so "All" doesn't scan forever.
-  const lookbackDays = MEDIAN_DAYS + Math.min(days ?? 30, 90);
-  const lookbackCutoff = new Date(now - lookbackDays * DAY).toISOString();
+  // Cover the FULL window PLUS MEDIAN_DAYS of prior history, so (a) per-day flags
+  // near the window start still have a trailing median and (b) the window SUM is
+  // complete for every window. The old `Math.min(days ?? 30, 90)` cap made "All"
+  // reach back only 44 days while 90d reached 104 — so the window total and
+  // flagged-day count came out SMALLER for All than for 90d (a monotonicity bug,
+  // CHI-324 review). A bounded window reaches back `days + MEDIAN_DAYS`; "All"
+  // (days == null) has no cutoff so it spans every day of history.
+  const anomalyCutoff = days != null ? new Date(now - (days + MEDIAN_DAYS) * DAY).toISOString() : null;
   const projName = new Map<number, string>();
   for (const r of db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]) projName.set(r.id, r.name);
   const anomDayMap = new Map<string, AnomalyDayCells>();
-  for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], lookbackCutoff, 'day')) {
+  for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], anomalyCutoff, 'day')) {
     let d = anomDayMap.get(c.bucket);
     if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
     addUsage(d.byModel, { [c.model]: c.cells });
@@ -330,7 +333,7 @@ export function computeActivity(sinceIso: string | null, days: number | null): A
     addUsage(d.bySource[c.source] ?? (d.bySource[c.source] = {}), { [c.model]: c.cells });
   }
   const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-  const laneCByDay = Object.fromEntries(readLaneCDailyCost(lookbackCutoff));
+  const laneCByDay = Object.fromEntries(readLaneCDailyCost(anomalyCutoff));
   const nowD = new Date(now);
   const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
 

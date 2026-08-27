@@ -3,7 +3,6 @@ import type { InsightsResult, ActivityResult } from './api.js';
 import { insightsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
-import { costOf } from './models.js';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
 import { fmtMoney } from './format.js';
 import { t } from './i18n.js';
@@ -11,10 +10,10 @@ import InfoTip from './InfoTip.tsx';
 import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
-import { computeFlaggedDays, type CostedDay } from '../shared/spend/anomaly.ts';
+import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
-import { DEFAULT_SPEND_THRESHOLDS, LANE_C_UNATTRIBUTED_DEFINITION } from '../shared/spend/thresholds.ts';
-import { MOVER_GLYPH, buildCostedDays, windowStartDay, topDimInWindow } from './insights/anomalyMath.ts';
+import { LANE_C_UNATTRIBUTED_DEFINITION } from '../shared/spend/thresholds.ts';
+import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
@@ -154,29 +153,12 @@ function BudgetCard({ monthInsights, today }: { monthInsights: InsightsResult | 
 function AnomalyCard({ activity, win, days }: { activity: ActivityResult | null; win: RangeKey; days: number | null }): JSX.Element {
   const { mode } = useCostMode();
   const burn = activity?.burn ?? null;
-  const costedDays = useMemo(() => (burn ? buildCostedDays(burn, mode) : []), [burn, mode]);
-  const flaggedDays = useMemo(
-    () => (burn ? computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, windowStartDay(burn.today, days) ?? undefined) : []),
-    [burn, costedDays, days],
-  );
+  // The SAME shared computation the Overview tile uses — guaranteed consistent.
+  const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
 
-  if (!activity || !burn) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!activity || !burn || !anom) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
-  const winStart = windowStartDay(burn.today, days);
-  // Headline: window spend vs baseline (same as the tile). current = window-sum
-  // of the costed days; baseline = the server prior-period cells priced (latest
-  // rate, matching the tile's priceCells).
-  const current = costedDays
-    .filter((d) => (winStart ? d.day >= winStart : true) && d.day <= burn.today)
-    .reduce((s, d) => s + d.cost, 0);
-  let baseline = 0;
-  for (const [model, cell] of Object.entries(burn.baselineTokensByModel)) baseline += costOf(model, cell, undefined, mode) ?? 0;
-  const hasBaseline = baseline > 0;
-  const ratio = hasBaseline ? current / baseline : null;
-  const hot = ratio != null && ratio > 2;
-  const topProject = topDimInWindow(costedDays, burn.today, winStart, 'project');
-  const topModel = topDimInWindow(costedDays, burn.today, winStart, 'model');
-  const laneCToday = burn.laneCByDay[burn.today] ?? 0;
+  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
   const showFlagged = win !== 'today' && flaggedDays.length > 0;
 
   return (

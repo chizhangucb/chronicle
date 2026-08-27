@@ -23,9 +23,7 @@ import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
-import { computeFlaggedDays } from '../shared/spend/anomaly.ts';
-import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
-import { MOVER_GLYPH, buildCostedDays, windowStartDay, topDimInWindow } from './insights/anomalyMath.ts';
+import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
@@ -400,12 +398,8 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
   // Hooks run unconditionally (rules-of-hooks) — the null-activity guard reads
   // the memoized value but never skips the hook.
   const burn = activity?.burn ?? null;
-  const costedDays = useMemo(() => (burn ? buildCostedDays(burn, mode) : []), [burn, mode]);
-  const laneCToday = burn ? (burn.laneCByDay[burn.today] ?? 0) : 0;
-  const flaggedDays = useMemo(
-    () => (burn ? computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, windowStartDay(burn.today, days) ?? undefined) : []),
-    [burn, costedDays, days],
-  );
+  // ONE shared window-scoped anomaly view (identical to the Spend-tab card).
+  const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
   // Top session ranked by COST in this window (CHI-324 review — the old server
   // pick ranked by TOKENS but showed cost, so a wider window's top could show a
   // SMALLER figure than a narrower one). The insights windowed cells give the
@@ -423,14 +417,9 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     return best;
   }, [insights, mode]);
 
-  if (!activity || !burn) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
-  // ── Headline ratio: UNCHANGED BurnTile logic (window-respecting baseline). ──
-  const current = priceCellsByDay(burn.windowSpendTokensByModelByDay, mode);
-  const baseline = priceCells(burn.baselineTokensByModel, mode);
-  const hasBaseline = baseline > 0;
-  const ratio = hasBaseline ? current / baseline : null;
-  const hot = ratio != null && ratio > 2;
+  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
   const baselineLabel = win === 'today' ? t('typical day (14-day median)')
     : win === '7d' ? t('prior 7 days')
     : win === '30d' ? t('prior 30 days')
@@ -452,15 +441,6 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     else navigate(`/session/${encodeURIComponent(topSession.row.id)}`);
   };
 
-  // ── Movers: the top project + top model by spend IN THIS WINDOW (CHI-324
-  // review — must move with the window; a true "increase over the prior period"
-  // per dimension needs a server-shipped per-project baseline we don't have yet,
-  // so this is window-scoped absolute spend, honest and window-responsive).
-  // `source` (tool vendor) is deliberately not a mover — it echoes the total and
-  // already has the Sources chart. ──
-  const winStart = windowStartDay(burn.today, days);
-  const topProject = topDimInWindow(costedDays, burn.today, winStart, 'project');
-  const topModel = topDimInWindow(costedDays, burn.today, winStart, 'model');
   // Multi-day windows carry the flagged-days line (single-day Today has none).
   const showFlaggedDays = win !== 'today' && flaggedDays.length > 0;
 

@@ -5,7 +5,9 @@
 // (CHI-228) and honors the List/Billed toggle.
 import { costOf, type CostMode } from '../models.js';
 import type { ActivityResult, ActivityTokensByModel } from '../api.js';
-import type { CostedDay, AnomalyDimension } from '../../shared/spend/anomaly.ts';
+import type { CostedDay, AnomalyDimension, FlaggedDay } from '../../shared/spend/anomaly.ts';
+import { computeFlaggedDays } from '../../shared/spend/anomaly.ts';
+import { DEFAULT_SPEND_THRESHOLDS } from '../../shared/spend/thresholds.ts';
 
 // Mono glyph per anomaly-mover dimension (design-QA rubric vocabulary; the D3
 // artifact approved ◫ project + ▤ model). Only model/project/source ever ship
@@ -45,6 +47,48 @@ export function windowStartDay(today: string, days: number | null): string | nul
   const [y, m, d] = today.split('-').map(Number);
   const start = new Date(y, m - 1, d - (Math.max(Math.round(days), 1) - 1));
   return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+}
+
+// The ONE window-scoped anomaly view, shared verbatim by the Overview tile and
+// the Spend-tab card so the two surfaces can NEVER disagree (CHI-324 review —
+// they showed different All totals, and 90d > All, because they read different,
+// differently-bounded sources). Everything here derives from burn.anomalyDays,
+// which the server now sizes to cover the FULL window + a 14-day baseline for
+// every window. `current` = window sum; `ratio` = current / server prior-period
+// baseline; movers = top project + top model by window spend; flaggedDays =
+// per-day spikes in the window.
+export interface WindowAnomaly {
+  current: number;
+  baseline: number;
+  hasBaseline: boolean;
+  ratio: number | null;
+  hot: boolean;
+  topProject: { value: string; cost: number } | null;
+  topModel: { value: string; cost: number } | null;
+  flaggedDays: FlaggedDay[];
+  laneCToday: number;
+}
+
+export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days: number | null): WindowAnomaly {
+  const costedDays = buildCostedDays(burn, mode);
+  const winStart = windowStartDay(burn.today, days);
+  const inWindow = (day: string) => (winStart ? day >= winStart : true) && day <= burn.today;
+  const current = costedDays.filter((d) => inWindow(d.day)).reduce((s, d) => s + d.cost, 0);
+  let baseline = 0;
+  for (const [model, cell] of Object.entries(burn.baselineTokensByModel)) baseline += costOf(model, cell, undefined, mode) ?? 0;
+  const hasBaseline = baseline > 0;
+  const ratio = hasBaseline ? current / baseline : null;
+  return {
+    current,
+    baseline,
+    hasBaseline,
+    ratio,
+    hot: ratio != null && ratio > 2,
+    topProject: topDimInWindow(costedDays, burn.today, winStart, 'project'),
+    topModel: topDimInWindow(costedDays, burn.today, winStart, 'model'),
+    flaggedDays: computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, winStart ?? undefined),
+    laneCToday: burn.laneCByDay[burn.today] ?? 0,
+  };
 }
 
 // The top value of one dimension by absolute spend within [start, today]
