@@ -246,7 +246,8 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
       {rows.map((r) => (
         <div className="eff-row" key={r.name}>
           <span className="eff-n">{r.name}</span>
-          <span className="eff-v">{r.pct < 1 ? r.pct.toFixed(2) : r.pct.toFixed(1)}% <span className={`sw ${r.state.severity}`}>{t(r.state.word)}</span></span>
+          <span className="eff-v">{r.pct < 1 ? r.pct.toFixed(2) : r.pct.toFixed(1)}%</span>
+          <span className="eff-w"><span className={`sw ${r.state.severity}`}>{t(r.state.word)}</span></span>
           <div className="track"><div className={`seg sev-${r.state.severity}`} style={{ width: `${r.barPct}%` }} /></div>
           <span className="eff-d muted">{r.def}</span>
         </div>

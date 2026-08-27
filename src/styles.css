@@ -706,20 +706,26 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* Efficiency detectors (CHI-324 2e): name · value+state-word · bar · definition. */
 .eff-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
 .eff-sub { color: var(--ink-3); font: 11px var(--mono); margin: var(--gap-3) 0 var(--gap-1); }
-.eff-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(96px, auto) minmax(70px, 1.3fr) minmax(150px, 2fr); gap: var(--gap-3); align-items: center; padding: 3px 0; font: 12px var(--mono); }
-.eff-n { color: var(--ink); }
-.eff-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Fixed name/value/state columns so every INDEPENDENT row-grid computes the
+   same column edges — the value, the state chip, and the bar all line up down
+   the column (each .eff-row is its own grid, so `auto` widths would misalign). */
+.eff-row { display: grid; grid-template-columns: 140px 56px 68px minmax(70px, 1.3fr) minmax(150px, 2fr); gap: var(--gap-3); align-items: center; padding: 3px 0; font: 12px var(--mono); }
+.eff-n { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eff-v { font-variant-numeric: tabular-nums; text-align: right; }
+.eff-w { justify-self: start; }
 .eff-d { font-size: 11px; }
 .eff-row .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
 .eff-row .seg { height: 100%; border-radius: 3px; }
-.eff-row .seg.sev-ok { background: var(--brass); }
+/* Bar color matches its state chip (ok = the same green, not brass) so the row
+   reads as one signal. */
+.eff-row .seg.sev-ok { background: var(--ok); }
 .eff-row .seg.sev-warn { background: var(--warn); }
 .eff-row .seg.sev-danger { background: var(--danger); }
-.sw { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 2px; }
+.sw { font-size: 10px; padding: 1px 6px; border-radius: 999px; }
 .sw.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .sw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .sw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
-@media (max-width: 640px) { .eff-row { grid-template-columns: 1fr auto; } .eff-row .track, .eff-row .eff-d { display: none; } }
+@media (max-width: 680px) { .eff-row { grid-template-columns: 1fr 56px 68px; } .eff-row .track, .eff-row .eff-d { display: none; } }
 
 /* CHI-324 2g: Sessions tab. */
 .sessions-hub { display: flex; flex-direction: column; gap: 10px; }
