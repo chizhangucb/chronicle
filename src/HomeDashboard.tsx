@@ -15,6 +15,7 @@ import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
+import SpendTab from './SpendTab.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
 import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
@@ -22,8 +23,9 @@ import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
-import { computeFlaggedDays, type CostedDay, type AnomalyDimension } from '../shared/spend/anomaly.ts';
+import { computeFlaggedDays } from '../shared/spend/anomaly.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
+import { MOVER_GLYPH, buildCostedDays, windowStartDay, topDimInWindow } from './insights/anomalyMath.ts';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
@@ -201,25 +203,15 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
         )}
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
         {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
-        {tab === 'spend' && <SpendTabShell />}
+        {tab === 'spend' && <SpendTab insights={insights} activity={activity} win={win} days={days} />}
         {tab === 'sessions' && <SessionsTabShell />}
       </div>
     </div>
   );
 }
 
-// ---- Spend / Sessions tab shells (CHI-324 2c) — the 5-tab scaffolding lands
-// now so the anomaly tile's "flagged day → Spend" deep-link (/?tab=spend)
-// resolves. The real bodies arrive in 2b/2d/2e/2f (SpendTab) and 2g
-// (SessionsHubTab); these are intentionally thin placeholders, not final UI. ----
-function SpendTabShell(): JSX.Element {
-  return (
-    <div className="card">
-      <h3>{t('Spend')}</h3>
-      <div className="muted small pad8">{t('Building — the Spend view lands next in this batch.')}</div>
-    </div>
-  );
-}
+// ---- Sessions tab shell (CHI-324 2c) — the real body arrives in 2g
+// (SessionsHubTab); this thin placeholder keeps the 5-tab scaffolding whole. ----
 function SessionsTabShell(): JSX.Element {
   return (
     <div className="card">
@@ -402,48 +394,6 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
 // ---- Burn tile: current window spend vs a baseline (Today → 14-day daily
 // median; Nd → prior-Nd; All → NO baseline, since none honestly exists over an
 // unbounded window). Warn tint (--warn) when spend runs >2× the baseline. ----
-// Mono glyph per anomaly-mover dimension (design-QA rubric vocabulary; the D3
-// artifact approved ◫ project + ▤ model). Only model/project/source ever ship
-// as movers (server/activity.ts anomalyDays cells); the rest are future-safe.
-const MOVER_GLYPH: Record<AnomalyDimension, string> = {
-  project: '◫', model: '▤', source: '◇', skill: '✎', agent: '⛭', mcp: '⧉',
-};
-
-// Price a bag of per-model token cells at a SPECIFIC day's rate (CHI-228) — the
-// anomaly day series must price each day at its own rate, same reasoning as
-// priceCellsByDay, but for a single already-day-scoped cell bag.
-function priceCellsAtDay(byModel: ActivityTokensByModel, day: string, mode: CostMode): number {
-  let total = 0;
-  for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
-  return total;
-}
-
-// Build the costed day series the shared spend math runs over: each server day
-// cell priced at the toggled mode AND at its own day's rate, per-dimension
-// (model/project/source), with the unattributable Lane C proxy spend folded
-// into the day TOTAL only (never into a dimension — D8).
-function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): CostedDay[] {
-  return burn.anomalyDays.map((d) => {
-    const byDimension: Partial<Record<AnomalyDimension, Record<string, number>>> = {
-      model: Object.fromEntries(Object.entries(d.byModel).map(([m, cell]) => [m, priceCellsAtDay({ [m]: cell }, d.day, mode)])),
-      project: Object.fromEntries(Object.entries(d.byProject).map(([p, cells]) => [p, priceCellsAtDay(cells, d.day, mode)])),
-      source: Object.fromEntries(Object.entries(d.bySource).map(([s, cells]) => [s, priceCellsAtDay(cells, d.day, mode)])),
-    };
-    const modelTotal = priceCellsAtDay(d.byModel, d.day, mode);
-    const laneC = burn.laneCByDay[d.day] ?? 0;
-    return { day: d.day, cost: modelTotal + laneC, byDimension };
-  });
-}
-
-// The window's inclusive start day (YYYY-MM-DD, local) for the flagged-days
-// line — `today` minus (days-1). Null for the All window (no bound).
-function windowStartDay(today: string, days: number | null): string | null {
-  if (days == null) return null;
-  const [y, m, d] = today.split('-').map(Number);
-  const start = new Date(y, m - 1, d - (Math.max(Math.round(days), 1) - 1));
-  return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-}
-
 function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activity: ActivityResult | null; insights: InsightsResult | null; win: WindowKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
@@ -593,19 +543,6 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
 const LANE_C_NOTE_TIP =
   'Proxy-lane (LiteLLM/OpenRouter) spend is billed on its own log with no session, project, or model attribution, so it is added to the total but never shown as a per-dimension driver.';
 
-// The top value of one dimension by absolute spend within [start, today]
-// (start === null → the whole series, the All window). Window-scoped, so the
-// movers move as the window changes.
-function topDimInWindow(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
-  const totals = new Map<string, number>();
-  for (const d of days) {
-    if (d.day > today || (start && d.day < start)) continue;
-    for (const [value, cost] of Object.entries(d.byDimension?.[dim] ?? {})) totals.set(value, (totals.get(value) ?? 0) + cost);
-  }
-  let best: { value: string; cost: number } | null = null;
-  for (const [value, cost] of totals) if (!best || cost > best.cost) best = { value, cost };
-  return best && best.cost > 0 ? { value: best.value, cost: Math.round(best.cost * 100) / 100 } : null;
-}
 
 // ---- Insights Overview charts (everything the old InsightsPage Overview showed
 // AFTER the KPI strip): spend-over-time stacked chart, spend-by-model/sources,

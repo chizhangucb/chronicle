@@ -662,6 +662,39 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .stack-toggle .st-opt:hover { color: var(--ink); }
 .stack-toggle .st-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
 
+/* CHI-324 2b: Spend tab. Posture row is asymmetric 1fr : 1.4fr (budget narrow,
+   anomaly wide — it carries movers + flagged days + lane-C). */
+.spend-tab { display: flex; flex-direction: column; gap: 10px; }
+.posture-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+@media (max-width: 720px) { .posture-row { grid-template-columns: 1fr; } }
+.spend-tab .sub3 { color: var(--ink-3); font-weight: 400; }
+.edit-aff {
+  cursor: pointer; background: transparent; border: none; color: var(--brass-text);
+  font: 11px var(--mono); padding: 2px 4px; border-radius: 4px; flex: none;
+}
+.edit-aff:hover { background: var(--bg2); }
+.budget-edit { display: flex; align-items: center; gap: 6px; margin-top: var(--gap-3); flex-wrap: wrap; }
+.budget-edit input { width: 90px; padding: 3px 6px; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--ink); font: 12px var(--mono); }
+.mini-btn { cursor: pointer; border: 1px solid var(--border); background: var(--brass); color: var(--bg0); border-radius: 4px; padding: 3px 10px; font: 11px var(--mono); font-weight: 600; }
+.mini-btn.ghost { background: transparent; color: var(--ink-2); }
+.budget-meter { margin-top: var(--gap-3); }
+.bm-line { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-3); font: 13px var(--mono); font-variant-numeric: tabular-nums; }
+.bm-line b { color: var(--ink); }
+.proj-lbl { color: var(--ink-2); font-weight: 500; }
+.stw { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 4px; }
+.stw.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.stw.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.stw.danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.budget-track { position: relative; height: 8px; background: var(--bg2); border-radius: 4px; margin: var(--gap-2) 0; overflow: visible; }
+.bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
+.bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
+.bm-sub { font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.anom-card .ac-headline { font: 600 20px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); margin-top: var(--gap-2); }
+.anom-card.warn .ac-headline { color: var(--warn); }
+.anom-card .anom-flagged-static { margin-top: var(--gap-2); font: 11px var(--mono); color: var(--warn); }
+.proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
+.proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .project-head h2 { margin: 0; }
