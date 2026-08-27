@@ -192,9 +192,15 @@ drag-resizable when expanded. Contents, top to bottom:
    (title stays `SPEND OVER TIME`, no suffix) with a bare segmented **[project | provider]** stack
    toggle (no "stack:" word; `provider` = model vendor anthropic/openai/google per D6, NOT `source`)
    + a quiet **median dash** on the same y-scale, labeled on the line (`median $6.70`), NO
-   flagged-day markers (CHI-324 2d) · Spend by model · Sources · Working Rhythm · Global tool mix
-   (top 5 + Other) · Error rate by project · Token usage by model table. **Top sessions by cost is
-   RETIRED from Overview** (CHI-324 — absorbed by the Sessions tab's cost sort). **LAST** — the
+   flagged-day markers (CHI-324 2d) · Sources · Working Rhythm · Global tool mix
+   (top 5 + Other) · Error rate by project · Token usage by model table. **Spend by model is
+   RETIRED from Overview** (CHI-324 review — de-duped; it lives on the Spend tab, paired with the
+   spend chart. Overview keeps **Sources**, a usage distribution by tool vendor, not a $ breakdown).
+   **Top sessions by cost is RETIRED from Overview** (CHI-324 — absorbed by the Sessions tab's cost
+   sort). Chart series (spend-over-time + spend-by-model) are colored by **spend RANK** from the
+   fixed `--c1..--c5` palette (distinct by construction), NOT the per-project identity hue (which is
+   assigned by project id and would collide for two top-5-by-spend projects); the `<synthetic>`
+   pseudo-model is excluded from every spend view. **LAST** — the
    Overview tab ends here. The recent-sessions ledger does NOT mount on `/` (Task 9, D1 — see
    `/projects`).
 

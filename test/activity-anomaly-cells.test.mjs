@@ -24,7 +24,11 @@ before(async () => {
   const { upsertProject, replaceSession } = dbModule;
   const pa = upsertProject('/tmp/proj-a');
   const pb = upsertProject('/tmp/proj-b');
-  const base = now - 3 * 3600000; // 3h ago → local "today"
+  // Anchor "today" sessions to LOCAL midnight of today (not now-3h, which crosses
+  // into yesterday when the suite runs in the early-morning hours) so the "today
+  // is present" assertion is time-of-day robust.
+  const td = new Date(now);
+  const base = new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime() + 60000;
   replaceSession(
     { id: 'sa', project_id: pa.id, source: 'claude-code', file_path: '/tmp/sa.jsonl',
       started_at: iso(base), ended_at: iso(base + 3600000),

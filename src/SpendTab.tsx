@@ -160,7 +160,7 @@ function AnomalyCard({ activity, win, days }: { activity: ActivityResult | null;
 
   if (!activity || !burn || !anom) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
-  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
+  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday, todayCost, todayMedian } = anom;
   const showFlagged = win !== 'today' && flaggedDays.length > 0;
 
   return (
@@ -171,6 +171,13 @@ function AnomalyCard({ activity, win, days }: { activity: ActivityResult | null;
           ? <>×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>} <span className="muted small">{fmtMoney(current, 0)} {t('vs')} {fmtMoney(baseline, 0)}</span></>
           : <>{fmtMoney(current, current < 1 ? 2 : 0)} <span className="muted small">{t('this window · no baseline')}</span></>}
       </div>
+      {/* Today-vs-median: the "is TODAY unusual" read, window-independent — the
+          deeper detail this card adds over the Overview tile (Chi review #6). */}
+      {todayMedian != null && (
+        <div className="ac-today muted small">
+          {t('today')} <b>{fmtMoney(todayCost, todayCost < 1 ? 2 : 0)}</b> {t('vs')} {fmtMoney(todayMedian, todayMedian < 1 ? 2 : 0)} {t('median day')}
+        </div>
+      )}
       {(topProject || topModel) && (
         <div className="anom-mover">
           {topProject && <span><span className="anom-glyph">{MOVER_GLYPH.project}</span> <span className="muted">{t('top project')} </span><b>{topProject.value}</b> {fmtMoney(topProject.cost, topProject.cost < 1 ? 2 : 0)}</span>}

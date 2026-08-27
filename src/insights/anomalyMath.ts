@@ -67,6 +67,16 @@ export interface WindowAnomaly {
   topModel: { value: string; cost: number } | null;
   flaggedDays: FlaggedDay[];
   laneCToday: number;
+  /** today's spend and its trailing 14-active-day median — the "is TODAY
+   * unusual" read, window-independent (the Spend card's deep-view extra). */
+  todayCost: number;
+  todayMedian: number | null;
+}
+
+function medianOf(nums: number[]): number {
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
 export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days: number | null): WindowAnomaly {
@@ -78,6 +88,8 @@ export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days
   for (const [model, cell] of Object.entries(burn.baselineTokensByModel)) baseline += costOf(model, cell, undefined, mode) ?? 0;
   const hasBaseline = baseline > 0;
   const ratio = hasBaseline ? current / baseline : null;
+  const todayCost = costedDays.find((d) => d.day === burn.today)?.cost ?? 0;
+  const priorActive = costedDays.filter((d) => d.day < burn.today && d.cost > 0).slice(-14).map((d) => d.cost);
   return {
     current,
     baseline,
@@ -88,6 +100,8 @@ export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days
     topModel: topDimInWindow(costedDays, burn.today, winStart, 'model'),
     flaggedDays: computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, winStart ?? undefined),
     laneCToday: burn.laneCByDay[burn.today] ?? 0,
+    todayCost,
+    todayMedian: priorActive.length ? medianOf(priorActive) : null,
   };
 }
 

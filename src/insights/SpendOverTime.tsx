@@ -110,7 +110,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   const hasOtherSpend = stack === 'project' && chartData.some((r) => Number(r.other) > 0);
 
   return (
-    <div className="card">
+    <div className="card sot-card">
       <div className="sot-head">
         <h3>{t('Spend over time')}{useHourly ? ` · ${t('Hourly')}` : ''}</h3>
         <div className="stack-toggle" role="group" aria-label={t('Stack by')}>

@@ -539,18 +539,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
-  // ---- Spend by model (hbar) ----
-  const spendByModel = useMemo(() => {
-    // Day-bucketed pricing (CHI-228): group by model, then price each
-    // model's cells per day-bucket — a model bag spanning a rate change
-    // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    const byModel = groupByKey(result.windowedTokensByModel, (c) => c.model);
-    return [...byModel.entries()]
-      .filter(([name]) => name !== '<synthetic>') // drop the $0 synthetic pseudo-model
-      .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [result, mode]);
+  // Spend by model retired from Overview (CHI-324 review #4) — see the render.
 
   // ---- Sources (hbar) ----
   const bySource = useMemo(() => {
@@ -606,19 +595,13 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
     <>
       <div className="grid2">
         <SpendOverTime result={result} />
+        {/* Spend by model is RETIRED from Overview (CHI-324 review #4 —
+            de-duped; it lives on the Spend tab, paired with the spend chart
+            there). Overview keeps Sources: a usage distribution (session count
+            by tool vendor), not a $ breakdown, so it belongs with the at-a-glance
+            view rather than the deep spend view. */}
         <div className="card">
-          <h3>{t('Spend by model')} · {rangeLabel}</h3>
-          {spendByModel.map((r, i) => {
-            const max = spendByModel[0]?.value || 1;
-            return (
-              <div className="hbar" key={r.name}>
-                <span className="n" title={r.name}>{r.name}</span>
-                <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{fmtMoney(r.value, 0)}</span>
-              </div>
-            );
-          })}
-          <h3>{t('Sources')}</h3>
+          <h3>{t('Sources')} · {rangeLabel}</h3>
           {bySource.map((r, i) => {
             const max = bySource[0]?.value || 1;
             return (
