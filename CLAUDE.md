@@ -46,6 +46,9 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 | Writing for Chi | `$HUB/governance/communication-style.md` |
 | Skill authoring + budgets | `$HUB/governance/skill-authoring.md` |
 | Credentials + shared secret store | `$HUB/governance/secrets.md` |
+| Build + landing-to-main discipline | `$HUB/governance/build-discipline.md` |
+| Action posture (what needs Chi's OK) | `$HUB/governance/tool-actions.md` |
+| Gating model + immovable floors | `$HUB/governance/action-gating.md` |
 
 ## Working rules
 
