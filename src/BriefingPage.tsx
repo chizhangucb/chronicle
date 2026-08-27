@@ -6,8 +6,8 @@ import { formatRelativeTime } from './relativeTime.js';
 import { t } from './i18n.js';
 
 // Briefing ops surface (CHI-323 3d): the daily action cards the briefing run
-// produced, with terminal-outcome actions. Non-spend cards this phase (D7); the
-// spend cards land in phase 2. Hidden from nav when the hub is absent.
+// produced, with terminal-outcome actions. Covers jobs / safety / coverage and
+// spend (CHI-324 2i). Hidden from nav when the hub is absent.
 export default function BriefingPage() {
   const [, navigate] = useLocation();
   const [data, setData] = useState<BriefingResult | null>(null);
@@ -62,7 +62,6 @@ export default function BriefingPage() {
         </button>
       </div>
       {error && <p className="gate-error">{error}</p>}
-      <p className="muted small briefing-scope">{t('Phase 1 covers jobs, safety and coverage. Spend cards arrive with the spend detector.')}</p>
 
       {data.cards.length === 0 ? (
         <div className="page center muted briefing-empty">{t('Nothing needs you. Run the briefing to generate today’s cards.')}</div>

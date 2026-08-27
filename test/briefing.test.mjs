@@ -61,12 +61,12 @@ test('readBriefingFile: demo file rebases dates to now; example is the empty fal
   assert.ok(Math.abs(newest - NOW.getTime()) < 1000);
 });
 
-// ---- validator (D7) ----
-test('validator rejects a spend-domain card (D7 non-spend scope)', () => {
-  const out = v.validateBriefingRun({ cards: [{ id: 'x', kind: 'spend-anomaly', domain: 'spend', needsYou: true, title: 't', summary: 's' }] }, NOW);
-  assert.equal(out.cards.length, 0);
-  assert.equal(out.dropped.length, 1);
-  assert.match(out.dropped[0].errors.join(' '), /domain/);
+// ---- validator (CHI-324 2i: spend domain accepted) ----
+test('validator accepts a spend-domain card (CHI-324 2i)', () => {
+  const out = v.validateBriefingRun({ cards: [{ id: 'spend-anomaly:2026-08-26', kind: 'spend-anomaly', domain: 'spend', needsYou: true, title: 't', summary: 's' }] }, NOW);
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.dropped.length, 0);
+  assert.equal(out.cards[0].domain, 'spend');
 });
 
 test('validator: valid card passes, duplicate id + over-cap dropped', () => {
@@ -96,6 +96,31 @@ test('mergeRuns keeps the first runAt for a re-emitted id; autoResolve clears a 
   const live = { jobs: { jobs: [{ id: 'j', status: 'success', lastExit: 0 }] } };
   const { resolvedIds } = r.autoResolve(file, { version: 1, cards: {} }, live, NOW);
   assert.deepEqual(resolvedIds, ['job-stale:j']); // condition no longer fires
+});
+
+// ---- spend (CHI-324 2i) ----
+test('spend-anomaly resolves when the spike day has rolled past or is no longer flagged', () => {
+  const card = { id: 'spend-anomaly:2026-08-26', kind: 'spend-anomaly', domain: 'spend', needsYou: false, title: 't', summary: 's', runAt: NOW.toISOString() };
+  // same day, still flagged -> stands
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-26', anomaly: { flagged: true } } }, NOW), false);
+  // same day, no longer flagged -> resolves
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-26', anomaly: { flagged: false } } }, NOW), true);
+  // day rolled past the spike day -> resolves (historical)
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-27', anomaly: { flagged: true } } }, NOW), true);
+  // no spend slice -> left alone (stands, not auto-resolved)
+  assert.equal(r.checkCardResolved(card, {}, NOW), false);
+});
+
+test('buildSpendSnapshot slice shape (empty DB is an all-quiet reading)', async () => {
+  const { buildSpendSnapshot } = await import('../server/spendSnapshot.ts');
+  const slice = buildSpendSnapshot(NOW);
+  assert.match(slice.today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(typeof slice.anomaly.flagged, 'boolean');
+  assert.equal(typeof slice.anomaly.escalated, 'boolean');
+  assert.equal(typeof slice.anomaly.includesLaneC, 'boolean');
+  assert.ok(Array.isArray(slice.anomaly.dimensionFlags));
+  assert.ok(Array.isArray(slice.flaggedDays));
+  assert.equal(slice.anomaly.flagged, false); // no sessions -> nothing flags
 });
 
 // ---- routes ----

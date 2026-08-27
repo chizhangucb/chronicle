@@ -29,6 +29,20 @@
       "link": { "label": "Open Safety", "to": "/safety" }
     },
     {
+      "id": "spend-anomaly:2026-08-26",
+      "runAt": "2026-08-26T09:00:00.000Z",
+      "kind": "spend-anomaly",
+      "domain": "spend",
+      "needsYou": true,
+      "title": "Today's spend is 3.2x a typical day",
+      "summary": "$18.40 so far today against a $5.70 typical-day median. The jump is concentrated in claude-opus on the chronicle project.",
+      "whatHappened": "Today's cost crossed the escalation threshold (3x the trailing 14-day active-day median).",
+      "whatItMeans": "One model/project pair is driving an unusual burn; worth a look before it compounds.",
+      "whatToDo": "Open Spend to see the movers and confirm the work was intentional.",
+      "evidence": "ratio 3.2x · today $18.40 · median $5.70 · top mover: opus on chronicle ($11.20, 4.1x)",
+      "link": { "label": "Open Spend", "to": "/?tab=spend" }
+    },
+    {
       "id": "coverage:healthy",
       "runAt": "2026-08-26T09:00:00.000Z",
       "kind": "coverage",

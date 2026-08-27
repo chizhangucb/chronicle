@@ -27,6 +27,7 @@
     "test": "node --test 'test/**/*.test.mjs'",
     "test:e2e": "playwright test",
     "walk": "node test/e2e/walk.mjs",
+    "walk:seeded": "node scripts/walk-seed.mjs",
     "typecheck": "tsc -b",
     "prepack": "rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json",
     "prepublishOnly": "npm run typecheck && npm test"
