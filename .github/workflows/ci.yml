@@ -40,6 +40,29 @@ jobs:
       - name: Confidentiality guard
         run: python3 scripts/confidentiality_guard.py
 
+  # Pre-PR staleness guard (CHI-362): fail a PR whose branch is behind
+  # origin/main, so a stale branch is caught before it surfaces as a surprise
+  # DIRTY conflict at merge time (the CHI-324 PR #135 miss). Backs
+  # build-discipline.md "Landing to main" (rebase onto current main + dry-run the
+  # merge); this is the unskippable version of that step. PR-only: a push to
+  # main can't be behind itself. Checks out the PR HEAD (not the merge ref) with
+  # full history so the guard can compare against and dry-run-merge origin/main.
+  staleness:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Staleness guard (behind-main + conflict map)
+        run: node scripts/landing_preflight.mjs
+
   check:
     runs-on: ubuntu-latest
     steps:
