@@ -5,6 +5,37 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+## 1.4.0 - 2026-08-27
+
+- **Insights is now five tabs.** The analytics home splits into Overview, Explore,
+  Content, **Spend**, and **Sessions**. Overview stays the headline read; Spend and
+  Sessions are dedicated deep-views for where your money and your time actually go.
+- **A dedicated Spend tab.** Month-to-date budget with a daily pace and a month-end
+  projection, spend-over-time you can stack by project or by model vendor, per-model
+  and per-source breakdowns, an efficiency panel (cache hit rate, jumbo outputs, long
+  context, right-sizing, cache churn, repeat file reads), roster compliance, and
+  per-skill and per-MCP-server spend. Every derived number carries its own definition.
+- **A spend anomaly tile on Overview.** Replaces the old burn tile: today's spend
+  against your typical day (a 14-day median), the top project and model driving the
+  change, and any recently flagged days. Proxy-lane spend is called out as
+  unattributable rather than smeared across a driver it cannot be tied to.
+- **Plan windows.** See how much of each Claude and Codex usage window is left. Claude
+  reads your own subscription quota (the one outbound call the app makes, on by
+  default, off with a single Settings toggle); Codex is read locally.
+- **A Sessions tab.** Busiest days and projects, automation grouped by job, and a
+  session table you can sort by cost, duration, or recency.
+- **Ask your data in plain language.** A new page answers questions like "how much did
+  I spend on Opus last week?" locally against your Chronicle database. Nothing leaves
+  your machine.
+- **Ops surfaces for hub users.** When an AIOS hub is detected, Chronicle adds Modules,
+  Safety, Jobs, Briefing, Memory, and Records views for reading and managing it, and
+  the daily briefing now raises a spend card when today's spend runs unusually high.
+  These surfaces are hidden entirely when no hub is present, so the standard install is
+  unchanged.
+- **Relicensed from MIT to Apache-2.0.** Chronicle now ships under Apache-2.0 with a
+  NOTICE file, adding an explicit patent grant while staying permissive for downstream
+  use.
+
 ## 1.3.1 - 2026-08-25
 
 - **Rebuilt sessions are now labeled where other tools can see it.** 1.3.0 already
