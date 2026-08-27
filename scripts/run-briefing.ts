@@ -148,7 +148,14 @@ export function main(argv: string[] = process.argv.slice(2)): number {
 
   const prompt = buildPrompt(runnerDir, now);
   const claude = findClaude();
-  const args = ['-p', prompt, '--allowedTools', 'Read,Glob,Grep', ...(process.env.CHRONICLE_BRIEFING_MODEL ? ['--model', process.env.CHRONICLE_BRIEFING_MODEL] : [])];
+  // CHI-351: confine the built-in set to EXACTLY Read/Glob/Grep. `--allowedTools`
+  // only auto-approves; it does NOT restrict availability (verified on CLI
+  // 2.1.247: the model still had Bash/Write). `--tools` limits which built-ins
+  // exist at all, so this read-only briefing run truly cannot Bash/Write. Both
+  // flags together: `--tools` bounds availability, `--allowedTools` skips the
+  // per-tool prompt so the headless run doesn't stall.
+  const args = ['-p', prompt, '--tools', 'Read', 'Glob', 'Grep', '--allowedTools', 'Read,Glob,Grep',
+    ...(process.env.CHRONICLE_BRIEFING_MODEL ? ['--model', process.env.CHRONICLE_BRIEFING_MODEL] : [])];
 
   if (dryRun) {
     console.log(`[dry-run] ${claude ?? 'claude (NOT FOUND)'} ${JSON.stringify(args)}`);
