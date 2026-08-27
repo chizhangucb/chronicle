@@ -697,8 +697,6 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .bm-sub { font: 11px var(--mono); font-variant-numeric: tabular-nums; }
 .anom-card .ac-headline { font: 600 20px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); margin-top: var(--gap-2); }
 .anom-card.warn .ac-headline { color: var(--warn); }
-.anom-card .ac-today { margin-top: var(--gap-1); font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.anom-card .ac-today b { color: var(--ink); }
 .anom-card .anom-flagged-static { margin-top: var(--gap-2); font: 11px var(--mono); color: var(--warn); }
 .proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
 .proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
