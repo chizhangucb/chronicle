@@ -701,6 +701,11 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
 .bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
 .sort-car { color: var(--brass-text); font-size: 9px; }
+/* MCP server names are long — fixed layout gives the Server column ~48% so the
+   `claude_ai_*` servers stay distinguishable, ellipsised only past that. */
+.mcp-table { table-layout: fixed; width: 100%; }
+.mcp-table col.c-srv { width: 48%; }
+.mcp-table td.mcp-srv { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
 .proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 

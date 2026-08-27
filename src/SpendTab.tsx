@@ -282,12 +282,11 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
     .map((r) => ({ name: r.label, runs: r.requests, tokens: tokensOfRow(r), cost: rowSpend(r, undefined, mode) }))
     .sort((a, b) => b.cost - a.cost).slice(0, 8), [skillRes, mode]);
   const mcp = useMemo(() => (mcpRes?.rows ?? [])
-    .map((r) => ({ name: r.label, cost: rowSpend(r, undefined, mode) }))
+    .map((r) => ({ name: r.label, calls: r.requests, tokens: tokensOfRow(r), cost: rowSpend(r, undefined, mode) }))
     .sort((a, b) => b.cost - a.cost).slice(0, 8), [mcpRes, mode]);
-  const mcpMax = mcp[0]?.cost || 1;
 
   return (
-    <div className="grid2">
+    <div className="grid2b">
       <div className="card">
         <h3>{t('Priced skills')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t('Calibrated estimate: a turn’s spend is attributed to the skills and slash-commands it invoked, so a command that mostly sets up an expensive turn (e.g. /model) can carry a large figure. Read it as exposure, not a partition of spend.')} /></h3>
         <table className="tbl">
@@ -314,13 +313,31 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
       </div>
       <div className="card">
         <h3>{t('MCP server spend')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t(MCP_DOUBLE_COUNT_DEFINITION)} /></h3>
-        {mcp.map((r, i) => (
-          <div className="hbar" key={r.name}>
-            <span className="n" title={r.name}>{r.name}</span>
-            <div className="track"><div className="seg" style={{ width: `${(r.cost / mcpMax) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-            <span className="v num">{fmtMoney(r.cost, 2)}</span>
-          </div>
-        ))}
+        {/* A table (not hbars) to match Priced skills AND because MCP spend spans
+            orders of magnitude — the double-count inflates the top server so far
+            that bars leave every other row an invisible sliver. Calls makes the
+            double-count concrete. */}
+        <table className="tbl mcp-table">
+          <colgroup><col className="c-srv" /><col /><col /><col /></colgroup>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>{t('Server')}</th>
+              <th>{t('Calls')}</th>
+              <th>{t('Tokens')}</th>
+              <th>{t('Cost')} <span className="sort-car" aria-hidden="true">▾</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {mcp.map((r) => (
+              <tr key={r.name}>
+                <td className="mcp-srv" title={r.name}>{r.name}</td>
+                <td>{fmtInt(r.calls)}</td>
+                <td>{fmtTok(r.tokens)}</td>
+                <td className="cost">{fmtMoney(r.cost, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         {!mcp.length && <div className="muted small pad8">{t('No MCP spend in range.')}</div>}
         {mcp.length > 0 && <div className="muted small pad8">{t('A call can fan out to several servers — rows double-count and do not sum to the day total.')}</div>}
       </div>
