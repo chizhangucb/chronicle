@@ -18,7 +18,7 @@
  * no server-side dollar math ever reaches an API response (the sanctioned
  * headless-runner exception, same as the briefing/ask runners).
  *
- * BUDGET (deferred, CHI-355 follow-up): the monthly budget lives only in the
+ * BUDGET (deferred, CHI-366 follow-up): the monthly budget lives only in the
  * client's localStorage (`chronicle.monthlyBudget`), so the runner has no honest
  * server-visible source for a budget-posture card. It ships the spend-anomaly
  * card only until the budget moves server-side; then computeBudgetPosture slots

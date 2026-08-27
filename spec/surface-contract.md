@@ -485,7 +485,7 @@ Reading order: header (`as of` + open/snoozed counts + Run-now) → card section
   flagged vs the trailing 14-day median (needs-you when escalated); it auto-resolves once the day
   rolls past or the reading is no longer flagged (`server/briefing-resolve.ts`). Budget-posture is
   NOT emitted yet: the monthly budget is browser-local, so the runner has no server-visible source
-  (CHI-355 follow-up moves it server-side; then the budget card slots in the same way).
+  (CHI-366 follow-up moves it server-side; then the budget card slots in the same way).
 - **Run-now** spawns the headless runner (assembles the snapshot from the adapter slices, keeps the
   `live-data.json` filename, spawns `claude -p --allowedTools Read,Glob,Grep` from an isolated runner
   cwd). Demo-refused (409); the dormant launchd template is NOT installed this phase (no duplicate
