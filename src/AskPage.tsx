@@ -79,7 +79,7 @@ export default function AskPage(): React.JSX.Element {
       <div className="eyebrow">{t('Ask')}</div>
       <div className="ask-sub muted">
         {t('Ask anything about your sessions, spend, and models — answered from chronicle.db, locally')}
-        <InfoTip text={t('Each answer is generated locally by your claude CLI, which may run only ONE tool: a read-only, SELECT-only query over ~/.chronicle/chronicle.db. No data leaves your machine. Dollar figures use the cost basis shown and reconcile with the Insights dashboards.')} />
+        <InfoTip def="ask.local" />
       </div>
 
       <div className="ask-convo" ref={convoRef}>

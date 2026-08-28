@@ -5,6 +5,15 @@
 // sleep.
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
+import { getDefinition } from '../../src/reference/definitions.ts';
+
+/** The canonical wording of a definition, so specs cannot drift from it. */
+function defText(id: string): string {
+  const d = getDefinition(id);
+  if (!d) throw new Error(`unknown definition id: ${id}`);
+  return d.plain({});
+}
+function escapeRe(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 const state = readSeedState();
 
@@ -144,6 +153,9 @@ test.describe('T17.4 — labeled Rename affordance', () => {
     await expect(renameBtn).toBeVisible();
     const tip = page.locator('.ov-name-row button.info-tip');
     await expect(tip).toBeVisible();
-    await expect(tip).toHaveAttribute('aria-label', /Renames in Chronicle only.*Claude Code's \/rename/);
+    // Asserted against the REGISTRY, not a copied string (CHI-325 3b): a tip's
+    // wording now has exactly one home, and a test that hardcoded it would be
+    // the second copy this migration exists to remove.
+    await expect(tip).toHaveAttribute('aria-label', new RegExp(escapeRe(defText('session.rename'))));
   });
 });

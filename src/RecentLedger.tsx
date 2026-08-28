@@ -410,7 +410,6 @@ interface MinorSession {
 
 // The exact gate definition, surfaced via an InfoTip so users understand WHY a
 // session is classed minor (mirrors the AND semantics in server/noiseGate.ts).
-const MINOR_DEFINITION = 'A session is “minor” only when it’s small on BOTH axes: under ~5 min of agent-active time AND fewer than 10 messages — a true one-shot. Thresholds are adjustable in Settings. Minor sessions synced fine; they’re just parked out of the main lists so they don’t clutter.';
 
 // `items`/`open`/`onRefresh` are owned by RecentLedger (shared with the "Select
 // minor sessions" quick-select in the command bar, which needs the same
@@ -442,7 +441,7 @@ function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
           <span className="tw" aria-hidden="true">{open ? '▾' : '▸'}</span>
           <b>{pluralize(items.length, t('session'), t('sessions'))} {t('hidden by the minor-session filter')}</b>
         </button>
-        <InfoTip text={t(MINOR_DEFINITION)} />
+        <InfoTip def="sessions.minor" />
       </div>
       {!open && (
         <div className="why">{t('Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.')}{' '}

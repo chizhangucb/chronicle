@@ -330,7 +330,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               {result.calibrated && (
                 <>
                   {' ≈'}
-                  <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+                  <InfoTip def="spend.token-attribution" />
                 </>
               )}
               {result.rollup !== result.requestedRollup && (

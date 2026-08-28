@@ -126,7 +126,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
             <button type="button" className={`st-opt ${who === 'human' ? 'on' : ''}`} onClick={() => setWho('human')}>{t('human')}</button>
             <button type="button" className={`st-opt ${who === 'all' ? 'on' : ''}`} onClick={() => setWho('all')}>{t('all')}</button>
           </div>
-          <InfoTip text={t('Human shows only interactive sessions (matching the KPI Sessions count). All adds the headless automation jobs from ~/.aios/machine_sessions.jsonl (currently ') + automationCount + t(' automation runs). Automation-by-job below is always automation, unaffected by this toggle.')} />
+          <InfoTip def="sessions.human-all" vars={{ automationCount }} />
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
           {!busiestProjects.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
         </div>
         <div className="card">
-          <h3>{t('Automation by job')} <InfoTip text={t('Always automation, unaffected by the human/all toggle — sourced from the ~/.aios/machine_sessions.jsonl manifest (weekly / nightly / session-close / spend-advice jobs).')} /></h3>
+          <h3>{t('Automation by job')} <InfoTip def="sessions.automation-by-job" /></h3>
           <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Job')}</th><th>{t('Runs')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
             <tbody>{automationByJob.map((j) => (
               <tr key={j.job}><td style={{ textAlign: 'left' }}>{j.job}</td><td>{j.runs}</td><td>{fmtTok(j.tokens)}</td><td className="cost">{fmtMoney(j.cost, 2)}</td></tr>
@@ -175,7 +175,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
             <thead><tr>
               <th style={{ textAlign: 'left' }}>{t('Session')}</th><th style={{ textAlign: 'left' }}>{t('Project')}</th>
               <th style={{ textAlign: 'left' }}>{t('Source')}</th>
-              <th>{t('Ctx')} <InfoTip text={t('Context tokens — the size of the context window fed to the model for this session (input + cache-read), a proxy for how heavy the session ran.')} /></th>
+              <th>{t('Ctx')} <InfoTip def="sessions.context-tokens" /></th>
               <th className={sort === 'duration' ? 'sort-on' : ''}>{t('Active')}<SortCaret on={sort === 'duration'} /></th>
               <th className={sort === 'cost' ? 'sort-on' : ''}>{t('Cost')}<SortCaret on={sort === 'cost'} /></th>
               <th className={sort === 'recent' ? 'sort-on' : ''}>{t('When')}<SortCaret on={sort === 'recent'} /></th>
