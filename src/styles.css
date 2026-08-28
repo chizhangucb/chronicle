@@ -2036,6 +2036,11 @@ h4 { margin: 6px 0; }
    primitives; only the in-card headline, the growth mini-bars, and the
    browser controls need bespoke rules. */
 .memory-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+/* Match the shared Chronicle range bar (the base .rangebar has no page-neutral
+   styling; each page scopes its own, so mirror the Insights one here). */
+.memory-page .rangebar { display: flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 4px; padding: 2px; width: max-content; }
+.memory-page .rangebar button { font: 12px var(--mono); background: none; border: 0; border-radius: 3px; color: var(--ink-3); padding: 4px 12px; cursor: pointer; }
+.memory-page .rangebar button.on { background: var(--bg2); color: var(--brass-text); }
 .mem-metrics { font: 12px var(--mono); color: var(--ink-2); margin: 2px 0 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
 .mem-metrics .num { color: var(--ink); }
 .mem-group { display: flex; align-items: center; gap: 10px; margin: 20px 0 10px; }
@@ -2083,8 +2088,11 @@ h4 { margin: 6px 0; }
 .mem-ghost-group { display: inline-flex; }
 .mem-ghost-group .mem-ghost-btn { border-radius: 0; }
 .mem-ghost-group .mem-ghost-btn:first-child { border-radius: 5px 0 0 5px; }
-.mem-ghost-group .mem-ghost-btn + .mem-ghost-btn { border-left: 0; }
 .mem-ghost-group .mem-ghost-btn:last-child { border-radius: 0 5px 5px 0; }
+/* Overlap the shared edge by 1px so borders collapse, and lift the active
+   button so its full brass outline draws over the neighbour (not a broken box). */
+.mem-ghost-group .mem-ghost-btn + .mem-ghost-btn { margin-left: -1px; }
+.mem-ghost-group .mem-ghost-btn.on { position: relative; z-index: 1; }
 .mem-links { position: absolute; right: 12px; bottom: 10px; z-index: 10; display: flex; align-items: center; gap: 6px; opacity: 0.5; transition: opacity 0.15s; }
 .mem-links:hover { opacity: 1; }
 .mem-links label { font: 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(200,208,202,0.72); }

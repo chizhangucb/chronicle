@@ -4,7 +4,7 @@ import type { MemoryNode, MemoryLink } from './components/memory/types.ts';
 import { clusterColors } from './components/memory/register.ts';
 import { ScopePanel } from './components/memory/ScopePanel.tsx';
 import { MemoryCanvasShell } from './components/memory/MemoryCanvasShell.tsx';
-import { MemoryMetrics, MemoryAnalytics, type NoteRef } from './components/memory/MemoryLanes.tsx';
+import { MemoryMetrics, MemoryAnalytics, shortName, type NoteRef } from './components/memory/MemoryLanes.tsx';
 import { scopeLine, usageTouchMap, windowCutoff } from './components/memory/lanes.ts';
 import RangeBar, { type RangeKey } from './RangeBar.tsx';
 import { fmtInt } from './format.js';
@@ -117,7 +117,7 @@ export default function MemoryPage() {
         <aside className="memory-side">
           {selected ? (
             <div className="memory-inspector">
-              <div className="memory-node-name">{selected.name}</div>
+              <div className="memory-node-name">{shortName(selected.name)}</div>
               <div className="muted small">{selected.kind} · {selected.tier === 'historical' ? t('record') : t('living')}
                 {selected.mtime ? <> · {t('updated')} {formatRelativeTime(selected.mtime)}</> : null}</div>
               {selected.path && <div className="muted small memory-node-path">{selected.path}</div>}

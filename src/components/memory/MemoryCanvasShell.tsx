@@ -47,8 +47,11 @@ export function MemoryCanvasShell({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [lens, setLens] = useState<Lens>('none');
   const [focusKind, setFocusKind] = useState<string | null>(null);
-  const [linkBoost, setLinkBoost] = useState(0.35);
   const [fullscreen, setFullscreen] = useState(false);
+  // A fixed, tuned link visibility (the slider read as fiddly, dropped per
+  // review): enough to see the web without the cylinder-geometry frame cost of
+  // the upper half.
+  const linkBoost = 0.4;
 
   const cap = capSuggested && capSuggested > 0 ? capSuggested : 250;
   const [mode, setMode] = useState<'full' | 'lite'>(() =>
@@ -211,12 +214,6 @@ export function MemoryCanvasShell({
           ) : null}
         </div>
 
-        <div className="mem-links">
-          <label htmlFor="mem-links-range">{t('links')}</label>
-          <input id="mem-links-range" type="range" min={0} max={100} value={Math.round(linkBoost * 100)}
-            title={t('Link visibility. The upper half adds real line width.')}
-            onChange={(e) => setLinkBoost(Number(e.target.value) / 100)} />
-        </div>
       </div>
 
       <div className="mem-legend" data-canvas-legend>

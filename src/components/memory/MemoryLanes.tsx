@@ -22,10 +22,16 @@ export interface NoteRef { id?: string; path?: string; name: string; kind?: stri
  * Chi tuned in Varde: age is legible by hue as well as length). */
 const AGE_BUCKET_COLORS = ['#c9b4ec', '#9c7bd4', '#7d64ab', '#5c5670', '#494a55'];
 
+/** Display name without a trailing "(...)" qualifier (e.g. "(archived
+ * evidence)"): the canvas labels strip it too, and it clutters every table. */
+export function shortName(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*$/, '') || name;
+}
+
 function NoteName({ name, path }: { name: string; path?: string }) {
   return (
     <>
-      {name}
+      {shortName(name)}
       {path ? <span className="lane-path" title={path}>{path}</span> : null}
     </>
   );
