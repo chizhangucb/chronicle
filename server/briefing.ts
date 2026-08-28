@@ -160,8 +160,13 @@ export function applyCardAction(state: BriefingStateFile, cardId: string, action
   };
   const at = now.toISOString();
   if (action === 'reopen') {
-    if (Object.keys(keep).length) cards[cardId] = { state: 'open', at, ...keep };
-    else delete cards[cardId];
+    // ALWAYS write an explicit `open` entry; never just delete the key.
+    // Deleting only works when the operator's state file is the ONLY source of
+    // a card's state. It is not: withDemoStates layers a demo file's shipped
+    // states UNDERNEATH this one, so deleting let the demo's "snoozed" reassert
+    // itself and Reopen was a permanent no-op on a demo console (Chi, 2026-08-28).
+    // An explicit entry also records WHEN it was reopened, which delete threw away.
+    cards[cardId] = { state: 'open', at, ...keep };
     return { version: 1, cards };
   }
   if (action === 'snooze') {

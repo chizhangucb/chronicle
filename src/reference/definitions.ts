@@ -144,6 +144,19 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'Every normalized event row (user, assistant, thinking, tool call, and tool result), not just human/assistant chat turns.',
   },
 
+  {
+    id: 'overview.status-band',
+    page: 'overview',
+    title: 'Status band',
+    plain: () => 'A second read of the same five domains the ops nav covers: the trend, the explicit baseline number, and the state word. It never raises an alarm of its own. Its accent is only ever an echo of an open needs-you briefing card above it, so exactly one place on this page can tell you something new.',
+  },
+  {
+    id: 'overview.provenance',
+    page: 'overview',
+    title: 'Sources strip',
+    plain: () => 'Where the numbers above came from: how many sessions each tool contributed, whether a hub is connected, when the last sync landed, and which cost basis is showing. The topbar sync pill says WHEN data last landed; this says WHAT is behind the figures.',
+  },
+
   // ---- Insights / Spend ----
   {
     id: 'spend.cost-basis',

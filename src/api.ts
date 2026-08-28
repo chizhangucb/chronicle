@@ -365,6 +365,8 @@ export interface Settings {
   // Monthly spend budget in USD, or null when unset (CHI-366). Server-visible so
   // the Spend tab and the briefing runner read the same value.
   monthlyBudget: number | null;
+  /** The briefing + status bands on / (CHI-325 3d). Default true. */
+  homeBands: boolean;
 }
 
 // Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
@@ -795,6 +797,18 @@ export interface MemoryStatsView {
   totalFiles: number; totalWorkspaces: number; stale: number; missing: number; freshness: number;
   capSuggested: number; totalNotes: number; totalLinks: number; living: number; historical: number;
 }
+/** The home band's memory read (CHI-325 3d). Deliberately tiny: the full
+ *  MemorySliceView carries every node and link, which must not travel to the
+ *  default route on every load. */
+export interface MemorySummaryView {
+  hubPresent: true;
+  totalNotes: number;
+  totalLinks: number;
+  stale: number;
+  freshness: number;
+  growth: number[];
+}
+
 export interface MemorySliceView {
   stats: MemoryStatsView;
   scope: MemoryScopeEcho;
@@ -919,6 +933,9 @@ export const api = {
   // Demo mode (CHI-325 3c). `available` is false under `npm run dev`, where
   // there is no CLI to restart the process.
   demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),
+  // LIGHT memory read for the home status band (CHI-325 3d): four numbers plus a
+  // growth series, never the whole node/link graph.
+  hubMemorySummary: (): Promise<MemorySummaryView | { hubPresent: false }> => j('/api/hub/memory/summary'),
   demoStart: (): Promise<{ ok: true; restarting: boolean }> =>
     j('/api/demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   demoExit: (): Promise<{ ok: true; restarting: boolean }> =>

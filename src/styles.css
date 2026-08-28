@@ -32,6 +32,16 @@
   --c5: #9a6cc9; /* violet */
 
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* ---- Page width (CHI-325 review, Chi 2026-08-28) ----
+     ONE width for every non-dashboard surface. Seven ad-hoc per-organ values
+     (760 / 900 / 1000 / 1100 / 1040 / none) came first; a two-tier prose-vs-table
+     split came second and still read as inconsistent when moving between pages,
+     because the thing you actually notice navigating is the FRAME jumping width.
+     So the frame is constant and READABILITY is solved where it belongs, on the
+     text: prose blocks carry their own `ch` measure cap, so a wide page never
+     means a 200-character line. Dashboards (Insights, Projects, Memory, project
+     and session views) stay full bleed, where density IS the point. */
+  --page-max: 1200px;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --overlay-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
@@ -1828,10 +1838,16 @@ h4 { margin: 6px 0; }
 .command-bar-slot { display: contents; }
 
 /* ---- Modules ops surface (CHI-323 3a) ---- */
-.modules-page { max-width: 1100px; }
+.modules-page { max-width: var(--page-max); }
 .modules-lede { margin: 4px 0 16px; }
+/* The two-column split exists ONLY when a module is selected and there is a
+   detail panel to split with. Unconditionally reserving the right column left
+   the table at 58% of the page with dead space beside it, so Modules read as
+   narrower than Jobs and Records at the identical tier (Chi, 2026-08-28). */
 .modules-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-4); }
-@media (min-width: 960px) { .modules-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; } }
+@media (min-width: 960px) {
+  .modules-layout.split { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+}
 .modules-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .modules-table th {
   text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px;
@@ -1842,7 +1858,8 @@ h4 { margin: 6px 0; }
 .modules-row:hover { background: var(--bg1); }
 .modules-row.on { background: var(--bg2); }
 .modules-name { font-weight: 600; color: var(--ink); }
-.modules-purpose { color: var(--ink-2); max-width: 40ch; }
+/* No hard clamp: at full width the column should use the room it has. */
+.modules-purpose { color: var(--ink-2); max-width: 62ch; }
 .modules-badge {
   display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
   border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); white-space: nowrap;
@@ -1861,7 +1878,7 @@ h4 { margin: 6px 0; }
 }
 
 /* ---- Records ops surface (CHI-324 2h) ---- */
-.records-page { max-width: 1100px; }
+.records-page { max-width: var(--page-max); }
 .records-switcher { margin: 10px 0 16px; }
 .records-toolbar { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; margin-bottom: 14px; }
 .records-filter {
@@ -1896,7 +1913,7 @@ h4 { margin: 6px 0; }
 .records-more { margin-top: 14px; }
 
 /* ---- Safety ops surface (CHI-323 3d) ---- */
-.safety-page { max-width: 900px; }
+.safety-page { max-width: var(--page-max); }
 .safety-lede { margin: 4px 0 18px; }
 .safety-posture { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--gap-3); margin-bottom: 24px; }
 .posture-tile { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
@@ -1951,7 +1968,7 @@ h4 { margin: 6px 0; }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 18%, var(--bg1)); }
 
 /* ---- Jobs ops surface (CHI-323 3c) ---- */
-.jobs-page { max-width: 1000px; }
+.jobs-page { max-width: var(--page-max); }
 .jobs-lede { margin: 4px 0 16px; }
 .jobs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .jobs-table th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -1968,7 +1985,7 @@ h4 { margin: 6px 0; }
 .jobs-log-body { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-2); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; }
 
 /* ---- Briefing ops surface (CHI-323 3d) ---- */
-.briefing-page { max-width: 760px; }
+.briefing-page { max-width: var(--page-max); }
 .briefing-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .briefing-empty { padding: 48px 0; }
 .briefing-section { margin-bottom: 22px; }
@@ -1983,8 +2000,10 @@ h4 { margin: 6px 0; }
 .bc-title { font-weight: 600; color: var(--ink); }
 .bc-state { margin-left: auto; font-size: 10.5px; font-weight: 600; text-transform: lowercase; color: var(--ink-3); border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 6px; }
 .bc-state.done, .bc-state.resolved { color: var(--ok); }
-.bc-summary { color: var(--ink-2); font-size: 13px; margin: 0 0 8px; }
-.bc-anatomy { font-size: 12.5px; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+/* Measure caps: the page frame is wide for consistency, so the PROSE holds
+   its own comfortable line length rather than running the full width. */
+.bc-summary { color: var(--ink-2); font-size: 13px; margin: 0 0 8px; max-width: 92ch; }
+.bc-anatomy { font-size: 12.5px; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; max-width: 92ch; }
 .bc-label { font-weight: 600; color: var(--ink-3); text-transform: uppercase; font-size: 10px; letter-spacing: 0.03em; margin-right: 4px; }
 .bc-evidence-body { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 6px 0 0; white-space: pre-wrap; }
 .bc-actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
@@ -2121,20 +2140,39 @@ h4 { margin: 6px 0; }
 .info-more { display: block; margin-top: 7px; color: var(--brass-text); text-decoration: none; }
 .info-more:hover { text-decoration: underline; }
 
-.reference-page { max-width: 1040px; }
+.reference-page { max-width: var(--page-max); }
 .reference-page .ref-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 14px; }
-.reference-page .ref-intro { max-width: 76ch; margin: 4px 0 0; }
+.reference-page .ref-intro { max-width: 82ch; margin: 4px 0 0; }
 .reference-page .ref-search { display: flex; align-items: center; gap: 8px; flex: none;
   border: 1px solid var(--border); border-radius: 7px; background: var(--bg2); padding: 5px 10px; color: var(--ink-3); }
 .reference-page .ref-search:focus-within { border-color: var(--border-strong); }
 .reference-page .ref-search input { width: 220px; background: transparent; border: none; outline: none;
   color: var(--ink); font: 12px var(--mono); }
 .reference-page .ref-group { margin-bottom: 12px; }
-.reference-page .ref-list { margin: 0; }
-.reference-page .ref-def { padding: 11px 0; border-bottom: 1px solid var(--border); }
-.reference-page .ref-def:last-child { border-bottom: 0; padding-bottom: 0; }
+/* Definitions flow in COLUMNS, so the tier's width is used by content instead
+   of by stretched lines (Chi, 2026-08-28). A definition's comfortable measure is
+   ~70ch, well under the table tier, so a single column left a dead right half.
+   Stretching the lines to fill would have been the wrong fix: past ~90ch prose
+   gets harder to read, not easier. Two-up also halves the scrolling on what is
+   a LOOKUP surface, where you scan for a term rather than read start to finish.
+   auto-fill collapses to one column below ~900px on its own. */
+/* A GRID of tiles, not a column flow (Chi, 2026-08-28). The flow packed tightly
+   but nothing lined up across the gutter, so neighbouring entries read as
+   misaligned text rather than as a set. A grid aligns rows by construction, and
+   the uneven heights it produces stop being a defect once each definition is a
+   BOUNDED tile: cells stretch to a shared row height, so the varying content
+   just sits inside equal boxes. That answers both asks at once, alignment and
+   telling one entry from the next. */
+.reference-page .ref-list {
+  margin: 0; display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+}
+.reference-page .ref-def {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 11px 13px;
+}
 .reference-page .ref-def dt { font: 600 12.5px var(--mono); color: var(--ink); }
-.reference-page .ref-def dd { margin: 5px 0 0; max-width: 86ch; font: 12px/1.55 var(--sans); color: var(--ink-2); }
+.reference-page .ref-def dd { margin: 5px 0 0; font: 12px/1.55 var(--sans); color: var(--ink-2); }
 .reference-page .ref-good { display: block; margin-top: 5px; color: var(--ink-3); }
 .reference-page .ref-tech { display: block; margin-top: 6px; font: 11px var(--mono); color: var(--ink-3); }
 /* Landing flash for a deep link: brief, so it points without shouting. */
@@ -2150,3 +2188,102 @@ h4 { margin: 6px 0; }
 .empty-state .demo-offer { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
 .empty-state .demo-offer .small { max-width: 46ch; text-align: center; }
 .empty-state .demo-offer code { font: 11.5px var(--mono); background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+
+/* ---- Home bands (CHI-325 3d) ----
+   Band 1 briefing cards, band 2 the 5-domain status band, band 3 the sources
+   strip. The band is a TABLE of rows, not cards: five domains at a glance is a
+   scanning task, and five separate cards would be five things to read. */
+.home-briefing { margin-bottom: 12px; }
+.home-briefing.calm { display: flex; align-items: center; gap: 10px; padding: 12px 14px; color: var(--ink-2); font: 12.5px var(--mono); }
+.home-briefing.calm .calm-mark { color: var(--brass-text); }
+.home-briefing.calm .calm-link { margin-left: auto; color: var(--ink-3); text-decoration: none; }
+.home-briefing.calm .calm-link:hover { color: var(--ink); }
+.home-fyi { padding: 4px 0; }
+.home-fyi .fyi-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); }
+.home-fyi .fyi-row:last-child { border-bottom: 0; }
+.home-fyi .fyi-title { font: 12px var(--mono); color: var(--ink); }
+
+.status-band { margin-bottom: 12px; padding-bottom: 2px; }
+.status-band .band-head,
+.status-band .band-row {
+  display: grid;
+  grid-template-columns: 132px 1fr 1fr 96px 108px;
+  align-items: center; gap: 0 18px; padding: 0 14px;
+}
+.status-band .band-head {
+  font: 10.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-3); padding-bottom: 7px; border-bottom: 1px solid var(--border);
+}
+.status-band .band-row {
+  height: 38px; border-bottom: 1px solid var(--border);
+  font: 12px var(--mono); color: var(--ink-2); text-decoration: none;
+}
+.status-band .band-row:last-child { border-bottom: 0; }
+.status-band .band-row:hover { background: var(--bg2); }
+.status-band .band-row b { color: var(--ink); font-weight: 600; }
+.status-band .band-name { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.status-band .band-glance { text-align: right; }
+.status-band .band-state { text-align: right; font-size: 11.5px; }
+/* The band never originates an alarm: `flagged` is an ECHO of an open
+   needs-you card above, which is why it is a quiet left edge and not a fill. */
+.status-band .band-row.flagged { box-shadow: inset 2px 0 0 var(--attention); }
+.status-band .tone-ok { color: var(--ink-3); }
+.status-band .tone-warn { color: var(--attention); }
+.status-band .tone-err { color: var(--danger, var(--attention)); }
+.status-band .tone-neutral { color: var(--ink-3); }
+.band-spark { display: inline-block; vertical-align: middle; }
+.band-spark path { stroke: var(--ink-3); }
+.band-row:hover .band-spark path { stroke: var(--brass-text); }
+.band-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.band-dot-spend { background: var(--c1); }
+.band-dot-sessions { background: var(--c2); }
+.band-dot-memory { background: var(--c3); }
+.band-dot-safety { background: var(--c4); }
+.band-dot-jobs { background: var(--c5); }
+.gap-dots { display: inline-flex; gap: 3px; justify-content: flex-end; }
+.gap-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink-3); }
+.gap-dot.on { background: var(--ink-3); }
+
+.provenance-strip {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border);
+  font: 11.5px var(--mono); color: var(--ink-3);
+}
+.provenance-strip .prov-label { letter-spacing: 0.1em; text-transform: uppercase; }
+.provenance-strip .prov-items { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.provenance-strip .prov-item b { color: var(--ink-2); font-weight: 600; }
+/* Compact needs-you row: every card after the lead one (volume hierarchy). */
+.compact-needs {
+  display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; margin-bottom: 8px;
+  /* Collapsing a needs-you card must not DEMOTE it: it keeps the same attention
+     edge the full card carries, so "this needs you" survives the collapse and
+     an FYI row still reads differently at a glance (Chi, 2026-08-28). */
+  border-left: 3px solid var(--attention);
+}
+.compact-needs .cn-title { font: 600 12px var(--mono); color: var(--ink); }
+.compact-needs .cn-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The compact needs-you title links through to /briefing, where the full
+   what-happened / what-it-means / what-to-do anatomy lives. */
+.compact-needs .cn-title { color: var(--ink); text-decoration: none; }
+.compact-needs .cn-title:hover { color: var(--brass-text); }
+/* "We cannot say" in the state column: a muted placeholder, never a blank cell.
+   A row with no baseline yet has no honest state word, and an empty cell reads
+   as a rendering bug rather than as an answer. */
+.status-band .tone-unknown { color: var(--ink-3); opacity: 0.5; }
+/* Why a Settings toggle is on but inert. Sits under its description, indented
+   with the description column so it reads as a footnote to that row. */
+.settings-why { display: block; margin-top: 5px; color: var(--attention); }
+
+/* ---- Briefing: filter, handled history, card age (CHI-325 review) ---- */
+.briefing-filter { margin: 4px 0 14px; }
+.briefing-filter .tab-count { color: var(--ink-3); margin-left: 5px; }
+.briefing-filter .tab.on .tab-count { color: inherit; }
+.handled-day { margin-bottom: 10px; }
+.handled-day-head {
+  font: 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); padding: 6px 0 7px;
+}
+.handled-note { margin: 10px 0 0; }
+/* Card age: quiet at two days, attention-toned once a card has sat a week. */
+.bc-age { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
+.bc-age.stale { color: var(--attention); }

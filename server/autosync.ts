@@ -46,6 +46,9 @@ export interface ChronicleConfig {
   // operator's own behavior, so it gets a visible switch and a Clear button in
   // Settings rather than being invisible machinery. See server/viewlog.ts.
   viewLog?: boolean;
+  // The two home bands (CHI-325 3d / D2), default ON (opt-OUT). Off collapses /
+  // back to exactly the Overview that shipped before the merge's phase 3.
+  homeBands?: boolean;
   [key: string]: unknown;
 }
 

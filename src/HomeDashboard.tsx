@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import {
-  insightsUrl, activityUrl,
+  api, insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
+  type BriefingResult,
 } from './api.js';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import { WelcomeEmpty } from './ProjectsPage.js';
@@ -13,6 +14,9 @@ import { fmtInt, fmtMoney, pluralize } from './format.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
+import { BriefingBand, HomeStatusBand, ProvenanceStrip } from './home/HomeBands.tsx';
+import { useHubStatus } from './useHubStatus.ts';
+import { useSyncStatus } from './useSyncStatus.ts';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import SpendTab from './SpendTab.tsx';
@@ -151,6 +155,26 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
   const { data: insights, stale: insightsStale } = useCachedFetch<InsightsResult>(insightsUrl(days ?? undefined));
   const { data: activity } = useCachedFetch<ActivityResult>(activityUrl(sinceRef.current, days));
 
+  // Home bands (CHI-325 3d). Opt-OUT: `homeBands` defaults on, and turning it
+  // off collapses / back to exactly the Overview that shipped before this
+  // change. Read from /settings rather than localStorage so the preference is
+  // one server-visible truth, like the budget (CHI-366).
+  const hub = useHubStatus();
+  const hubPresent = hub?.present ?? false;
+  const { text: syncText } = useSyncStatus();
+  const [bandsOn, setBandsOn] = useState(true);
+  const [briefing, setBriefing] = useState<BriefingResult | null>(null);
+  const loadBriefing = () => { api.briefing().then(setBriefing).catch(() => setBriefing(null)); };
+  useEffect(() => {
+    api.settings().then((cfg) => setBandsOn(cfg.homeBands !== false)).catch(() => setBandsOn(true));
+  }, []);
+  useEffect(() => {
+    // The briefing is a hub organ, so there is nothing to fetch without one.
+    if (bandsOn && hubPresent) loadBriefing();
+    else setBriefing(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bandsOn, hubPresent]);
+
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) return <WelcomeEmpty onImport={onImport} />;
 
@@ -186,9 +210,22 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
       <div className="insights-page">
         {tab === 'overview' && (
           <>
+            {/* Band 1 (CHI-325 3d): what needs your eyes. It sits ABOVE the
+                numbers because it is the only part of the home that asks
+                something of you; everything below is a read. */}
+            {bandsOn && <BriefingBand briefing={briefing} onChanged={loadBriefing} />}
+
             {insights
               ? <KpiStrip result={insights} />
               : <div className="muted pad8">{t('Loading…')}</div>}
+
+            {/* Band 2: the same five domains the ops nav covers, as a second
+                READ of the tiles above (trend glyph + explicit baseline), not a
+                dedupe of them. */}
+            {bandsOn && (
+              <HomeStatusBand insights={insights} activity={activity} briefing={briefing}
+                hubPresent={hubPresent} days={days} />
+            )}
 
             {isToday && <ActivityBlock activity={activity} onOpenSession={onOpenSession} />}
 
@@ -199,6 +236,13 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
                 <InsightsCharts result={insights} days={days} />
               </div>
             )}
+
+            {/* Band 3 (D11): where these numbers came from and how old they
+                are. The topbar sync pill says when data last landed; it does
+                not say which SOURCES are behind the figures, which on a console
+                merging four tools plus a hub plus a proxy lane is the
+                credibility question. */}
+            {bandsOn && <ProvenanceStrip insights={insights} hubPresent={hubPresent} syncText={syncText} />}
           </>
         )}
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}

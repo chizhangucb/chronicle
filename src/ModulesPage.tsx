@@ -37,7 +37,7 @@ export default function ModulesPage() {
         {t('Every module in the hub registry, with its product contract snapshotted read-only.')}
       </p>
 
-      <div className="modules-layout">
+      <div className={`modules-layout ${active ? 'split' : ''}`}>
         <table className="modules-table">
           <thead>
             <tr>
