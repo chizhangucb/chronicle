@@ -47,6 +47,37 @@ test.describe('demo hub: /memory mounts the Nebula shell', () => {
     expect(errors, `page errors on /memory: ${errors.join(' | ')}`).toEqual([]);
   });
 
+  test('analytics lanes + verdict + browser render and never overflow horizontally', async ({ page }) => {
+    // CHI-385: the parity lanes + the health verdict + the notes browser (with
+    // its dead-links and stale worklists). The overflow assertion is the
+    // regression pin for the round-2 table blow-outs: a long path suffix or a
+    // malformed dead-link target used to widen a fixed table into a horizontal
+    // scroll, hiding the value column. Tables are fixed-layout + truncating now.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto(demo.baseURL + '/memory');
+    await expect(page.locator('[data-memory-verdict]')).toBeVisible();
+    await expect(page.locator('[data-memory-analytics]')).toBeVisible();
+    await expect(page.locator('[data-notes-browser]')).toBeVisible();
+    // The two worklists a health page is for.
+    await expect(page.locator('[data-browser-preset="dead"]')).toHaveCount(1);
+    await expect(page.locator('[data-browser-preset="stale"]')).toHaveCount(1);
+
+    const pageOverflow = () => page.evaluate(() => {
+      const el = document.querySelector('.memory-page');
+      return el ? el.scrollWidth - el.clientWidth : 0;
+    });
+    const nbOverflow = () => page.evaluate(() => {
+      const el = document.querySelector('.nb-scroll');
+      return el ? el.scrollWidth - el.clientWidth : 0;
+    });
+    // Every preset must fit: dead-links is the one that used to blow out.
+    for (const preset of ['touched', 'connected', 'stale', 'orphans', 'dead']) {
+      await page.locator(`[data-browser-preset="${preset}"]`).click();
+      expect(await pageOverflow(), `memory page overflows on preset ${preset}`).toBeLessThanOrEqual(1);
+      expect(await nbOverflow(), `notes browser overflows on preset ${preset}`).toBeLessThanOrEqual(1);
+    }
+  });
+
   test('/api/hub/memory returns nodes/links with no confidential content', async ({ page }) => {
     const body = await (await page.request.get(demo.baseURL + '/api/hub/memory')).json();
     expect(body.nodes.length).toBeGreaterThan(0);
