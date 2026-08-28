@@ -1841,8 +1841,14 @@ h4 { margin: 6px 0; }
 /* ---- Modules ops surface (CHI-323 3a) ---- */
 .modules-page { max-width: var(--page-table); }
 .modules-lede { margin: 4px 0 16px; }
+/* The two-column split exists ONLY when a module is selected and there is a
+   detail panel to split with. Unconditionally reserving the right column left
+   the table at 58% of the page with dead space beside it, so Modules read as
+   narrower than Jobs and Records at the identical tier (Chi, 2026-08-28). */
 .modules-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-4); }
-@media (min-width: 960px) { .modules-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; } }
+@media (min-width: 960px) {
+  .modules-layout.split { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+}
 .modules-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .modules-table th {
   text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px;
@@ -1853,7 +1859,8 @@ h4 { margin: 6px 0; }
 .modules-row:hover { background: var(--bg1); }
 .modules-row.on { background: var(--bg2); }
 .modules-name { font-weight: 600; color: var(--ink); }
-.modules-purpose { color: var(--ink-2); max-width: 40ch; }
+/* No hard clamp: at full width the column should use the room it has. */
+.modules-purpose { color: var(--ink-2); max-width: 62ch; }
 .modules-badge {
   display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
   border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); white-space: nowrap;
@@ -2134,18 +2141,30 @@ h4 { margin: 6px 0; }
 
 .reference-page { max-width: var(--page-table); }
 .reference-page .ref-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 14px; }
-.reference-page .ref-intro { max-width: 76ch; margin: 4px 0 0; }
+.reference-page .ref-intro { max-width: 82ch; margin: 4px 0 0; }
 .reference-page .ref-search { display: flex; align-items: center; gap: 8px; flex: none;
   border: 1px solid var(--border); border-radius: 7px; background: var(--bg2); padding: 5px 10px; color: var(--ink-3); }
 .reference-page .ref-search:focus-within { border-color: var(--border-strong); }
 .reference-page .ref-search input { width: 220px; background: transparent; border: none; outline: none;
   color: var(--ink); font: 12px var(--mono); }
 .reference-page .ref-group { margin-bottom: 12px; }
-.reference-page .ref-list { margin: 0; }
+/* Definitions flow in COLUMNS, so the tier's width is used by content instead
+   of by stretched lines (Chi, 2026-08-28). A definition's comfortable measure is
+   ~70ch, well under the table tier, so a single column left a dead right half.
+   Stretching the lines to fill would have been the wrong fix: past ~90ch prose
+   gets harder to read, not easier. Two-up also halves the scrolling on what is
+   a LOOKUP surface, where you scan for a term rather than read start to finish.
+   auto-fill collapses to one column below ~900px on its own. */
+.reference-page .ref-list { margin: 0; columns: 2; column-gap: 34px; }
+/* Multi-column FLOW, not a grid. A grid aligns rows, so a tall definition beside
+   a short one leaves a ragged vertical gap; columns pack continuously. Reading
+   order becomes column-major, which is right for a lookup surface where you scan
+   for a term rather than read start to finish. */
+@media (max-width: 1040px) { .reference-page .ref-list { columns: 1; } }
+.reference-page .ref-def { break-inside: avoid; }
 .reference-page .ref-def { padding: 11px 0; border-bottom: 1px solid var(--border); }
-.reference-page .ref-def:last-child { border-bottom: 0; padding-bottom: 0; }
 .reference-page .ref-def dt { font: 600 12.5px var(--mono); color: var(--ink); }
-.reference-page .ref-def dd { margin: 5px 0 0; max-width: 86ch; font: 12px/1.55 var(--sans); color: var(--ink-2); }
+.reference-page .ref-def dd { margin: 5px 0 0; font: 12px/1.55 var(--sans); color: var(--ink-2); }
 .reference-page .ref-good { display: block; margin-top: 5px; color: var(--ink-3); }
 .reference-page .ref-tech { display: block; margin-top: 6px; font: 11px var(--mono); color: var(--ink-3); }
 /* Landing flash for a deep link: brief, so it points without shouting. */

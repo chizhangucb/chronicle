@@ -47,3 +47,30 @@ test.describe('demo hub: /modules renders synthetic registry', () => {
     expect((await res.json()).mode).toBe('demo');
   });
 });
+
+// Layout pin (CHI-325 review, Chi 2026-08-28): a surface must FILL its tier.
+// Modules reserved a detail-panel column unconditionally, so with nothing
+// selected its table sat at 58% of the page and read as narrower than Jobs and
+// Records at the identical width tier.
+test.describe('demo hub: /modules fills its width tier', () => {
+  let demo2: DemoServer;
+  test.beforeAll(async () => { demo2 = await launchDemo(); });
+  test.afterAll(() => { if (demo2) stopDemo(demo2); });
+
+  test('the table is full width until a module is selected, then splits', async ({ page }) => {
+    await page.goto(demo2.baseURL + '/modules');
+    await expect(page.locator('.modules-table')).toBeVisible();
+
+    const single = await page.locator('.modules-layout').evaluate(
+      (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length,
+    );
+    expect(single, 'no selection means no reserved second column').toBe(1);
+
+    await page.locator('.modules-row').first().click();
+    await expect(page.locator('.modules-detail')).toBeVisible();
+    const split = await page.locator('.modules-layout').evaluate(
+      (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length,
+    );
+    expect(split, 'a selected module splits the layout').toBe(2);
+  });
+});

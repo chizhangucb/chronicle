@@ -149,6 +149,19 @@ follow it, so the app read as inconsistent rather than considered.
 
 A new surface picks a tier; it does not invent a number.
 
+**A surface must FILL its tier** (Chi, 2026-08-28). Two ways this was broken and both are now rules:
+
+- **Never reserve space for something that is not there.** `/modules` unconditionally laid its table
+  into a `1.4fr | 1fr` split sized for a detail panel, so with no module selected the table sat at
+  58% of the page with dead space beside it and Modules read as narrower than Jobs and Records at the
+  IDENTICAL tier. The split now applies only when a module is selected (`.modules-layout.split`).
+- **When the natural measure is narrower than the tier, add COLUMNS, do not stretch lines.**
+  `/reference` definitions read at ~70ch, well under the table tier, leaving a dead right half.
+  Stretching prose to 1200px would be worse, not better: past ~90ch it gets harder to read. The
+  definition list is a two-column FLOW (`columns: 2`, collapsing to one below 1040px), which fills
+  the width with content and halves the scrolling on what is a lookup surface. A grid was tried
+  first and rejected: it aligns rows, so a tall definition beside a short one leaves ragged gaps.
+
 ## Enumerables (exact sets — changing any is a contract edit)
 
 - **Window toggle** (`/` hub `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
