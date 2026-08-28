@@ -1,22 +1,25 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type HubMemoryResult, type MemorySliceView } from './api.js';
-import type { MemoryNode } from './components/memory/types.ts';
-import { MEMORY_REGISTER, clusterColors, CLUSTER_PALETTE } from './components/memory/register.ts';
+import type { MemoryNode, MemoryLink } from './components/memory/types.ts';
+import { clusterColors } from './components/memory/register.ts';
 import { ScopePanel } from './components/memory/ScopePanel.tsx';
+import { MemoryCanvasShell } from './components/memory/MemoryCanvasShell.tsx';
 import { MemoryMetrics, MemoryAnalytics, type NoteRef } from './components/memory/MemoryLanes.tsx';
-import { scopeLine } from './components/memory/lanes.ts';
+import { scopeLine, usageTouchMap, windowCutoff } from './components/memory/lanes.ts';
 import RangeBar, { type RangeKey } from './RangeBar.tsx';
+import { fmtInt } from './format.js';
 import type { GateProposal } from './gate/gate.ts';
 import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import { formatRelativeTime } from './relativeTime.js';
 import { t } from './i18n.js';
 
-// The three.js layer is heavy; lazy-load it so it never enters the entry chunk.
-const MemoryGraph = lazy(() => import('./components/memory/MemoryGraph.tsx').then((m) => ({ default: m.MemoryGraph })));
+const endId = (end: MemoryLink['source']): string =>
+  typeof end === 'object' && end !== null ? String((end as { id?: string }).id ?? '') : String(end);
 
-// Memory ops surface (CHI-323 3e): the V2 Nebula canvas over the hub's markdown
-// knowledge graph (titles/paths only, confidential pruned server-side), with a
-// cluster legend, stats, a node inspector, and a scope readout. Hidden from nav
+// Memory ops surface (CHI-323 3e, analytics parity CHI-385): the V2 Nebula
+// canvas with its lenses/legend/LINKS/FULL-LITE chrome, over the hub's markdown
+// knowledge graph (titles/paths only, confidential pruned server-side), plus the
+// four analytics lanes + notes browser + node inspector + scope. Hidden from nav
 // when the hub is absent.
 export default function MemoryPage() {
   const [data, setData] = useState<HubMemoryResult | null>(null);
@@ -33,18 +36,17 @@ export default function MemoryPage() {
   }
   useEffect(() => { load(); }, []);
 
-  // V2 Nebula colors by deterministic community (register.ts clusterColors).
   const slice = data && !('hubPresent' in data) ? (data as MemorySliceView) : null;
+  // V2 Nebula colors by deterministic community (register.ts clusterColors).
   const clusterMap = useMemo(() => (slice ? clusterColors(slice.nodes, slice.links) : new Map<string, string>()), [slice]);
+  // Windowed touches: the heat lens, the rot "unused" test, the orphan derivation.
+  const touches = useMemo(() => (slice ? usageTouchMap(slice, windowCutoff(range)) : new Map<string, number>()), [slice, range]);
 
   if (error && !data) return <div className="page center muted">{t('Could not load the memory graph')}: {error}</div>;
   if (!data) return <div className="page center muted">{t('Loading…')}</div>;
   if ('hubPresent' in data) {
     return <div className="page center muted">{t('No hub connected. Run `chronicle hub set <path>` to unlock ops panels.')}</div>;
   }
-
-  const colorOf = (node: MemoryNode): string => clusterMap.get(node.id) ?? node.color ?? '#5d655f';
-  const linkTintOf = (sourceId: string): string | null => clusterMap.get(sourceId) ?? null;
 
   async function open(node: MemoryNode) {
     if (!node.path) return;
@@ -63,10 +65,20 @@ export default function MemoryPage() {
     });
   }
 
+  // Inspect facts for the selected node: links in/out, dead links from it, and
+  // its touches in the window (parity with Varde's inspect panel).
+  const facts = selected ? (() => {
+    let inbound = 0; let outbound = 0;
+    for (const l of slice!.links) {
+      if (endId(l.source) === selected.id) outbound++;
+      if (endId(l.target) === selected.id) inbound++;
+    }
+    const dead = (slice!.connectivity?.deadLinks?.list ?? []).filter(
+      (d) => (d.sourcePath && d.sourcePath === selected.path) || d.source === selected.name);
+    return { inbound, outbound, dead, touches: touches.get(selected.id) ?? 0 };
+  })() : null;
+
   const scope = scopeLine(slice);
-  const clusters = new Map<string, number>();
-  for (const c of clusterMap.values()) clusters.set(c, (clusters.get(c) ?? 0) + 1);
-  const topClusters = [...clusters.entries()].filter(([c]) => CLUSTER_PALETTE.includes(c)).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
     <div className="page memory-page">
@@ -82,40 +94,42 @@ export default function MemoryPage() {
         </div>
         <div className="memory-head-right">
           <RangeBar value={range} onChange={setRange} />
-          <div className="memory-legend">
-            {topClusters.map(([color, n]) => (
-              <span key={color} className="memory-legend-item"><span className="memory-swatch" style={{ background: color }} />{n}</span>
-            ))}
-            <span className="muted small">{t('communities')}</span>
-          </div>
         </div>
       </div>
       {error && <p className="gate-error">{error}</p>}
 
       <div className="memory-layout">
-        <div className="memory-canvas-wrap">
-          <Suspense fallback={<div className="page center muted">{t('Loading the graph…')}</div>}>
-            <MemoryGraph
-              nodes={slice!.nodes}
-              links={slice!.links}
-              register={MEMORY_REGISTER}
-              colorOf={colorOf}
-              linkTintOf={linkTintOf}
-              selectedId={selected?.id ?? null}
-              onSelect={(n) => setSelected(n)}
-              onOpen={open}
-              reducedMotion={reducedMotion}
-            />
-          </Suspense>
+        <div>
+          <MemoryCanvasShell
+            nodes={slice!.nodes}
+            links={slice!.links}
+            clusterMap={clusterMap}
+            touches={touches}
+            range={range}
+            capSuggested={slice!.stats.capSuggested}
+            selectedId={selected?.id ?? null}
+            onSelect={(n) => setSelected(n)}
+            onOpen={open}
+            reducedMotion={reducedMotion}
+          />
         </div>
 
         <aside className="memory-side">
           {selected ? (
             <div className="memory-inspector">
               <div className="memory-node-name">{selected.name}</div>
-              <div className="muted small">{selected.kind} · {selected.tier}</div>
+              <div className="muted small">{selected.kind} · {selected.tier === 'historical' ? t('record') : t('living')}
+                {selected.mtime ? <> · {t('updated')} {formatRelativeTime(selected.mtime)}</> : null}</div>
               {selected.path && <div className="muted small memory-node-path">{selected.path}</div>}
-              {selected.mtime && <div className="muted small">{t('touched')} {formatRelativeTime(selected.mtime)}</div>}
+              {facts && (
+                <div className="mem-inspect-facts muted small">
+                  <div><span className="num">{fmtInt(facts.touches)}</span> {facts.touches === 1 ? t('touch') : t('touches')} · {range === 'all' ? t('all time') : range}</div>
+                  <div><span className="num">{fmtInt(facts.inbound)}</span> {t('links in')} · <span className="num">{fmtInt(facts.outbound)}</span> {t('out')}</div>
+                  <div>{facts.dead.length
+                    ? <><span className="num" style={{ color: 'var(--warn)' }}>{fmtInt(facts.dead.length)}</span> {facts.dead.length === 1 ? t('dead link') : t('dead links')}</>
+                    : t('no dead links from it')}</div>
+                </div>
+              )}
               {selected.path && <button type="button" className="btn tiny" onClick={() => open(selected)}>{t('Open note')}</button>}
             </div>
           ) : (

@@ -360,6 +360,18 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'One searchable list of the notes behind the lanes, filtered by preset (touched, most connected, or orphaned) and by kind. A row opens the same inspect panel as clicking the node on the canvas.',
   },
   {
+    id: 'memory.lenses',
+    page: 'memory',
+    title: 'Canvas lenses',
+    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected window and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
+  },
+  {
+    id: 'memory.full-lite',
+    page: 'memory',
+    title: 'Full vs Lite',
+    plain: () => 'Full draws every node and link. Lite caps the draw to the most-connected notes so a very large graph stays at frame rate; nothing is deleted, only fewer are drawn, and the caption says how many.',
+  },
+  {
     id: 'safety.gate',
     page: 'safety',
     title: 'The egress gate',
