@@ -72,7 +72,7 @@ export interface MessageRow {
   cache_w1h_tokens: number | null;
 }
 
-const dataDir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+export const dataDir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
