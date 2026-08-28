@@ -2049,6 +2049,20 @@ h4 { margin: 6px 0; }
 .mem-group .gmeta { font: 10.5px var(--mono); color: var(--ink-3); letter-spacing: 0.04em; }
 .mem-lanes { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); }
 @media (min-width: 1000px) { .mem-lanes { grid-template-columns: 1fr 1fr; } }
+/* The three health lanes (Usage / Freshness / Connectivity) sit 3-up at width
+   (Growth was demoted into the verdict line). */
+@media (min-width: 1080px) { .mem-lanes.mem-lanes-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* The one-line health verdict: freshness + the three repair counts jump to
+   their browser worklist. */
+.mem-verdict { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 5px; font: 12px var(--mono); color: var(--ink-2); }
+.mem-verdict-stat { background: none; border: 0; padding: 0; font: inherit; color: var(--ink-2); }
+button.mem-verdict-stat { cursor: pointer; }
+button.mem-verdict-stat:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.mem-verdict-stat.warn { color: var(--warn); }
+.mem-verdict-stat .num { color: var(--ink); }
+.mem-verdict-stat.warn .num { color: var(--warn); }
+.lane-inline-see { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.lane-inline-see:hover { filter: brightness(1.2); }
 .lane-big { font: 600 26px/1.1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .lane-big .u { font-size: 13px; font-weight: 400; color: var(--ink-3); }
 .lane-big .sub { font: 12px var(--mono); font-weight: 400; color: var(--ink-2); }

@@ -4,8 +4,8 @@ import type { MemoryNode, MemoryLink } from './components/memory/types.ts';
 import { clusterColors } from './components/memory/register.ts';
 import { ScopePanel } from './components/memory/ScopePanel.tsx';
 import { MemoryCanvasShell } from './components/memory/MemoryCanvasShell.tsx';
-import { MemoryMetrics, MemoryAnalytics, shortName, type NoteRef } from './components/memory/MemoryLanes.tsx';
-import { scopeLine, usageTouchMap, windowCutoff } from './components/memory/lanes.ts';
+import { MemoryMetrics, MemoryAnalytics, MemoryVerdict, shortName, type NoteRef, type BrowserPreset } from './components/memory/MemoryLanes.tsx';
+import { scopeLine, usageTouchMap, windowCutoff, rotLane, connectivityLane, growthLane } from './components/memory/lanes.ts';
 import RangeBar, { type RangeKey } from './RangeBar.tsx';
 import { fmtInt } from './format.js';
 import type { GateProposal } from './gate/gate.ts';
@@ -26,6 +26,7 @@ export default function MemoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<MemoryNode | null>(null);
   const [range, setRange] = useState<RangeKey>('30d');
+  const [preset, setPreset] = useState<BrowserPreset>('touched');
   const [scopePanelOpen, setScopePanelOpen] = useState(false);
   const [proposal, setProposal] = useState<GateProposal | null>(null);
   const reducedMotion = useMemo(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
@@ -79,6 +80,17 @@ export default function MemoryPage() {
   })() : null;
 
   const scope = scopeLine(slice);
+  // Verdict lanes (cheap): the head roll-up reads these; MemoryAnalytics
+  // recomputes its own for the cards.
+  const vCutoff = windowCutoff(range);
+  const vRot = rotLane(slice);
+  const vConn = connectivityLane(slice, vCutoff, range);
+  const vGrowth = growthLane(slice, vCutoff);
+  const BROWSER_ID = 'memory-notes-browser';
+  const jumpTo = (p: BrowserPreset) => {
+    setPreset(p);
+    requestAnimationFrame(() => document.getElementById(BROWSER_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   return (
     <div className="page memory-page">
@@ -91,6 +103,7 @@ export default function MemoryPage() {
             {scope.dirNames.length ? <> {t('across')} <span className="num">{scope.dirNames.join(', ')}</span>{scope.more > 0 ? `, +${scope.more} ${t('more')}` : ''}</> : null}
             {' · '}<span className="num">{slice!.stats.historical}</span> {t('records')}
           </div>
+          <MemoryVerdict rot={vRot} connectivity={vConn} growth={vGrowth} range={range} onJump={jumpTo} />
         </div>
         <div className="memory-head-right">
           <RangeBar value={range} onChange={setRange} />
@@ -137,16 +150,14 @@ export default function MemoryPage() {
           )}
           <div className="memory-scope">
             <div className="eyebrow">{t('Scope')}</div>
-            <div className="muted small">{t('living')}: {slice!.scope.tiers.living.join(', ') || '—'}</div>
-            <div className="muted small">{t('historical')}: {slice!.scope.tiers.historical.join(', ') || '—'}</div>
-            <div className="muted small">{t('excluded')}: {slice!.scope.tiers.excluded.join(', ') || '—'}</div>
             <div className="muted small">{t('rot threshold')}: {slice!.scope.rotDays}d</div>
+            <div className="muted small">{t('Living, records and excluded folders are set here.')}</div>
             <button type="button" className="btn tiny" onClick={() => setScopePanelOpen(true)}>{t('Manage scope')}</button>
           </div>
         </aside>
       </div>
 
-      <MemoryAnalytics slice={slice!} range={range} onInspect={inspect} />
+      <MemoryAnalytics slice={slice!} range={range} preset={preset} onPreset={jumpTo} onInspect={inspect} browserId={BROWSER_ID} />
 
       {scopePanelOpen && (
         <ScopePanel

@@ -67,6 +67,9 @@ export const DEFAULT_MEMORY_SCOPE: MemoryScopePatterns = {
     // Dated ingest material inside the wiki: never rots (Q21/Q22).
     "wiki/sources",
     "wiki/raw",
+    // Archived evidence (CHI-385): densely cross-linked but not living
+    // knowledge, so it reads as records, not the most-connected living notes.
+    "wiki/annex",
   ],
   // Generic nisse-shaped defaults; an operator overrides via the memory-scope
   // config. Confidential/next-ventures do NOT need to be listed here: the
@@ -677,8 +680,12 @@ export function computeConnectivity(
     degree.set(link.target, (degree.get(link.target) ?? 0) + 1);
   }
   const unlinkedNodes = nodes.filter((n) => n.tier === "living" && !degree.has(n.id));
+  // Living-only (CHI-385): "most connected" is a living-knowledge health read,
+  // like orphans/unlinked above it. Records (dated evidence, incl. the archived
+  // wiki/annex tree) are densely cross-linked but are not the living hubs a
+  // reader wants surfaced.
   const mostConnected = nodes
-    .filter((n) => (degree.get(n.id) ?? 0) > 0)
+    .filter((n) => n.tier === "living" && (degree.get(n.id) ?? 0) > 0)
     .sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.name.localeCompare(b.name))
     .slice(0, topN)
     .map((n) => ({ name: n.name, links: degree.get(n.id) ?? 0, path: n.path }));

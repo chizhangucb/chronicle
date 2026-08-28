@@ -164,8 +164,9 @@ export function MemoryCanvasShell({
     else void el.requestFullscreen().catch(() => {});
   };
 
+  // Draw-state only (the notes/links totals live in the metrics line above).
   const caption = mode === 'full'
-    ? `${t('all')} ${fmtInt(nodes.length)} ${t('notes')} · ${fmtInt(links.length)} ${t('links')}`
+    ? `${t('all')} ${fmtInt(nodes.length)} ${t('drawn')}`
     : `${fmtInt(drawnNodes.length)} ${t('of')} ${fmtInt(nodes.length)} · LITE`;
 
   return (
