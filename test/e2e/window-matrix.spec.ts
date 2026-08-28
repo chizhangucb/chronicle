@@ -15,10 +15,47 @@
 // guaranteed in-window data at both the `/` hub (scope=all) and the fixture
 // project's `/project/:id` (scope=project) — regardless of what real date
 // this suite happens to run on.
+//
+// DETERMINISTIC "Today" (CHI-376): the Today window's WIDTH is set entirely
+// client-side. The rangebar sends `days = daysToday` = fractional days since
+// LOCAL midnight (src/HomeDashboard.tsx / src/ProjectDetail.tsx), and the
+// server computes the cutoff as `now - days*day` (server/insights.ts etc.), so
+// window width == daysToday*day. Run in the first ~35 min after local midnight
+// and that width collapses to minutes: the two relative fixtures (seeded 5-40
+// min before seed-`now`) fall outside `[midnight, now]`, `overlapGate` drops
+// both, and the Sessions KPI reads 0 (this is the flake CHI-376 fixes — the
+// old fixture comment called it an "accepted low-probability risk"; it hit CI
+// twice in a row on PR #143). Fix: freeze this file's browser clock to local
+// NOON via `page.clock`, so `daysToday` is deterministically 0.5 and the Today
+// window is a fixed 12h ending at ~now — always wide enough to contain the
+// relative fixtures, no matter the real wall-clock time. Width depends only on
+// the client, so freezing the client (not the process-wide seeded server)
+// removes the wall-clock dependence with zero blast radius to other specs.
+// The overlap-gate P0 stays fully exercised: `spanningSessionId` still starts
+// 26h ago (before the ~12h cutoff) and ends 5 min ago (after it), so it is
+// counted ONLY via overlapGate; `todayOnlySessionId` stays the naive-gate
+// control. 7d/30d cases are unaffected (rangeDays ignores daysToday for them).
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
 const state = readSeedState();
+
+// Local noon of the current day. `daysToday` = (noon - localMidnight)/day = 0.5
+// exactly, independent of the real wall-clock time — the single value the whole
+// determinism argument above rests on.
+function localNoonMs(): number {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0).getTime();
+}
+
+// Pin the browser clock BEFORE any navigation so the `daysToday` useMemo (which
+// runs `new Date()` once on mount) reads the frozen noon. `setFixedTime` only
+// overrides Date/now — it does NOT fake setTimeout/setInterval/performance.now,
+// so SWR revalidation, chart animations, and the `waitSettled` "no Loading…"
+// signals keep working on real time.
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date(localNoonMs()));
+});
 
 const NO_DATA_STRINGS = ['No sessions in range.', 'No activity in this time range.'];
 
@@ -114,8 +151,11 @@ async function assertTodaySessionCountIsTwo(page: Page, label: string): Promise<
   // windowed one; `toHaveText` polls until the DOM settles on the real value.
   await expect(
     kpi.locator('.v'),
-    `${label}: Sessions KPI must read exactly 2 (spanningSessionId + todayOnlySessionId) — ` +
-    `a count of 1 means the overlap-gate P0 regressed and dropped the midnight-spanning session`,
+    `${label}: Sessions KPI must read exactly 2 (spanningSessionId + todayOnlySessionId). ` +
+    `A count of 1 means the overlap-gate P0 regressed and dropped the midnight-spanning ` +
+    `session (its started_at predates Today's cutoff). A count of 0 means the whole Today ` +
+    `window came back empty — the browser-clock freeze at the top of this file did not take ` +
+    `effect (daysToday should be a fixed 0.5), not an overlap-gate regression (CHI-376).`,
   ).toHaveText('2');
 }
 

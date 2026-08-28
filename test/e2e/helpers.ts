@@ -181,13 +181,19 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
     turns: 30,
     promptText: 'Mini fixture Spanning: overnight investigation of the parser regression.',
   });
-  // todayOnlySessionId: entirely inside the last 40 minutes, so unless this
-  // suite happens to run in the first ~35 minutes after local midnight
-  // (accepted low-probability risk, same class already accepted for the
-  // Today-window fractional-days math elsewhere in this app) it is
-  // unambiguously "today" from start to finish — a control case alongside
-  // the spanning session above for window-matrix.spec.ts's overlap-gate and
-  // probes.spec.ts's dense-time-axis (D12) assertions.
+  // todayOnlySessionId: entirely inside the last 40 minutes — the naive-gate
+  // control case alongside the spanning session above for window-matrix.spec.ts's
+  // overlap-gate and probes.spec.ts's dense-time-axis (D12) assertions.
+  //
+  // These two sessions are seeded relative to seed-`now` (not local midnight),
+  // so run in the first ~35 min after local midnight and their activity lands
+  // just BEFORE midnight, outside a genuine `[midnight, now]` Today window —
+  // this WAS an "accepted low-probability risk" that hit CI twice on PR #143.
+  // CHI-376 neutralizes it: window-matrix.spec.ts freezes its browser clock to
+  // local noon (`page.clock.setFixedTime`), so the Today window is a fixed 12h
+  // ending at ~now and always contains both sessions regardless of wall clock.
+  // Any spec asserting Today-window DATA against these two must apply the same
+  // freeze (only window-matrix does today).
   writeMiniSession(fixtureDir, {
     sessionId: todayOnlySessionId,
     dateISO: new Date(nowMs - 40 * 60 * 1000).toISOString(),
