@@ -444,7 +444,9 @@ Reading order: eyebrow `SAFETY` + lede → posture tiles → gate controls → a
 - **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
   `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
   acceptance / (watch) revisit trigger + a "Work on this" launcher (`POST /api/launch/gap`: Terminal
-  print -z on macOS, clipboard fallback elsewhere, demo-refused).
+  print -z on macOS, clipboard fallback elsewhere, demo-refused). An actionable gap wears the same
+  `--attention` accent as a briefing needs-you card (CHI-374): "act on this" is one visual language
+  app-wide, and neither surface uses the everyday brass for it. Watch cards stay neutral.
 - **Confidentiality floor**: emit-ALLOWLIST per file (not a denylist) + a value-side creds scan;
   marker phrases are COUNTS only. The raw-phrase drill-down (`GET /api/hub/safety/confidential`) is
   HARD-GATED (D8): a live hub AND an explicit opt-in flag, else 403. The default/public build never
@@ -476,11 +478,17 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
 Reading order: header (`as of` + open/snoozed counts + Run-now) → card sections.
 - **Two-file contract (grandfathered)**: the run writes `~/.chronicle/briefing.json`; the UI writes
   `~/.chronicle/briefing-state.json`. They never cross-write, so a run can never clobber a "done".
-- **Card sections**: Needs you (open + needsYou, brass accent) · For your awareness (open FYI) ·
-  Handled (done/dismissed/resolved/snoozed). Each card: domain chip · title · summary · optional
-  plain-language anatomy (what happened / means / to do) · evidence expander · an internal link ·
-  terminal actions (Done / Snooze / Dismiss, or Reopen). A card is binary (needs you or not) — no
-  severity ladder.
+- **Card sections**: Needs you (open + needsYou, `--attention` accent) · For your awareness (open
+  FYI) · Handled (done/dismissed/resolved/snoozed). Each card: domain chip · title · summary ·
+  optional plain-language anatomy (what happened / means / to do) · evidence expander · an internal
+  link · terminal actions (Done / Snooze / Dismiss, or Reopen). A card is binary (needs you or not)
+  — no severity ladder.
+- **Needs-you accent (CHI-374)**: the treatment is a dedicated `--attention` terracotta (`#cd5f3c`),
+  NOT `--brass`, on the left bar plus a 7% warm wash on the card face. Brass is the everyday accent
+  (nav, price toggle, links, chart series), so a brass card read as "highlighted" more than "act
+  on this"; terracotta separates from the ambient brass while staying short of alarm-red, which
+  would over-signal for a briefing. The accent stays binary — it is the same treatment for every
+  needs-you card (jobs, safety, coverage, spend), with no per-severity variants.
 - **Spend cards (CHI-324 2i + CHI-366)**: the runner assembles a `spend` slice
   (`server/spendSnapshot.ts`) — the SAME costed days + shared thresholds the Spend tab runs on,
   priced server-side at the fixed theoretical (list) basis. Two card kinds:
@@ -578,6 +586,7 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Modules slice reads only `product-contract.md`, refuses confidential/next-ventures paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
 | Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
 | `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
+| Actionable gap cards share the briefing needs-you `--attention` accent; watch cards stay neutral (CHI-374 sweep) | `test/e2e/ops-safety.spec.ts` — "actionable gap cards use the off-brass attention accent" |
 | Confidential marker drill-down is 403 by default (never served on the public build) | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` — confidentialMarkersEnabled gating |
 | Safety slice emit-allowlist (no innocuous-key creds leak), markers as COUNTS only | `test/hub-safety.test.mjs` (node) — allowlist + planted-secret + counts assertions |
 | Gap launcher refuses demo (409); prompt built server-side | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` |
@@ -587,6 +596,7 @@ delegation — it closes the disclosed gap on this same surface, no new IA.
 | Pause/resume refused in demo (gate inert) | `test/e2e/ops-jobs.spec.ts` — "pause is refused in demo" |
 | Briefing nav hidden when the hub is absent | `test/e2e/ops-briefing.spec.ts` — "no Briefing nav item" |
 | `/briefing` renders cards; a card action moves state (two-file split) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` (applyCardAction/resolveCards) |
+| Needs-you accent is the off-brass `--attention` terracotta + warm wash, awareness cards are neutral (CHI-374) | `test/e2e/ops-briefing.spec.ts` — "needs-you cards use the off-brass attention accent" |
 | Briefing run refused in demo (409) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` |
 | Memory nav hidden + `/api/hub/memory` absent-sentinel when the hub is absent | `test/e2e/ops-memory.spec.ts` — "no Memory nav item; /api/hub/memory absent sentinel" |
 | `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |

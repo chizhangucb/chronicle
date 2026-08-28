@@ -15,6 +15,14 @@
   --ok: #43a86f;
   --warn: #e0862c;
   --danger: #d94f3d;
+  /* Needs-you accent (CHI-374). Deliberately OFF --brass: brass is the everyday
+     accent (nav, price toggle, links, chart series), so a brass card reads
+     "highlighted", not "act on this". Terracotta separates from the ambient
+     brass without going alarm-red, which would over-signal for a briefing. */
+  --attention: #cd5f3c;
+  /* Text twin, same relationship --brass-text has to --brass: the bar hue is
+     only 4.3:1 on --bg2, under the readability floor for words. */
+  --attention-text: #e5906a;
 
   /* Categorical (charts, source/project identity pills) — fixed order, never cycled */
   --c1: #c08a1e; /* brass */
@@ -1910,11 +1918,14 @@ h4 { margin: 6px 0; }
 .json-textarea { width: 100%; min-height: 160px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; resize: vertical; }
 .json-editor .btn { margin-top: 8px; }
 .gap-card { border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px; background: var(--bg1); padding: 12px 14px; margin-top: 10px; }
-.gap-card.actionable { border-left-color: var(--brass); }
+/* Same needs-you language as the briefing card (CHI-374 sweep): an actionable
+   gap is the one thing on /safety that wants doing, so it wears --attention,
+   not the everyday brass. Watch-only gaps stay neutral. */
+.gap-card.actionable { border-left-color: var(--attention); background: color-mix(in srgb, var(--attention) 7%, var(--bg1)); }
 .gap-card.watch { border-left-color: var(--ink-3); }
 .gap-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
 .gap-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; background: var(--bg2); color: var(--ink-2); }
-.gap-kind.actionable { color: var(--brass-text, var(--brass)); }
+.gap-kind.actionable { color: var(--attention-text); }
 .gap-title { font-weight: 600; color: var(--ink); }
 .gap-meta { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
 .gap-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
@@ -1963,7 +1974,9 @@ h4 { margin: 6px 0; }
 .briefing-section { margin-bottom: 22px; }
 .briefing-sec-head { margin-bottom: 8px; }
 .briefing-card { border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px; background: var(--bg1); padding: 14px 16px; margin-bottom: 10px; }
-.briefing-card.needs-you { border-left-color: var(--brass); }
+/* Binary needs-you treatment (CHI-374): the off-brass bar plus a very faint warm
+   wash on the card face, so the whole card reads "act" while staying calm. */
+.briefing-card.needs-you { border-left-color: var(--attention); background: color-mix(in srgb, var(--attention) 7%, var(--bg1)); }
 .briefing-card.acted { opacity: 0.72; }
 .bc-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
 .bc-domain { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; background: var(--bg2); color: var(--ink-3); }
