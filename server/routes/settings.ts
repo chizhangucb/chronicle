@@ -21,6 +21,7 @@ export function mountSettings(app: Express): void {
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
+      homeBands: cfg.homeBands !== false,
     });
   });
 
@@ -32,6 +33,7 @@ export function mountSettings(app: Express): void {
     if (typeof req.body?.minorActiveMsThreshold === 'number') patch.minorActiveMsThreshold = req.body.minorActiveMsThreshold;
     if (typeof req.body?.minorMessageCountThreshold === 'number') patch.minorMessageCountThreshold = req.body.minorMessageCountThreshold;
     if (typeof req.body?.planWindows === 'boolean') patch.planWindows = req.body.planWindows;
+    if (typeof req.body?.homeBands === 'boolean') patch.homeBands = req.body.homeBands;
     // Monthly budget (CHI-366): a positive number sets it; null / 0 / a
     // non-finite value clears it back to "no budget set".
     if ('monthlyBudget' in (req.body ?? {})) {
@@ -48,6 +50,7 @@ export function mountSettings(app: Express): void {
       minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
+      homeBands: cfg.homeBands !== false,
     });
   });
 

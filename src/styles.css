@@ -2150,3 +2150,75 @@ h4 { margin: 6px 0; }
 .empty-state .demo-offer { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
 .empty-state .demo-offer .small { max-width: 46ch; text-align: center; }
 .empty-state .demo-offer code { font: 11.5px var(--mono); background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+
+/* ---- Home bands (CHI-325 3d) ----
+   Band 1 briefing cards, band 2 the 5-domain status band, band 3 the sources
+   strip. The band is a TABLE of rows, not cards: five domains at a glance is a
+   scanning task, and five separate cards would be five things to read. */
+.home-briefing { margin-bottom: 12px; }
+.home-briefing.calm { display: flex; align-items: center; gap: 10px; padding: 12px 14px; color: var(--ink-2); font: 12.5px var(--mono); }
+.home-briefing.calm .calm-mark { color: var(--brass-text); }
+.home-briefing.calm .calm-link { margin-left: auto; color: var(--ink-3); text-decoration: none; }
+.home-briefing.calm .calm-link:hover { color: var(--ink); }
+.home-fyi { padding: 4px 0; }
+.home-fyi .fyi-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); }
+.home-fyi .fyi-row:last-child { border-bottom: 0; }
+.home-fyi .fyi-title { font: 12px var(--mono); color: var(--ink); }
+
+.status-band { margin-bottom: 12px; padding-bottom: 2px; }
+.status-band .band-head,
+.status-band .band-row {
+  display: grid;
+  grid-template-columns: 132px 1fr 1fr 96px 108px;
+  align-items: center; gap: 0 18px; padding: 0 14px;
+}
+.status-band .band-head {
+  font: 10.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-3); padding-bottom: 7px; border-bottom: 1px solid var(--border);
+}
+.status-band .band-row {
+  height: 38px; border-bottom: 1px solid var(--border);
+  font: 12px var(--mono); color: var(--ink-2); text-decoration: none;
+}
+.status-band .band-row:last-child { border-bottom: 0; }
+.status-band .band-row:hover { background: var(--bg2); }
+.status-band .band-row b { color: var(--ink); font-weight: 600; }
+.status-band .band-name { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.status-band .band-glance { text-align: right; }
+.status-band .band-state { text-align: right; font-size: 11.5px; }
+/* The band never originates an alarm: `flagged` is an ECHO of an open
+   needs-you card above, which is why it is a quiet left edge and not a fill. */
+.status-band .band-row.flagged { box-shadow: inset 2px 0 0 var(--attention); }
+.status-band .tone-ok { color: var(--ink-3); }
+.status-band .tone-warn { color: var(--attention); }
+.status-band .tone-err { color: var(--danger, var(--attention)); }
+.status-band .tone-neutral { color: var(--ink-3); }
+.band-spark { display: inline-block; vertical-align: middle; }
+.band-spark path { stroke: var(--ink-3); }
+.band-row:hover .band-spark path { stroke: var(--brass-text); }
+.band-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.band-dot-spend { background: var(--c1); }
+.band-dot-sessions { background: var(--c2); }
+.band-dot-memory { background: var(--c3); }
+.band-dot-safety { background: var(--c4); }
+.band-dot-jobs { background: var(--c5); }
+.gap-dots { display: inline-flex; gap: 3px; justify-content: flex-end; }
+.gap-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink-3); }
+.gap-dot.on { background: var(--ink-3); }
+
+.provenance-strip {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border);
+  font: 11.5px var(--mono); color: var(--ink-3);
+}
+.provenance-strip .prov-label { letter-spacing: 0.1em; text-transform: uppercase; }
+.provenance-strip .prov-items { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.provenance-strip .prov-item b { color: var(--ink-2); font-weight: 600; }
+/* Compact needs-you row: every card after the lead one (volume hierarchy). */
+.compact-needs { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.compact-needs .cn-title { font: 600 12px var(--mono); color: var(--ink); }
+.compact-needs .cn-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The compact needs-you title links through to /briefing, where the full
+   what-happened / what-it-means / what-to-do anatomy lives. */
+.compact-needs .cn-title { color: var(--ink); text-decoration: none; }
+.compact-needs .cn-title:hover { color: var(--brass-text); }

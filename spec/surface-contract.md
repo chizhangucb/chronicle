@@ -46,6 +46,18 @@ This is JUDGE input, a sibling of `spec/design-qa-rubric.md`: the rubric judges 
 layout*, this judges *product shape / IA*. Every statement is verifiable against `src/` on this
 branch. Each enumerable names the e2e pin that guards it, so the contract is self-auditing.
 
+> **CHI-325 phase-3 sign-off.** The `/reference` route, the `※` glyph, the sb-bottom
+> Reference item, the status-band enumerable, the rewritten `/` Overview reading order
+> (briefing band, status band, provenance strip), the Settings view-log block and the
+> `homeBands` / `viewLog` toggles were added by the CHI-322 merge phase 3 (decision
+> CHI-307, plan `plans/2026-08-27-chi-325-merge-phase3-home-reference-demo-viewlog.md`).
+> Decisions D1-D13 were taken with Chi in session on 2026-08-27 and are logged in
+> `records/decisions.jsonl` (2026-08-27, session 4336bf33). The `/` reshape is the one
+> visualization change in this phase and carries the CHI-322 per-viz rule: a rendered
+> screenshot of the new `/` goes to Chi BEFORE the PR merges. **This paragraph is not
+> that sign-off; it records the contract edit. The screenshot approval is separate and
+> is a merge blocker for PR D.**
+
 ## Routes & surfaces
 
 | Route | Surface | Component |
@@ -61,6 +73,7 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 | `/briefing` | **Ops surface (hub-conditional, CHI-323 3d).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The grandfathered two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards, CHI-324 2i / CHI-366 — the D7 gap closed). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional, CHI-323 3e).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
 | `/records` | **Ops surface (hub-conditional, CHI-324).** The append-only hub records, via the new `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY phase-2 type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, CHI-314) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
+| `/reference` | **The unified reference (CHI-325 3b, D3/D4). NOT hub-conditional** (product vocabulary, not hub data), so a stock public install has it. Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for surfaces the Chronicle/Varde merge deliberately dropped (pinned panels, peek drill, the old burn tile), per CHI-322's "nothing valuable silently dropped". | `src/ReferencePage.tsx` |
 | `/ask` | **Ask (CHI-351): NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
@@ -99,8 +112,10 @@ drag-resizable when expanded. Contents, top to bottom:
   `sb-bottom`, fenced by a `sb-sep` ABOVE and BELOW (between it and Settings), signalling a
   cross-cutting capability (not nav, not chrome). It renders ONLY when `/api/ask/status` reports
   `enabled` (Settings `ask` toggle on AND the claude CLI present AND non-demo) — NOT hub-conditional,
-  so it can show on a stock public install. Below it, the util group: Settings (`⚙`) · Feedback
-  (`⊞`, link to GitHub issues) · Collapse toggle (`⟨`/`⟩`).
+  so it can show on a stock public install. Below it, the util group: Settings (`⚙`) · **Reference (`※`, CHI-325 3b/D4 —
+  NOT hub-conditional; it is chrome/meta, a thing you consult ABOUT the app, which
+  is what the util group already means)** · Feedback (`⊞`, link to GitHub issues) ·
+  Collapse toggle (`⟨`/`⟩`).
 
 ## Topbar (`src/App.tsx`, every route)
 
@@ -150,13 +165,20 @@ drag-resizable when expanded. Contents, top to bottom:
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
   `▦`=modules (ops nav, CHI-323; `⊘`=safety `⧗`=jobs `▣`=briefing
-  `❖`=memory `≡`=records [CHI-324]). `⌂`=Home is
+  `❖`=memory `≡`=records [CHI-324] `※`=reference [CHI-325]). `⌂`=Home is
   retired from chrome — the sidebar item it used to label was renamed to `∑ Insights` (D2, see
   above); `⌂` does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap (NOT a novel finding):** `src/kinds.ts` `KIND_ICON` still maps
     `user`/`thinking`/`tool_use` to colored emoji (👤/💭/🔧) in Playback rows — adjudicated at
     the walk, per the rubric.
+- **Status-band domains** (`/` Overview `.status-band`, CHI-325 3d): `Spend` · `Memory` ·
+  `Sessions` · `Safety` · `Jobs`. Exactly five, in this order, columns
+  `domain · now · context · glance · state`. Rendered whether or not a hub is present:
+  with no hub the three hub-fed rows (Memory/Safety/Jobs) read as the Q6-rescued Nisse
+  upsell line rather than disappearing (D2). The whole band, and the briefing band above
+  it, are hidden by the Settings `homeBands` toggle (default ON), which collapses `/`
+  back to exactly the pre-CHI-325 Overview. Guard: `test/e2e/home-bands.spec.ts`.
 - **Ops routes are hub-conditional (CHI-323, +Records CHI-324).** The ops surfaces (Modules
   `/modules`, Safety / Jobs / Briefing / Memory, and Records `/records`) and their `sb-top` nav items render ONLY when
   `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
@@ -170,6 +192,21 @@ drag-resizable when expanded. Contents, top to bottom:
 
 ### `/` Overview tab — reading order is load-bearing (top → bottom)
 
+**CHI-325 3d note.** Items 0, 1b and 7 below are the phase-3 home merge (decision D1/D2/D11,
+brainstorm Q5b item 10). Everything else in this list is UNCHANGED, including the charts:
+the ticket's "upgraded charts" band was already satisfied by CHI-324 2d (the
+project|provider stack toggle + the median dash), so nothing further was owed there.
+The whole of 0, 1b and 7 is behind the Settings `homeBands` toggle (default ON); with it
+off, `/` is exactly the surface that shipped before phase 3.
+
+0. **Briefing band** (`.home-briefing`, `BriefingBand`) — the latest run's OPEN cards, above
+   the numbers because it is the only part of the home that ASKS something of you.
+   EVERY needs-you card is a one-line `.compact-needs` row (Chi, 2026-08-28 review: the
+   full anatomy ate the first viewport and pushed the numbers below the fold); the title
+   links to `/briefing`, where the full what-happened / what-it-means / what-to-do anatomy
+   lives. FYI cards are a `.home-fyi` list. A calm day renders a stated calm result, not an
+   empty div. Hub-conditional in practice (the briefing is a hub organ), so a stock install
+   shows nothing here.
 1. **KPI strip** (`.kpis`, `KpiStrip`) — headline tiles from one `/api/insights` fetch: Spend ·
    Sessions · Tokens · Agent active (InfoTip) · Your engaged (InfoTip, shows leverage) · Tool
    calls (InfoTip) · Error rate (InfoTip) · Commits, plus a conditional **Proxy lane (billed)**
@@ -182,6 +219,19 @@ drag-resizable when expanded. Contents, top to bottom:
      `~/.aios/machine_sessions.jsonl` manifest (weekly/nightly/session-close/spend-advice jobs),
      bucketed by job; a manifest session whose transcript is also imported is counted once, as
      automation (transcript wins, never double counted).
+1b. **Status band** (`.status-band`, `HomeStatusBand`) — the five-domain enumerable above.
+   A SECOND, DIFFERENT read of the KPI strip, not a dedupe: the tiles state a number flat,
+   the band adds a trend sparkline, the explicit baseline NUMBER (never the ratio alone),
+   and a deep link per domain. Load-bearing honesty rules, carried from Varde's design
+   gate: (a) **the band never originates an alarm** — a row's `flagged` accent is only ever
+   an ECHO of an open needs-you card in band 0, so exactly one place on the page raises
+   something new; (b) the Spend row's window and baseline math ARE the anomaly detector's
+   own (`src/insights/anomalyMath.ts`), and the Sessions row reuses the same shape of
+   baseline on session counts derived from `insights.sessions` (the same list the KPI
+   counts, NOT `dailyActivity`, which counts messages) — so the band can never contradict
+   the tile above it; (c) a row with no data claims nothing rather than inventing an "ok".
+   The Memory row reads `GET /api/hub/memory/summary` (four numbers + a growth series),
+   NEVER the full `/api/hub/memory` graph, which must not travel to the default route.
 2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
@@ -209,8 +259,14 @@ drag-resizable when expanded. Contents, top to bottom:
    (distinct by construction), NOT the per-project identity hue (assigned by project id, which would
    collide for two top-5-by-spend projects); the aggregated **Other** bar uses a visible neutral and
    shows only when it carries spend; the `<synthetic>` pseudo-model is excluded from every spend
-   view. **LAST** — the Overview tab ends here. The recent-sessions ledger does NOT mount on `/`
-   (Task 9, D1 — see `/projects`).
+   view. The recent-sessions ledger does NOT mount on `/` (Task 9, D1 — see `/projects`).
+7. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip`, CHI-325 D11) — **LAST**, the
+   Overview tab ends here. One quiet line closing the page: session count per source tool,
+   hub connected/absent, last sync, and the active cost basis. A slimmed port of Varde's
+   `SourceFooter` (the fifth Q5b home gap). The topbar sync pill says WHEN data last landed;
+   this says WHAT is behind the figures, which on a console merging four tools plus a hub
+   plus a proxy lane is the credibility question. Sources are derived from
+   `insights.sessions`, the same derivation the Spend tab's Sources card uses.
 
 The Explore / Content tabs render `ExploreTab` / `ContentTab` at `scope={all}` (same components
 the project view uses per-project).
@@ -575,6 +631,18 @@ file (D3 Fable design session, artifact `06128eb0…`, approved 2026-08-26).
 
 **CHI-339 sign-off (scope-suggest fast-follow):** self-signed under the same CHI-323 phase-1
 delegation — it closes the disclosed gap on this same surface, no new IA.
+
+### Settings modal (`SettingsModal`, `src/App.tsx`)
+
+Not previously itemized in this contract; enumerated here because CHI-325 added to it.
+Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
+(quota)** · **Home bands** (CHI-325 3d, default ON; hides the briefing + status bands) ·
+**Ask (experimental)**. Then one BLOCK, fenced by a rule: the **Local view log** (CHI-325
+3a) — an on/off toggle, a one-paragraph statement of exactly what is recorded and that it
+never leaves the machine, the captured-rows count and date range, a top-5 surfaces table
+(Surface / You / Agent / Typical visit, human vs agent collapsed at read time), and a
+**Clear the log** action. The block renders "Nothing recorded yet" when empty and is absent
+in demo (demo never records).
 
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
