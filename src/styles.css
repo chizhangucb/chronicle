@@ -2018,6 +2018,12 @@ h4 { margin: 6px 0; }
 .memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); flex: 1; min-height: 0; }
 @media (min-width: 900px) { .memory-layout { grid-template-columns: minmax(0, 1fr) 260px; } }
 .memory-canvas-wrap { position: relative; min-height: 480px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
+/* The graph root fills its frame by absolute inset, NOT height:100%. The wrap
+   gets its height from grid stretch and has no definite `height` property, so a
+   percentage height would resolve to 0 and ForceGraph3D would draw a zero-height
+   canvas (CHI-385). Absolute inset-0 against the position:relative wrap sidesteps
+   the percentage-height chain entirely. */
+.memory-graph-canvas { position: absolute; inset: 0; overflow: hidden; }
 .memory-side { display: flex; flex-direction: column; gap: 16px; }
 .memory-inspector { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
 .memory-node-name { font-weight: 600; color: var(--ink); }

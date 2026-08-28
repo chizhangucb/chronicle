@@ -542,7 +542,7 @@ export function MemoryGraph({
   );
 
   return (
-    <div ref={wrap} className="relative h-full w-full overflow-hidden">
+    <div ref={wrap} className="memory-graph-canvas">
       {size.width > 0 ? (
         <ForceGraph3D
           ref={graphRef}

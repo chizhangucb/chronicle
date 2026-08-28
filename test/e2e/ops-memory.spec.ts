@@ -34,7 +34,16 @@ test.describe('demo hub: /memory mounts the Nebula shell', () => {
     await expect(page.locator('.memory-head')).toContainText('notes');
     await expect(page.locator('.memory-scope')).toContainText('rot threshold');
     // the lazy three.js chunk mounts a canvas
-    await expect(page.locator('.memory-canvas-wrap canvas')).toHaveCount(1, { timeout: 15_000 });
+    const canvas = page.locator('.memory-canvas-wrap canvas');
+    await expect(canvas).toHaveCount(1, { timeout: 15_000 });
+    // CHI-385: mounting is not enough. The graph root fills its frame by absolute
+    // inset; before that it used a no-op `h-full` (this app has no Tailwind), so
+    // the div collapsed to 0 height and ForceGraph3D drew a WIDTH x 0 canvas that
+    // still counted as 1 but was invisible. Pin the real height so a collapse
+    // fails CI instead of shipping a blank page.
+    const box = await canvas.boundingBox();
+    expect(box, 'memory canvas has no bounding box').not.toBeNull();
+    expect(box!.height, `memory canvas collapsed to ${box?.height}px tall`).toBeGreaterThan(400);
     expect(errors, `page errors on /memory: ${errors.join(' | ')}`).toEqual([]);
   });
 
