@@ -11,12 +11,14 @@
 //   4. The corpus is deep enough that every surface has something to show.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const { demoSessions, DEMO_DAYS } = await import('../server/demo/corpus.ts');
 const { demoDataDir } = await import('../server/demo/seed.ts');
 const { aiosRoot } = await import('../server/demo/paths.ts');
+const { writeDemoSession } = await import('../server/demo/transcripts.ts');
 
 test('demo mode makes NO outbound call for plan windows', async () => {
   // The guard is checked before any credential read or fetch. Proven by
@@ -103,6 +105,38 @@ test('the corpus is deep and varied enough for every surface', () => {
   // just $/day under another name.
   const days = new Set(specs.map((s) => s.daysAgo));
   assert.ok(days.size < DEMO_DAYS, 'every single day is active, so the honesty stats collapse');
+});
+
+test("today's demo sessions land after local midnight, never yesterday or the future", () => {
+  // Found by rebuilding the demo just after midnight: `now - 3h` put every
+  // "today" session on YESTERDAY, so the console opened on an empty Today
+  // window reading $0 and 0 sessions. A demo whose default view is empty is
+  // worse than no demo. Swept across the clock rather than at one time.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-demo-tx-'));
+  const spec = {
+    sessionId: 'demo-today', model: 'gpt-5', cwd: '/demo/atlas-api',
+    daysAgo: 0, turns: 12, promptText: 'x',
+    usage: { input_tokens: 100, output_tokens: 50 },
+  };
+  for (const hour of [0, 1, 2, 3, 9, 13, 23]) {
+    const now = new Date();
+    now.setHours(hour, 12, 0, 0);
+    const nowMs = now.getTime();
+    const midnight = new Date(nowMs); midnight.setHours(0, 0, 0, 0);
+
+    const file = writeDemoSession(dir, spec, nowMs);
+    const lines = fs.readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const stamps = lines.map((l) => Date.parse(l.timestamp));
+    assert.ok(
+      Math.min(...stamps) >= midnight.getTime(),
+      `at ${hour}:00 a session started before local midnight (fell onto yesterday)`,
+    );
+    assert.ok(
+      Math.max(...stamps) <= nowMs,
+      `at ${hour}:00 a session ran into the future`,
+    );
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('the corpus is synthetic: no real project names or paths', () => {

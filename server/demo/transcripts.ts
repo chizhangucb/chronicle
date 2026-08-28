@@ -35,10 +35,14 @@ export function writeDemoSession(destDir: string, spec: DemoSessionSpec, nowMs: 
   const projectDir = path.join(destDir, mungeProjectDir(spec.cwd));
   fs.mkdirSync(projectDir, { recursive: true });
 
-  // daysAgo 0 starts a few hours back so it is unambiguously today without
-  // ever landing in the future; older days start mid-morning local.
+  // Today's sessions must land AFTER local midnight, not merely 3h before now.
+  // A plain `now - 3h` silently falls onto YESTERDAY whenever the demo is first
+  // built between midnight and 03:00, and the console then opens on an empty
+  // Today window with $0 and 0 sessions, which is the opposite of what a demo
+  // is for. Clamped to just after midnight; older days start mid-morning local.
+  const midnight = (() => { const d = new Date(nowMs); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const start = spec.daysAgo === 0
-    ? nowMs - 3 * 3600_000
+    ? Math.max(midnight + 5 * 60_000, nowMs - 3 * 3600_000)
     : (() => {
       const d = new Date(nowMs - spec.daysAgo * 86_400_000);
       d.setHours(10, 15, 0, 0);
@@ -57,7 +61,24 @@ export function writeDemoSession(destDir: string, spec: DemoSessionSpec, nowMs: 
     };
   })();
 
-  const gapMs = 50_000;
+  // A session must never end in the FUTURE. Just after midnight the clamp above
+  // leaves only minutes of runway, so today's sessions compress to fit.
+  //
+  // The slot count is the WORST case, not the average: every turn can emit
+  // three rows (user, assistant, tool result) and a session can append three
+  // more subagent rows. Budgeting for turns*2 (the first attempt) overshot
+  // `now` whenever a session actually used its tools. When compressing, the
+  // tool-result and subagent advances use the same computed gap rather than
+  // their fixed sizes, or they would blow the budget right back open.
+  const room = Math.max(0, nowMs - start);
+  const worstCaseRows = spec.turns * 3 + 3;
+  const compress = spec.daysAgo === 0;
+  // Still capped at the normal 50s: without the cap a midday rebuild has ~3h
+  // of runway and would stretch today's gaps to minutes, inflating agent-active
+  // time for exactly the sessions the Today window shows.
+  const gapMs = compress ? Math.max(200, Math.min(50_000, Math.floor(room / worstCaseRows))) : 50_000;
+  const resultGapMs = compress ? gapMs : 4_000;
+  const agentGapMs = compress ? gapMs : 12_000;
   let cursor = start;
   let parentUuid: string | null = null;
   const lines: string[] = [];
@@ -123,7 +144,7 @@ export function writeDemoSession(destDir: string, spec: DemoSessionSpec, nowMs: 
         },
       }));
       parentUuid = resUuid;
-      cursor += 4000;
+      cursor += resultGapMs;
     }
   }
 
@@ -143,7 +164,7 @@ export function writeDemoSession(destDir: string, spec: DemoSessionSpec, nowMs: 
           usage: { input_tokens: 900, output_tokens: 300 },
         },
       }));
-      cursor += 12_000;
+      cursor += agentGapMs;
     }
   }
 
