@@ -53,6 +53,56 @@ interface ImportResult {
   projectId: number | null;
 }
 
+// Lifted to module scope (CHI-325 3c) so the demo seeder can drive the SAME
+// parse+import path the HTTP route uses, instead of writing rows into the DB
+// directly. They only ever closed over module imports, so this is a pure move.
+// Gather parsed {session, events} pairs per source. files/sessionIds restrict
+// the import to a user-selected subset of sessions.
+export async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }: GatherParsedParams): Promise<ParseResult[]> {
+  if (source === 'claude-code') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
+    const sessionFiles = files?.length
+      ? files.filter((f) => fs.existsSync(f))
+      : fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
+    const parsed: ParseResult[] = [];
+    for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
+    return parsed;
+  }
+  if (source === 'codex') {
+    const parsed: ParseResult[] = [];
+    for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
+    return parsed;
+  }
+  if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
+  if (source === 'cursor') {
+    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
+    return parseCursorWorkspace(logDir, undefined, physicalPath || null);
+  }
+  throw bad(`Unsupported source: ${source}`);
+}
+
+// Import parsed sessions; reports per-project aggregates so the UI can show
+// which projects were created vs updated.
+export function importParsed(parsed: ParseResult[]): ImportResult {
+  let imported = 0, skippedSessions = 0, totalMessages = 0;
+  const byProject = new Map<number, ProjectAgg>();
+  for (const { session, events } of parsed) {
+    if (!events.length || !session.cwd) { skippedSessions++; continue; }
+    const existed = !!db.prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
+    const project = upsertProject(session.cwd);
+    replaceSession({ ...session, project_id: project.id }, events);
+    imported++;
+    totalMessages += events.length;
+    const agg = byProject.get(project.id)
+      || { id: project.id, name: project.name, path: project.path, created: !existed, sessions: 0, messages: 0 };
+    agg.sessions++;
+    agg.messages += events.length;
+    byProject.set(project.id, agg);
+  }
+  const projects = [...byProject.values()];
+  return { ok: true, imported, skippedSessions, totalMessages, projects, projectId: projects[0]?.id ?? null };
+}
+
 export function mountImportSync(app: Express): void {
   // ---- Import wizard ----
 
@@ -99,53 +149,6 @@ export function mountImportSync(app: Express): void {
       opencode: annotateScan(scanOpencodeProjects()),
     });
   });
-
-  // Gather parsed {session, events} pairs per source. files/sessionIds restrict
-  // the import to a user-selected subset of sessions.
-  async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }: GatherParsedParams): Promise<ParseResult[]> {
-    if (source === 'claude-code') {
-      if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
-      const sessionFiles = files?.length
-        ? files.filter((f) => fs.existsSync(f))
-        : fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
-      const parsed: ParseResult[] = [];
-      for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
-      return parsed;
-    }
-    if (source === 'codex') {
-      const parsed: ParseResult[] = [];
-      for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
-      return parsed;
-    }
-    if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
-    if (source === 'cursor') {
-      if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-      return parseCursorWorkspace(logDir, undefined, physicalPath || null);
-    }
-    throw bad(`Unsupported source: ${source}`);
-  }
-
-  // Import parsed sessions; reports per-project aggregates so the UI can show
-  // which projects were created vs updated.
-  function importParsed(parsed: ParseResult[]): ImportResult {
-    let imported = 0, skippedSessions = 0, totalMessages = 0;
-    const byProject = new Map<number, ProjectAgg>();
-    for (const { session, events } of parsed) {
-      if (!events.length || !session.cwd) { skippedSessions++; continue; }
-      const existed = !!db.prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
-      const project = upsertProject(session.cwd);
-      replaceSession({ ...session, project_id: project.id }, events);
-      imported++;
-      totalMessages += events.length;
-      const agg = byProject.get(project.id)
-        || { id: project.id, name: project.name, path: project.path, created: !existed, sessions: 0, messages: 0 };
-      agg.sessions++;
-      agg.messages += events.length;
-      byProject.set(project.id, agg);
-    }
-    const projects = [...byProject.values()];
-    return { ok: true, imported, skippedSessions, totalMessages, projects, projectId: projects[0]?.id ?? null };
-  }
 
   app.post('/import', async (req: Request, res: Response) => {
     try {

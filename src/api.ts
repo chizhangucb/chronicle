@@ -916,6 +916,13 @@ export const api = {
   viewLog: (events: ViewLogEventInput[], closes: ViewLogClose[] = []): Promise<{ ids: (number | null)[]; recorded: number; closed: number; enabled: boolean }> =>
     j('/api/view-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events, closes }) }),
   viewLogSummary: (): Promise<ViewLogSummary> => j('/api/view-log/summary'),
+  // Demo mode (CHI-325 3c). `available` is false under `npm run dev`, where
+  // there is no CLI to restart the process.
+  demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),
+  demoStart: (): Promise<{ ok: true; restarting: boolean }> =>
+    j('/api/demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  demoExit: (): Promise<{ ok: true; restarting: boolean }> =>
+    j('/api/demo/exit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   viewLogClear: (): Promise<{ cleared: number }> => j('/api/view-log', { method: 'DELETE' }),
   viewLogSetEnabled: (viewLog: boolean): Promise<{ enabled: boolean }> =>
     j('/api/view-log/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ viewLog }) }),

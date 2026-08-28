@@ -7,10 +7,13 @@
 // (those are Chronicle's own client-side estimates; mixing the two would double
 // the authority story). Live-read on each request — the log is tiny.
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { aiosRoot } from './demo/paths.ts';
 
-const SPEND_PATH = join(homedir(), '.aios', 'litellm', 'spend.jsonl');
+// Resolved per call rather than at module load: in demo mode the root points
+// into the seeded demo directory (server/demo/paths.ts), and that is only known
+// once CHRONICLE_DATA_DIR is set.
+const spendPath = (): string => join(aiosRoot(), 'litellm', 'spend.jsonl');
 
 export interface LaneCModel { model: string; spend: number; requests: number; tokens: number; }
 export interface LaneCSpend { totalSpend: number; requests: number; byModel: LaneCModel[]; }
@@ -24,7 +27,7 @@ interface SpendRow { startTime?: string; model?: string; spend?: number; total_t
 // Aggregate proxy spend by model, optionally filtered to rows at/after cutoffIso
 // (ISO string). Missing file → empty (no throw); malformed lines are skipped.
 // `path` is injectable for tests; production always uses the default log path.
-export function readLaneCSpend(cutoffIso: string | null = null, path: string = SPEND_PATH): LaneCSpend {
+export function readLaneCSpend(cutoffIso: string | null = null, path: string = spendPath()): LaneCSpend {
   let text: string;
   try { text = readFileSync(path, 'utf8'); } catch { return { ...EMPTY, byModel: [] }; }
 
@@ -73,7 +76,7 @@ function localDayKey(iso: string): string | null {
 // rows (no `spend`) add 0 — never a guessed dollar. Rows without a usable
 // startTime are dropped (cannot be placed on a day). Cost kept unrounded (Lane
 // C spend is routinely sub-cent).
-export function readLaneCDailyCost(cutoffIso: string | null = null, path: string = SPEND_PATH): Map<string, number> {
+export function readLaneCDailyCost(cutoffIso: string | null = null, path: string = spendPath()): Map<string, number> {
   const out = new Map<string, number>();
   let text: string;
   try { text = readFileSync(path, 'utf8'); } catch { return out; }

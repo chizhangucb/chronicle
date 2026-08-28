@@ -18,6 +18,7 @@ import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
 import { mountAsk }        from './routes/ask.ts';
 import { mountViewLog }    from './routes/viewlog.ts';
+import { mountDemo }       from './routes/demo.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
 import type { Gate } from './gate/core.ts';
 import { startAutoSync }   from './autosync.ts';
@@ -61,6 +62,7 @@ mountHub(api);
 mountBriefing(api);
 mountAsk(api);
 mountViewLog(api);
+mountDemo(api);
 
 // Rolling 180-day retention on the view log (CHI-325 D8), once per boot.
 // Pruning here rather than per write keeps a DELETE scan out of the
