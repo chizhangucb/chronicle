@@ -314,6 +314,47 @@ export interface SearchResponse {
 
 // ---- Settings ----
 
+// ---- View log (CHI-325 3a) ----
+// Mirrors server/viewlog.ts. Local-only: these shapes never travel anywhere but
+// between this client and the localhost server that owns chronicle.db.
+export type ViewLogActor = 'human' | 'agent';
+export type ViewLogEvent = 'visit' | 'tab' | 'action';
+
+export interface ViewLogEventInput {
+  /** Route PATTERN ('/session/:id'), never an instance. The server rejects
+   *  anything not on its allowlist, which is what keeps this table from
+   *  becoming a second copy of the session history. */
+  route: string;
+  event: ViewLogEvent;
+  detail?: string | null;
+  actor: ViewLogActor;
+  gesture: boolean;
+}
+
+/** Fills in the dwell of a row opened earlier. Rows are opened on ARRIVAL so a
+ *  lost close costs one duration, never a whole visit (see server/viewlog.ts). */
+export interface ViewLogClose {
+  id: number;
+  dwellMs: number;
+}
+
+export interface ViewLogRouteSummary {
+  route: string;
+  humanVisits: number;
+  agentVisits: number;
+  humanDwellMs: number | null;
+}
+
+export interface ViewLogSummary {
+  enabled: boolean;
+  rows: number;
+  humanRows: number;
+  agentRows: number;
+  firstTs: string | null;
+  lastTs: string | null;
+  routes: ViewLogRouteSummary[];
+}
+
 export interface Settings {
   autoSync: boolean;
   autoSyncPaused: boolean;
@@ -869,4 +910,13 @@ export const api = {
   explore: (q: ExploreQueryParams): Promise<ExploreResult> => j(exploreUrl(q)),
   content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
+  // View log (CHI-325 3a). The POST is batched (a navigation closes the previous
+  // dwell and opens the next), and it rides j() so the gate token is attached —
+  // server/api.ts 403s every non-GET without it.
+  viewLog: (events: ViewLogEventInput[], closes: ViewLogClose[] = []): Promise<{ ids: (number | null)[]; recorded: number; closed: number; enabled: boolean }> =>
+    j('/api/view-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events, closes }) }),
+  viewLogSummary: (): Promise<ViewLogSummary> => j('/api/view-log/summary'),
+  viewLogClear: (): Promise<{ cleared: number }> => j('/api/view-log', { method: 'DELETE' }),
+  viewLogSetEnabled: (viewLog: boolean): Promise<{ enabled: boolean }> =>
+    j('/api/view-log/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ viewLog }) }),
 };

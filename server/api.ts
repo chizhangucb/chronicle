@@ -17,9 +17,11 @@ import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
 import { mountAsk }        from './routes/ask.ts';
+import { mountViewLog }    from './routes/viewlog.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
 import type { Gate } from './gate/core.ts';
 import { startAutoSync }   from './autosync.ts';
+import { pruneViewLog }    from './viewlog.ts';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -58,6 +60,13 @@ mountPlanWindows(api);
 mountHub(api);
 mountBriefing(api);
 mountAsk(api);
+mountViewLog(api);
+
+// Rolling 180-day retention on the view log (CHI-325 D8), once per boot.
+// Pruning here rather than per write keeps a DELETE scan out of the
+// navigation path; pruneViewLog swallows its own failure so a locked DB at
+// this exact moment costs stale rows, never startup.
+pruneViewLog();
 
 // Auto-sync starts with the server in every run mode (dev / standalone);
 // watchers + timer live on globalThis so SSR reloads don't orphan them.

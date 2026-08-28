@@ -2100,3 +2100,15 @@ h4 { margin: 6px 0; }
 
 /* sidebar entry: brass accent so the cross-cutting capability reads apart from nav */
 .sb-item.ask-item .sb-icon { color: var(--brass-text); }
+
+/* ---- Settings: the view-log block (CHI-325 3a) ----
+   `.settings-row` is a 3-column grid built for a single toggle line; the view
+   log needs a stacked block (toggle, explanation, counts, a small table, a
+   destructive action), so it gets its own container rather than fighting that
+   grid. Separated from the toggles above by a rule because it is the one
+   Settings entry that SHOWS you something rather than just setting it. */
+.settings-block { display: flex; flex-direction: column; gap: 8px; padding: 14px 4px 4px; margin-top: 6px; border-top: 1px solid var(--border); }
+.settings-block-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.settings-block p { margin: 0; max-width: 62ch; }
+.settings-block .tbl { max-width: 460px; }
+.settings-block .btn { align-self: flex-start; }

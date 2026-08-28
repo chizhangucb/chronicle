@@ -77,6 +77,17 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
 
+// WAL (CHI-325 3a). Until the view log there was exactly one writer, at import
+// time, so rollback-journal's exclusive per-write lock never contended. The
+// view log writes on every navigation against this same synchronous handle
+// while it is also serving heavy analytics reads, which is precisely the shape
+// rollback-journal serializes worst (and the SQLITE_BUSY note on the
+// result_count backfill below is the existing evidence). WAL lets the readers
+// proceed against the last committed snapshot while a write is in flight.
+// Fail soft: a filesystem that cannot do WAL (some network mounts) keeps the
+// old journal mode rather than losing the database.
+try { db.exec('PRAGMA journal_mode = WAL'); } catch { /* keep the default journal mode */ }
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +151,33 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   deleted_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (source, session_id)
 );
+-- Local-only view log (CHI-325 3a, decision D5-D8). Which surfaces actually get
+-- used, actor-tagged, so a boundary question like CHI-307's is answered with
+-- data instead of file mtimes. NEVER leaves the machine: no route reads it out
+-- except the operator's own Settings block, and there is no outbound path.
+--
+-- The route column is a PATTERN ('/session/:id'), never an instance.
+-- The log answers "which surfaces earn their space", not "which session did I
+-- read". Pattern-only keeps it from becoming a second copy of the history.
+--
+-- The four actor columns are stored UNCOLLAPSED on purpose (D5). No detector
+-- catches an agent driving a real browser profile today; when a better
+-- fingerprint is found, the retained rows can be re-tagged. Collapsing to one
+-- verdict at write time would repeat the CHI-307 error permanently. Readers
+-- collapse via collapseActor() in server/viewlog.ts.
+CREATE TABLE IF NOT EXISTS view_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT NOT NULL,
+  route TEXT NOT NULL,
+  event TEXT NOT NULL,          -- 'visit' | 'tab' | 'action'
+  detail TEXT,                  -- tab name / action id, null for a bare visit
+  dwell_ms INTEGER,             -- capped at DWELL_CEILING_MS; null when unclosed
+  actor_client TEXT,            -- 'human' | 'agent' (browser's own verdict)
+  actor_server TEXT,            -- 'human' | 'agent' (UA verdict on this POST)
+  ua TEXT,                      -- raw, for later re-derivation
+  gesture INTEGER               -- 1 = a trusted input event preceded this nav
+);
+CREATE INDEX IF NOT EXISTS idx_view_log_ts ON view_log(ts);
 `);
 
 // Idempotent migrations
