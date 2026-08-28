@@ -134,6 +134,21 @@ drag-resizable when expanded. Contents, top to bottom:
 - **⌘J (CHI-351)** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled
   (so the shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
 
+## Page width tiers (`src/styles.css`, CHI-325 review)
+
+Three named tiers, defined once as tokens, replacing seven ad-hoc per-organ
+max-widths (760 / 900 / 1000 / 1100 / 1040 / none) that had accreted as each surface landed. There
+was a principle hiding in those numbers (prose narrow, tables wide, dashboards full) but they did not
+follow it, so the app read as inconsistent rather than considered.
+
+| Tier | Token | Surfaces |
+|---|---|---|
+| Reading | `--page-read` (880px) | `/briefing`, `/safety` — prose-led, held near a comfortable measure |
+| Table | `--page-table` (1200px) | `/modules`, `/jobs`, `/records`, `/reference` — the job is a wide table |
+| Full | (no token) | `/`, `/projects`, `/memory`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
+
+A new surface picks a tier; it does not invent a number.
+
 ## Enumerables (exact sets — changing any is a contract edit)
 
 - **Window toggle** (`/` hub `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
@@ -531,14 +546,25 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
 
 ### `/briefing` — ops surface (hub-conditional, `BriefingPage.tsx`, CHI-323 3d)
 
-Reading order: header (`as of` + open/snoozed counts + Run-now) → card sections.
+Reading order: header (`as of` + open/snoozed counts + Run-now) → **filter chips** → card sections.
+- **Filter chips (CHI-325 review, Chi 2026-08-28)**: `All` · `Needs you` · `Awareness` · `Handled`,
+  exactly four, in this order, in the boxed `.tabs` chrome, each carrying its own count, default
+  `All`. Added because the page had three fixed sections and no way to narrow: on a busy ledger the
+  Handled section buries the cards that actually want an answer. The counts sit on the chips so the
+  shape of the day reads without switching.
 - **Two-file contract (grandfathered)**: the run writes `~/.chronicle/briefing.json`; the UI writes
   `~/.chronicle/briefing-state.json`. They never cross-write, so a run can never clobber a "done".
 - **Card sections**: Needs you (open + needsYou, `--attention` accent) · For your awareness (open
-  FYI) · Handled (done/dismissed/resolved/snoozed). Each card: domain chip · title · summary ·
+  FYI) · Handled (done/dismissed/resolved/snoozed), **grouped by the day the card was acted on**
+  (`actedAt`, falling back to `runAt`), newest day first, closing with a stated retention line.
+  Handled is the HISTORY: `briefing.json` is a 90-day ledger (`mergeRuns` + `LEDGER_KEEP_DAYS`), and
+  a flat list of it answered "what happened" but never "when" (CHI-325 review). Each card: domain chip · title · summary ·
   optional plain-language anatomy (what happened / means / to do) · evidence expander · an internal
-  link · terminal actions (Done / Snooze / Dismiss, or Reopen). A card is binary (needs you or not)
-  — no severity ladder.
+  link · terminal actions (Done / Snooze / Dismiss, or Reopen) · **an age badge on OPEN cards older
+  than 2 days** (`open Nd`, `--attention` toned from 7 days). A re-emitted card keeps its ORIGINAL
+  `runAt`, so the age is its true age rather than resetting each run: a three-week-old needs-you card
+  is being avoided, and nothing on the page said so (CHI-325 review). A card is binary (needs you or
+  not) — no severity ladder.
 - **Needs-you accent (CHI-374)**: the treatment is a dedicated `--attention` terracotta (`#cd5f3c`),
   NOT `--brass`, on the left bar plus a 7% warm wash on the card face. Brass is the everyday accent
   (nav, price toggle, links, chart series), so a brass card read as "highlighted" more than "act

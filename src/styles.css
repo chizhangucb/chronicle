@@ -32,6 +32,17 @@
   --c5: #9a6cc9; /* violet */
 
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* ---- Page width tiers (CHI-325 review, Chi 2026-08-28) ----
+     Seven ad-hoc per-organ max-widths (760 / 900 / 1000 / 1100 / 1040 / none)
+     had accreted as each surface landed. There WAS a principle hiding in them
+     (prose narrow, tables wide, dashboards full) but the numbers did not follow
+     it, so the app read as inconsistent rather than as considered. Three named
+     tiers, chosen once:
+       --page-read   prose-led surfaces, held near a comfortable measure
+       --page-table  surfaces whose job is a wide table
+       (no token)    dashboards, where density IS the point: full bleed */
+  --page-read: 880px;
+  --page-table: 1200px;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --overlay-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
@@ -1828,7 +1839,7 @@ h4 { margin: 6px 0; }
 .command-bar-slot { display: contents; }
 
 /* ---- Modules ops surface (CHI-323 3a) ---- */
-.modules-page { max-width: 1100px; }
+.modules-page { max-width: var(--page-table); }
 .modules-lede { margin: 4px 0 16px; }
 .modules-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-4); }
 @media (min-width: 960px) { .modules-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; } }
@@ -1861,7 +1872,7 @@ h4 { margin: 6px 0; }
 }
 
 /* ---- Records ops surface (CHI-324 2h) ---- */
-.records-page { max-width: 1100px; }
+.records-page { max-width: var(--page-table); }
 .records-switcher { margin: 10px 0 16px; }
 .records-toolbar { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; margin-bottom: 14px; }
 .records-filter {
@@ -1896,7 +1907,7 @@ h4 { margin: 6px 0; }
 .records-more { margin-top: 14px; }
 
 /* ---- Safety ops surface (CHI-323 3d) ---- */
-.safety-page { max-width: 900px; }
+.safety-page { max-width: var(--page-read); }
 .safety-lede { margin: 4px 0 18px; }
 .safety-posture { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--gap-3); margin-bottom: 24px; }
 .posture-tile { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
@@ -1951,7 +1962,7 @@ h4 { margin: 6px 0; }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 18%, var(--bg1)); }
 
 /* ---- Jobs ops surface (CHI-323 3c) ---- */
-.jobs-page { max-width: 1000px; }
+.jobs-page { max-width: var(--page-table); }
 .jobs-lede { margin: 4px 0 16px; }
 .jobs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .jobs-table th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -1968,7 +1979,7 @@ h4 { margin: 6px 0; }
 .jobs-log-body { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-2); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; }
 
 /* ---- Briefing ops surface (CHI-323 3d) ---- */
-.briefing-page { max-width: 760px; }
+.briefing-page { max-width: var(--page-read); }
 .briefing-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .briefing-empty { padding: 48px 0; }
 .briefing-section { margin-bottom: 22px; }
@@ -2121,7 +2132,7 @@ h4 { margin: 6px 0; }
 .info-more { display: block; margin-top: 7px; color: var(--brass-text); text-decoration: none; }
 .info-more:hover { text-decoration: underline; }
 
-.reference-page { max-width: 1040px; }
+.reference-page { max-width: var(--page-table); }
 .reference-page .ref-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 14px; }
 .reference-page .ref-intro { max-width: 76ch; margin: 4px 0 0; }
 .reference-page .ref-search { display: flex; align-items: center; gap: 8px; flex: none;
@@ -2235,3 +2246,17 @@ h4 { margin: 6px 0; }
 /* Why a Settings toggle is on but inert. Sits under its description, indented
    with the description column so it reads as a footnote to that row. */
 .settings-why { display: block; margin-top: 5px; color: var(--attention); }
+
+/* ---- Briefing: filter, handled history, card age (CHI-325 review) ---- */
+.briefing-filter { margin: 4px 0 14px; }
+.briefing-filter .tab-count { color: var(--ink-3); margin-left: 5px; }
+.briefing-filter .tab.on .tab-count { color: inherit; }
+.handled-day { margin-bottom: 10px; }
+.handled-day-head {
+  font: 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); padding: 6px 0 7px;
+}
+.handled-note { margin: 10px 0 0; }
+/* Card age: quiet at two days, attention-toned once a card has sat a week. */
+.bc-age { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
+.bc-age.stale { color: var(--attention); }

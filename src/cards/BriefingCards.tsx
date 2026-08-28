@@ -12,12 +12,26 @@ export function BriefingCard({ card, onAction, onOpenLink }: {
 }) {
   const [showEvidence, setShowEvidence] = useState(false);
   const acted = card.state === 'done' || card.state === 'dismissed' || card.state === 'resolved';
+  // How long an OPEN card has been open (Chi, 2026-08-28). briefing.json is a
+  // 90-day ledger and a re-emitted card keeps its ORIGINAL runAt, so a card that
+  // keeps reappearing shows its true age rather than resetting each run. That
+  // age is the signal worth surfacing: a three-week-old needs-you card is being
+  // avoided, and nothing on the page used to say so. Under two days it is just
+  // noise, so it stays hidden.
+  const openDays = card.state === 'open' && card.runAt
+    ? Math.floor((Date.now() - new Date(card.runAt).getTime()) / 86_400_000)
+    : 0;
   return (
     <div className={`briefing-card ${card.needsYou && card.state === 'open' ? 'needs-you' : ''} ${acted ? 'acted' : ''}`}>
       <div className="bc-head">
         <span className={`bc-domain ${card.domain}`}>{card.domain}</span>
         <span className="bc-title">{card.title}</span>
         {card.state !== 'open' && <span className={`bc-state ${card.state}`}>{card.state}</span>}
+        {openDays >= 2 && (
+          <span className={`bc-age ${openDays >= 7 ? 'stale' : ''}`}>
+            {t('open')} {openDays}{t('d')}
+          </span>
+        )}
       </div>
       <p className="bc-summary">{card.summary}</p>
       {(card.whatHappened || card.whatItMeans || card.whatToDo) && (
