@@ -1911,6 +1911,7 @@ h4 { margin: 6px 0; }
 .records-idcopy.copied .records-copyhint { color: var(--ok, #2e7d52); }
 .records-focus { color: var(--ink-2); }
 .records-more { margin-top: 14px; }
+.records-more-sentinel { padding: 14px 0 22px; text-align: center; }
 
 /* ---- Safety ops surface (CHI-323 3d) ---- */
 .safety-page { max-width: var(--page-max); }
@@ -2068,8 +2069,19 @@ button.mem-verdict-stat:hover { color: var(--ink); text-decoration: underline; t
 .lane-big .sub { font: 12px var(--mono); font-weight: 400; color: var(--ink-2); }
 .lane-foot { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
 .lane-foot .warn { color: var(--warn); }
-.lane-see { background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); cursor: pointer; padding: 8px 0 0; text-align: left; }
+.lane-see { display: block; background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); cursor: pointer; padding: 8px 0 0; text-align: left; }
 .lane-see:hover { color: var(--ink); }
+/* Lane / browser card head: flush title + info tip, meta pushed right, so the
+   info icon never crowds the meta and the meta never crowds the title. */
+.mem-lane-head { display: flex; align-items: center; gap: 7px; }
+.mem-lane-head .lbl { margin-left: auto; padding-left: 10px; text-transform: none; color: var(--ink-3); white-space: nowrap; }
+/* Memory tables fit their column and truncate: a long path suffix or a
+   malformed dead-link target must never widen the table into a horizontal
+   scroll (CHI-385 review). Fixed layout + ellipsis on both cells. */
+.mem-tbl { table-layout: fixed; }
+.mem-tbl td:first-child, .mem-tbl th:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mem-tbl td:last-child, .mem-tbl th:last-child { width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.mem-tbl.mem-tbl-wide td:last-child, .mem-tbl.mem-tbl-wide th:last-child { width: 150px; }
 .lane-blockhead { font: 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
 .lane-path { color: var(--ink-3); margin-left: 6px; font-size: 11px; }
 .lane-delta { color: var(--ok); margin-left: 6px; font-size: 11px; }
@@ -2088,7 +2100,7 @@ button.mem-verdict-stat:hover { color: var(--ink); text-decoration: underline; t
 .nb-kinds { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 .nb-kinds button { background: var(--bg2); border: 1px solid var(--border); color: var(--ink-3); font: 10.5px var(--mono); padding: 3px 8px; border-radius: 4px; cursor: pointer; }
 .nb-kinds button.on { background: var(--bg0); color: var(--ink); border-color: var(--border-strong); }
-.nb-scroll { max-height: 420px; overflow-y: auto; }
+.nb-scroll { max-height: 420px; overflow-y: auto; overflow-x: hidden; }
 .nb-scroll .tbl thead th { position: sticky; top: 0; background: var(--bg1); z-index: 1; }
 
 /* Canvas chrome (CHI-385 parity): translucent floating controls over the graph,

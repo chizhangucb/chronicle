@@ -88,13 +88,20 @@ function LaneCard({
 }: { title: string; tip: React.ReactNode; meta?: string; children: React.ReactNode }) {
   return (
     <div className="card">
-      <h3>
-        {title} {tip}
-        {meta ? <span className="lbl" style={{ marginLeft: 'auto', textTransform: 'none', color: 'var(--ink-3)' }}>{meta}</span> : null}
+      <h3 className="mem-lane-head">
+        <span>{title}</span>
+        {tip}
+        {meta ? <span className="lbl">{meta}</span> : null}
       </h3>
       {children}
     </div>
   );
+}
+
+/** Cap a display string so one pathological value (e.g. a malformed wikilink
+ * target) cannot blow out a table column. */
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
 // --- Usage --------------------------------------------------------------------
@@ -115,7 +122,7 @@ function UsageLaneView({
             <span className="sub">{t('of')} {fmtInt(totalNotes)} {t('notes touched')} · <span className="num" style={{ color: 'var(--ink)' }}>{fmtInt(touches)}</span> {t('touches')}</span>
           </div>
           <div className="lane-blockhead"><span>{t('Most touched')}</span><span>{t('touches')}</span></div>
-          <table className="tbl">
+          <table className="tbl mem-tbl">
             <tbody>
               {usage.touched.slice(0, 5).map((e) => (
                 <tr key={e.note}><td><NoteName name={e.name} path={e.path} /></td><td>{fmtInt(e.count)}</td></tr>
@@ -201,7 +208,7 @@ function ConnectivityLaneView({
       <div className="lane-blockhead" data-connectivity-block="most-connected">
         <span>{t('Most connected')}</span><span>{deltaWindow ? `${t('links')} · ${deltaWindow}` : t('links')}</span>
       </div>
-      <table className="tbl">
+      <table className="tbl mem-tbl">
         <tbody>
           {connectivity.hubs.slice(0, 3).map((h) => (
             <tr key={h.path ?? h.name}>
@@ -263,7 +270,7 @@ function NotesBrowser({
       return rot.oldest.map((r) => ({ key: r.path ?? r.name, ref: { path: r.path, name: r.name, kind: r.kind }, name: r.name, path: r.path, kind: r.kind, value: <span style={{ color: 'var(--warn)' }}>{fmtInt(r.ageDays)}d</span> }));
     }
     if (preset === 'dead') {
-      return connectivity.deadLinkList.map((d, i) => ({ key: `${d.source}-${d.target}-${i}`, ref: { path: d.sourcePath, name: d.source }, name: d.source, path: d.sourcePath, value: <span className="muted">[[{d.target}]]</span> }));
+      return connectivity.deadLinkList.map((d, i) => ({ key: `${d.source}-${d.target}-${i}`, ref: { path: d.sourcePath, name: d.source }, name: d.source, path: d.sourcePath, value: <span className="muted" title={`[[${d.target}]]`}>[[{truncate(d.target, 40)}]]</span> }));
     }
     return usage.touched.map((e) => ({ key: e.note, ref: { id: e.note, name: e.name, path: e.path, kind: e.kind }, name: e.name, path: e.path, kind: e.kind, value: fmtInt(e.count) }));
   }, [preset, usage.touched, connectivity.orphanList, connectivity.deadLinkList, rot.oldest, allByLinks]);
@@ -292,8 +299,9 @@ function NotesBrowser({
 
   return (
     <div className="card" id={browserId} data-notes-browser>
-      <h3>{t('Notes browser')} <InfoTip def="memory.notes-browser" />
-        <span className="lbl" style={{ marginLeft: 'auto', textTransform: 'none', color: 'var(--ink-3)' }}>{meta}</span>
+      <h3 className="mem-lane-head">
+        <span>{t('Notes browser')}</span> <InfoTip def="memory.notes-browser" />
+        <span className="lbl">{meta}</span>
       </h3>
       <div className="nb-controls">
         <div className="nb-seg" role="group" aria-label={t('Browser preset')}>
@@ -326,7 +334,7 @@ function NotesBrowser({
               : t('No note matches the filter.')}
           </div>
         ) : (
-          <table className="tbl">
+          <table className={`tbl mem-tbl${preset === 'dead' || preset === 'connected' ? ' mem-tbl-wide' : ''}`}>
             <thead><tr><th>{preset === 'dead' ? t('source') : t('note')}</th><th>{t(valueHeader)}</th></tr></thead>
             <tbody>
               {rows.map((r) => (
