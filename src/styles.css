@@ -2143,3 +2143,10 @@ h4 { margin: 6px 0; }
   0%, 40% { background: color-mix(in srgb, var(--brass) 14%, transparent); }
   100% { background: transparent; }
 }
+
+/* Demo offer on the zero-data empty state (CHI-325 3c). Sits under the primary
+   import action as the quieter second option: seeing the product is worth
+   offering, but importing your own sessions is still the point. */
+.empty-state .demo-offer { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
+.empty-state .demo-offer .small { max-width: 46ch; text-align: center; }
+.empty-state .demo-offer code { font: 11.5px var(--mono); background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }

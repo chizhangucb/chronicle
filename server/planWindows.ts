@@ -134,7 +134,39 @@ function readCodexAccount(): PlanAccount | null {
   return null;
 }
 
+/**
+ * Synthetic plan windows for demo mode (CHI-325 3c).
+ *
+ * HARD REQUIREMENT, not a nicety: this is the only outbound call Chronicle
+ * makes, and a demo console must make none. Demo is what a stranger runs to
+ * see the product, and it would be indefensible for that to reach out to
+ * Anthropic with (or without) their token. Demo therefore returns fabricated
+ * meters and NEVER reaches fetchClaude or readClaudeToken.
+ */
+function demoPlanWindows(): PlanWindowsResult {
+  const hoursFromNow = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+  return {
+    claudeEnabled: true,
+    claudeUnauthed: false,
+    accounts: [
+      {
+        name: 'demo@chronicle', kind: 'claude', plan: 'Max',
+        windows: [
+          { label: '5h', utilization: 0.42, resetsAt: hoursFromNow(2.5) },
+          { label: '7d', utilization: 0.61, resetsAt: hoursFromNow(52) },
+          { label: 'fable', utilization: 0.28, resetsAt: hoursFromNow(52) },
+        ],
+      },
+      {
+        name: 'demo (codex)', kind: 'codex', plan: 'Pro',
+        windows: [{ label: '7d', utilization: 0.35, resetsAt: hoursFromNow(88) }],
+      },
+    ],
+  };
+}
+
 export async function computePlanWindows(): Promise<PlanWindowsResult> {
+  if (process.env.CHRONICLE_DEMO === '1') return demoPlanWindows();
   const accounts: PlanAccount[] = [];
   // Codex: local, always (never outbound).
   const codex = readCodexAccount();

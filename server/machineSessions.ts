@@ -14,10 +14,12 @@
 // client (transcript wins) — this reader never decides that; it just surfaces
 // the manifest verbatim. Live-read on each request — the log is tiny.
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { aiosRoot } from './demo/paths.ts';
 
-const MANIFEST_PATH = join(homedir(), '.aios', 'machine_sessions.jsonl');
+// Resolved per call: in demo the root points into the seeded demo directory
+// (server/demo/paths.ts), which is only known once CHRONICLE_DATA_DIR is set.
+const manifestPath = (): string => join(aiosRoot(), 'machine_sessions.jsonl');
 
 // Mirrors the cell shape the rest of the pipeline uses (server/windowUsage.ts
 // UsageCells). The manifest's canonical usage has ONE combined cache-write key
@@ -81,7 +83,7 @@ function normalizeUsage(u: ManifestUsage | undefined): MachineUsageCells {
 // cutoffIso (ISO string). Missing file → empty (no throw); malformed lines are
 // skipped; rows with no session_id are skipped (nothing to attribute or dedup
 // on). `path` is injectable for tests; production always uses the default path.
-export function readMachineSessions(cutoffIso: string | null = null, path: string = MANIFEST_PATH): MachineSessionsResult {
+export function readMachineSessions(cutoffIso: string | null = null, path: string = manifestPath()): MachineSessionsResult {
   let text: string;
   try { text = readFileSync(path, 'utf8'); } catch { return { ids: [], sessions: [] }; }
 

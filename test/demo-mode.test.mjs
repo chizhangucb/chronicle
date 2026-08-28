@@ -1,0 +1,114 @@
+// Pins for full-product demo mode (CHI-325 3c, decision D9/D13).
+//
+// The properties that matter, in order:
+//   1. Demo makes NO outbound call. Plan windows are the only outbound path in
+//      Chronicle, and a stranger evaluating the product must not cause a
+//      request to Anthropic. This is a hard requirement, not a nicety.
+//   2. Demo never touches the operator's real data. The data dir is under the
+//      OS temp dir, and ~/.chronicle is neither read nor written.
+//   3. The corpus is deterministic, so a demo screenshot today matches one
+//      taken tomorrow and visual regressions are signal rather than noise.
+//   4. The corpus is deep enough that every surface has something to show.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+
+const { demoSessions, DEMO_DAYS } = await import('../server/demo/corpus.ts');
+const { demoDataDir } = await import('../server/demo/seed.ts');
+const { aiosRoot } = await import('../server/demo/paths.ts');
+
+test('demo mode makes NO outbound call for plan windows', async () => {
+  // The guard is checked before any credential read or fetch. Proven by
+  // replacing global fetch with a throwing stub: if computePlanWindows reaches
+  // the network at all under demo, this fails loudly.
+  const realFetch = globalThis.fetch;
+  const prevDemo = process.env.CHRONICLE_DEMO;
+  globalThis.fetch = () => { throw new Error('demo mode went outbound'); };
+  process.env.CHRONICLE_DEMO = '1';
+  try {
+    const { computePlanWindows } = await import('../server/planWindows.ts');
+    const res = await computePlanWindows();
+    assert.equal(res.accounts.length, 2, 'demo shows a Claude and a Codex account');
+    assert.equal(res.claudeUnauthed, false);
+    assert.ok(res.accounts.every((a) => a.windows.length > 0));
+  } finally {
+    globalThis.fetch = realFetch;
+    if (prevDemo === undefined) delete process.env.CHRONICLE_DEMO;
+    else process.env.CHRONICLE_DEMO = prevDemo;
+  }
+});
+
+test('the demo data dir is under the OS temp dir, never ~/.chronicle', () => {
+  const dir = demoDataDir();
+  assert.ok(dir.startsWith(os.tmpdir()), `demo dir escaped the temp dir: ${dir}`);
+  assert.ok(!dir.includes(path.join(os.homedir(), '.chronicle')), 'demo must never point at the real data dir');
+});
+
+test('the demo data dir is keyed by DAY, so a cached demo cannot go stale', () => {
+  // A cache with no date in the key would keep serving a database whose newest
+  // session ages out of the Today window, which is the exact failure that made
+  // committing dated transcripts the wrong call (D13).
+  const today = demoDataDir(new Date('2026-08-27T12:00:00'));
+  const tomorrow = demoDataDir(new Date('2026-08-28T12:00:00'));
+  assert.notEqual(today, tomorrow);
+  assert.equal(today, demoDataDir(new Date('2026-08-27T23:59:00')));
+});
+
+test('aiosRoot redirects the non-DB readers into the demo dir', () => {
+  // laneC (proxy spend) and machineSessions (automation) are not backed by
+  // chronicle.db, so without this the proxy lane and the automation table would
+  // be empty in demo, or worse, would read the operator's real ~/.aios.
+  const demo = aiosRoot({ CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x' });
+  assert.equal(demo, path.join('/tmp/demo-x', 'aios'));
+  const live = aiosRoot({});
+  assert.equal(live, path.join(os.homedir(), '.aios'));
+  assert.ok(!live.startsWith('/tmp/demo-x'));
+});
+
+test('the corpus is deterministic', () => {
+  const a = demoSessions();
+  const b = demoSessions();
+  assert.equal(a.length, b.length);
+  assert.deepEqual(a.map((s) => s.sessionId), b.map((s) => s.sessionId));
+  assert.deepEqual(a.map((s) => `${s.model}|${s.cwd}|${s.turns}`), b.map((s) => `${s.model}|${s.cwd}|${s.turns}`));
+});
+
+test('the corpus is deep and varied enough for every surface', () => {
+  const specs = demoSessions();
+  assert.ok(specs.length > 100, `expected a substantial corpus, got ${specs.length}`);
+
+  // 90d window and a month-over-month budget projection both need real depth.
+  assert.ok(Math.max(...specs.map((s) => s.daysAgo)) >= DEMO_DAYS - 7);
+  // Today must not be empty, or the default window opens blank.
+  assert.ok(specs.some((s) => s.daysAgo === 0), 'no session lands today');
+
+  // Vendor spread: the [project|provider] toggle and the routing table are flat
+  // without it, and the off-roster row needs a non-roster model.
+  const models = new Set(specs.map((s) => s.model));
+  assert.ok(models.size >= 5, `expected vendor variety, got ${[...models].join(', ')}`);
+  assert.ok(models.has('gpt-5') && models.has('gemini-2.5-pro'), 'needs non-Anthropic vendors');
+  assert.ok(models.has('mistral-large-2'), 'needs an off-roster model for routing compliance');
+
+  // Project spread for the busiest-projects table and the stacked chart.
+  assert.equal(new Set(specs.map((s) => s.cwd)).size, 4);
+
+  // A deliberate spike, so the anomaly tile has a flagged day to point at.
+  const cost = (s) => s.usage.input_tokens + s.usage.output_tokens;
+  const peak = Math.max(...specs.map(cost));
+  const median = specs.map(cost).sort((a, b) => a - b)[Math.floor(specs.length / 2)];
+  assert.ok(peak > median * 4, 'the corpus has no spike, so no day is ever flagged');
+
+  // Quiet days, so "active days" differs from "days" and $/active-day is not
+  // just $/day under another name.
+  const days = new Set(specs.map((s) => s.daysAgo));
+  assert.ok(days.size < DEMO_DAYS, 'every single day is active, so the honesty stats collapse');
+});
+
+test('the corpus is synthetic: no real project names or paths', () => {
+  // chronicle is a PUBLIC repo and the fixture floor is synthetic-only.
+  for (const s of demoSessions()) {
+    assert.ok(s.cwd.startsWith('/demo/'), `demo cwd escaped the synthetic namespace: ${s.cwd}`);
+    assert.ok(!s.cwd.includes(os.homedir()), 'a real home path leaked into the corpus');
+  }
+});
