@@ -2215,10 +2215,23 @@ h4 { margin: 6px 0; }
 .provenance-strip .prov-items { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .provenance-strip .prov-item b { color: var(--ink-2); font-weight: 600; }
 /* Compact needs-you row: every card after the lead one (volume hierarchy). */
-.compact-needs { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.compact-needs {
+  display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; margin-bottom: 8px;
+  /* Collapsing a needs-you card must not DEMOTE it: it keeps the same attention
+     edge the full card carries, so "this needs you" survives the collapse and
+     an FYI row still reads differently at a glance (Chi, 2026-08-28). */
+  border-left: 3px solid var(--attention);
+}
 .compact-needs .cn-title { font: 600 12px var(--mono); color: var(--ink); }
 .compact-needs .cn-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The compact needs-you title links through to /briefing, where the full
    what-happened / what-it-means / what-to-do anatomy lives. */
 .compact-needs .cn-title { color: var(--ink); text-decoration: none; }
 .compact-needs .cn-title:hover { color: var(--brass-text); }
+/* "We cannot say" in the state column: a muted placeholder, never a blank cell.
+   A row with no baseline yet has no honest state word, and an empty cell reads
+   as a rendering bug rather than as an answer. */
+.status-band .tone-unknown { color: var(--ink-3); opacity: 0.5; }
+/* Why a Settings toggle is on but inert. Sits under its description, indented
+   with the description column so it reads as a footnote to that row. */
+.settings-why { display: block; margin-top: 5px; color: var(--attention); }

@@ -33,6 +33,33 @@ test('applyCardAction: done/snooze/reopen; activity survives', () => {
   assert.ok(s.cards.c1.snoozedUntil);
 });
 
+test('reopen overrides a demo baseline state (CHI-325 review)', () => {
+  // The bug: reopen used to DELETE the state entry when there was nothing to
+  // keep. That only works if the operator's state file is the ONLY source of a
+  // card's state, and it is not: withDemoStates layers a demo file's shipped
+  // states UNDERNEATH it. So on a demo console the deleted key let the demo's
+  // "snoozed" reassert itself and Reopen did visibly nothing, forever.
+  //
+  // The prior test only exercised reopen AFTER recordWorkedOn, which took the
+  // other branch and passed throughout.
+  const file = {
+    version: 1, generatedAt: NOW.toISOString(), cadence: 'daily', isDemo: true,
+    cards: [{ id: 'c1', runAt: NOW.toISOString(), kind: 'k', domain: 'safety', needsYou: true, title: 't', summary: 's' }],
+    demoStates: { c1: { state: 'snoozed', at: NOW.toISOString(), snoozedUntil: new Date(NOW.getTime() + 86400000).toISOString() } },
+  };
+  // Baseline: the demo state shows through when the operator has said nothing.
+  assert.equal(b.resolveCards(file, b.withDemoStates(file, { version: 1, cards: {} }), NOW)[0].state, 'snoozed');
+
+  // Reopen with no prior operator entry and nothing to keep: the exact path.
+  const after = b.applyCardAction({ version: 1, cards: {} }, 'c1', 'reopen', NOW);
+  assert.equal(after.cards.c1.state, 'open', 'reopen must write an explicit open entry, not delete the key');
+  assert.ok(after.cards.c1.at, 'reopen records when it happened');
+  assert.equal(
+    b.resolveCards(file, b.withDemoStates(file, after), NOW)[0].state, 'open',
+    'the operator reopening a card must win over the demo baseline',
+  );
+});
+
 test('resolveCards: an expired snooze resolves back to open', () => {
   const file = { version: 1, generatedAt: '', cadence: 'daily', cards: [{ id: 'c1', runAt: NOW.toISOString(), kind: 'k', domain: 'jobs', needsYou: true, title: 't', summary: 's' }] };
   const past = new Date(NOW.getTime() - 86400000).toISOString();

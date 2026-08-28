@@ -36,7 +36,9 @@ export interface BandRow {
   glyph?: ReactNode;
   /** Echo of an open needs-you card on this domain. Never self-originated. */
   flagged?: boolean;
-  /** Quiet right-hand state word. Absent when the row cannot honestly claim one. */
+  /** Quiet right-hand state word. Omit it when the row cannot honestly claim
+   *  one: the band renders a muted placeholder rather than an empty cell, so a
+   *  "we cannot say" reads as deliberate instead of broken (Chi, 2026-08-28). */
   state?: ReactNode;
   tone?: BandTone;
 }
@@ -64,7 +66,9 @@ export function StatusBand({ rows }: { rows: BandRow[] }): JSX.Element {
           <span className="band-primary">{row.primary}</span>
           <span className="band-ctx">{row.context}</span>
           <span className="band-glance">{row.glyph ?? null}</span>
-          <span className={`band-state tone-${row.tone ?? 'neutral'}`}>{row.state ?? null}</span>
+          <span className={`band-state tone-${row.state == null ? 'unknown' : (row.tone ?? 'neutral')}`}>
+            {row.state ?? '-'}
+          </span>
         </Link>
       ))}
     </div>

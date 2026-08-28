@@ -406,6 +406,8 @@ export interface SettingsModalProps {
 }
 
 function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
+  // Read the server's own verdict so the Ask row can explain itself.
+  const { status: askStatus } = useAskStatus();
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
@@ -454,7 +456,23 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
             <label className="settings-row">
               <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />
               <span>{t('Ask (alpha version)')}</span>
-              <span className="muted small">{t('Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.')}</span>
+              <span className="muted small">
+                {t('Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.')}
+                {/* Ask needs the toggle AND the claude CLI AND a non-demo console
+                    (all decided server-side). With the toggle on and one of the
+                    others missing, ticking the box appeared to do nothing at all:
+                    no page, no sidebar item, no explanation (Chi, 2026-08-28).
+                    Say which condition is unmet rather than failing silently. */}
+                {settings.ask === true && askStatus && !askStatus.enabled ? (
+                  <span className="settings-why">
+                    {askStatus.demo
+                      ? t('Not available in demo mode: Ask runs your real claude CLI against your real sessions, so it stays off on a synthetic console.')
+                      : !askStatus.claudePresent
+                        ? t('The claude CLI was not found on your PATH, so the ∴ Ask item stays hidden. Install it and reload.')
+                        : t('Ask is unavailable right now.')}
+                  </span>
+                ) : null}
+              </span>
             </label>
             <ViewLogSettings />
           </div>
