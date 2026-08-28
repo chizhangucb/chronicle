@@ -134,33 +134,40 @@ drag-resizable when expanded. Contents, top to bottom:
 - **⌘J (CHI-351)** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled
   (so the shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
 
-## Page width tiers (`src/styles.css`, CHI-325 review)
+## Page width (`src/styles.css`, CHI-325 review)
 
-Three named tiers, defined once as tokens, replacing seven ad-hoc per-organ
-max-widths (760 / 900 / 1000 / 1100 / 1040 / none) that had accreted as each surface landed. There
-was a principle hiding in those numbers (prose narrow, tables wide, dashboards full) but they did not
-follow it, so the app read as inconsistent rather than considered.
+**ONE width for every non-dashboard surface**, `--page-max` (1200px), defined once.
 
-| Tier | Token | Surfaces |
-|---|---|---|
-| Reading | `--page-read` (880px) | `/briefing`, `/safety` — prose-led, held near a comfortable measure |
-| Table | `--page-table` (1200px) | `/modules`, `/jobs`, `/records`, `/reference` — the job is a wide table |
-| Full | (no token) | `/`, `/projects`, `/memory`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
+This settled in three steps and the history is the rule's justification. Seven ad-hoc per-organ
+values came first (760 / 900 / 1000 / 1100 / 1040 / none), each chosen as its surface landed. A
+two-tier prose-vs-table split came second and still read as inconsistent when moving between pages,
+because the thing you actually notice while navigating is the FRAME jumping width, not the measure
+of the text inside it (Chi, 2026-08-28). So the frame is constant, and readability is solved where
+it belongs: on the TEXT.
 
-A new surface picks a tier; it does not invent a number.
+| | Surfaces |
+|---|---|
+| `--page-max` | `/briefing`, `/safety`, `/modules`, `/jobs`, `/records`, `/reference` |
+| full bleed (no cap) | `/`, `/projects`, `/memory`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
 
-**A surface must FILL its tier** (Chi, 2026-08-28). Two ways this was broken and both are now rules:
+**Prose carries its own `ch` measure cap** so a wide frame never means a 200-character line
+(`.bc-summary`, `.bc-anatomy` at 92ch). This is what lets the frame stay constant.
+
+**A surface must FILL its width.** Two ways this was broken, both now rules:
 
 - **Never reserve space for something that is not there.** `/modules` unconditionally laid its table
   into a `1.4fr | 1fr` split sized for a detail panel, so with no module selected the table sat at
-  58% of the page with dead space beside it and Modules read as narrower than Jobs and Records at the
-  IDENTICAL tier. The split now applies only when a module is selected (`.modules-layout.split`).
-- **When the natural measure is narrower than the tier, add COLUMNS, do not stretch lines.**
-  `/reference` definitions read at ~70ch, well under the table tier, leaving a dead right half.
-  Stretching prose to 1200px would be worse, not better: past ~90ch it gets harder to read. The
-  definition list is a two-column FLOW (`columns: 2`, collapsing to one below 1040px), which fills
-  the width with content and halves the scrolling on what is a lookup surface. A grid was tried
-  first and rejected: it aligns rows, so a tall definition beside a short one leaves ragged gaps.
+  58% of the page with dead space beside it and read as narrower than Jobs and Records at the
+  IDENTICAL width. The split now applies only when a module is selected (`.modules-layout.split`).
+- **When the natural measure is narrower than the frame, add COLUMNS, do not stretch lines.**
+  `/reference` definitions read at ~70ch, leaving a dead right half. Stretching prose to 1200px
+  would be worse, not better. The definition list is a two-column GRID of bounded tiles
+  (`repeat(auto-fill, minmax(400px, 1fr))`), collapsing to one column on its own below ~840px.
+  A column FLOW was tried first and rejected: it packed tightly but nothing lined up across the
+  gutter, so neighbouring entries read as misaligned text. A grid aligns rows by construction, and
+  the uneven heights it produces stop being a defect once each definition is a bounded tile
+  (`--bg2` inset, bordered): cells stretch to a shared row height, which is also what makes one
+  entry clearly distinguishable from the next.
 
 ## Enumerables (exact sets — changing any is a contract edit)
 
