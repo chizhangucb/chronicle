@@ -53,10 +53,16 @@ branch. Each enumerable names the e2e pin that guards it, so the contract is sel
 > CHI-307, plan `plans/2026-08-27-chi-325-merge-phase3-home-reference-demo-viewlog.md`).
 > Decisions D1-D13 were taken with Chi in session on 2026-08-27 and are logged in
 > `records/decisions.jsonl` (2026-08-27, session 4336bf33). The `/` reshape is the one
-> visualization change in this phase and carries the CHI-322 per-viz rule: a rendered
-> screenshot of the new `/` goes to Chi BEFORE the PR merges. **This paragraph is not
-> that sign-off; it records the contract edit. The screenshot approval is separate and
-> is a merge blocker for PR D.**
+> visualization change in this phase and carries the CHI-322 per-viz rule.
+>
+> **Visualization sign-off GRANTED (Chi, 2026-08-28): "they all look good".** Given after
+> five review rounds against the running demo console, not against a mock: collapsed
+> briefing cards keeping the needs-you accent, the status band's state placeholder, the
+> briefing filter + day-grouped history + card age, one page width with prose measure caps,
+> and `/reference` as aligned bounded tiles. Her review also found four defects that the
+> test suite did not: the Sessions row contradicting the Sessions KPI, Reopen being a
+> permanent no-op on a demo console, the Ask toggle failing silently, and `/modules`
+> reserving a column for a panel that was not there. Each is pinned.
 
 ## Routes & surfaces
 
