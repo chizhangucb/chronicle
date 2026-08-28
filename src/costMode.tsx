@@ -62,7 +62,7 @@ export function CostModeToggle(): JSX.Element {
         aria-pressed={mode === 'real'} onClick={() => setMode('real')}>
         {t('Billed')}
       </button>
-      <InfoTip text={t('List price shows the metered list-price cost of every token (what an API caller would pay). Billed shows what you actually pay: models covered by your subscription (Claude tiers, gpt-5.6 / Codex) bill ~$0 under the plan, so their billed cost is 0.')} />
+      <InfoTip def="spend.cost-basis" />
     </div>
   );
 }

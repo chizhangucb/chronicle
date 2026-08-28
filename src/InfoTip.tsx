@@ -1,8 +1,27 @@
 import React, { useCallback, useRef, useState, type JSX } from 'react';
 import * as Popover from '@radix-ui/react-popover';
+import { Link } from 'wouter';
+import { getDefinition, type DefVars } from './reference/definitions.js';
+import { t } from './i18n.js';
 
 export interface InfoTipProps {
-  text: string;
+  /**
+   * Registry id (CHI-325 3b). The PREFERRED form: the tip's wording lives in
+   * src/reference/definitions.ts, which /reference renders from the same
+   * source, so the page and the console cannot drift apart. The bubble also
+   * grows a "full definition" link to the term's own anchor.
+   */
+  def?: string;
+  /** Live values for a definition that quotes one (see DefContext). */
+  vars?: DefVars;
+  /**
+   * Raw text. The NARROW escape hatch, for tooltips whose content is runtime
+   * DATA rather than a definition and so can never be a registry entry: the
+   * proxy-lane tile's per-model breakdown, and the Content tab's
+   * server-supplied per-characteristic wording. Everything else must use
+   * `def` (test/reference-registry.test.mjs enforces the allowlist).
+   */
+  text?: string;
 }
 
 // Shared "ⓘ" stat-explainer affordance (Radix Popover), opened on hover or
@@ -46,7 +65,16 @@ export interface InfoTipProps {
 // `.info-bubble`'s own animated `transform` on the INNER element means the
 // two transforms compose on separate nodes instead of fighting over the
 // same property.
-export default function InfoTip({ text }: InfoTipProps): JSX.Element {
+export default function InfoTip({ def, vars, text }: InfoTipProps): JSX.Element {
+  // A `def` resolves from the registry and wins; `text` is the escape hatch.
+  // An unknown id renders nothing rather than the raw id: a missing definition
+  // is a build-time mistake the registry test catches, not something a reader
+  // should ever be shown.
+  const definition = def ? getDefinition(def) : undefined;
+  const body = definition
+    ? [t(definition.plain({ vars })), definition.good ? `${t('Good looks like')}: ${t(definition.good({ vars }))}` : null]
+        .filter(Boolean).join(' ')
+    : (text ?? '');
   const [open, setOpen] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -90,7 +118,7 @@ export default function InfoTip({ text }: InfoTipProps): JSX.Element {
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
-          type="button" className="info-tip" aria-label={text}
+          type="button" className="info-tip" aria-label={body}
           onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
           onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
         >ⓘ</button>
@@ -104,12 +132,25 @@ export default function InfoTip({ text }: InfoTipProps): JSX.Element {
             (a real "mixed open-state" trap: two independent triggers,
             hover/focus vs Radix's internal focus management, fighting over
             the same `open` state). */}
+        {/* The bubble keeps itself open while the pointer is INSIDE it. Without
+            this the trigger's own onMouseLeave fires the moment the pointer
+            crosses into the bubble, so the "full definition" link added in
+            CHI-325 3b could never be clicked. Closing on the bubble's own
+            mouseleave preserves the stuck-open invariant that
+            test/e2e/infotip.spec.ts pins. */}
         <Popover.Content side="bottom" sideOffset={7} align="center"
           avoidCollisions={false}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}>
           <div ref={clampRef}>
-            <div className="info-bubble">{text}</div>
+            <div className="info-bubble">
+              {body}
+              {definition ? (
+                <Link className="info-more" href={`/reference#def-${definition.id}`}>{t('full definition')} →</Link>
+              ) : null}
+            </div>
           </div>
         </Popover.Content>
       </Popover.Portal>

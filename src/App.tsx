@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation, useRoute, useSearch } from 'wouter';
+import { Link, useLocation, useRoute, useSearch } from 'wouter';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Toast from '@radix-ui/react-toast';
 import { api, type Settings, type ViewLogSummary } from './api.js';
@@ -16,6 +16,7 @@ import BriefingPage from './BriefingPage.tsx';
 import MemoryPage from './MemoryPage.tsx';
 import RecordsPage from './RecordsPage.tsx';
 import AskPage from './AskPage.tsx';
+import ReferencePage from './ReferencePage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
 import { useAskStatus } from './useAskStatus.ts';
 import { useViewLog } from './useViewLog.ts';
@@ -81,6 +82,9 @@ export default function App() {
   const [atMemory] = useRoute('/memory');
   const [atRecords] = useRoute('/records');
   const [atAsk] = useRoute('/ask');
+  // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
+  // stock public install with no hub still has it.
+  const [atReference] = useRoute('/reference');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
   const { status: askStatus, refresh: refreshAsk } = useAskStatus();
@@ -278,6 +282,9 @@ export default function App() {
               <div className="sb-sep" />
             </>
           )}
+          <Link className={`sb-item util ${atReference ? 'on' : ''}`} href="/reference" title={t('Reference')}>
+            <span className="sb-icon">※</span><span className="sb-label">{t('Reference')}</span>
+          </Link>
           <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
             <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
           </button>
@@ -349,6 +356,7 @@ export default function App() {
         {atBriefing && <BriefingPage />}
         {atMemory && <MemoryPage />}
         {atRecords && <RecordsPage />}
+        {atReference && <ReferencePage />}
         {atAsk && (askEnabled
           ? <AskPage />
           : <div className="page center muted">{t('Ask is not available. Enable it in Settings (requires the claude CLI).')}</div>)}

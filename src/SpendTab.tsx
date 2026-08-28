@@ -137,7 +137,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   return (
     <div className="card budget-band">
       <div className="bb-head">
-        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')} <InfoTip text={t('The budget is always the current calendar month, independent of the window toggle above. Month-to-date, projection, and the pace / peak-day / per-active-day stats are all for this month.')} /></span>
+        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')} <InfoTip def="spend.budget" /></span>
         {!editing && (
           <button type="button" className="edit-aff" onClick={() => { setDraft(budget ? String(budget) : ''); setEditing(true); }}>✎ {t('edit')}</button>
         )}
@@ -401,7 +401,7 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
 
       <div className="eff-cols">
         <div>
-          <div className="eff-sub">— {t('waste signals · estimates')} <InfoTip text={t('List-price estimates of avoidable spend, not a bill. Right-sizing and cache-churn are heuristics; they cannot know whether a small premium reply needed frontier reasoning.')} /></div>
+          <div className="eff-sub">— {t('waste signals · estimates')} <InfoTip def="spend.waste" /></div>
           {wasteRows ? (
             <>
               <div className="waste-row"><span className="eff-n">{t('Right-sizing')}</span><span className="eff-v">≈{fmtMoney(wasteRows.rsSavings, 2)}</span><span className="muted small">{fmtInt(wasteRows.rsMessages)} {t('premium small turns')}</span></div>
@@ -458,7 +458,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
   return (
     <div className="grid2b">
       <div className="card">
-        <h3>{t('Priced skills')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip text={t('Calibrated estimate: a turn’s spend is attributed to the skills and slash-commands it invoked, so a command that mostly sets up an expensive turn (e.g. /model) can carry a large figure. Read it as exposure, not a partition of spend.')} /></h3>
+        <h3>{t('Priced skills')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip def="spend.priced-skills" /></h3>
         <table className="tbl">
           <thead>
             <tr>
@@ -494,7 +494,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
               <th style={{ textAlign: 'left' }}>{t('Server')}</th>
               <th>{t('Calls')}</th>
               <th>{t('Tokens')}</th>
-              <th className="sort-on"><InfoTip text={t('EXPOSURE, not the server’s own cost (MCP servers are free). It is the summed spend of the turns that used this server; a turn touching several servers is counted in each, so these do not sum to the day total.')} /> {t('Turn $')}<SortCaret on /></th>
+              <th className="sort-on"><InfoTip def="spend.mcp-exposure" /> {t('Turn $')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>

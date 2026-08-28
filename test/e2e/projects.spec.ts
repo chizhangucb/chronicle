@@ -27,6 +27,7 @@
 // "Projects" section BELOW the ledger (ledger stays first, D1/D13).
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
+import { getDefinition } from '../../src/reference/definitions.ts';
 
 const state = readSeedState();
 
@@ -136,7 +137,9 @@ test('minor-sessions notice sits at the top of the ledger with a definition Info
   // Definition InfoTip present, and it states the AND semantics.
   const tip = notice.locator('button.info-tip');
   await expect(tip).toBeVisible();
-  expect(await tip.getAttribute('aria-label')).toMatch(/BOTH|AND/);
+  // The AND semantics are the point of the definition (small on BOTH axes), and
+  // it now lives in the registry, so assert against that rather than a copy.
+  expect(await tip.getAttribute('aria-label')).toContain(getDefinition('sessions.minor')!.plain({}));
 
   // The notice is ABOVE the day groups — top of the ledger, not a bottom section.
   const noticeBox = await notice.boundingBox();

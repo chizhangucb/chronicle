@@ -279,46 +279,46 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   return (
     <div className="kpis">
       <div className="kpi">
-        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip text={t('Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Total includes automation spend, broken out below. Toggle List price vs Billed in the topbar.')} /></div>
+        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
         <div className="s" title={`${t('interactive')} ${fmtMoney(kpis.interactiveSpend, 2)} · ${t('automation')} ${fmtMoney(auto.automationCost, 2)} (${autoByJobText})`}>
           {t('incl.')} {fmtMoney(auto.automationCost, auto.automationCost < 1 ? 2 : 0)} {t('automation')}
         </div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Sessions')} <InfoTip text={t('Interactive sessions only. Headless automation runs (weekly/nightly/session-close/spend-advice) are counted separately as automation, not here. A manifest session whose transcript is also imported is counted once, as automation.')} /></div>
+        <div className="l">{t('Sessions')} <InfoTip def="overview.sessions" /></div>
         <div className="v">{kpis.sessionCount}</div>
         <div className="s" title={`${t('automation by job')}: ${autoByJobText}`}>
           {kpis.projectCount} {t('projects')} · {auto.automationSessionCount} {t('automation excluded')}
         </div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
+        <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
         <div className="v">{fmtTok(kpis.tokens)}</div>
         <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
+        <div className="l">{t('Agent active')} <InfoTip def="overview.agent-active" /></div>
         <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
         <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Your engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.')} /></div>
+        <div className="l">{t('Your engaged')} <InfoTip def="overview.engaged" /></div>
         <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
         <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tool calls')} <InfoTip text={t('Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.')} /></div>
+        <div className="l">{t('Tool calls')} <InfoTip def="overview.tool-calls" /></div>
         <div className="v">{fmtCount(kpis.toolCalls)}</div>
         <div className="s">{kpis.topTool ? `${kpis.topTool}-${t('heavy')}` : '—'}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Error rate')} <InfoTip text={t('Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.')} /></div>
+        <div className="l">{t('Error rate')} <InfoTip def="overview.error-rate" /></div>
         <div className="v">{kpis.errorRate.toFixed(1)}<span className="u">%</span></div>
         <div className="s">{result.errors} {t('errors')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Commits')} <InfoTip text={t('Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.')} /></div>
+        <div className="l">{t('Commits')} <InfoTip def="overview.commits" /></div>
         <div className="v">{kpis.commits}</div>
         <div className="s">{t('linked')}</div>
       </div>
@@ -439,7 +439,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     <div className={`card burn-card ${hot ? 'warn' : ''}`}>
       <div className="burn-head">
         <span className="eyebrow">{t('Spend anomaly')}</span>
-        <InfoTip text={t('Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period of equal length). Over 2× the baseline is flagged. The movers are the top project and model by spend in this window.')} />
+        <InfoTip def="overview.anomaly" />
       </div>
       <div className="burn-row">
         <div className="burn-now">
@@ -625,8 +625,8 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               <th>{t('Cache Read')}</th>
               <th>{t('Cache Write')} <span className="ttl-tag">5m</span></th>
               <th>{t('Cache Write')} <span className="ttl-tag">1h</span></th>
-              <th>{t('Hit rate')} <InfoTip text={t('Cache read ÷ (cache read + input): the share of prompt-side tokens served from cache instead of re-sent at full input price. Higher = cheaper turns.')} /></th>
-              <th>{t('Msgs')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></th>
+              <th>{t('Hit rate')} <InfoTip def="overview.cache-hit" /></th>
+              <th>{t('Msgs')} <InfoTip def="overview.messages" /></th>
               <th className="sort-on">{t('Cost')}<SortCaret on /></th>
             </tr>
           </thead>

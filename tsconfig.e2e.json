@@ -13,5 +13,10 @@
     "types": ["node", "@playwright/test"],
     "tsBuildInfoFile": "./node_modules/.cache/tsc/e2e.tsbuildinfo"
   },
-  "include": ["playwright.config.ts", "test/e2e/**/*.ts"]
+  // src/reference/definitions.ts is included so specs can assert against the
+  // CANONICAL definition text instead of copying it (CHI-325 3b). Copying is
+  // exactly the drift the registry exists to remove, and a spec is just as
+  // capable of drifting as a page. It is a dependency-free data module, so
+  // pulling it in costs the e2e project nothing else.
+  "include": ["playwright.config.ts", "test/e2e/**/*.ts", "src/reference/definitions.ts"]
 }
