@@ -2010,21 +2010,67 @@ h4 { margin: 6px 0; }
 .bc-spacer { flex: 1; }
 
 /* ---- Memory ops surface / V2 Nebula (CHI-323 3e) ---- */
-.memory-page { max-width: none; display: flex; flex-direction: column; height: 100%; padding: 20px 24px; }
+/* A normal scrolling column now that lanes live below the canvas (CHI-385
+   parity). It was a single flex-fill canvas stage; keeping flex:1 here made
+   .memory-layout shrink under the lanes and the canvas overflowed over them. */
+.memory-page { max-width: none; padding: 20px 24px; }
 .memory-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .memory-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .memory-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-2); }
 .memory-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); flex: 1; min-height: 0; }
+.memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); }
 @media (min-width: 900px) { .memory-layout { grid-template-columns: minmax(0, 1fr) 260px; } }
-.memory-canvas-wrap { position: relative; min-height: 480px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
+/* A fixed-height canvas stage (definite height so the absolute .memory-graph-canvas
+   fills it, CHI-385); the lanes flow below and the page scrolls. */
+.memory-canvas-wrap { position: relative; height: 68vh; min-height: 460px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
 /* The graph root fills its frame by absolute inset, NOT height:100%. The wrap
    gets its height from grid stretch and has no definite `height` property, so a
    percentage height would resolve to 0 and ForceGraph3D would draw a zero-height
    canvas (CHI-385). Absolute inset-0 against the position:relative wrap sidesteps
    the percentage-height chain entirely. */
 .memory-graph-canvas { position: absolute; inset: 0; overflow: hidden; }
-.memory-side { display: flex; flex-direction: column; gap: 16px; }
+.memory-side { display: flex; flex-direction: column; gap: 16px; align-self: start; }
+
+/* Memory analytics lanes (CHI-385 parity): the four metric cards + notes
+   browser below the canvas. Built on the shared .card / .rank / .tbl
+   primitives; only the in-card headline, the growth mini-bars, and the
+   browser controls need bespoke rules. */
+.memory-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.mem-metrics { font: 12px var(--mono); color: var(--ink-2); margin: 2px 0 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.mem-metrics .num { color: var(--ink); }
+.mem-group { display: flex; align-items: center; gap: 10px; margin: 20px 0 10px; }
+.mem-group .eyebrow { margin: 0; }
+.mem-group .rule { flex: 1; height: 1px; background: var(--border); }
+.mem-group .gmeta { font: 10.5px var(--mono); color: var(--ink-3); letter-spacing: 0.04em; }
+.mem-lanes { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); }
+@media (min-width: 1000px) { .mem-lanes { grid-template-columns: 1fr 1fr; } }
+.lane-big { font: 600 26px/1.1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.lane-big .u { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+.lane-big .sub { font: 12px var(--mono); font-weight: 400; color: var(--ink-2); }
+.lane-foot { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
+.lane-foot .warn { color: var(--warn); }
+.lane-see { background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); cursor: pointer; padding: 8px 0 0; text-align: left; }
+.lane-see:hover { color: var(--ink); }
+.lane-blockhead { font: 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.lane-path { color: var(--ink-3); margin-left: 6px; font-size: 11px; }
+.lane-delta { color: var(--ok); margin-left: 6px; font-size: 11px; }
+.lane-delta.down { color: var(--danger); }
+.growth-bars { display: flex; align-items: flex-end; gap: 1px; height: 46px; margin: 10px 0 2px; }
+.growth-bars i { flex: 1; min-width: 2px; background: var(--brass); border-radius: 2px 2px 0 0; }
+.growth-bars i.zero { background: var(--bg2); height: 2px !important; align-self: flex-end; }
+
+/* Notes browser: preset segments + filter + kind chips over a scrolling table. */
+.nb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.nb-seg { display: inline-flex; gap: 2px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+.nb-seg button { background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); padding: 4px 9px; border-radius: 4px; cursor: pointer; }
+.nb-seg button.on { background: var(--bg0); color: var(--ink); }
+.nb-filter { flex: 1 1 200px; min-width: 160px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); font: 12px var(--mono); padding: 5px 9px; }
+.nb-filter:focus { outline: none; border-color: var(--border-strong); }
+.nb-kinds { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.nb-kinds button { background: var(--bg2); border: 1px solid var(--border); color: var(--ink-3); font: 10.5px var(--mono); padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.nb-kinds button.on { background: var(--bg0); color: var(--ink); border-color: var(--border-strong); }
+.nb-scroll { max-height: 420px; overflow-y: auto; }
+.nb-scroll .tbl thead th { position: sticky; top: 0; background: var(--bg1); z-index: 1; }
 .memory-inspector { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
 .memory-node-name { font-weight: 600; color: var(--ink); }
 .memory-node-path { font-family: var(--mono); font-size: 11px; word-break: break-all; margin: 4px 0; }

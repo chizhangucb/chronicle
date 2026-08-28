@@ -3,6 +3,9 @@ import { api, type HubMemoryResult, type MemorySliceView } from './api.js';
 import type { MemoryNode } from './components/memory/types.ts';
 import { MEMORY_REGISTER, clusterColors, CLUSTER_PALETTE } from './components/memory/register.ts';
 import { ScopePanel } from './components/memory/ScopePanel.tsx';
+import { MemoryMetrics, MemoryAnalytics, type NoteRef } from './components/memory/MemoryLanes.tsx';
+import { scopeLine } from './components/memory/lanes.ts';
+import RangeBar, { type RangeKey } from './RangeBar.tsx';
 import type { GateProposal } from './gate/gate.ts';
 import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import { formatRelativeTime } from './relativeTime.js';
@@ -19,6 +22,7 @@ export default function MemoryPage() {
   const [data, setData] = useState<HubMemoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<MemoryNode | null>(null);
+  const [range, setRange] = useState<RangeKey>('30d');
   const [scopePanelOpen, setScopePanelOpen] = useState(false);
   const [proposal, setProposal] = useState<GateProposal | null>(null);
   const reducedMotion = useMemo(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
@@ -47,6 +51,19 @@ export default function MemoryPage() {
     try { await api.openFile(node.path); } catch (e) { setError(String((e as Error).message)); }
   }
 
+  // A lane/browser row resolves to the same inspect panel as a canvas click.
+  // Prefer the real node (it carries tier + mtime); synthesize a minimal one
+  // only when the row names something not in the graph payload.
+  function inspect(ref: NoteRef) {
+    let node = ref.id ? slice!.nodes.find((n) => n.id === ref.id) : undefined;
+    if (!node && ref.path) node = slice!.nodes.find((n) => n.path === ref.path);
+    setSelected(node ?? {
+      id: ref.id ?? ref.path ?? ref.name, name: ref.name, kind: ref.kind ?? 'note',
+      tier: 'living', val: 0, color: '#5d655f', path: ref.path,
+    });
+  }
+
+  const scope = scopeLine(slice);
   const clusters = new Map<string, number>();
   for (const c of clusterMap.values()) clusters.set(c, (clusters.get(c) ?? 0) + 1);
   const topClusters = [...clusters.entries()].filter(([c]) => CLUSTER_PALETTE.includes(c)).sort((a, b) => b[1] - a[1]).slice(0, 8);
@@ -56,15 +73,21 @@ export default function MemoryPage() {
       <div className="memory-head">
         <div>
           <div className="eyebrow">{t('Memory')}</div>
-          <p className="muted small">
-            {slice!.stats.totalNotes} {t('notes')} · {slice!.stats.totalLinks} {t('links')} · {slice!.stats.living} {t('living')} · {slice!.stats.historical} {t('historical')}
-          </p>
+          <MemoryMetrics slice={slice!} />
+          <div className="muted small" data-scope-line>
+            {t('measuring')} <span className="num">{scope.living}</span> {t('living notes')}
+            {scope.dirNames.length ? <> {t('across')} <span className="num">{scope.dirNames.join(', ')}</span>{scope.more > 0 ? `, +${scope.more} ${t('more')}` : ''}</> : null}
+            {' · '}<span className="num">{slice!.stats.historical}</span> {t('records')}
+          </div>
         </div>
-        <div className="memory-legend">
-          {topClusters.map(([color, n]) => (
-            <span key={color} className="memory-legend-item"><span className="memory-swatch" style={{ background: color }} />{n}</span>
-          ))}
-          <span className="muted small">{t('communities')}</span>
+        <div className="memory-head-right">
+          <RangeBar value={range} onChange={setRange} />
+          <div className="memory-legend">
+            {topClusters.map(([color, n]) => (
+              <span key={color} className="memory-legend-item"><span className="memory-swatch" style={{ background: color }} />{n}</span>
+            ))}
+            <span className="muted small">{t('communities')}</span>
+          </div>
         </div>
       </div>
       {error && <p className="gate-error">{error}</p>}
@@ -108,6 +131,8 @@ export default function MemoryPage() {
           </div>
         </aside>
       </div>
+
+      <MemoryAnalytics slice={slice!} range={range} onInspect={inspect} />
 
       {scopePanelOpen && (
         <ScopePanel
