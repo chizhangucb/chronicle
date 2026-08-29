@@ -342,6 +342,36 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'Only titles and paths reach the browser, and confidential trees are pruned server-side before the graph is built. Note bodies are never sent.',
   },
   {
+    id: 'memory.touches',
+    page: 'memory',
+    title: 'Touches and usage',
+    plain: () => 'A touch is one deterministic use of a note in the window, from three channels: a session transcript that reads it, a wikilink that points at it, and a briefing that cites it. Knowledge nobody reads is storage, not memory.',
+  },
+  {
+    id: 'memory.growth',
+    page: 'memory',
+    title: 'Growth and births',
+    plain: () => 'A birth is a living note created in the window, read from the file birth time; records and machine output never count. The living base is the current total, and deletions accrue once two scans exist to diff.',
+  },
+  {
+    id: 'memory.notes-browser',
+    page: 'memory',
+    title: 'The notes browser',
+    plain: () => 'One searchable list of the notes behind the lanes, filtered by preset (touched, most connected, or orphaned) and by kind. A row opens the same inspect panel as clicking the node on the canvas.',
+  },
+  {
+    id: 'memory.lenses',
+    page: 'memory',
+    title: 'Canvas lenses',
+    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected window and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
+  },
+  {
+    id: 'memory.full-lite',
+    page: 'memory',
+    title: 'Full vs Lite',
+    plain: () => 'Full draws every node and link. Lite caps the draw to the most-connected notes so a very large graph stays at frame rate; nothing is deleted, only fewer are drawn, and the caption says how many.',
+  },
+  {
     id: 'safety.gate',
     page: 'safety',
     title: 'The egress gate',

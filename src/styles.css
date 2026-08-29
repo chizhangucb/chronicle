@@ -1911,6 +1911,7 @@ h4 { margin: 6px 0; }
 .records-idcopy.copied .records-copyhint { color: var(--ok, #2e7d52); }
 .records-focus { color: var(--ink-2); }
 .records-more { margin-top: 14px; }
+.records-more-sentinel { padding: 14px 0 22px; text-align: center; }
 
 /* ---- Safety ops surface (CHI-323 3d) ---- */
 .safety-page { max-width: var(--page-max); }
@@ -2010,15 +2011,129 @@ h4 { margin: 6px 0; }
 .bc-spacer { flex: 1; }
 
 /* ---- Memory ops surface / V2 Nebula (CHI-323 3e) ---- */
-.memory-page { max-width: none; display: flex; flex-direction: column; height: 100%; padding: 20px 24px; }
+/* A normal scrolling column now that lanes live below the canvas (CHI-385
+   parity). It was a single flex-fill canvas stage; keeping flex:1 here made
+   .memory-layout shrink under the lanes and the canvas overflowed over them. */
+.memory-page { max-width: none; padding: 20px 24px; }
 .memory-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .memory-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .memory-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-2); }
 .memory-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); flex: 1; min-height: 0; }
+.memory-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); }
 @media (min-width: 900px) { .memory-layout { grid-template-columns: minmax(0, 1fr) 260px; } }
-.memory-canvas-wrap { position: relative; min-height: 480px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
-.memory-side { display: flex; flex-direction: column; gap: 16px; }
+/* A fixed-height canvas stage (definite height so the absolute .memory-graph-canvas
+   fills it, CHI-385); the lanes flow below and the page scrolls. */
+.memory-canvas-wrap { position: relative; height: 68vh; min-height: 460px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #111312; }
+/* The graph root fills its frame by absolute inset, NOT height:100%. The wrap
+   gets its height from grid stretch and has no definite `height` property, so a
+   percentage height would resolve to 0 and ForceGraph3D would draw a zero-height
+   canvas (CHI-385). Absolute inset-0 against the position:relative wrap sidesteps
+   the percentage-height chain entirely. */
+.memory-graph-canvas { position: absolute; inset: 0; overflow: hidden; }
+.memory-side { display: flex; flex-direction: column; gap: 16px; align-self: start; }
+
+/* Memory analytics lanes (CHI-385 parity): the four metric cards + notes
+   browser below the canvas. Built on the shared .card / .rank / .tbl
+   primitives; only the in-card headline, the growth mini-bars, and the
+   browser controls need bespoke rules. */
+.memory-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+/* Match the shared Chronicle range bar (the base .rangebar has no page-neutral
+   styling; each page scopes its own, so mirror the Insights one here). */
+.memory-page .rangebar { display: flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 4px; padding: 2px; width: max-content; }
+.memory-page .rangebar button { font: 12px var(--mono); background: none; border: 0; border-radius: 3px; color: var(--ink-3); padding: 4px 12px; cursor: pointer; }
+.memory-page .rangebar button.on { background: var(--bg2); color: var(--brass-text); }
+.mem-metrics { font: 12px var(--mono); color: var(--ink-2); margin: 2px 0 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.mem-metrics .num { color: var(--ink); }
+.mem-group { display: flex; align-items: center; gap: 10px; margin: 20px 0 10px; }
+.mem-group .eyebrow { margin: 0; }
+.mem-group .rule { flex: 1; height: 1px; background: var(--border); }
+.mem-group .gmeta { font: 10.5px var(--mono); color: var(--ink-3); letter-spacing: 0.04em; }
+.mem-lanes { display: grid; grid-template-columns: 1fr; gap: var(--gap-3); }
+@media (min-width: 1000px) { .mem-lanes { grid-template-columns: 1fr 1fr; } }
+/* The three health lanes (Usage / Freshness / Connectivity) sit 3-up at width
+   (Growth was demoted into the verdict line). */
+@media (min-width: 1080px) { .mem-lanes.mem-lanes-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* The one-line health verdict: freshness + the three repair counts jump to
+   their browser worklist. */
+.mem-verdict { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 5px; font: 12px var(--mono); color: var(--ink-2); }
+.mem-verdict-stat { background: none; border: 0; padding: 0; font: inherit; color: var(--ink-2); }
+button.mem-verdict-stat { cursor: pointer; }
+button.mem-verdict-stat:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.mem-verdict-stat.warn { color: var(--warn); }
+.mem-verdict-stat .num { color: var(--ink); }
+.mem-verdict-stat.warn .num { color: var(--warn); }
+.lane-inline-see { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.lane-inline-see:hover { filter: brightness(1.2); }
+.lane-big { font: 600 26px/1.1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.lane-big .u { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+.lane-big .sub { font: 12px var(--mono); font-weight: 400; color: var(--ink-2); }
+.lane-foot { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
+.lane-foot .warn { color: var(--warn); }
+.lane-see { display: block; background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); cursor: pointer; padding: 8px 0 0; text-align: left; }
+.lane-see:hover { color: var(--ink); }
+/* Lane / browser card head: flush title + info tip, meta pushed right, so the
+   info icon never crowds the meta and the meta never crowds the title. */
+.mem-lane-head { display: flex; align-items: center; gap: 7px; }
+.mem-lane-head .lbl { margin-left: auto; padding-left: 10px; text-transform: none; color: var(--ink-3); white-space: nowrap; }
+/* Memory tables fit their column and truncate: a long path suffix or a
+   malformed dead-link target must never widen the table into a horizontal
+   scroll (CHI-385 review). Fixed layout + ellipsis on both cells. */
+.mem-tbl { table-layout: fixed; }
+.mem-tbl td:first-child, .mem-tbl th:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mem-tbl td:last-child, .mem-tbl th:last-child { width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.mem-tbl.mem-tbl-wide td:last-child, .mem-tbl.mem-tbl-wide th:last-child { width: 150px; }
+.lane-blockhead { font: 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.lane-path { color: var(--ink-3); margin-left: 6px; font-size: 11px; }
+.lane-delta { color: var(--ok); margin-left: 6px; font-size: 11px; }
+.lane-delta.down { color: var(--danger); }
+.growth-bars { display: flex; align-items: flex-end; gap: 1px; height: 46px; margin: 10px 0 2px; }
+.growth-bars i { flex: 1; min-width: 2px; background: var(--brass); border-radius: 2px 2px 0 0; }
+.growth-bars i.zero { background: var(--bg2); height: 2px !important; align-self: flex-end; }
+
+/* Notes browser: preset segments + filter + kind chips over a scrolling table. */
+.nb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.nb-seg { display: inline-flex; gap: 2px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+.nb-seg button { background: none; border: 0; color: var(--ink-3); font: 11px var(--mono); padding: 4px 9px; border-radius: 4px; cursor: pointer; }
+.nb-seg button.on { background: var(--bg0); color: var(--ink); }
+.nb-filter { flex: 1 1 200px; min-width: 160px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); font: 12px var(--mono); padding: 5px 9px; }
+.nb-filter:focus { outline: none; border-color: var(--border-strong); }
+.nb-kinds { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.nb-kinds button { background: var(--bg2); border: 1px solid var(--border); color: var(--ink-3); font: 10.5px var(--mono); padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.nb-kinds button.on { background: var(--bg0); color: var(--ink); border-color: var(--border-strong); }
+.nb-scroll { max-height: 420px; overflow-y: auto; overflow-x: hidden; }
+.nb-scroll .tbl thead th { position: sticky; top: 0; background: var(--bg1); z-index: 1; }
+
+/* Canvas chrome (CHI-385 parity): translucent floating controls over the graph,
+   plus the kind legend strip under it. The wrap clips them (overflow:hidden). */
+.mem-canvas-cap { position: absolute; top: 10px; left: 14px; z-index: 10; font: 10.5px var(--mono); color: rgba(200,208,202,0.5); letter-spacing: 0.04em; pointer-events: none; }
+.mem-canvas-ctl { position: absolute; top: 10px; right: 12px; z-index: 10; display: flex; align-items: center; gap: 4px; }
+.mem-ghost-btn { background: rgba(22,25,23,0.55); border: 1px solid rgba(169,178,170,0.18); color: rgba(200,208,202,0.72); font: 10.5px var(--mono); padding: 3px 8px; border-radius: 5px; cursor: pointer; letter-spacing: 0.03em; }
+.mem-ghost-btn:hover { color: #f0f3f0; border-color: rgba(169,178,170,0.4); background: rgba(22,25,23,0.9); }
+.mem-ghost-btn.on { color: #f0f3f0; background: rgba(22,25,23,0.96); border-color: var(--brass); }
+.mem-ghost-sep { width: 1px; height: 15px; background: rgba(169,178,170,0.2); margin: 0 2px; }
+.mem-ghost-group { display: inline-flex; }
+.mem-ghost-group .mem-ghost-btn { border-radius: 0; }
+.mem-ghost-group .mem-ghost-btn:first-child { border-radius: 5px 0 0 5px; }
+.mem-ghost-group .mem-ghost-btn:last-child { border-radius: 0 5px 5px 0; }
+/* Overlap the shared edge by 1px so borders collapse, and lift the active
+   button so its full brass outline draws over the neighbour (not a broken box). */
+.mem-ghost-group .mem-ghost-btn + .mem-ghost-btn { margin-left: -1px; }
+.mem-ghost-group .mem-ghost-btn.on { position: relative; z-index: 1; }
+.mem-links { position: absolute; right: 12px; bottom: 10px; z-index: 10; display: flex; align-items: center; gap: 6px; opacity: 0.5; transition: opacity 0.15s; }
+.mem-links:hover { opacity: 1; }
+.mem-links label { font: 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(200,208,202,0.72); }
+.mem-links input { width: 96px; accent-color: var(--brass); }
+.mem-legend { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mem-legend-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mem-legend-tier { font: 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); width: 56px; flex: none; }
+.mem-legend-chip { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; cursor: pointer; font: 11px var(--mono); color: var(--ink-2); }
+.mem-legend-chip:hover { color: var(--ink); }
+.mem-legend-chip.on { border-color: var(--border-strong); color: var(--ink); background: var(--bg2); }
+.mem-legend-chip.off { opacity: 0.4; }
+.mem-legend-chip .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.mem-legend-chip .ct { color: var(--ink-3); }
+.mem-inspect-facts { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+.mem-inspect-facts .num { color: var(--ink); }
 .memory-inspector { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
 .memory-node-name { font-weight: 600; color: var(--ink); }
 .memory-node-path { font-family: var(--mono); font-size: 11px; word-break: break-all; margin: 4px 0; }

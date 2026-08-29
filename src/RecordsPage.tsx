@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type HubRecordsResult, type RecordsLedgerRowView } from './api.js';
 import { t } from './i18n.js';
 
@@ -14,6 +14,9 @@ export default function RecordsPage() {
   const [query, setQuery] = useState('');
   const [repo, setRepo] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -22,6 +25,20 @@ export default function RecordsPage() {
       .catch((e) => { if (alive) setError(String((e as Error).message)); });
     return () => { alive = false; };
   }, []);
+
+  // Infinite scroll: extend the visible window when the sentinel nears view,
+  // instead of a click-to-extend button. Root is the .page scroll container
+  // (the window does not scroll here); moreRef gates it so it stops at the end.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    const root = pageRef.current;
+    if (!el || !root) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && moreRef.current > 0) setShown((n) => n + PAGE);
+    }, { root, rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [data]);
 
   const rows = data && !('hubPresent' in data) ? data.ledger.rows : [];
   const repos = useMemo(() => {
@@ -47,9 +64,10 @@ export default function RecordsPage() {
 
   const visible = filtered.slice(0, shown);
   const more = filtered.length - visible.length;
+  moreRef.current = more;
 
   return (
-    <div className="page records-page">
+    <div className="page records-page" ref={pageRef}>
       <div className="eyebrow">{t('Records')}</div>
 
       {/* Record-type switcher (phase 2 ships only the Sessions type). */}
@@ -93,9 +111,9 @@ export default function RecordsPage() {
       )}
 
       {more > 0 && (
-        <button className="window-btn records-more" onClick={() => setShown((n) => n + PAGE)}>
-          {t('Show')} {Math.min(PAGE, more)} {t('more')} · {more} {t('remaining')}
-        </button>
+        <div className="records-more-sentinel" ref={sentinelRef} aria-hidden="true">
+          <span className="muted small">{t('Loading')} {Math.min(PAGE, more)} {t('more')} · {more} {t('remaining')}</span>
+        </div>
       )}
     </div>
   );

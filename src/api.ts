@@ -4,7 +4,10 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
-import type { MemoryNode, MemoryLink, MemoryScopeEcho } from './components/memory/types.js';
+import type {
+  MemoryNode, MemoryLink, MemoryScopeEcho,
+  MemoryRot, MemoryGrowth, MemoryUsage, MemoryConnectivity, MemoryNoteDate,
+} from './components/memory/types.js';
 import { gateToken } from './gate/token.ts';
 
 // Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
@@ -814,8 +817,14 @@ export interface MemorySliceView {
   scope: MemoryScopeEcho;
   nodes: MemoryNode[];
   links: MemoryLink[];
-  // The rich reads (rot/growth/usage/connectivity/noteDates) ride along untyped
-  // here; the canvas uses stats + scope + nodes + links.
+  // The rich analytics reads (CHI-385 parity): the Memory lanes read these
+  // directly. They ship from the server slice; the canvas uses stats + scope +
+  // nodes + links. Optional: an older projection may omit any of them.
+  rot?: MemoryRot;
+  growth?: MemoryGrowth;
+  usage?: MemoryUsage;
+  connectivity?: MemoryConnectivity;
+  noteDates?: MemoryNoteDate[];
   [key: string]: unknown;
 }
 export type HubMemoryResult = MemorySliceView | { hubPresent: false };
