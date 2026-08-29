@@ -72,3 +72,11 @@ export function loadConfidentialSegments(hubRoot: string): Set<string> {
   }
   return new Set<string>([...GENERIC_FLOOR, ...(segs as string[])]);
 }
+
+/** The absolute path to a hub's confidential-segment declaration. Exported so a
+ * caller can fold its mtime into a freshness signature: tightening the policy
+ * then invalidates a cached projection instead of waiting on the TTL (CHI-390
+ * review). */
+export function confidentialSegmentsPath(hubRoot: string): string {
+  return join(hubRoot, DECLARATION_REL);
+}

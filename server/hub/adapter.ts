@@ -24,7 +24,7 @@ import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
 import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
 import { collectHubFileTouches, hubTouchSignature } from './slices/fileTouches.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
-import { loadConfidentialSegments, ConfidentialPolicyUnavailable } from './confidential-segments.ts';
+import { loadConfidentialSegments, ConfidentialPolicyUnavailable, confidentialSegmentsPath } from './confidential-segments.ts';
 import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs, NOISE_DIRS } from './freshness.ts';
 import { dataDir } from '../db.ts';
 import { join } from 'node:path';
@@ -130,7 +130,7 @@ export class LiveHubAdapter implements HubAdapter {
     const hubRoot = this.root;
     return freshSliceAsync(
       'memory',
-      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'), memoryPrune)}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}:${hubTouchSignature()}`,
+      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'), memoryPrune)}:${pathsMaxMtimeMs([memoryScopeConfigPath(), confidentialSegmentsPath(this.root)])}:${hubTouchSignature()}`,
       () => {
         const { config, source } = loadMemoryConfig();
         return collectMemoryGraph(this.root, confidentialSegments, {

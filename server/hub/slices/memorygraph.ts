@@ -390,6 +390,10 @@ export async function collectMemoryGraph(
 
   // Confidential mode moves the confidential roots into the living tier for
   // the SEPARATE confidential projection; the public pass keeps them pruned.
+  // Caveat (CHI-390 review): this lifts the bare declared segment names, and
+  // patternMatches anchors from the hub root, so a top-level confidential tree
+  // matches but a nested confidential subdir is under-included. That projection
+  // is never wired in production today; revisit this if it is.
   const scope = includeConfidential
     ? {
         living: [...base.scope.living, ...confidentialSegments],
