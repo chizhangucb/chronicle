@@ -31,7 +31,7 @@ const nav = [
 
 export default defineConfig({
   title: 'Chronicle',
-  description: 'A local-first time machine for AI coding sessions.',
+  description: 'A local-first session manager and Insights analytics console for AI coding sessions.',
   base: '/docs/',
   srcDir: 'docs',
   appearance: 'dark',
