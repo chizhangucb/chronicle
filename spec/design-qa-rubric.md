@@ -1,15 +1,14 @@
 # Chronicle design QA rubric
 
-Not the readability floor (type/contrast/ink) — that's the hub's `$HUB/governance/design-rubric.md`, applies everywhere. This file judges function/responsiveness/data-scale/product-completeness for Chronicle's own release walk, renamed (CHI-244) so the two don't collide by name.
+Not the readability floor (type/contrast/ink) — that lives in the hub and applies everywhere. This
+file judges function / responsiveness / data-scale / product-completeness for Chronicle's own
+release walk.
 
-Checked-in, Chronicle-specific judge input for the release product walk (spec `records/plans/
-2026-08-12-chronicle-quality-pass-design.md` §5.2; C4 Task 19 runs the audit). Distilled ONCE
-(2026-08-12, C2 Task 11) from three design skills — `frontend-design` (aesthetic direction/
-typography), `dataviz` (charts/heatmaps/stat tiles), `ui-ux-pro-max` (UX guidelines/interaction
-states) — plus Batch B's 8-category aesthetic rubric and the quality-pass spec's 4 lenses. The
-skills GENERATE; this file JUDGES. Every rule below is phrased so a screenshot or a DOM/CSSOM
-probe can return a verdict — not aspirational prose. Update this file, not ad-hoc call-site
-judgment calls, when a new rule is needed; CLAUDE.md's UI/UX design-QA section points here.
+Checked-in judge input for the release product walk. The three design skills GENERATE, this file
+JUDGES: `frontend-design` (aesthetic direction/typography), `dataviz` (charts/heatmaps/stat tiles),
+`ui-ux-pro-max` (UX guidelines/interaction states). Every rule below is phrased so a screenshot or a
+DOM/CSSOM probe can return a verdict, not aspirational prose. Update this file, not ad-hoc call-site
+judgment, when a new rule is needed; CLAUDE.md's UI/UX design-QA section points here.
 
 ## The 4 lenses
 
@@ -24,13 +23,14 @@ Every walk finding is tagged with the lens it violates (a finding can hit more t
   big-session fixture's ground-truth constants (`FIXTURE_SUBAGENT_COUNT`, `FIXTURE_MAIN_MESSAGES`
   in `test/fixtures/gen-big-session.mjs`) plus a warm-request perf budget.
 - **Product completeness** — does the surface deliver what the spec/product decision promised
-  (not just "doesn't crash")? Probe: feature-level checklist against the relevant spec §2.x
-  decision, or against this rubric's per-surface checklist below.
+  (not just "doesn't crash")? Probe: feature-level checklist against the relevant product decision
+  or against this rubric's per-surface checklist below.
 
 ## Per-surface checklist
 
 Run every item against the live app at all 3 reference widths (see Responsiveness policy) unless
-marked "layout-independent." Tag findings with the Batch B 8-category rubric AND a lens (above).
+marked "layout-independent." Tag findings with a category (SPACE / RHYTHM / NUM / DISTINCT / DEDUP /
+AFFORD / BUG / LAYOUT) AND a lens (above).
 
 ### Global chrome (App.tsx sidebar, top bar, breadcrumb)
 - [ ] Exactly one collapsible left sidebar; collapse state persists across reload (localStorage).
@@ -41,9 +41,12 @@ marked "layout-independent." Tag findings with the Batch B 8-category rubric AND
 
 ### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
 Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-conformance lens).
-- [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Burn tile →
-      Insights charts → Recent-sessions ledger LAST. Exactly one KPI strip, one `/api/insights` fetch.
-- [ ] Tabs Overview / Explore / Content and a five-option window toggle (Today/7d/30d/90d/All) present.
+- [ ] `/` Overview reading order top→bottom: (briefing band →) KPI strip → (status band →) Activity
+      block (Today only) → Anomaly tile → Insights charts → Provenance strip LAST. NO recent-sessions
+      ledger on `/`. The briefing/status/provenance bands are behind the `homeBands` toggle (default
+      ON). Exactly one KPI strip, one `/api/insights` fetch.
+- [ ] Tabs Overview / Explore / Content / Spend / Sessions and a five-option window toggle
+      (Today/7d/30d/90d/All) present.
 - [ ] `/projects` is the dense `.rail-proj` LIST (pdot · name · live dot … count · gear menu; meta =
       branch/"needs association" · relative time) — NEVER the bordered `.projects-grid` card treatment.
 - [ ] Ledger + project select mode: rows/day-headers become checkboxes; delete is a two-step INLINE
@@ -53,8 +56,8 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
 - [ ] Both surfaces reflow with no horizontal overflow at 1024px (ledger + rail-list).
 
 ### Project detail / Insights hub (`ProjectDetail.tsx`, `HomeDashboard.tsx`)
-- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content tabs (the `/`
-      Insights hub) all render without a client error at each reference width.
+- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content/Spend/Sessions
+      tabs (the `/` Insights hub) all render without a client error at each reference width.
 - [ ] KPI/stat tiles: every numeric leaf reports `getComputedStyle(el).fontVariantNumeric`
       containing `"tabular"` (see Alignment policy).
 - [ ] No KPI tile's right edge (`getBoundingClientRect().right`) exceeds its row container's
@@ -145,8 +148,8 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
 
 ## Popover policy
 
-One InfoTip implementation (`src/InfoTip.tsx`), zero per-callsite hacks. Validated against the
-Radix `Popover.Content` docs (Task 9, C1): `avoidCollisions` is a **single switch for both axes**
+One InfoTip implementation (`src/InfoTip.tsx`), zero per-callsite hacks. Per the Radix
+`Popover.Content` docs, `avoidCollisions` is a **single switch for both axes**
 — turning it on does not just add horizontal shift, it also re-enables upward flip on the side
 axis. There is no documented per-axis flip toggle (`sticky` only governs the align axis). So:
 
@@ -173,7 +176,7 @@ axis. There is no documented per-axis flip toggle (`sticky` only governs the ali
 
 ## Reference widths
 
-Every surface is judged at all three (spec §4, `test/e2e/helpers.ts` `WIDTHS`):
+Every surface is judged at all three (`test/e2e/helpers.ts` `WIDTHS`):
 
 | Width | Represents |
 |---|---|
@@ -191,7 +194,7 @@ Fixed step scale in `src/styles.css` `:root` — `--gap-1: 4px; --gap-2: 8px; --
 --gap-4: 16px; --gap-5: 24px;`. Label↔value gaps and item↔item gaps draw from this scale, not
 arbitrary px values.
 
-- **SPACE (Batch B category):** a label must never run directly into its value with no gap
+- **SPACE:** a label must never run directly into its value with no gap
   (`margin`/`gap` of ≥4px between a `.label`-class element and its adjacent value, or any
   element whose class contains "label" and an adjacent sibling) — checkable via
   computed `gap`/`margin-right` matching one of the 5 scale steps (minimum 4px), not `0px`.
@@ -199,10 +202,10 @@ arbitrary px values.
   `.day-head .sum`, and a generic `[class*="label"]:not([class*="recharts"])` selector against all
   adjacent siblings; flags gaps < 4px or text overflow). Judge-level additions apply SPACE to
   newly authored patterns not yet covered by probe selectors.
-- **RHYTHM (Batch B category):** repeated structural gaps (card padding, list-item spacing, KPI
+- **RHYTHM:** repeated structural gaps (card padding, list-item spacing, KPI
   row gaps) within one surface use the SAME step consistently — checkable by collecting every
   matching gap's computed pixel value on a surface and confirming they cluster to a single
-  `--gap-N`, not a scatter of one-off values. **D5 section-air rule:** the first h3-level heading
+  `--gap-N`, not a scatter of one-off values. **Section-air rule:** the first h3-level heading
   inside a card gets `--gap-5` (24px) top margin for breathing room (applies via global `.card >
   h3` rule in `src/styles.css`).
 - New spacing needs pick the nearest existing step; a genuinely new value is a deliberate
@@ -240,7 +243,7 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Status colors (`--ok`/`--warn`/--danger`) are reserved** for good/warning/critical state and
   never reused as a categorical "series N" color; they always ship with an icon or text label,
   never color alone.
-- **Dense time-series (D12):** every rendered time-series chart must be zero-filled from its first
+- **Dense time-series:** every rendered time-series chart must be zero-filled from its first
   to its last bucket, so equal bar/point spacing always represents equal time, never a collapsed
   run of empty buckets reading visually as one wide bar. Implemented via `src/charts/timeBuckets.ts`
   `densifyBuckets` (client-side) + `server/windowUsage.ts` / `server/explore.ts` bucketing
@@ -256,19 +259,16 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Exactly one magnifier glyph `⌕`** across the app.
 - **Mono glyph vocabulary, no colored emoji, in chrome or page content.** The canonical set
   (extend this list when adding a new one, don't invent a parallel vocabulary): `⌕`=search
-  `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights (un-retired for
-  exactly ONE chrome use — the 2026-08-14 feedback-round D2 rename gave the sidebar its own
-  Insights item, `∑ Insights`, replacing the old `⌂ Home` entry; `∑` still may NOT appear
-  anywhere else in chrome or page content, and `test/e2e/home.spec.ts` pins that single sidebar
-  use) `⚙`=settings
+  `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights (the single sidebar
+  Insights item, `∑ Insights`; may NOT appear anywhere else in chrome or page content, pinned by
+  `test/e2e/home.spec.ts`) `⚙`=settings
   `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓`=causality (`src/session/MessageRow.tsx`)
   `↶`/`↷`=undo/redo (`src/RefineMode.tsx`). This list is canonical but not exhaustive — any
   other MONO glyph used consistently for one meaning is legitimate; a COLORED emoji is not, full
-  stop. **Known open item:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use`
-  to colored emoji (👤/💭/🔧), rendered in every Playback row via `src/session/MessageRow.tsx`
-  — a known, tracked gap (not a fix for this task; the C4 walk adjudicates whether to mono-ify
-  `KIND_ICON`, since it's a product call, not a rubric call). A walk judge should treat this as
-  the KNOWN gap, not report it as a novel finding, unless re-triaging it at C4.
+  stop. **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use`
+  to colored emoji (👤/💭/🔧), rendered in every Playback row via `src/session/MessageRow.tsx`.
+  The walk adjudicates whether to mono-ify `KIND_ICON` (a product call, not a rubric call); a judge
+  treats this as the KNOWN gap, not a novel finding.
 - **Design tokens only** — never re-tone `:root` (`--bg0/1/2`, `--border(-strong)`, `--ink/-2/-3`,
   `--brass(-text)`, `--ok/--warn/--danger`, `--c1..--c5`); a genuinely new token (like
   `--heat-axis-offset`) is a documented layout offset, not a color re-tone.
@@ -277,8 +277,8 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 
 ## Severity rubric
 
-Every finding from a §5.2 walk (or an ad-hoc audit using this rubric) gets exactly one severity.
-Publish is blocked while any **P0** or **P1** finding is open (spec §5.2/§8); **P2** is logged to
+Every walk finding (or an ad-hoc audit using this rubric) gets exactly one severity.
+Publish is blocked while any **P0** or **P1** finding is open; **P2** is logged to
 the backlog and does not block.
 
 - **P0 — blocks publish immediately.**
@@ -293,7 +293,7 @@ the backlog and does not block.
   - A DEDUP/AFFORD violation that actively misleads (two numbers that look like the same metric
     but disagree; a control with no visible affordance for a destructive action).
 - **P1 — must fix before this release, does not need to stop mid-development.**
-  - A Product-completeness gap: a spec §2.x decision only partially implemented, or a per-surface
+  - A Product-completeness gap: a product decision only partially implemented, or a per-surface
     checklist item above unchecked.
   - A NUM/SPACE/RHYTHM/DISTINCT violation visible on a primary surface (Home, Insights Overview,
     session Overview) — e.g. a numeric column not right-aligned/tabular, an inconsistent gap
@@ -304,11 +304,9 @@ the backlog and does not block.
 - **P2 — backlog, does not block.**
   - A cosmetic-only BUG/LAYOUT nit on a rarely-visited surface (stray 1-2px gap, a slightly
     unbalanced span) with no functional or data impact.
-  - A documented, deliberate deferral (matches the "minor (deferred)" pattern in
-    `.superpowers/sdd/*/progress.md`) — noted for a future pass, not silently dropped.
+  - A documented, deliberate deferral — noted for a future pass, not silently dropped.
   - A style-preference call where the rubric doesn't give a hard rule (e.g. "could this hierarchy
     be a little clearer") — worth a note, not a blocker.
 
 Every P0/P1 finding must include: file/component, the specific probe or screenshot that surfaced
-it, the lens(es) it violates, and the Batch B category tag. Findings append to hub records
-(`records/brainstorms/`) in the Batch B table format, per the spec's §5.2 process.
+it, the lens(es) it violates, and a category tag.
