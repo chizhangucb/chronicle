@@ -63,7 +63,7 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 ## Pre-push scan list
 
 Chronicle is public. Before any push, verify:
-- No hub-confidential material: nothing from the hub's confidential trees or acquisition-adjacent material (see `$HUB/governance/confidentiality.md`).
+- No hub-confidential material: nothing from the hub's confidential trees, or anything `$HUB/governance/confidentiality.md` marks as never-leaves (read it before pushing).
 - No real hub documents or data in fixtures or tests (synthetic only).
 - No absolute hub/home paths in tracked files.
 - No secrets, keys, or `.env` contents.
