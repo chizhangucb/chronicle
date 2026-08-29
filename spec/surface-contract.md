@@ -26,7 +26,7 @@
 | `/safety` | **Ops surface (hub-conditional).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
-| `/memory` | **Ops surface (hub-conditional).** The V2 Nebula: a 3D force-graph (`react-force-graph-3d` + `three`, lazy-loaded) over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side), colored by deterministic community, with a node inspector, open-note, a communities legend, and a scope readout. Same hub-conditional gating. | `src/MemoryPage.tsx` |
+| `/memory` | **Ops surface (hub-conditional).** Memory analytics over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side). Header: `MEMORY` + a metric line (notes · links · decisions) + a scope line (`measuring N living notes across <dirs> · M records`) + a **health verdict** (`fresh %` · stale · orphaned · dead links · `+N new`, each warn-tinted when >0 and a jump into the matching Notes-browser preset) + a **RangeBar** window selector. Body: a full-width **3D force-graph canvas** (`react-force-graph-3d` + `three`, lazy-loaded), community-colored, with usage-heat + orphan **lenses**, a **kind legend** that isolates one kind, **FULL/LITE** draw (auto-LITE past 3000 nodes) + **fullscreen**; a right **rail** = node inspector (touches-in-window, links in/out, dead links, Open note) + a slim Scope card (rot threshold, Manage scope → gate flow). Then three lane cards 3-up (**Usage / Freshness / Connectivity**; Growth is the `+N new` verdict stat) and one **Notes browser** owning every row list (presets `touched · connected · orphans · stale · dead`). Most-connected is LIVING-only; `wiki/annex` reads as the records tier. Same hub-conditional gating. | `src/MemoryPage.tsx` (+ `src/components/memory/{MemoryLanes,MemoryCanvasShell,lanes}`) |
 | `/records` | **Ops surface (hub-conditional).** The append-only hub records, via the `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY current type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, contacts/operations) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
 | `/reference` | **The unified reference. NOT hub-conditional** (product vocabulary, not hub data), so a stock public install has it. Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for surfaces the Chronicle/Varde merge dropped (pinned panels, peek drill, the old burn tile). | `src/ReferencePage.tsx` |
 | `/ask` | **Ask: NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
@@ -479,18 +479,35 @@ Reading order: header (`as of` + open/snoozed counts + Run-now) → **filter chi
 
 ### `/memory` — ops surface (hub-conditional, `MemoryPage.tsx`)
 
-Reading order: header (`MEMORY` + note/link/tier counts + communities legend) → the Nebula canvas
-(left) + a side rail (right: node inspector + scope readout).
-- **V2 Nebula** (`register.ts` MEMORY_REGISTER_NAME="v2"): a 3D force-graph (`MemoryGraph.tsx`,
-  `react-force-graph-3d` + `three`, **lazy-loaded** so three.js stays out of the entry chunk),
-  colored by deterministic community (hub-attenuated label propagation), flow-arc edges, deep-space
-  atmosphere, idle drift (disabled under `prefers-reduced-motion`).
+Reading order: header (`MEMORY` + a metric line + a scope line + a **health verdict** + a **RangeBar**
+window selector) → a full-width force-graph canvas + a right rail (node inspector + slim scope card) →
+three analytics lanes → one Notes browser.
+- **Header analytics**: `MemoryMetrics` (notes · links · decisions); a `data-scope-line` readout
+  (`measuring N living notes across <dirs>, +K more · M records`); a `MemoryVerdict`
+  (`data-memory-verdict`) health line for the window — `fresh %` · stale · orphaned · dead links ·
+  `+N new` — where each count is warn-tinted when >0 and jumps into the matching Notes-browser preset.
+  `RangeBar` (`Today/7d/30d/90d/All`) sets the window every touch-based metric and the heat lens read
+  against.
+- **Canvas** (`MemoryCanvasShell` over `MemoryGraph.tsx` / `register.ts` MEMORY_REGISTER_NAME="v2"): a
+  3D force-graph (`react-force-graph-3d` + `three`, **lazy-loaded** so three.js stays out of the entry
+  chunk), colored by deterministic community (hub-attenuated label propagation), flow-arc edges, idle
+  drift (disabled under `prefers-reduced-motion`). Chrome: usage-heat + orphan **lenses**, a **kind
+  legend** that isolates one kind, **FULL/LITE** draw (auto-LITE only past 3000 nodes, and only when
+  the cap would cut the draw) + **fullscreen**, with a `N of M · LITE` draw-state caption. LITE keep
+  and Most-connected are LIVING-only, so living hubs surface rather than archived concepts.
+- **Lanes + Notes browser**: three lane cards 3-up — **Usage** (touches in the window, most-touched
+  list), **Freshness** (rot: fresh/stale, all-stale link), **Connectivity** (orphans, dead links);
+  Growth is the `+N new` verdict stat. One **Notes browser** (`data-notes-browser`) owns every row
+  list; its presets `touched · connected · orphans · stale · dead` (`data-browser-preset`) are the same
+  jump targets the verdict and lanes use, so each list has one source of truth.
 - **Confidentiality**: the server slice walks the whole markdown corpus but hard-prunes
-  confidential/next-ventures before reading, emits titles/paths only (NEVER body text), lstat-only,
-  and is read-only (deletion/degree snapshots are opt-in, never enabled here).
-- **Interactions**: click a node → inspector (name/kind/tier/path/last-touched); double-click or Open
-  note → `POST /api/open-file` (bounded HARD to a `.md` under the live hub root, never a
-  confidential segment; demo-refused; macOS `open`).
+  confidential/next-ventures before reading, emits titles/paths only (NEVER body text), lstat-only.
+  `wiki/annex` is reclassified to the records tier by default (like `wiki/sources`/`wiki/raw`). Usage
+  touches are derived from session transcripts; deletions and the connectivity Δ accrue across runs
+  (honest-empty on day 1), persisted as opt-in snapshots (the only write, from the slice's view).
+- **Interactions**: click a node → inspector (name/kind/tier/updated/path + facts: touches-in-window,
+  links in/out, dead links); double-click or Open note → `POST /api/open-file` (bounded HARD to a
+  `.md` under the live hub root, never a confidential segment; demo-refused; macOS `open`).
 - **Demo**: a synthetic 27-node graph (`data/memory.demo.json`, generated from a temp hub so its
   shape always matches the real slice); every real-state action fail-closes.
 - **Scope-suggest**: the `memory-scope` gate surface (`server/gate/surfaces.ts`) targets
@@ -562,6 +579,8 @@ when empty and is absent in demo (demo never records).
 | Briefing run refused in demo (409) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` |
 | Memory nav hidden + `/api/hub/memory` absent-sentinel when the hub is absent | `test/e2e/ops-memory.spec.ts` — "no Memory nav item; /api/hub/memory absent sentinel" |
 | `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |
+| Memory canvas has a real height (not collapsed to 0px) | `test/e2e/ops-memory.spec.ts` — canvas bounding-box height > 400px (blank-canvas regression) |
+| Memory lanes + verdict + Notes browser render; no preset overflows horizontally | `test/e2e/ops-memory.spec.ts` — "analytics lanes + verdict + browser render and never overflow" (each `data-browser-preset` fits) |
 | Memory slice prunes confidential/next-ventures + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
 | open-file bounded to a hub `.md`, never confidential; demo-refused | `test/e2e/ops-memory.spec.ts` + the route's path guard |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
