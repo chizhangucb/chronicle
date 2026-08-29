@@ -225,8 +225,12 @@ function medianBaseline(now: number): TokensByModel {
   return out;
 }
 
-export function computeActivity(sinceIso: string | null, days: number | null): ActivityResult {
-  const now = Date.now();
+// `nowMs` is the wall clock the window/live/baseline math reads. It defaults to
+// Date.now() (production); a caller can pin it so a test is not coupled to the
+// real time of day (CHI-389: the "Today" window is only minutes wide just after
+// UTC midnight, which the fixtures cannot represent).
+export function computeActivity(sinceIso: string | null, days: number | null, nowMs: number = Date.now()): ActivityResult {
+  const now = nowMs;
   // since defaults to a trailing 12h window (see task brief).
   const since = sinceIso && !Number.isNaN(Date.parse(sinceIso)) ? sinceIso : new Date(now - 12 * 3600000).toISOString();
   const watchers = liveWatcherSessionIds();
