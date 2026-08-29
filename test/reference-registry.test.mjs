@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSource } from './helpers/read-source.mjs';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
@@ -47,7 +48,7 @@ const { DEFINITIONS, DEF_BY_ID, DEF_PAGE_ORDER } = await import('../src/referenc
 test('every InfoTip def= id resolves in the registry', () => {
   const missing = [];
   for (const file of files) {
-    const src = fs.readFileSync(file, 'utf8');
+    const src = readSource(file);
     for (const m of src.matchAll(/<InfoTip\s+def="([^"]+)"/g)) {
       if (!DEF_BY_ID.has(m[1])) missing.push(`${path.basename(file)}: ${m[1]}`);
     }
@@ -58,7 +59,7 @@ test('every InfoTip def= id resolves in the registry', () => {
 test('InfoTip text= survives ONLY at the runtime-data call sites', () => {
   const offenders = [];
   for (const file of files) {
-    const src = fs.readFileSync(file, 'utf8');
+    const src = readSource(file);
     if (!/<InfoTip\s+text=/.test(src)) continue;
     const base = path.basename(file);
     if (!TEXT_PROP_ALLOWLIST.has(base)) offenders.push(base);
@@ -74,7 +75,7 @@ test('at least one InfoTip actually uses the registry', () => {
   // because every tip quietly reverted to text=.
   let count = 0;
   for (const file of files) {
-    count += [...fs.readFileSync(file, 'utf8').matchAll(/<InfoTip\s+def="/g)].length;
+    count += [...readSource(file).matchAll(/<InfoTip\s+def="/g)].length;
   }
   assert.ok(count >= 30, `expected the registry to back most tips, found ${count}`);
 });

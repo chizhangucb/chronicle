@@ -7,13 +7,16 @@
 // another number, which is exactly how this regressed twice already.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSource } from './helpers/read-source.mjs';
 
-const css = fs.readFileSync(
+// styles.css is ~140KB; a read under 1000 bytes is a mid-write truncation, never
+// the real file, so re-read it (CHI-382). The floor sits far below the real size
+// and far above any truncation fragment.
+const css = readSource(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles.css'),
-  'utf8',
+  { minBytes: 1000 },
 );
 
 /** Every non-dashboard surface. Dashboards are full bleed and carry no cap. */
