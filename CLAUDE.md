@@ -31,7 +31,7 @@ npm run walk       # release-walk capture (screenshots + probe JSON), judged aga
 
 - Hub is read-only from runtime code; path comes from `AIOS_HUB` (default `~/chizhang-2`). No absolute machine paths in tracked files (path-relative + git-cloneable).
 - `AGENTS.md` is `CLAUDE.md`'s twin: same content via symlink, so any harness reads this floor.
-- Confidentiality floor: chronicle is PUBLIC. Nothing confidential (hub `wiki/confidential/`, `next-ventures/`, or equivalent) ever lands in this repo's files, fixtures, commits, or pushes. Fixtures are always synthetic, never copies of hub data. Sessions may read anything in the hub.
+- Confidentiality floor: chronicle is PUBLIC. Nothing confidential (the hub's confidential trees, per `$HUB/governance/confidentiality.md`) ever lands in this repo's files, fixtures, commits, or pushes. Fixtures are always synthetic, never copies of hub data. Sessions may read anything in the hub.
 
 ## Floor: $HUB/governance/ pointers
 
@@ -57,13 +57,13 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 - Commits free as work completes; push is conditioned-auto (CHI-352). main is PR-protected: feature branches auto-push and `gh pr create` auto-approves via the hub egress gate; a direct push to main cards and nothing auto-merges. Pin: `scripts/gating_policy.json push_pins` (single canonical pin). Governance: `governance/satellite-repos.md` Push.
 - Branch + PR for non-trivial changes; reserve direct-to-`main` for trivial/agreed one-offs. After a squash-merge, return the local checkout to freshly-pulled `main` before branching next (squash-merge leaves stale head branches; confirm a merged PR, not `is-ancestor`, before deleting).
 - STANDING RULE (bug-sweep): any user-reported fix targeting a UI/UX pattern class MUST trigger an app-wide sweep for that same pattern, with a regression pin (new CI probe or test assertion) landed in the same PR. A sweep is one grep/search pass; the probe is the durable guard.
-- Surface reshaping (new/merged/moved/redesigned page, or any change to a route/surface/enumerable) needs a matching `spec/surface-contract.md` edit + Chi's sign-off, and a screenshot for Chi before the batch merges. IA drift without a signed contract edit is a publish-blocking P0.
+- Surface reshaping (new/merged/moved/redesigned page, or any change to a route/surface/enumerable) needs a matching `spec/surface-contract.md` edit + Chi's sign-off, and a screenshot for Chi before the batch merges. IA drift without a signed contract edit is a publish-blocking P0. **Additive exception**: a change that only adds a new section/panel to an existing surface — nothing else on the page reordered, removed, renamed, or redesigned — still needs the matching `spec/surface-contract.md` edit in the same PR, but doesn't need Chi's sign-off before merge; a screenshot in the PR description covers Chi's review after the fact. Anything that reorders, removes, renames, or redesigns an existing element, or touches an enumerable, stays full pre-merge sign-off, no exception.
 - npm publish is TAG-TRIGGERED, not a command you run. `.github/workflows/publish.yml` publishes via OIDC trusted publishing when a `vX.Y.Z` tag lands; it is the source of truth for this flow, so read it before any release. Order: bump `package.json` version **and `CHANGELOG.md`** (same PR) → merge → confirm `main` green → `npm run walk` against real data, judge against `spec/design-qa-rubric.md` + `spec/surface-contract.md` (publish blocks on any open P0/P1) → `git tag vX.Y.Z <merge-commit> && git push origin vX.Y.Z` → the workflow gates and publishes → verify `npm view chronicle-cli version` → clean-dir npx smoke → `gh release create vX.Y.Z` (title = bare `vX.Y.Z`, matching every prior release). Running `npm publish` by hand still works but is the FALLBACK: it demands a WebAuthn passkey ceremony, emits no provenance attestation, and leaves the tag's workflow run failing on a version that already exists. Full checklist: hub patterns doc below.
 
 ## Pre-push scan list
 
 Chronicle is public. Before any push, verify:
-- No hub-confidential material: nothing from `wiki/confidential/`, `next-ventures/`, or acquisition-adjacent trees.
+- No hub-confidential material: nothing from the hub's confidential trees or acquisition-adjacent material (see `$HUB/governance/confidentiality.md`).
 - No real hub documents or data in fixtures or tests (synthetic only).
 - No absolute hub/home paths in tracked files.
 - No secrets, keys, or `.env` contents.

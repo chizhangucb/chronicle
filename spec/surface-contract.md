@@ -23,7 +23,7 @@
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
 | `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the push posture (conditioned-auto push pins, emit-allowlisted, scrub-whitelist reduced to a COUNT) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + confirm-first controls over the hub's gate-config surfaces. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional).** Memory analytics over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side). Header: `MEMORY` + a metric line (notes · links · decisions) + a scope line (`measuring N living notes across <dirs> · M records`) + a **health verdict** (`fresh %` · stale · orphaned · dead links · `+N new`, each warn-tinted when >0 and a jump into the matching Notes-browser preset) + a **RangeBar** window selector. Body: a full-width **3D force-graph canvas** (`react-force-graph-3d` + `three`, lazy-loaded), community-colored, with usage-heat + orphan **lenses**, a **kind legend** that isolates one kind, **FULL/LITE** draw (auto-LITE past 3000 nodes) + **fullscreen**; a right **rail** = node inspector (touches-in-window, links in/out, dead links, Open note) + a slim Scope card (rot threshold, Manage scope → gate flow). Then three lane cards 3-up (**Usage / Freshness / Connectivity**; Growth is the `+N new` verdict stat) and one **Notes browser** owning every row list (presets `touched · connected · orphans · stale · dead`). Most-connected is LIVING-only; `wiki/annex` reads as the records tier. Same hub-conditional gating. | `src/MemoryPage.tsx` (+ `src/components/memory/{MemoryLanes,MemoryCanvasShell,lanes}`) |
@@ -393,7 +393,7 @@ Reading order: eyebrow `MODULES · N` + one-line lede → a registry table → a
 - **Contract status badge** = `full` / `grandfathered` (both green, contract readable) · `pending`
   (warn, cell was `(pending CHI-NNN)`) · `n/a` (muted, unreadable/out-of-policy). A contract is
   read ONLY from a path named `product-contract.md` that does not pass through
-  `confidential/`/`next-ventures/` — any other path degrades to `n/a`, never read.
+  the hub's confidential trees — any other path degrades to `n/a`, never read.
 - **Contract detail** (right, appears on row select): the module name + status badge, then the
   snapshotted `product-contract.md` markdown in a mono block (read-only, scrolls). Pending/
   unreadable contracts show a one-line reason instead.
@@ -414,8 +414,7 @@ accepted-gaps register.
   rendered, only their count, same posture as confidential markers above. Hidden entirely when the
   gating-policy file is absent.
 - **Gate controls** (confirm-first, only when a writable live hub is present; a single read-only
-  note otherwise, incl. demo): kill switch toggle (destructive confirm) · spend-cap inputs · JSON
-  editors for classification / confidential-markers / hermes-approvals (Tier 2). Every edit goes
+  note otherwise, incl. demo): edits over the connected hub's gate-config surfaces. Every edit goes
   propose -> validated diff card (`GateConfirmDialog`) -> Confirm/Deny; nothing writes without the card.
 - **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
   `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
@@ -428,7 +427,7 @@ accepted-gaps register.
   HARD-GATED: a live hub AND an explicit opt-in flag, else 403. The default/public build never
   serves confidential content.
 - **Demo**: posture shows synthetic data; the gate is INERT for writes (all surfaces unavailable,
-  propose/apply 409), so a demo never touches real machine state (~/.hermes, launchd).
+  propose/apply 409), so a demo never touches real machine state (hub config files, scheduled jobs).
 
 ### `/jobs` — ops surface (hub-conditional, `JobsPage.tsx`)
 
@@ -508,7 +507,7 @@ three analytics lanes → one Notes browser.
   list; its presets `touched · connected · orphans · stale · dead` (`data-browser-preset`) are the same
   jump targets the verdict and lanes use, so each list has one source of truth.
 - **Confidentiality**: the server slice walks the whole markdown corpus but hard-prunes
-  confidential/next-ventures before reading, emits titles/paths only (NEVER body text), lstat-only.
+  the hub's confidential trees before reading, emits titles/paths only (NEVER body text), lstat-only.
   `wiki/annex` is reclassified to the records tier by default (like `wiki/sources`/`wiki/raw`). Usage
   touches are derived from session transcripts; deletions and the connectivity Δ accrue across runs
   (honest-empty on day 1), persisted as opt-in snapshots (the only write, from the slice's view).
@@ -569,7 +568,7 @@ when empty and is absent in demo (demo never records).
 | Sidebar = exactly Insights + Projects, no Home entry, no `⌂` (hub ABSENT — the default e2e harness) | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
 | Ops nav (Modules) hidden + `/api/hub/modules` absent-sentinel when the hub is absent | `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the API returns the absent sentinel" |
 | `/modules` renders the registry table + contract detail from the hub (demo synthetic) | `test/e2e/ops-modules.spec.ts` — "ops nav shows Modules and the page lists the synthetic modules with a contract detail" |
-| Modules slice reads only `product-contract.md`, refuses confidential/next-ventures paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
+| Modules slice reads only `product-contract.md`, refuses confidential-tree paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
 | Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
 | `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
 | Actionable gap cards share the briefing needs-you `--attention` accent; watch cards stay neutral | `test/e2e/ops-safety.spec.ts` — "actionable gap cards use the off-brass attention accent" |
@@ -588,13 +587,13 @@ when empty and is absent in demo (demo never records).
 | `/memory` mounts the Nebula canvas with no page errors; shell + scope render (demo) | `test/e2e/ops-memory.spec.ts` — "shell renders (header + scope + canvas) with no page errors" |
 | Memory canvas has a real height (not collapsed to 0px) | `test/e2e/ops-memory.spec.ts` — canvas bounding-box height > 400px (blank-canvas regression) |
 | Memory lanes + verdict + Notes browser render; no preset overflows horizontally | `test/e2e/ops-memory.spec.ts` — "analytics lanes + verdict + browser render and never overflow" (each `data-browser-preset` fits) |
-| Memory slice prunes confidential/next-ventures + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
+| Memory slice prunes confidential trees + emits NO body text (whole-corpus walk) | `test/hub-memory.test.mjs` (node) — hard-prune + no-body-text pins |
 | open-file bounded to a hub `.md`, never confidential; demo-refused | `test/e2e/ops-memory.spec.ts` + the route's path guard |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
 | Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
 | Ask runner SELECT-only guard (accept SELECT/WITH, reject writes/DDL/PRAGMA/ATTACH/multi-statement/comment-smuggle) + deduped cost views reconcile | `test/ask.test.mjs` (17 unit tests) |
-| Scope-suggest walks structure NAMES only, hides confidential/next-ventures; validated tier mapping | `test/scope-suggest-route.test.mjs` (node) — `hubStructure`/`validateSuggestion` pins |
+| Scope-suggest walks structure NAMES only, hides confidential trees; validated tier mapping | `test/scope-suggest-route.test.mjs` (node) — `hubStructure`/`validateSuggestion` pins |
 | `loadMemoryConfig` per-tier fallback to defaults on an absent/partial/malformed config file | `test/memoryscope-config.test.mjs` (node) |
 | ScopePanel renders the current scope; Suggest scope refused in demo (409, no confirm card) | `test/e2e/ops-memory.spec.ts` — "ScopePanel (memory scope-suggest)" |
 | Hub tabs = Overview / Explore / Content / Spend / Sessions (exactly five), Overview default | `test/e2e/home.spec.ts` — "the hub at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |

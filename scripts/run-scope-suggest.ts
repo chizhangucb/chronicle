@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolveHub } from '../server/hub/resolve.ts';
+import { loadConfidentialSegments, ConfidentialPolicyUnavailable } from '../server/hub/confidential-segments.ts';
 import type { MemoryScopePatterns } from '../server/hub/slices/memoryscope.ts';
 import { findClaude } from './run-briefing.ts';
 import { extractJson } from '../server/briefing-validate.ts';
@@ -27,10 +28,11 @@ import { extractJson } from '../server/briefing-validate.ts';
 const RUN_TIMEOUT_MS = 3 * 60 * 1000;
 const DATA_DIR = process.env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
 
-/** Confidential roots never even appear in the structure listing. Kept aligned
- * with memorygraph.ts's NOISE_DIRS (+ confidential/next-ventures, which that
- * file hard-prunes separately). */
-const HIDDEN = new Set(['confidential', 'next-ventures', 'node_modules', '.git', '.obsidian']);
+/** Generic noise dirs never worth showing in the structure listing. The
+ * confidential segments are loaded from the hub at runtime (CHI-390) and unioned
+ * in before the walk (see main); the specific names are never hardcoded in this
+ * public source. */
+const NOISE = new Set(['node_modules', '.git', '.obsidian']);
 
 function ensureDir(sub = ''): string {
   const dir = sub ? join(DATA_DIR, sub) : DATA_DIR;
@@ -43,12 +45,12 @@ function ensureDir(sub = ''): string {
  * shallow and content-free: the model sees the shape of the hub, nothing in
  * it. Absent hub root -> empty structure (never throws).
  */
-export function hubStructure(hubRoot: string | null): string {
+export function hubStructure(hubRoot: string | null, hidden: Set<string>): string {
   if (!hubRoot) return '';
   const lines: string[] = [];
   const list = (dir: string): string[] => {
     try {
-      return readdirSync(dir).filter((e) => !e.startsWith('.') && !HIDDEN.has(e)).sort();
+      return readdirSync(dir).filter((e) => !e.startsWith('.') && !hidden.has(e)).sort();
     } catch {
       return [];
     }
@@ -127,7 +129,18 @@ export function validateSuggestion(value: unknown): ScopeSuggestion {
 export function main(argv: string[] = process.argv.slice(2)): number {
   const dryRun = argv.includes('--dry-run');
   const hub = resolveHub();
-  const prompt = buildPrompt(hubStructure(hub.root));
+  let hidden = new Set(NOISE);
+  if (hub.root) {
+    try { hidden = new Set([...loadConfidentialSegments(hub.root), ...NOISE]); }
+    catch (e) {
+      if (e instanceof ConfidentialPolicyUnavailable) {
+        console.error('confidential policy unavailable; refusing to emit hub structure');
+        return 1;
+      }
+      throw e;
+    }
+  }
+  const prompt = buildPrompt(hubStructure(hub.root, hidden));
   const claude = findClaude();
   // No tools at all: the structure is already in the prompt, and the run must
   // not read hub contents. CHI-351: `--tools ""` is what actually disables the
