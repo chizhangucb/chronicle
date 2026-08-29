@@ -61,7 +61,7 @@ export function mountHub(app: Express): void {
   app.get('/hub/safety', (_req: Request, res: Response) => {
     const adapter = getHubAdapter();
     if (!adapter.status().present) return res.json({ hubPresent: false });
-    res.json({ safetyNet: adapter.safetyNet(), gaps: adapter.safetyGaps(), egress: adapter.egress() });
+    res.json({ safetyNet: adapter.safetyNet(), gaps: adapter.safetyGaps(), egress: adapter.egress(), gatingPolicy: adapter.gatingPolicy() });
   });
 
   // Jobs slice (organ 1e): launchd + cron + hub registry + repo templates, with

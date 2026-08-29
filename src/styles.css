@@ -1926,6 +1926,12 @@ h4 { margin: 6px 0; }
 .posture-tile.off .posture-value { color: var(--danger); }
 .safety-section { margin-bottom: 28px; }
 .safety-sec-head { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.safety-pushpins { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--gap-3); margin-top: 10px; }
+.pushpin-card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
+.pushpin-card.any-branch { border-color: color-mix(in srgb, var(--attention) 50%, var(--border)); }
+.pushpin-card.owner-rule { border-style: dashed; }
+.pushpin-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.pushpin-repo { font-weight: 600; color: var(--ink); font-size: 13px; }
 .safety-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; margin-top: 10px; }
 .safety-control.column { display: block; }
 .safety-control.disabled { opacity: 0.6; }

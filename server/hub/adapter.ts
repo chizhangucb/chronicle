@@ -15,6 +15,7 @@ import { collectModules, type ModulesSlice } from './slices/modules.ts';
 import { collectSafetyNet, type SafetyNetSlice } from './slices/safetynet.ts';
 import { collectEgress, type EgressSlice } from './slices/egress.ts';
 import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
+import { collectGatingPolicy, type GatingPolicySlice } from './slices/gatingpolicy.ts';
 import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
 import { collectJobs, type JobsSlice } from './slices/jobs.ts';
 import { collectRecords, EMPTY_RECORDS, type RecordsSlice } from './slices/records.ts';
@@ -27,7 +28,7 @@ import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs } from './freshness.ts
 import { dataDir } from '../db.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, DEMO_RECORDS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_GATINGPOLICY, DEMO_JOBS, DEMO_RECORDS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
 
 // The two HEAVY slices re-check freshness at most this often (a stat-walk over
 // the whole hub markdown corpus / every built graph is not free); inside the
@@ -54,6 +55,9 @@ export interface HubAdapter {
   egress(): EgressSlice;
   /** Accepted-gaps register + live posture (organ 1d). */
   safetyGaps(): SafetyGapsSlice;
+  /** Push posture: per-repo conditioned-auto pins + the owner-rule defaults
+   * (CHI-379), emit-allowlisted (scrub_whitelist counted, never emitted). */
+  gatingPolicy(): GatingPolicySlice;
   /** Raw confidential marker phrases (organ 1d) — HARD-GATED at the route (D8);
    * the adapter only reads, the route decides whether it may be served. */
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
@@ -92,6 +96,9 @@ export class LiveHubAdapter implements HubAdapter {
   }
   safetyGaps(): SafetyGapsSlice {
     return collectSafetyGaps(safetyGapsRegisterPath(), this.safetyNet(), this.egress().enabled);
+  }
+  gatingPolicy(): GatingPolicySlice {
+    return collectGatingPolicy(this.root);
   }
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return readConfidentialMarkers(this.root);
@@ -157,6 +164,9 @@ export class DemoHubAdapter implements HubAdapter {
   safetyGaps(): SafetyGapsSlice {
     return collectSafetyGaps(safetyGapsRegisterPath(), DEMO_SAFETYNET, DEMO_EGRESS.enabled);
   }
+  gatingPolicy(): GatingPolicySlice {
+    return DEMO_GATINGPOLICY;
+  }
   // Demo NEVER serves confidential phrases; the route also blocks demo (D8).
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };
@@ -197,6 +207,9 @@ export class NullHubAdapter implements HubAdapter {
   }
   safetyGaps(): SafetyGapsSlice {
     return { header: '', actionable: [], watch: [], posture: { classificationRules: 0, markerCategories: [], spendCaps: {}, egressEnabled: true } };
+  }
+  gatingPolicy(): GatingPolicySlice {
+    return { found: false, pushPins: [], pushPinDefaults: null };
   }
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type HubSafetyResult, type SafetyResult, type GapView } from './api.js';
+import { api, type HubSafetyResult, type SafetyResult, type GapView, type GatingPolicyView } from './api.js';
 import { gatePropose, gateSurfaces, gateSurfaceText, type GateProposal, type GateSurfaceStatus, GateError } from './gate/gate.ts';
 import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import { t } from './i18n.js';
@@ -56,6 +56,8 @@ export default function SafetyPage() {
 
       <Posture data={data} />
 
+      <PushPosture gatingPolicy={data.gatingPolicy} />
+
       <section className="safety-section">
         <div className="safety-sec-head">{t('Gate controls')}</div>
         {surfaces.some((s) => s.available) ? (
@@ -109,6 +111,49 @@ function Posture({ data }: { data: SafetyResult }) {
         <div className="muted small">{data.safetyNet.markers.categories.map((c) => `${c.category} ${c.count}`).join(' · ') || t('none')} · {t('counts only')}</div>
       </div>
     </div>
+  );
+}
+
+// Push posture (CHI-379): the machine's conditioned-auto push pins, read-only.
+// scrub_whitelist is a list of identity regexes and is never rendered — only
+// its count, matching the confidential-markers posture above.
+function PushPosture({ gatingPolicy }: { gatingPolicy: GatingPolicyView }) {
+  if (!gatingPolicy.found) return null;
+  return (
+    <section className="safety-section">
+      <div className="safety-sec-head">{t('Push posture')}</div>
+      <p className="muted small">{t('Repos where a git push auto-approves without a confirm. Descriptive, not a control.')}</p>
+      <div className="safety-pushpins">
+        {gatingPolicy.pushPins.map((p) => (
+          <div key={p.repo} className={`pushpin-card ${p.anyBranch ? 'any-branch' : ''}`}>
+            <div className="pushpin-head">
+              <span className="pushpin-repo">{p.repo}</span>
+              {p.visibility && <span className="muted small">{p.visibility}</span>}
+            </div>
+            <div className="muted small">
+              {p.anyBranch
+                ? t('ANY branch auto-pushes') + (p.confidentialOk ? ` · ${t('confidentiality floor scoped off')}` : '')
+                : p.featurePushOk
+                  ? `${t('feature branches auto-push')} · ${t('protected')}: ${p.prProtectedBranches.join(', ') || '—'}`
+                  : `${t('branches')}: ${p.branches.join(', ') || '—'}`}
+            </div>
+            {p.leakScrub && <div className="muted small">{t('leak-scrubbed')} · {t('whitelist')}: {p.scrubWhitelistCount}</div>}
+          </div>
+        ))}
+        {gatingPolicy.pushPinDefaults && (
+          <div className="pushpin-card owner-rule">
+            <div className="pushpin-head"><span className="pushpin-repo">{t('Owner rule (unbounded)')}</span></div>
+            <div className="muted small">{t('Any unpinned repo matching')} <code>{gatingPolicy.pushPinDefaults.ownerUrlPattern}</code></div>
+            <div className="muted small">
+              {gatingPolicy.pushPinDefaults.featurePushOk
+                ? `${t('feature branches auto-push')} · ${t('protected')}: ${gatingPolicy.pushPinDefaults.prProtectedBranches.join(', ') || '—'}`
+                : t('no auto-push')}
+              {gatingPolicy.pushPinDefaults.leakScrub && ` · ${t('leak-scrubbed')} · ${t('whitelist')}: ${gatingPolicy.pushPinDefaults.scrubWhitelistCount}`}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
