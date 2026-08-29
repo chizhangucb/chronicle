@@ -21,8 +21,10 @@ import { collectRecords, EMPTY_RECORDS, type RecordsSlice } from './slices/recor
 import { collectAutomations } from './slices/automations.ts';
 import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
 import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
+import { collectHubFileTouches, hubTouchSignature } from './slices/fileTouches.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
 import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs } from './freshness.ts';
+import { dataDir } from '../db.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
 import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, DEMO_RECORDS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
@@ -107,12 +109,26 @@ export class LiveHubAdapter implements HubAdapter {
     // Sig folds in the memory-scope config file's mtime (CHI-339), not just the
     // hub's .md tree: without it, a confirmed scope edit would never invalidate
     // this heavy slice's cache (the config lives under ${HOME}, outside the hub).
+    const hubRoot = this.root;
     return freshSliceAsync(
       'memory',
-      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}`,
+      // Fold in a cheap session signature so the Usage lane's transcript touches
+      // (CHI-385) refresh after new sessions import, not only when the .md tree
+      // or scope config change.
+      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}:${hubTouchSignature()}`,
       () => {
         const { config, source } = loadMemoryConfig();
-        return collectMemoryGraph(this.root, { config, configSource: source });
+        return collectMemoryGraph(this.root, {
+          config,
+          configSource: source,
+          // Usage channel a: hub-file reads/edits from this machine's sessions.
+          fileTouches: collectHubFileTouches(hubRoot),
+          // Cross-run accrual (deletions + link-degree deltas). The collector
+          // writes these under the data dir and diffs against the last run;
+          // both read empty on the first scan and say so, honestly.
+          snapshotPath: join(dataDir, 'memory-scope-snapshot.json'),
+          degreeHistoryPath: join(dataDir, 'memory-degree-history.json'),
+        });
       },
       { ttlMs: HEAVY_TTL_MS },
     );
