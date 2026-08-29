@@ -31,7 +31,7 @@ function makeGate(overrides = {}) {
     backupDir: join(root, 'gate-backups'),
     now: overrides.now,
     surfaces: [
-      { id: 'test-config', title: 'Test config', target, schema: 'hub-gate-config', tier: 1, repeatable: false, secondChannel: null },
+      { id: 'test-config', title: 'Test config', target, schema: 'hub-gate-config', tier: 1, secondChannel: null },
     ],
   });
   return { gate, root, target, audit };
@@ -175,7 +175,7 @@ function actionGate(impl, now) {
     backupDir: join(root, 'gate-backups'),
     now,
     surfaces: [
-      { id: 'test-action', title: 'Test action', target: root, schema: 'action:test', kind: 'action', tier: 1, repeatable: true, secondChannel: null },
+      { id: 'test-action', title: 'Test action', target: root, schema: 'action:test', kind: 'action', tier: 1, secondChannel: null },
     ],
     actions: impl ? { 'test-action': impl } : {},
   });
@@ -250,7 +250,7 @@ function hubGate(opts = {}) {
   const gate = new Gate({
     repoRoot: root, audit, backupDir: join(root, 'gate-backups'), hubRoot: root, hubApply,
     surfaces: [
-      { id: 'hub-spend-caps', title: 'Spend caps', target: '${AIOS_HUB}/scripts/egress_gate/data/gate_config.json', schema: 'hub-gate-config', writeVia: 'hub-script', tier: 1, repeatable: false, secondChannel: null },
+      { id: 'hub-spend-caps', title: 'Spend caps', target: '${AIOS_HUB}/scripts/egress_gate/data/gate_config.json', schema: 'hub-gate-config', writeVia: 'hub-script', tier: 1, secondChannel: null },
     ],
   });
   return { gate, target, calls, audit };
@@ -292,12 +292,25 @@ test('hub-script: no hub runner renders the surface disabled with the reason', (
   const gate = new Gate({
     repoRoot: root, audit: memStore(), backupDir: join(root, 'b'), hubRoot: root,
     surfaces: [
-      { id: 'hub-spend-caps', title: 'Spend caps', target: '${AIOS_HUB}/scripts/egress_gate/data/gate_config.json', schema: 'hub-gate-config', writeVia: 'hub-script', tier: 1, repeatable: false, secondChannel: null },
+      { id: 'hub-spend-caps', title: 'Spend caps', target: '${AIOS_HUB}/scripts/egress_gate/data/gate_config.json', schema: 'hub-gate-config', writeVia: 'hub-script', tier: 1, secondChannel: null },
     ],
   });
   const s = gate.listSurfaces()[0];
   assert.equal(s.available, false);
-  assert.match(s.unavailableReason, /hub entry point not configured/);
+  // WITH a hub checkout, the honest reason is the missing entry point, not a
+  // missing hub: the hub deleted apply_edit.py in CHI-253 and Chronicle was its
+  // one caller (CHI-395). A generic "no hub checkout" sends readers to the
+  // wrong place.
+  assert.match(s.unavailableReason, /apply_edit\.py/);
+
+  const noHub = new Gate({
+    repoRoot: root, audit: memStore(), backupDir: join(root, 'b'),
+    surfaces: [
+      { id: 'hub-spend-caps', title: 'Spend caps', target: '${AIOS_HUB}/scripts/egress_gate/data/gate_config.json', schema: 'hub-gate-config', writeVia: 'hub-script', tier: 1, secondChannel: null },
+    ],
+  });
+  // With no hub at all it never gets that far: ${AIOS_HUB} stays unresolved.
+  assert.match(noHub.listSurfaces()[0].unavailableReason, /unresolved variable/);
 });
 
 test('classification schema rejects a bad class; markers schema rejects junk', () => {
@@ -307,7 +320,7 @@ test('classification schema rejects a bad class; markers schema rejects junk', (
   assert.equal(validate('hub-confidential-markers', JSON.stringify({ strong: ['a'], ambiguous: ['b'] })).ok, true);
 });
 
-// ---- allow-mode ----
+// ---- auto approval (CHI-329) ----
 function allowGate(config = {}) {
   const root = mkdtempSync(join(tmpdir(), 'gate-allow-'));
   const target = join(root, 'gate_config.json');
@@ -316,13 +329,13 @@ function allowGate(config = {}) {
   const gate = new Gate({
     repoRoot: root, audit, backupDir: join(root, 'gate-backups'),
     surfaces: [
-      { id: 'test-allow', title: 'Allow tunables', target, schema: 'hub-gate-config', mode: 'allow', tier: 1, repeatable: true, secondChannel: null },
+      { id: 'test-allow', title: 'Auto tunables', target, schema: 'hub-gate-config', approval: 'auto', tier: 1, secondChannel: null },
     ],
   });
   return { gate, target, audit };
 }
 
-test('allow: apply writes in one shot with a single allowed audit row carrying the diff', () => {
+test('auto: apply writes in one shot with a single allowed audit row carrying the diff', () => {
   const { gate, target, audit } = allowGate({ enabled: true });
   const r = gate.apply('test-allow', { enabled: false }, 'kill switch');
   assert.equal(JSON.parse(readFileSync(target, 'utf-8')).enabled, false);
@@ -332,14 +345,14 @@ test('allow: apply writes in one shot with a single allowed audit row carrying t
   assert.ok(audit.rows[0].diff.length > 0);
 });
 
-test('allow: still validates - bad payload rejected, nothing written, no allowed row', () => {
+test('auto: still validates - bad payload rejected, nothing written, no allowed row', () => {
   const { gate, target, audit } = allowGate({});
   assert.throws(() => gate.apply('test-allow', { nonsense: 1 }, 'r'), /not a key this surface manages/);
   assert.deepEqual(JSON.parse(readFileSync(target, 'utf-8')), {});
   assert.equal(audit.rows.length, 0);
 });
 
-test('allow: apply refuses confirm-mode surfaces', () => {
+test('auto: apply refuses confirm-classified surfaces', () => {
   const { gate } = makeGate({ config: {} });
   assert.throws(() => gate.apply('test-config', { enabled: false }, 'r'), /requires the confirm card/);
 });
@@ -375,7 +388,7 @@ function tier2Gate(opts = {}) {
     repoRoot: root, audit, backupDir: join(root, 'gate-backups'), now: opts.now,
     secondChannelSend: opts.send === null ? undefined : (opts.send ?? ((m) => (sent.push(m), { ok: true }))),
     surfaces: [
-      { id: 'hermes-approvals', title: 'Hermes approvals', target, schema: 'hermes-approvals', tier: 2, repeatable: false, secondChannel: 'telegram' },
+      { id: 'hermes-approvals', title: 'Hermes approvals', target, schema: 'hermes-approvals', tier: 2, secondChannel: 'telegram' },
     ],
   });
   return { gate, target, sent, audit };
@@ -466,7 +479,7 @@ test('demo gate is inert for writes: surfaces unavailable, propose/apply refused
   writeFileSync(target, JSON.stringify({ enabled: true }));
   const gate = new Gate({
     repoRoot: root, audit: memStore(), backupDir: join(root, 'b'), demo: true,
-    surfaces: [{ id: 'test-config', title: 'T', target, schema: 'hub-gate-config', tier: 1, repeatable: false, secondChannel: null }],
+    surfaces: [{ id: 'test-config', title: 'T', target, schema: 'hub-gate-config', tier: 1, secondChannel: null }],
   });
   assert.equal(gate.listSurfaces()[0].available, false);
   assert.match(gate.listSurfaces()[0].unavailableReason, /demo seed/);

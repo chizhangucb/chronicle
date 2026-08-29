@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
 import { api, type HubJobsResult, type JobRowView, type JobLogResult } from './api.js';
-import { gatePropose, type GateProposal, GateError } from './gate/gate.ts';
+import { gateSubmit, type GateProposal, GateError } from './gate/gate.ts';
 import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import Modal from './Modal.tsx';
 import { t } from './i18n.js';
 
 // Jobs ops surface (CHI-323 3c): every scheduled thing on the machine (launchd +
 // cron + hub registry + repo templates) with live state, a log tail drill-in,
-// and confirm-first pause/resume through the gate's launchd-jobs surface.
+// pause/resume through the gate's launchd-jobs surface. CHI-329: pause/resume
+// applies without a card (the plist is never edited, so resume restores exactly
+// the installed schedule); pausing a job that carries enforcement or the
+// approval channel still shows the diff first.
 // Chronicle's own templates ship DORMANT (install via scripts/install-jobs.mjs).
 export default function JobsPage() {
   const [data, setData] = useState<HubJobsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<GateProposal | null>(null);
   const [logFor, setLogFor] = useState<string | null>(null);
+  const [applied, setApplied] = useState<string | null>(null);
 
   async function load() {
     try { setData(await api.hubJobs()); } catch (e) { setError(String((e as Error).message)); }
@@ -22,10 +26,16 @@ export default function JobsPage() {
 
   async function toggle(job: JobRowView) {
     setError(null);
+    setApplied(null);
     const action = job.status === 'paused' ? 'resume' : 'pause';
     try {
-      const p = await gatePropose('launchd-jobs', { label: job.id, action }, `${action} ${job.id}`);
-      setProposal(p);
+      const out = await gateSubmit('launchd-jobs', { label: job.id, action }, `${action} ${job.id}`);
+      if (out.applied) {
+        setApplied(out.result.applied);
+        load();
+      } else {
+        setProposal(out.proposal);
+      }
     } catch (e) {
       const msg = e instanceof GateError && e.fix ? `${e.message} — ${e.fix}` : String((e as Error).message);
       setError(msg);
@@ -47,6 +57,7 @@ export default function JobsPage() {
         launchd {s.launchd} · cron {s.cron} · {t('registry')} {s.registry} · {t('templates')} {s['repo-template']}
       </p>
       {error && <p className="gate-error">{error}</p>}
+      {applied && <p className="gate-applied" role="status">{applied}</p>}
 
       <table className="jobs-table">
         <thead>

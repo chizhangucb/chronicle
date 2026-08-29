@@ -3,12 +3,12 @@
 Status: living · Owner: Chi Zhang · Location: `~/personal-projects/chronicle` (`chizhangucb/chronicle`, public, npm `chronicle-cli`) · License: Apache-2.0 (third-party notices in `NOTICE`)
 
 ## Purpose
-A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a confirm-first write gate. On-machine and heuristic: no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); the one outbound call is opt-out — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
+A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a tiered write gate. On-machine and heuristic: no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); the one outbound call is opt-out — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
 
 ## Surfaces
 - CLI (`npx chronicle-cli`, bins `chronicle`/`chronicle-cli`): runs the local web app in the foreground; `--port` (default 41730), `--no-open`. Node 24+. Setup subcommand `chronicle hub set|status|clear <path>` points the console at a nisse-format hub.
 - Web UI (SPA routes): the analytics core `/`, `/projects`, `/project/:id`, `/session/:id` (`/insights` redirects to `/`), PLUS the hub-conditional ops routes `/modules`, `/safety`, `/jobs`, `/briefing`, `/memory` (rendered only when `/api/hub/status` reports present, i.e. a live hub or demo; hidden when absent). Exact enumerable shape lives in the surface contract.
-- HTTP API: `http://127.0.0.1:<port>`, loopback only, `/api/*`. Consumed only by the app's own SPA. Includes the hub adapter (`/api/hub/{status,modules,safety,jobs,memory,codegraphs,...}`), the briefing (`/api/briefing*`), and the write gate (`/api/gate/*`: per-boot token, propose → validated diff card → confirm → backup → temp-rename write → verify → audit).
+- HTTP API: `http://127.0.0.1:<port>`, loopback only, `/api/*`. Consumed only by the app's own SPA. Includes the hub adapter (`/api/hub/{status,modules,safety,jobs,memory,codegraphs,...}`), the briefing (`/api/briefing*`), and the write gate (`/api/gate/*`: per-boot token, then either an auto-applied write or propose → validated diff card → confirm, both ending backup → temp-rename write → verify → audit; plus `/api/gate/undo`).
 - Env knobs: `CHRONICLE_HUB` (primary public hub path), `AIOS_HUB`, `config.json hubRoot` (resolution order after `CHRONICLE_DEMO`), and `CHRONICLE_DEMO=1` (synthetic ops data for a zero-data user / fresh machine).
 - DB read seam: the `contract_*` SQLite views (grandfathered sub-contract, see Internals), the only stable read interface. Gate audit lives in a self-created `gate_audit` table.
 - `chronicle://session/<id>`: deep-link resolver for a session (`server/routes/sessions.ts`).
@@ -18,7 +18,7 @@ A local-first session-data engine and operator console for your AI coding stack.
 `~/.chronicle/chronicle.db` (SQLite, full message content): projects, sessions, messages, session tombstones, migrations. Source of truth for the imported session record; writes nowhere else, reads source logs read-only.
 
 ## Consumers
-The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture, jobs, briefing state, and memory scope through the confirm-first gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). Varde still reads the `contract_*` views only (`aggregator/sources/chronicle.ts`, `spend-chronicle.ts`) for its spend/session lanes during the no-flag-day rollout; Chronicle is an adapter Varde consumes, not a consumer of Varde.
+The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture, jobs, briefing state, and memory scope through the tiered gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). Varde still reads the `contract_*` views only (`aggregator/sources/chronicle.ts`, `spend-chronicle.ts`) for its spend/session lanes during the no-flag-day rollout; Chronicle is an adapter Varde consumes, not a consumer of Varde.
 
 ## Internals
 Two seams earn grandfathered sub-contracts (register, not rewrite); the rest covered here.
@@ -39,12 +39,12 @@ CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 - Never mutate source transcripts: chronicle only ever reads a source tool's logs, and reads a connected nisse-format hub read-only (titles/paths/counts only, never body text, confidential trees pruned).
 
 **Validated-seam writes (all writes go through one):**
-- Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run propose → validated diff → confirm → backup → temp-rename → post-write verify → audit; the briefing uses its two-file run-vs-UI split; hub writes go through the hub's own gated entry point. No raw file edits.
+- Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run backup → temp-rename → post-write verify → audit, behind a confirm card unless the surface declares `approval: 'auto'` (absent means confirm; the floors that can never auto live in `core.ts`, not the registry); the briefing uses its two-file run-vs-UI split; hub writes go through the hub's own gated entry point. No raw file edits.
 - The DB read seam is the `contract_*` views only; base tables are not public. `PRAGMA user_version` gates breaking view changes; a bump ships only with chronicle and Varde together.
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
-**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond the opt-out Claude-quota read and a hub the operator connects. The forward gate model is tiered auto-approval (reversible auto, irreversible confirm).
+**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond the opt-out Claude-quota read and a hub the operator connects. The gate model is tiered auto-approval on a reversibility bar: reversible Chronicle-owned state applies automatically; the egress gate's own config, Hermes approvals, and anything model-generated confirm. Every auto write is listed with an Undo on `/safety`.
 
 ## Change triggers
 Update this file in the same pass.

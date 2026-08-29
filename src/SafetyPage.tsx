@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type HubSafetyResult, type SafetyResult, type GapView, type GatingPolicyView } from './api.js';
-import { gatePropose, gateSurfaces, gateSurfaceText, type GateProposal, type GateSurfaceStatus, GateError } from './gate/gate.ts';
+import { gateSubmit, gateSurfaces, gateSurfaceText, gateAudit, gateUndo, type GateAuditRow, type GateProposal, type GateSurfaceStatus, GateError } from './gate/gate.ts';
 import { GateConfirmDialog } from './gate/GateConfirmDialog.tsx';
 import { t } from './i18n.js';
 
@@ -16,6 +16,8 @@ export default function SafetyPage() {
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<GateProposal | null>(null);
   const [destructive, setDestructive] = useState(false);
+  const [applied, setApplied] = useState<string | null>(null);
+  const [logKey, setLogKey] = useState(0);
 
   async function load() {
     try {
@@ -28,10 +30,12 @@ export default function SafetyPage() {
 
   async function propose(surface: string, change: unknown, reason: string, isDestructive = false) {
     setError(null);
+    setApplied(null);
     try {
-      const p = await gatePropose(surface, change, reason);
+      const out = await gateSubmit(surface, change, reason);
       setDestructive(isDestructive);
-      setProposal(p);
+      if (out.applied) { setApplied(t('Applied.')); setLogKey((k) => k + 1); }
+      else setProposal(out.proposal);
     } catch (e) {
       const msg = e instanceof GateError && e.fix ? `${e.message} — ${e.fix}` : String((e as Error).message);
       setError(msg);
@@ -53,6 +57,7 @@ export default function SafetyPage() {
         {t('What the local egress gate would enforce, and the gaps you have knowingly accepted. Descriptive, never a grade.')}
       </p>
       {error && <p className="gate-error">{error}</p>}
+      {applied && <p className="gate-applied" role="status">{applied}</p>}
 
       <Posture data={data} />
 
@@ -62,23 +67,110 @@ export default function SafetyPage() {
         <div className="safety-sec-head">{t('Gate controls')}</div>
         {surfaces.some((s) => s.available) ? (
           <>
-            <p className="muted small">{t('Every change is confirm-first: a validated diff, then Confirm or Deny. Writes go through the egress gate.')}</p>
+            <p className="muted small">{t('These surfaces edit the egress gate\u2019s own config, so every change shows a validated diff first: Confirm or Deny. Reversible changes to Chronicle\u2019s own state apply without a card and are listed in the write log below.')}</p>
             <KillSwitch data={data} surface={surfaceById('hub-egress-enabled')} onPropose={propose} />
             <SpendCaps data={data} surface={surfaceById('hub-spend-caps')} onPropose={propose} />
             {(['hub-classification', 'hub-confidential-markers', 'hermes-approvals'] as const).map((id) => (
               <JsonSurface key={id} surface={surfaceById(id)} onPropose={propose} />
             ))}
+            {/* One line per DISTINCT reason: four surfaces share one cause, and
+                repeating the same sentence four times reads as four problems. */}
+            {Array.from(new Set(surfaces.filter((s) => !s.available && s.unavailableReason).map((s) => s.unavailableReason!)))
+              .map((reason) => <p key={reason} className="muted small safety-why-off">{reason}</p>)}
           </>
         ) : (
           <p className="muted small">{t('Gate controls are read-only here: no writable hub is connected (or this is a demo). The posture above is still shown.')}</p>
         )}
       </section>
 
+      <WriteLog reloadKey={logKey} onProposal={(p) => { setDestructive(false); setProposal(p); }} setError={setError} />
+
       <Gaps gaps={data.gaps} onReload={load} setError={setError} />
 
       <GateConfirmDialog proposal={proposal} destructive={destructive}
-        onSettled={(confirmed) => { setProposal(null); if (confirmed) load(); }} />
+        onSettled={(confirmed) => { setProposal(null); if (confirmed) { load(); setLogKey((k) => k + 1); } }} />
     </div>
+  );
+}
+
+/**
+ * The write log (CHI-329 WP4). GET /api/gate/audit has been served since the
+ * gate landed and rendered nowhere, which was tolerable while every write
+ * showed a card and nothing could happen without a click. Now that reversible
+ * writes apply on their own, the record has to be visible: this is where you
+ * see what the console changed, and undo it.
+ */
+function WriteLog({ reloadKey, onProposal, setError }: {
+  reloadKey: number;
+  onProposal: (p: GateProposal) => void;
+  setError: (s: string | null) => void;
+}) {
+  const [rows, setRows] = useState<GateAuditRow[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => { gateAudit().then((r) => setRows(r.slice().reverse())).catch(() => setRows([])); };
+  useEffect(load, [reloadKey]);
+
+  const undo = async (row: GateAuditRow) => {
+    setError(null);
+    setBusy(row.proposalId);
+    try {
+      const out = await gateUndo(row.proposalId);
+      if (!out.applied) onProposal(out.proposal);
+      load();
+    } catch (e) {
+      setError(e instanceof GateError && e.fix ? `${e.message} \u2014 ${e.fix}` : String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!rows) return null;
+  return (
+    <section className="safety-section">
+      <div className="safety-sec-head">{t('Write log')}</div>
+      {rows.length === 0 ? (
+        <p className="muted small">{t('Nothing has been written through the gate on this machine.')}</p>
+      ) : (
+        <>
+          <p className="muted small">{t('Every write the console has made, newest first. Changes marked applied went through without a card because they are reversible; the rest showed you a diff first.')}</p>
+          <table className="writelog-table">
+            <thead>
+              <tr><th>{t('When')}</th><th>{t('Surface')}</th><th>{t('Outcome')}</th><th>{t('Change')}</th><th></th></tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 50).map((r, i) => (
+                <tr key={`${r.proposalId}-${r.event}-${i}`}>
+                  <td className="muted small">{new Date(r.ts).toLocaleString()}</td>
+                  <td className="small">{r.surface}</td>
+                  <td><span className={`writelog-badge ${r.event}`}>{r.event === 'allowed' ? t('applied') : r.event}</span></td>
+                  <td className="small writelog-diff">
+                    <div className="muted">{r.reason}</div>
+                    {r.diff.slice(0, 3).map((d) => (
+                      <div key={d.path} className="writelog-diff-row">
+                        <span className="gate-diff-path">{d.path}</span>
+                        <span className="gate-diff-from">{JSON.stringify(d.from) ?? 'unset'}</span>
+                        <span className="gate-diff-arrow">→</span>
+                        <span className="gate-diff-to">{JSON.stringify(d.to) ?? 'unset'}</span>
+                      </div>
+                    ))}
+                    {r.diff.length > 3 && <div className="muted small">+{r.diff.length - 3} {t('more')}</div>}
+                    {r.error && <div className="gate-error small">{r.error}</div>}
+                  </td>
+                  <td>
+                    {r.backup && (r.event === 'allowed' || r.event === 'confirmed') && (
+                      <button type="button" className="btn tiny" disabled={busy === r.proposalId} onClick={() => undo(r)}>
+                        {t('Undo')}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -160,7 +252,7 @@ function PushPosture({ gatingPolicy }: { gatingPolicy: GatingPolicyView }) {
 const fmtCap = (v: number | null) => (v == null ? t('none') : `$${v}`);
 
 function Unavailable({ surface }: { surface?: GateSurfaceStatus }) {
-  return <div className="safety-control disabled"><span className="muted small">{surface?.title ?? '—'}: {surface?.unavailableReason ?? t('unavailable')}</span></div>;
+  return <div className="safety-control disabled"><span className="muted small">{surface?.title ?? '—'} · {t('unavailable')}</span></div>;
 }
 
 function KillSwitch({ data, surface, onPropose }: { data: SafetyResult; surface?: GateSurfaceStatus; onPropose: (s: string, c: unknown, r: string, d?: boolean) => void }) {

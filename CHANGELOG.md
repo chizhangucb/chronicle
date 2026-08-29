@@ -5,6 +5,23 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **The console stops asking permission for changes it can take back.** Every write used
+  to open a confirm card, including the reversible ones: editing which folders count as
+  knowledge, pausing a scheduled job. Now a change to Chronicle's own state applies when
+  you click, and the card is reserved for what actually deserves it. Editing the egress
+  gate's own config or Hermes' approvals still shows you a diff first, and so does
+  anything a model wrote: the scope suggestion keeps its review step, because reading the
+  diff is the point of it. Pausing a job is cardless too, unless it is the job that
+  carries your approval messages or runs enforcement.
+- **A write log on Safety, with Undo.** Chronicle has recorded every gate write since the
+  feature shipped and shown you none of them. That was survivable while nothing could
+  happen without a click. Now that reversible changes apply on their own, Safety lists
+  every write newest-first with its exact diff, and offers Undo on any of them. Undo is
+  not a shortcut: the restore meets the same approval rules as any other change, and
+  Chronicle refuses to restore a backup that has been altered since it was written.
+- **Safety says why a control is off.** The four egress-gate controls have never been able
+  to write on any machine whose hub lacks the write entry point, and said only "no hub
+  checkout", which sends you looking in the wrong place. They now name the real cause.
 - **The home answers "what needs you" before "what did it cost".** Insights opens with
   your daily briefing cards, one line each, then the KPI strip you already had, then a
   new status band reading Spend, Memory, Sessions, Safety and Jobs at a glance: a trend

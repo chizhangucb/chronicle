@@ -11,6 +11,8 @@ export interface GateProposal {
   reason: string;
   diff: GateDiffEntry[];
   requiresCode: boolean;
+  /** Why this change is carding rather than applying (CHI-329). */
+  cardReason?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -20,10 +22,40 @@ export interface GateSurfaceStatus {
   title: string;
   description?: string;
   tier: 1 | 2;
-  mode?: 'confirm' | 'allow';
+  /** CHI-329 posture. Absent means confirm. */
+  approval?: 'auto' | 'confirm';
   writeVia?: 'direct' | 'hub-script';
   available: boolean;
   unavailableReason?: string;
+}
+
+export interface GateApplied {
+  applied: string;
+  backup: string | null;
+  target: string;
+  diff: GateDiffEntry[];
+}
+
+/**
+ * The outcome of a write request. The SERVER decides which one you get: the
+ * client never picks between "apply this" and "card this", so there is no
+ * softer endpoint for a caller to reach for.
+ */
+export type GateOutcome =
+  | { applied: true; result: GateApplied }
+  | { applied: false; proposal: GateProposal };
+
+export interface GateAuditRow {
+  ts: string;
+  event: 'proposed' | 'confirmed' | 'denied' | 'expired' | 'failed' | 'allowed';
+  surface: string;
+  proposalId: string;
+  actor: string;
+  reason: string;
+  diff: GateDiffEntry[];
+  backup?: string;
+  error?: string;
+  detail?: Record<string, unknown>;
 }
 
 /** Gate failures carry the server's fix line; surfacing it beats "500". */
@@ -54,20 +86,41 @@ async function gatePost<T>(path: string, body: unknown): Promise<T> {
   return parsed as T;
 }
 
-/** Step 1: validate + card. Nothing is written until gateConfirm. */
-export async function gatePropose(surface: string, change: unknown, reason: string): Promise<GateProposal> {
-  const { proposal } = await gatePost<{ proposal: GateProposal }>('/api/gate/propose', { surface, change, reason });
-  return proposal;
+/**
+ * Submit a write (CHI-329). Returns either an already-applied result (the
+ * policy classified it auto) or a proposal to card. Callers render one or the
+ * other; they never choose which.
+ *
+ * `source: 'suggestion'` marks machine-generated content, which always cards.
+ * Not a security boundary (see core.ts) but it keeps the app's own
+ * scope-suggest flow honest about showing its diff for review.
+ */
+export async function gateSubmit(
+  surface: string,
+  change: unknown,
+  reason: string,
+  source: 'operator' | 'suggestion' = 'operator',
+): Promise<GateOutcome> {
+  return gatePost<GateOutcome>('/api/gate/propose', { surface, change, reason, source });
+}
+
+/** Undo a completed write from its backup. Meets the same policy as any other
+ * change, so it can come back as a card. */
+export async function gateUndo(proposalId: string): Promise<GateOutcome> {
+  return gatePost<GateOutcome>('/api/gate/undo', { proposalId });
+}
+
+export async function gateAudit(): Promise<GateAuditRow[]> {
+  const res = await fetch('/api/gate/audit');
+  const parsed = await res.json().catch(() => ({}));
+  if (!res.ok) throw new GateError(parsed?.error ?? `${res.status} ${res.statusText}`, parsed?.fix);
+  return (parsed.rows as GateAuditRow[]) ?? [];
 }
 
 export async function gateConfirm(id: string, decision: 'confirm' | 'deny', code?: string): Promise<void> {
   await gatePost('/api/gate/confirm', { id, decision, ...(code ? { code } : {}) });
 }
 
-/** One-shot write, allow-mode surfaces only (the click is the intent). */
-export async function gateApply(surface: string, change: unknown, reason: string): Promise<void> {
-  await gatePost('/api/gate/apply', { surface, change, reason });
-}
 
 /** Registry with resolved availability (hub surfaces are unavailable without a
  * hub checkout; the UI renders them disabled, with why). */
