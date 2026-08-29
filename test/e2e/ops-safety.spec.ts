@@ -32,6 +32,17 @@ test.describe('demo hub: /safety renders posture + gaps, writes are inert', () =
     await expect(page.locator('.gap-card')).not.toHaveCount(0);
   });
 
+  // CHI-379: push posture (conditioned-auto push pins) renders read-only,
+  // between the posture tiles and the gate controls, with the unbounded
+  // owner-rule card and no identity-regex leak.
+  test('push posture panel renders pins + the owner-rule card, no scrub-whitelist leak', async ({ page }) => {
+    await page.goto(demo.baseURL + '/safety');
+    await expect(page.locator('.safety-pushpins .pushpin-card')).not.toHaveCount(0);
+    await expect(page.locator('.pushpin-card.owner-rule')).toHaveCount(1);
+    const body = await page.locator('.safety-pushpins').innerText();
+    expect(body).not.toMatch(/hermes/i);
+  });
+
   // CHI-374 sweep pin: /safety's actionable gap cards carry the SAME off-brass
   // --attention treatment as the briefing needs-you card, so "act on this" reads
   // identically app-wide. Watch-only gaps stay neutral.

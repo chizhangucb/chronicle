@@ -23,7 +23,7 @@
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
 | `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the push posture (conditioned-auto push pins, emit-allowlisted, scrub-whitelist reduced to a COUNT) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional).** Memory analytics over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side). Header: `MEMORY` + a metric line (notes · links · decisions) + a scope line (`measuring N living notes across <dirs> · M records`) + a **health verdict** (`fresh %` · stale · orphaned · dead links · `+N new`, each warn-tinted when >0 and a jump into the matching Notes-browser preset) + a **RangeBar** window selector. Body: a full-width **3D force-graph canvas** (`react-force-graph-3d` + `three`, lazy-loaded), community-colored, with usage-heat + orphan **lenses**, a **kind legend** that isolates one kind, **FULL/LITE** draw (auto-LITE past 3000 nodes) + **fullscreen**; a right **rail** = node inspector (touches-in-window, links in/out, dead links, Open note) + a slim Scope card (rot threshold, Manage scope → gate flow). Then three lane cards 3-up (**Usage / Freshness / Connectivity**; Growth is the `+N new` verdict stat) and one **Notes browser** owning every row list (presets `touched · connected · orphans · stale · dead`). Most-connected is LIVING-only; `wiki/annex` reads as the records tier. Same hub-conditional gating. | `src/MemoryPage.tsx` (+ `src/components/memory/{MemoryLanes,MemoryCanvasShell,lanes}`) |
@@ -402,10 +402,17 @@ Reading order: eyebrow `MODULES · N` + one-line lede → a registry table → a
 
 ### `/safety` — ops surface (hub-conditional, `SafetyPage.tsx`)
 
-Reading order: eyebrow `SAFETY` + lede → posture tiles → gate controls → accepted-gaps register.
+Reading order: eyebrow `SAFETY` + lede → posture tiles → push posture → gate controls →
+accepted-gaps register.
 - **Posture tiles** (4): Egress gate (ENABLED green / OFF fail-closed danger) · Spend caps
   (per-tx / per-session) · Tool classes (count + read/send/publish/spend breakdown) · Confidential
   markers (total COUNT + per-category counts, labeled "counts only" — the phrases never appear here).
+- **Push posture** (read-only, no gate controls): one card per conditioned-auto push pin
+  (repo, visibility, any-branch/confidentiality-scoped-off callout, feature-branch + PR-protected-branch
+  posture, leak-scrub + scrub-whitelist COUNT) plus one dashed "Owner rule (unbounded)" card for the
+  unpinned-repo default. Emit-ALLOWLIST per pin: `scrub_whitelist` values (identity regexes) are never
+  rendered, only their count, same posture as confidential markers above. Hidden entirely when the
+  gating-policy file is absent.
 - **Gate controls** (confirm-first, only when a writable live hub is present; a single read-only
   note otherwise, incl. demo): kill switch toggle (destructive confirm) · spend-cap inputs · JSON
   editors for classification / confidential-markers / hermes-approvals (Tier 2). Every edit goes

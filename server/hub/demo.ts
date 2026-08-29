@@ -6,6 +6,7 @@
 import type { ModulesSlice } from './slices/modules.ts';
 import type { SafetyNetSlice } from './slices/safetynet.ts';
 import type { EgressSlice } from './slices/egress.ts';
+import type { GatingPolicySlice } from './slices/gatingpolicy.ts';
 
 export const DEMO_MODULES: ModulesSlice = {
   found: true,
@@ -96,6 +97,27 @@ export const DEMO_SAFETYNET: SafetyNetSlice = {
 };
 
 export const DEMO_EGRESS: EgressSlice = { enabled: true, gateConfigFound: true };
+
+export const DEMO_GATINGPOLICY: GatingPolicySlice = {
+  found: true,
+  pushPins: [
+    {
+      repo: 'atlas-hub', visibility: 'private', remoteUrls: ['https://github.com/demo-owner/atlas-hub.git'],
+      branches: ['main'], anyBranch: true, confidentialOk: true, featurePushOk: false,
+      prProtectedBranches: [], leakScrub: false, scrubWhitelistCount: 0,
+    },
+    {
+      repo: 'beacon', visibility: 'public', remoteUrls: ['https://github.com/demo-owner/beacon.git'],
+      branches: [], anyBranch: false, confidentialOk: false, featurePushOk: true,
+      prProtectedBranches: ['main'], leakScrub: true, scrubWhitelistCount: 3,
+    },
+  ],
+  pushPinDefaults: {
+    ownerUrlPattern: '^https://github\\.com/demo-owner/[^/]+(\\.git)?$',
+    visibility: 'public', branches: [], featurePushOk: true,
+    prProtectedBranches: ['main', 'master'], leakScrub: true, scrubWhitelistCount: 3,
+  },
+};
 
 import type { JobsSlice } from './slices/jobs.ts';
 

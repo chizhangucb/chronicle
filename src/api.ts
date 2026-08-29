@@ -746,10 +746,37 @@ export interface SafetyGapsView {
   header: string; actionable: GapView[]; watch: GapView[];
   posture: { classificationRules: number; markerCategories: { category: string; count: number }[]; spendCaps: Record<string, number | null>; egressEnabled: boolean };
 }
+export interface PushPinView {
+  repo: string;
+  visibility: 'public' | 'private' | null;
+  remoteUrls: string[];
+  branches: string[];
+  anyBranch: boolean;
+  confidentialOk: boolean;
+  featurePushOk: boolean;
+  prProtectedBranches: string[];
+  leakScrub: boolean;
+  scrubWhitelistCount: number;
+}
+export interface PushPinDefaultsView {
+  ownerUrlPattern: string;
+  visibility: 'public' | 'private' | null;
+  branches: string[];
+  featurePushOk: boolean;
+  prProtectedBranches: string[];
+  leakScrub: boolean;
+  scrubWhitelistCount: number;
+}
+export interface GatingPolicyView {
+  found: boolean;
+  pushPins: PushPinView[];
+  pushPinDefaults: PushPinDefaultsView | null;
+}
 export interface SafetyResult {
   safetyNet: SafetyNetView;
   gaps: SafetyGapsView;
   egress: { enabled: boolean; gateConfigFound: boolean };
+  gatingPolicy: GatingPolicyView;
 }
 export type HubSafetyResult = SafetyResult | { hubPresent: false };
 export interface LaunchGapResult { launched: boolean; buffer?: string; copyPrompt?: string; reason?: string }
