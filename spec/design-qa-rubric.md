@@ -41,9 +41,12 @@ AFFORD / BUG / LAYOUT) AND a lens (above).
 
 ### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
 Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-conformance lens).
-- [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Burn tile →
-      Insights charts → Recent-sessions ledger LAST. Exactly one KPI strip, one `/api/insights` fetch.
-- [ ] Tabs Overview / Explore / Content and a five-option window toggle (Today/7d/30d/90d/All) present.
+- [ ] `/` Overview reading order top→bottom: (briefing band →) KPI strip → (status band →) Activity
+      block (Today only) → Anomaly tile → Insights charts → Provenance strip LAST. NO recent-sessions
+      ledger on `/`. The briefing/status/provenance bands are behind the `homeBands` toggle (default
+      ON). Exactly one KPI strip, one `/api/insights` fetch.
+- [ ] Tabs Overview / Explore / Content / Spend / Sessions and a five-option window toggle
+      (Today/7d/30d/90d/All) present.
 - [ ] `/projects` is the dense `.rail-proj` LIST (pdot · name · live dot … count · gear menu; meta =
       branch/"needs association" · relative time) — NEVER the bordered `.projects-grid` card treatment.
 - [ ] Ledger + project select mode: rows/day-headers become checkboxes; delete is a two-step INLINE
@@ -53,8 +56,8 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
 - [ ] Both surfaces reflow with no horizontal overflow at 1024px (ledger + rail-list).
 
 ### Project detail / Insights hub (`ProjectDetail.tsx`, `HomeDashboard.tsx`)
-- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content tabs (the `/`
-      Insights hub) all render without a client error at each reference width.
+- [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content/Spend/Sessions
+      tabs (the `/` Insights hub) all render without a client error at each reference width.
 - [ ] KPI/stat tiles: every numeric leaf reports `getComputedStyle(el).fontVariantNumeric`
       containing `"tabular"` (see Alignment policy).
 - [ ] No KPI tile's right edge (`getBoundingClientRect().right`) exceeds its row container's
