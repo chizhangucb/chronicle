@@ -26,6 +26,7 @@ import { packageRoot } from '../server/hub/paths.ts';
 import type { BriefingCard, BriefingFile, BriefingStateFile } from '../server/briefing.ts';
 import { autoResolve, mergeRuns } from '../server/briefing-resolve.ts';
 import { extractJson, isDue, validateBriefingRun } from '../server/briefing-validate.ts';
+import { main as emitDailyDigest } from './emit-daily-digest.ts';
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const DATA_DIR = process.env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
@@ -149,6 +150,20 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   if (!force && !isDue(cadence, lastGeneratedAt(outPath), now)) {
     log(`skip cadence=${cadence} (not due; --force overrides)`);
     return 0;
+  }
+
+  // CHI-398: fold the satellite daily-digest emit into this existing daily
+  // job rather than standing up a second launchd job. Writes a small JSON
+  // artifact into the hub's records/spool/chronicle/ (governance/
+  // satellite-repos.md "Daily-report spool"); cheap, local-only, and never
+  // allowed to sink the briefing run itself, so it runs even if everything
+  // below (the claude call, card validation) later fails.
+  if (!dryRun) {
+    try {
+      emitDailyDigest(now);
+    } catch (err) {
+      log(`digest emit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // Assemble the snapshot INTO the runner cwd, keeping the live-data.json name.
