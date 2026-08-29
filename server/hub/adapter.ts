@@ -24,7 +24,8 @@ import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
 import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
 import { collectHubFileTouches, hubTouchSignature } from './slices/fileTouches.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
-import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs } from './freshness.ts';
+import { loadConfidentialSegments, ConfidentialPolicyUnavailable } from './confidential-segments.ts';
+import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs, NOISE_DIRS } from './freshness.ts';
 import { dataDir } from '../db.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
@@ -86,7 +87,13 @@ export class LiveHubAdapter implements HubAdapter {
   // Modules is a LIGHT slice: read fresh per request (a handful of file reads),
   // no on-disk cache. The heavy slices (memory, codegraphs) use freshness.ts.
   modules(): ModulesSlice {
-    return collectModules(this.root);
+    let segs: Set<string>;
+    try { segs = loadConfidentialSegments(this.root); }
+    catch (e) {
+      if (e instanceof ConfidentialPolicyUnavailable) return { found: false, rows: [] };
+      throw e;
+    }
+    return collectModules(this.root, segs);
   }
   safetyNet(): SafetyNetSlice {
     return collectSafetyNet(this.root);
@@ -113,26 +120,23 @@ export class LiveHubAdapter implements HubAdapter {
     return collectRecords(this.root);
   }
   memoryGraph(): Promise<MemorySlice> {
-    // Sig folds in the memory-scope config file's mtime (CHI-339), not just the
-    // hub's .md tree: without it, a confirmed scope edit would never invalidate
-    // this heavy slice's cache (the config lives under ${HOME}, outside the hub).
+    let confidentialSegments: Set<string>;
+    try { confidentialSegments = loadConfidentialSegments(this.root); }
+    catch (e) {
+      if (e instanceof ConfidentialPolicyUnavailable) return Promise.resolve(EMPTY_MEMORY);
+      throw e;
+    }
+    const memoryPrune = new Set<string>([...confidentialSegments, ...NOISE_DIRS]);
     const hubRoot = this.root;
     return freshSliceAsync(
       'memory',
-      // Fold in a cheap session signature so the Usage lane's transcript touches
-      // (CHI-385) refresh after new sessions import, not only when the .md tree
-      // or scope config change.
-      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}:${hubTouchSignature()}`,
+      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'), memoryPrune)}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}:${hubTouchSignature()}`,
       () => {
         const { config, source } = loadMemoryConfig();
-        return collectMemoryGraph(this.root, {
+        return collectMemoryGraph(this.root, confidentialSegments, {
           config,
           configSource: source,
-          // Usage channel a: hub-file reads/edits from this machine's sessions.
           fileTouches: collectHubFileTouches(hubRoot),
-          // Cross-run accrual (deletions + link-degree deltas). The collector
-          // writes these under the data dir and diffs against the last run;
-          // both read empty on the first scan and say so, honestly.
           snapshotPath: join(dataDir, 'memory-scope-snapshot.json'),
           degreeHistoryPath: join(dataDir, 'memory-degree-history.json'),
         });

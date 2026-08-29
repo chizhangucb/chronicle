@@ -9,8 +9,9 @@ import { parseMdTableSectionWithHeader } from './md-table.ts';
  * (operations.md) plus a `product-contract.md` per module. This reader parses
  * the table and snapshots each RESOLVABLE contract's markdown, read-only. It
  * refuses any path that is not named `product-contract.md` or that passes
- * through a confidential/next-ventures segment, however a registry cell got it
- * there (confidentiality floor, part 1.6). Light: read fresh per request.
+ * through a confidential segment (the set loaded from the hub at runtime),
+ * however a registry cell got it there (confidentiality floor, part 1.6).
+ * Light: read fresh per request.
  */
 
 export type ModuleContractStatus = 'full' | 'pending' | 'grandfathered';
@@ -44,12 +45,11 @@ export interface ModulesSlice {
 }
 
 // The same hard prune the whole-hub walk applies: never read anything whose
-// resolved path passes through one of these segments, however a registry cell
-// got it there. Checked on every resolved path, not just paths under hubRoot.
-const CONFIDENTIAL_SEGMENTS = new Set(['confidential', 'next-ventures']);
-
-function pathIsConfidential(resolvedPath: string): boolean {
-  return resolvedPath.split(/[\\/]+/).some((segment) => CONFIDENTIAL_SEGMENTS.has(segment));
+// resolved path passes through one of the confidential segments (loaded from the
+// hub at runtime, CHI-390, and passed in), however a registry cell got it there.
+// Checked on every resolved path, not just paths under hubRoot.
+function pathIsConfidential(resolvedPath: string, segments: Set<string>): boolean {
+  return resolvedPath.split(/[\\/]+/).some((segment) => segments.has(segment));
 }
 
 /**
@@ -57,7 +57,7 @@ function pathIsConfidential(resolvedPath: string): boolean {
  * unreadable, disallowed, or malformed path degrades to
  * `available: false, markdown: null` rather than failing the slice.
  */
-export function parseContractCell(cell: string, hubRoot: string): ModuleContract {
+export function parseContractCell(cell: string, hubRoot: string, confidentialSegments: Set<string>): ModuleContract {
   const trimmed = cell.trim();
 
   const pendingMatch = trimmed.match(/^\(pending\s+([A-Z]+-\d+)\)$/i);
@@ -78,7 +78,7 @@ export function parseContractCell(cell: string, hubRoot: string): ModuleContract
 
   // Contracts are read by the module practice's naming convention only; anything
   // else -- however a cell got written -- is refused.
-  if (basename(resolved) !== 'product-contract.md' || pathIsConfidential(resolved)) {
+  if (basename(resolved) !== 'product-contract.md' || pathIsConfidential(resolved, confidentialSegments)) {
     console.warn(`[modules] refusing to read contract path outside convention/policy: ${resolved}`);
     return { status, raw: rawPath, pendingTicket: null, path: resolved, available: false, markdown: null };
   }
@@ -96,7 +96,7 @@ export function parseContractCell(cell: string, hubRoot: string): ModuleContract
  * reading columns by header NAME so column order in operations.md can move
  * without breaking this. Rows missing a Module cell are dropped.
  */
-export function parseModulesTable(md: string, hubRoot: string): ModuleRow[] {
+export function parseModulesTable(md: string, hubRoot: string, confidentialSegments: Set<string>): ModuleRow[] {
   const { header, rows } = parseMdTableSectionWithHeader(md, 'Modules');
   if (header.length === 0) return [];
 
@@ -120,7 +120,7 @@ export function parseModulesTable(md: string, hubRoot: string): ModuleRow[] {
         purpose: at(cells, iPurpose),
         prdHome: at(cells, iPrd),
         project: at(cells, iProject),
-        contract: parseContractCell(at(cells, iContract), hubRoot),
+        contract: parseContractCell(at(cells, iContract), hubRoot, confidentialSegments),
       };
     })
     .filter((row): row is ModuleRow => row !== null);
@@ -131,7 +131,7 @@ export function parseModulesTable(md: string, hubRoot: string): ModuleRow[] {
  * Read-only; a missing operations.md yields `{found: false, rows: []}` (logged,
  * no throw) so the UI can tell "no registry" from "empty registry".
  */
-export function collectModules(hubRoot: string): ModulesSlice {
+export function collectModules(hubRoot: string, confidentialSegments: Set<string>): ModulesSlice {
   const path = join(hubRoot, 'operations.md');
   let md: string;
   try {
@@ -140,5 +140,5 @@ export function collectModules(hubRoot: string): ModulesSlice {
     console.warn(`[modules] could not read ${path} -- modules slice empty. ${err}`);
     return { found: false, rows: [] };
   }
-  return { found: true, rows: parseModulesTable(md, hubRoot) };
+  return { found: true, rows: parseModulesTable(md, hubRoot, confidentialSegments) };
 }

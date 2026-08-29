@@ -23,9 +23,10 @@ import path from 'node:path';
 
 const DATA_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 
-/** Segments pruned from every hub tree walk (confidentiality floor, part 1.6).
- * Never descend confidential/next-ventures; never count them toward freshness. */
-const PRUNE = new Set(['confidential', 'next-ventures', 'node_modules', '.git']);
+/** Generic noise dirs pruned from every hub tree walk (never knowledge, can be
+ * huge). Confidential trees are pruned via a caller-supplied set (CHI-390): the
+ * SPECIFIC confidential names are never hardcoded in this public source. */
+export const NOISE_DIRS = new Set(['node_modules', '.git']);
 
 interface FreshEntry<T> {
   sig: string;
@@ -62,10 +63,11 @@ export function pathsMaxMtimeMs(paths: string[]): number {
 }
 
 /** Recursive max mtime (ms) under `root`, lstat-only (symlinks are not
- * followed), pruning confidential/next-ventures/.git/node_modules. For heavy
- * slices; call behind a TTL gate, never per request. `filter` optionally limits
- * which files count (e.g. only *.md). */
-export function treeMaxMtimeMs(root: string, filter?: (name: string) => boolean): number {
+ * followed), pruning the generic noise dirs plus any caller-supplied prune set
+ * (`extraPrune`, e.g. the hub's confidential segments). For heavy slices; call
+ * behind a TTL gate, never per request. `filter` optionally limits which files
+ * count (e.g. only *.md). */
+export function treeMaxMtimeMs(root: string, filter?: (name: string) => boolean, extraPrune?: Set<string>): number {
   let max = 0;
   const walk = (dir: string): void => {
     let entries: fs.Dirent[];
@@ -77,7 +79,7 @@ export function treeMaxMtimeMs(root: string, filter?: (name: string) => boolean)
     for (const e of entries) {
       if (e.isSymbolicLink()) continue; // never follow symlinks (floor)
       if (e.isDirectory()) {
-        if (PRUNE.has(e.name)) continue;
+        if (NOISE_DIRS.has(e.name) || extraPrune?.has(e.name)) continue;
         walk(path.join(dir, e.name));
       } else if (e.isFile()) {
         if (filter && !filter(e.name)) continue;

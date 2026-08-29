@@ -21,6 +21,7 @@ const {
   writeHubCache,
   hubCacheDir,
 } = await import('../server/hub/freshness.ts');
+const { loadConfidentialSegments } = await import('../server/hub/confidential-segments.ts');
 
 const mk = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 const touch = (p, ms) => fs.utimesSync(p, new Date(ms), new Date(ms));
@@ -34,24 +35,36 @@ test('pathsMaxMtimeMs returns the max mtime and ignores missing files', () => {
   assert.ok(Math.abs(max - 2_000_000_000_000) < 1000);
 });
 
-test('treeMaxMtimeMs prunes confidential/next-ventures and skips symlinks', () => {
+test('treeMaxMtimeMs prunes confidential trees (generic + declared via extraPrune) and skips symlinks', () => {
   const dir = mk('chronicle-fresh-tree-');
   fs.mkdirSync(path.join(dir, 'records'));
   fs.mkdirSync(path.join(dir, 'wiki', 'confidential'), { recursive: true });
-  const normal = path.join(dir, 'records', 'a.md');
-  const secret = path.join(dir, 'wiki', 'confidential', 'secret.md');
-  fs.writeFileSync(normal, 'x'); fs.writeFileSync(secret, 'y');
-  touch(normal, 1_500_000_000_000);
-  touch(secret, 3_000_000_000_000); // NEWER, but pruned — must not count
+  fs.mkdirSync(path.join(dir, 'secret-tree'), { recursive: true });
+  // The hub's private declaration names a SYNTHETIC confidential tree; the
+  // loaded set is the generic `confidential` floor UNION that name.
+  fs.mkdirSync(path.join(dir, 'scripts', 'egress_gate', 'data'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'scripts', 'egress_gate', 'data', 'confidential_segments.json'),
+    JSON.stringify({ confidential_segments: ['secret-tree'] }),
+  );
+  const prune = loadConfidentialSegments(dir); // { confidential, secret-tree }
 
-  const max = treeMaxMtimeMs(dir, (n) => n.endsWith('.md'));
+  const normal = path.join(dir, 'records', 'a.md');
+  const secretGeneric = path.join(dir, 'wiki', 'confidential', 'secret.md');
+  const secretDeclared = path.join(dir, 'secret-tree', 'plan.md');
+  fs.writeFileSync(normal, 'x'); fs.writeFileSync(secretGeneric, 'y'); fs.writeFileSync(secretDeclared, 'z');
+  touch(normal, 1_500_000_000_000);
+  touch(secretGeneric, 3_000_000_000_000); // NEWER, but pruned (generic floor) — must not count
+  touch(secretDeclared, 3_500_000_000_000); // NEWER, but pruned (declared) — must not count
+
+  const max = treeMaxMtimeMs(dir, (n) => n.endsWith('.md'), prune);
   assert.ok(Math.abs(max - 1_500_000_000_000) < 1000, 'confidential file leaked into signature');
 
   // A symlink to a newer file must not be followed.
   const target = path.join(mk('chronicle-fresh-link-'), 't.md');
   fs.writeFileSync(target, 'z'); touch(target, 4_000_000_000_000);
   fs.symlinkSync(target, path.join(dir, 'records', 'link.md'));
-  const max2 = treeMaxMtimeMs(dir, (n) => n.endsWith('.md'));
+  const max2 = treeMaxMtimeMs(dir, (n) => n.endsWith('.md'), prune);
   assert.ok(Math.abs(max2 - 1_500_000_000_000) < 1000, 'symlink target leaked into signature');
 });
 

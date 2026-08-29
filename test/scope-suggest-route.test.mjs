@@ -13,15 +13,24 @@ process.env.CHRONICLE_DATA_DIR = data;
 
 const { hubStructure, buildPrompt, validateSuggestion } = await import('../scripts/run-scope-suggest.ts');
 const { mountHub } = await import('../server/routes/hub.ts');
+const { loadConfidentialSegments } = await import('../server/hub/confidential-segments.ts');
 
 function makeHub() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-scopesuggest-hub-'));
   fs.mkdirSync(path.join(root, 'wiki', 'entities'), { recursive: true });
   fs.writeFileSync(path.join(root, 'wiki', 'entities', 'x.md'), '# X');
+  // CONFIDENTIAL (generic floor): a dir literally named `confidential`.
   fs.mkdirSync(path.join(root, 'wiki', 'confidential'), { recursive: true });
   fs.writeFileSync(path.join(root, 'wiki', 'confidential', 'deal.md'), '# SecretDeal');
-  fs.mkdirSync(path.join(root, 'next-ventures'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'next-ventures', 'plan.md'), '# NextVenture');
+  // CONFIDENTIAL (declared): a SYNTHETIC tree named only in the hub's private
+  // declaration, never hardcoded in Chronicle source.
+  fs.mkdirSync(path.join(root, 'scripts', 'egress_gate', 'data'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'scripts', 'egress_gate', 'data', 'confidential_segments.json'),
+    JSON.stringify({ confidential_segments: ['secret-tree'] }),
+  );
+  fs.mkdirSync(path.join(root, 'secret-tree'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'secret-tree', 'plan.md'), '# SecretPlan');
   fs.mkdirSync(path.join(root, 'governance'), { recursive: true });
   fs.mkdirSync(path.join(root, 'records'), { recursive: true });
   fs.writeFileSync(path.join(root, 'operations.md'), '# ops');
@@ -29,16 +38,20 @@ function makeHub() {
 }
 const hub = makeHub();
 
+// hubStructure now takes the caller's hidden set: the same union main() builds —
+// the hub's confidential segments (generic floor + declared) plus generic noise.
+const hidden = new Set([...loadConfidentialSegments(hub), 'node_modules', '.git', '.obsidian']);
+
 // ---- pure functions ----
-test('hubStructure: absent root -> empty; lists dirs/root .md, hides confidential/next-ventures', () => {
-  assert.equal(hubStructure(null), '');
-  const structure = hubStructure(hub);
+test('hubStructure: absent root -> empty; lists dirs/root .md, hides confidential trees', () => {
+  assert.equal(hubStructure(null, hidden), '');
+  const structure = hubStructure(hub, hidden);
   assert.match(structure, /wiki\//);
   assert.match(structure, /governance\//);
   assert.match(structure, /operations\.md/);
   assert.doesNotMatch(structure, /confidential/);
-  assert.doesNotMatch(structure, /next-ventures/);
-  assert.doesNotMatch(structure, /SecretDeal|NextVenture/);
+  assert.doesNotMatch(structure, /secret-tree/);
+  assert.doesNotMatch(structure, /SecretDeal|SecretPlan/);
 });
 
 test('buildPrompt embeds the structure and demands a bare JSON object reply', () => {

@@ -16,6 +16,14 @@ function makeHub() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-modules-hub-'));
   fs.mkdirSync(path.join(root, 'records'));
   fs.mkdirSync(path.join(root, 'governance'));
+  // The hub's private confidential-segment declaration, so the adapter/route
+  // live reads load the prune set at runtime instead of failing closed. The
+  // generic `confidential` floor is always added by the loader.
+  fs.mkdirSync(path.join(root, 'scripts', 'egress_gate', 'data'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'scripts', 'egress_gate', 'data', 'confidential_segments.json'),
+    JSON.stringify({ confidential_segments: ['secret-tree'] }),
+  );
   fs.mkdirSync(path.join(root, 'projects', 'alpha'), { recursive: true });
   fs.writeFileSync(path.join(root, 'projects', 'alpha', 'product-contract.md'), '# Alpha contract\n\nBody text here.\n');
   fs.writeFileSync(path.join(root, 'operations.md'), [
@@ -44,46 +52,51 @@ const { parseContractCell, parseModulesTable, collectModules } = await import('.
 const { getHubAdapter } = await import('../server/hub/adapter.ts');
 const { mountHub } = await import('../server/routes/hub.ts');
 
+// The confidential-segment prune set the slice now takes explicitly: the generic
+// `confidential` floor plus a synthetic declared tree. `wiki/confidential/...`
+// paths are refused via the floor.
+const SEGS = new Set(['confidential', 'secret-tree']);
+
 test('parseContractCell: pending cell', () => {
-  const c = parseContractCell('(pending CHI-123)', hub);
+  const c = parseContractCell('(pending CHI-123)', hub, SEGS);
   assert.equal(c.status, 'pending');
   assert.equal(c.pendingTicket, 'CHI-123');
   assert.equal(c.available, false);
 });
 
 test('parseContractCell: full readable contract snapshots markdown', () => {
-  const c = parseContractCell('projects/alpha/product-contract.md', hub);
+  const c = parseContractCell('projects/alpha/product-contract.md', hub, SEGS);
   assert.equal(c.status, 'full');
   assert.equal(c.available, true);
   assert.match(c.markdown, /Alpha contract/);
 });
 
 test('parseContractCell: grandfathered dagger prefix', () => {
-  const c = parseContractCell('† projects/alpha/product-contract.md', hub);
+  const c = parseContractCell('† projects/alpha/product-contract.md', hub, SEGS);
   assert.equal(c.status, 'grandfathered');
   assert.equal(c.available, true);
 });
 
 test('parseContractCell: refuses a non-product-contract.md path', () => {
-  const c = parseContractCell('projects/alpha/README.md', hub);
+  const c = parseContractCell('projects/alpha/README.md', hub, SEGS);
   assert.equal(c.available, false);
   assert.equal(c.markdown, null);
 });
 
 test('parseContractCell: refuses a confidential path even if named right', () => {
-  const c = parseContractCell('wiki/confidential/product-contract.md', hub);
+  const c = parseContractCell('wiki/confidential/product-contract.md', hub, SEGS);
   assert.equal(c.available, false);
   assert.equal(c.markdown, null);
 });
 
 test('parseContractCell: unreadable path degrades, does not throw', () => {
-  const c = parseContractCell('projects/missing/product-contract.md', hub);
+  const c = parseContractCell('projects/missing/product-contract.md', hub, SEGS);
   assert.equal(c.available, false);
 });
 
 test('parseModulesTable maps by header name and reads only the ## Modules table', () => {
   const md = fs.readFileSync(path.join(hub, 'operations.md'), 'utf8');
-  const rows = parseModulesTable(md, hub);
+  const rows = parseModulesTable(md, hub, SEGS);
   assert.equal(rows.length, 3);
   assert.equal(rows[0].name, 'alpha');
   assert.equal(rows[0].tier, 'core');
@@ -96,7 +109,7 @@ test('parseModulesTable maps by header name and reads only the ## Modules table'
 
 test('collectModules: missing operations.md yields {found:false}', () => {
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-modules-empty-'));
-  const slice = collectModules(empty);
+  const slice = collectModules(empty, SEGS);
   assert.equal(slice.found, false);
   assert.deepEqual(slice.rows, []);
 });
