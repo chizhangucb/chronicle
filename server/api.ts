@@ -20,6 +20,7 @@ import { mountAsk }        from './routes/ask.ts';
 import { mountViewLog }    from './routes/viewlog.ts';
 import { mountDemo }       from './routes/demo.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
+import { auditWrites } from './gate/audit-writes.ts';
 import type { Gate } from './gate/core.ts';
 import { startAutoSync }   from './autosync.ts';
 import { pruneViewLog }    from './viewlog.ts';
@@ -41,6 +42,10 @@ api.use(express.json());        // MUST stay first — body parsing for all POST
 // security rules, hub config), one consistent posture. See gateTokenGuard. The
 // tiered auto-approval model is CHI-329.
 api.use(gateTokenGuard(gate));
+
+// Every write that is not a gate surface still lands in the write log (CHI-396).
+// After the token guard, so a rejected request is never recorded as a write.
+api.use(auditWrites(gate));
 
 mountGateRoutes(api, gate);
 mountImportSync(api);
