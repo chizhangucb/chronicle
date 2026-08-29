@@ -31,7 +31,7 @@ npm run walk       # release-walk capture (screenshots + probe JSON), judged aga
 
 - Hub is read-only from runtime code; path comes from `AIOS_HUB` (default `~/chizhang-2`). No absolute machine paths in tracked files (path-relative + git-cloneable).
 - `AGENTS.md` is `CLAUDE.md`'s twin: same content via symlink, so any harness reads this floor.
-- Confidentiality floor: chronicle is PUBLIC. Nothing confidential (hub `wiki/confidential/`, `next-ventures/`, or equivalent) ever lands in this repo's files, fixtures, commits, or pushes. Fixtures are always synthetic, never copies of hub data. Sessions may read anything in the hub.
+- Confidentiality floor: chronicle is PUBLIC. Nothing confidential (the hub's confidential trees, per `$HUB/governance/confidentiality.md`) ever lands in this repo's files, fixtures, commits, or pushes. Fixtures are always synthetic, never copies of hub data. Sessions may read anything in the hub.
 
 ## Floor: $HUB/governance/ pointers
 
@@ -63,7 +63,7 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 ## Pre-push scan list
 
 Chronicle is public. Before any push, verify:
-- No hub-confidential material: nothing from `wiki/confidential/`, `next-ventures/`, or acquisition-adjacent trees.
+- No hub-confidential material: nothing from the hub's confidential trees or acquisition-adjacent material (see `$HUB/governance/confidentiality.md`).
 - No real hub documents or data in fixtures or tests (synthetic only).
 - No absolute hub/home paths in tracked files.
 - No secrets, keys, or `.env` contents.
