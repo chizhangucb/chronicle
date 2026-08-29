@@ -24,7 +24,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "standalone": "npm run build && node server/standalone.ts",
-    "test": "node --test 'test/**/*.test.mjs'",
+    "test": "node --import ./test/no-ambient-hub.mjs --test 'test/**/*.test.mjs'",
     "test:e2e": "playwright test",
     "walk": "node test/e2e/walk.mjs",
     "walk:seeded": "node scripts/walk-seed.mjs",
