@@ -16,6 +16,7 @@ import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './windowedUsage.ts';
+import { isSyntheticUserText } from '../shared/synthetic.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
@@ -118,9 +119,13 @@ const FRIENDLY_CALL: Record<string, string> = {
 };
 
 // Display name for a session: user-set name → tool summary → first prompt → id.
+// A synthetic first_prompt (command echo / cross-session IPC wrapper) is treated
+// as absent (CHI-368) so it never surfaces as the name on the Sessions tab/table
+// — this read-path guard also covers rows imported before the parser fix.
 export function sessionDisplayName(s: NamedSession): string {
+  const fp = s.first_prompt && !isSyntheticUserText(s.first_prompt) ? s.first_prompt : null;
   return (s.name && s.name.trim()) || (s.summary && s.summary.trim())
-    || s.first_prompt || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
+    || fp || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
 }
 
 export interface ProjectDetailProps {
@@ -462,22 +467,22 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div className="s">{fmtInt(stats.activeDays)} {t('Active Days')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Cost')} <InfoTip text={t('Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.')} /></div>
+          <div className="l">{t('Cost')} <InfoTip def="projects.cost" /></div>
           <div className="v">{fmtMoney(stats.totalCost, 0)}</div>
           <div className="s">{fmtInt(stats.modelCount)} {t('models')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
+          <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
           <div className="v">{fmtTok(stats.totalTokens)}</div>
           <div className="s" title={`${t('Input')} ${fmtTok(stats.totalIn)} · ${t('Output')} ${fmtTok(stats.totalOut)}`}>{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Agent Active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
+          <div className="l">{t('Agent Active')} <InfoTip def="overview.agent-active" /></div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
           <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} ${t('avg/session')}`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Messages')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></div>
+          <div className="l">{t('Messages')} <InfoTip def="overview.messages" /></div>
           <div className="v">{fmtInt(stats.messages)}</div>
           <div className="s">{fmtInt(stats.userPrompts)} {t('prompts')}</div>
         </div>
@@ -492,7 +497,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           <div className="s">{stats.errorRate.toFixed(1)}% {t('Error Rate')}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Commits')} <InfoTip text={t('Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.')} /></div>
+          <div className="l">{t('Commits')} <InfoTip def="overview.commits" /></div>
           <div className="v">{fmtInt(data.analytics.commits)}</div>
           <div className="s">{t('in range')}</div>
         </div>
@@ -654,7 +659,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                 {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
                 {sessionDisplayName(s)}
               </div>
-              {s.first_prompt && sessionDisplayName(s) !== s.first_prompt && (
+              {s.first_prompt && !isSyntheticUserText(s.first_prompt) && sessionDisplayName(s) !== s.first_prompt && (
                 <div className="session-subprompt muted small" title={s.first_prompt}>{s.first_prompt}</div>
               )}
               <div className="session-meta muted small">

@@ -72,6 +72,14 @@ export function mountHub(app: Express): void {
     res.json(adapter.jobs());
   });
 
+  // Records (CHI-324 2h): the append-only hub records (decisions + session
+  // ledger), index fields only. Absent-gated like every ops slice.
+  app.get('/hub/records', (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    res.json(adapter.records());
+  });
+
   // Job log tail (organ 1e): the browser sends a job ID, never a path. Only the
   // log paths the jobs slice itself declares for that job are opened (last 100
   // lines, tail-capped).
@@ -90,6 +98,29 @@ export function mountHub(app: Express): void {
     const adapter = getHubAdapter();
     if (!adapter.status().present) return res.json({ hubPresent: false });
     res.json(await adapter.memoryGraph());
+  });
+
+  // Memory SUMMARY (CHI-325 3d). The status band on / needs four numbers, and
+  // GET /hub/memory ships the entire graph (every node, link and noteDate) to
+  // get them: the demo file alone is 34KB and a live hub is far larger. Sending
+  // that to the DEFAULT route on every load would be a real regression, so the
+  // band reads this instead. The adapter's own freshness cache still does the
+  // expensive work at most once per TTL, shared with the /memory page.
+  app.get('/hub/memory/summary', async (_req: Request, res: Response) => {
+    const adapter = getHubAdapter();
+    if (!adapter.status().present) return res.json({ hubPresent: false });
+    const slice = await adapter.memoryGraph();
+    res.json({
+      hubPresent: true,
+      totalNotes: slice.stats.totalNotes,
+      totalLinks: slice.stats.totalLinks,
+      stale: slice.stats.stale,
+      freshness: slice.stats.freshness,
+      // Growth over the recent window, used as the band's glyph. A sparkline of
+      // note count is a cheap, honest stand-in for Varde's graph thumbnail,
+      // which is what forced the heavy payload in the first place.
+      growth: (slice.growth?.series ?? []).slice(-14).map((d) => d.total ?? 0),
+    });
   });
 
   // Memory scope-suggest (CHI-339): kicks the headless runner (structure NAMES

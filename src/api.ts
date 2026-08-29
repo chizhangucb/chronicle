@@ -4,7 +4,10 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
-import type { MemoryNode, MemoryLink, MemoryScopeEcho } from './components/memory/types.js';
+import type {
+  MemoryNode, MemoryLink, MemoryScopeEcho,
+  MemoryRot, MemoryGrowth, MemoryUsage, MemoryConnectivity, MemoryNoteDate,
+} from './components/memory/types.js';
 import { gateToken } from './gate/token.ts';
 
 // Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
@@ -314,11 +317,90 @@ export interface SearchResponse {
 
 // ---- Settings ----
 
+// ---- View log (CHI-325 3a) ----
+// Mirrors server/viewlog.ts. Local-only: these shapes never travel anywhere but
+// between this client and the localhost server that owns chronicle.db.
+export type ViewLogActor = 'human' | 'agent';
+export type ViewLogEvent = 'visit' | 'tab' | 'action';
+
+export interface ViewLogEventInput {
+  /** Route PATTERN ('/session/:id'), never an instance. The server rejects
+   *  anything not on its allowlist, which is what keeps this table from
+   *  becoming a second copy of the session history. */
+  route: string;
+  event: ViewLogEvent;
+  detail?: string | null;
+  actor: ViewLogActor;
+  gesture: boolean;
+}
+
+/** Fills in the dwell of a row opened earlier. Rows are opened on ARRIVAL so a
+ *  lost close costs one duration, never a whole visit (see server/viewlog.ts). */
+export interface ViewLogClose {
+  id: number;
+  dwellMs: number;
+}
+
+export interface ViewLogRouteSummary {
+  route: string;
+  humanVisits: number;
+  agentVisits: number;
+  humanDwellMs: number | null;
+}
+
+export interface ViewLogSummary {
+  enabled: boolean;
+  rows: number;
+  humanRows: number;
+  agentRows: number;
+  firstTs: string | null;
+  lastTs: string | null;
+  routes: ViewLogRouteSummary[];
+}
+
 export interface Settings {
   autoSync: boolean;
   autoSyncPaused: boolean;
+  ask: boolean;
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
+  planWindows: boolean;
+  // Monthly spend budget in USD, or null when unset (CHI-366). Server-visible so
+  // the Spend tab and the briefing runner read the same value.
+  monthlyBudget: number | null;
+  /** The briefing + status bands on / (CHI-325 3d). Default true. */
+  homeBands: boolean;
+}
+
+// Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
+// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND + opt-in-off.
+export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
+export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
+export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
+export function planWindowsUrl(): string { return '/api/plan-windows'; }
+
+// ---- /ask (CHI-351): local claude-CLI-backed metric chat over chronicle.db ----
+export interface AskStatus {
+  enabled: boolean;      // toggleOn && claudePresent && !demo
+  toggleOn: boolean;
+  claudePresent: boolean;
+  demo: boolean;
+}
+export type AskCostMode = 'list' | 'billed';
+export interface AskTurn {
+  id: string;
+  ts: string;
+  question: string;
+  costBasis: AskCostMode;
+  ok: boolean;
+  prose: string;
+  sql: string | null;
+  columns: string[];
+  rows: unknown[][];
+  rowCount: number;
+  truncated: boolean;
+  note?: string;
+  error?: string;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -442,6 +524,17 @@ export interface ActivityBurn {
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;
+  // CHI-324 2c: per-day per-dimension cells for the anomaly tile (client prices
+  // → CostedDay[] → shared computeAnomaly), Lane C per-day $, and the local today.
+  anomalyDays: AnomalyDayCells[];
+  laneCByDay: Record<string, number>;
+  today: string;
+}
+export interface AnomalyDayCells {
+  day: string;
+  byModel: ActivityTokensByModel;
+  byProject: Record<string, ActivityTokensByModel>;
+  bySource: Record<string, ActivityTokensByModel>;
 }
 export interface ActivityResult {
   live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;
@@ -476,8 +569,8 @@ export interface ExploreCell {
 export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
 export interface ExploreResult {
   metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session';
-  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | null;
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider' | null;
   calibrated: boolean; rows: ExploreRow[];
   rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
 }
@@ -524,8 +617,8 @@ export interface ContentResult {
 export interface ExploreQueryParams {
   scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
   metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
-  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session';
-  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'; topN?: number;
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider'; topN?: number;
   rollup?: ExploreRollup;
 }
 
@@ -566,6 +659,45 @@ export function activityUrl(since?: string | null, days?: number | null): string
   const qs = p.toString();
   return '/api/activity' + (qs ? `?${qs}` : '');
 }
+// Efficiency detector counts (CHI-324 2e) — mirrors server/detectors.ts. The
+// client derives + grades the rates (cache hit, jumbo, long context) with the
+// shared thresholds; error rate is derived from /api/insights.
+export interface DetectorCounts {
+  assistantRows: number;
+  jumboRows: number;
+  longContextRows: number;
+  cacheReadTokens: number;
+  inputTokens: number;
+}
+export function detectorsUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/detectors' + (qs ? `?${qs}` : '');
+}
+
+// Efficiency WASTE signals (CHI-324 2e) — mirrors server/waste.ts. Ships token
+// cells + counts; the client prices the premium / savings / wasted-$.
+export interface WasteChurnSession { session: string; project: string; writeTokens: number; readTokens: number; byModel: Record<string, { cw5m: number; cw1h: number }>; }
+export interface WasteRightSizingModel { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface WasteRereadFile { path: string; rereads: number; sessions: number; }
+export interface WasteResult {
+  cacheChurn: { sessionsFlagged: number; top: WasteChurnSession[] };
+  rightSizing: { candidates: WasteRightSizingModel[] };
+  rereads: { rereadCalls: number; sessionsAffected: number; estWastedTokens: number; topFiles: WasteRereadFile[] };
+}
+export function wasteUrl(days?: number | null): string {
+  const p = new URLSearchParams();
+  if (days) p.set('days', String(days));
+  const qs = p.toString();
+  return '/api/waste' + (qs ? `?${qs}` : '');
+}
+
+// Routing-compliance roster (CHI-324 2e) — mirrors server/routing.ts. Just the
+// curated model families; the client classifies the window's models on/off
+// roster and prices from /api/insights. Hub-conditional.
+export interface RosterResult { present: boolean; families: string[]; }
+export function routingUrl(): string { return '/api/routing'; }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));
@@ -634,6 +766,16 @@ export interface JobRowView {
 }
 export interface JobsSliceView { scannedAt: string; sources: Record<JobSource, number>; jobs: JobRowView[] }
 export type HubJobsResult = JobsSliceView | { hubPresent: false };
+
+// Records (CHI-324 2h) — the append-only hub records, index fields only.
+export interface RecordsLedgerRowView { date: string; sessionId: string; focus: string; repo: string | null }
+export interface RecordsDecisionView { date: string | null; title: string }
+export interface RecordsSliceView {
+  found: boolean;
+  decisions: { total: number; recent: RecordsDecisionView[] };
+  ledger: { total: number; recent: RecordsLedgerRowView[]; rows: RecordsLedgerRowView[] };
+}
+export type HubRecordsResult = RecordsSliceView | { hubPresent: false };
 export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
@@ -658,13 +800,31 @@ export interface MemoryStatsView {
   totalFiles: number; totalWorkspaces: number; stale: number; missing: number; freshness: number;
   capSuggested: number; totalNotes: number; totalLinks: number; living: number; historical: number;
 }
+/** The home band's memory read (CHI-325 3d). Deliberately tiny: the full
+ *  MemorySliceView carries every node and link, which must not travel to the
+ *  default route on every load. */
+export interface MemorySummaryView {
+  hubPresent: true;
+  totalNotes: number;
+  totalLinks: number;
+  stale: number;
+  freshness: number;
+  growth: number[];
+}
+
 export interface MemorySliceView {
   stats: MemoryStatsView;
   scope: MemoryScopeEcho;
   nodes: MemoryNode[];
   links: MemoryLink[];
-  // The rich reads (rot/growth/usage/connectivity/noteDates) ride along untyped
-  // here; the canvas uses stats + scope + nodes + links.
+  // The rich analytics reads (CHI-385 parity): the Memory lanes read these
+  // directly. They ship from the server slice; the canvas uses stats + scope +
+  // nodes + links. Optional: an older projection may omit any of them.
+  rot?: MemoryRot;
+  growth?: MemoryGrowth;
+  usage?: MemoryUsage;
+  connectivity?: MemoryConnectivity;
+  noteDates?: MemoryNoteDate[];
   [key: string]: unknown;
 }
 export type HubMemoryResult = MemorySliceView | { hubPresent: false };
@@ -722,6 +882,7 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
   }),
   hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
+  hubRecords: (): Promise<HubRecordsResult> => j('/api/hub/records'),
   jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
   briefing: (): Promise<BriefingResult> => j('/api/briefing'),
   briefingAction: (cardId: string, action: CardActionView): Promise<{ cards: ResolvedCardView[]; followThrough: FollowThroughView }> =>
@@ -729,6 +890,12 @@ export const api = {
   briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
   hubMemory: (): Promise<HubMemoryResult> => j('/api/hub/memory'),
+  // /ask (CHI-351)
+  askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
+  askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),
+  postAsk: (question: string, costMode: AskCostMode): Promise<{ turn: AskTurn }> => j('/api/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, costMode }),
+  }),
   openFile: (nodePath: string): Promise<OpenFileResult> => j('/api/open-file', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: nodePath }),
   }),
@@ -766,4 +933,23 @@ export const api = {
   explore: (q: ExploreQueryParams): Promise<ExploreResult> => j(exploreUrl(q)),
   content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
+  // View log (CHI-325 3a). The POST is batched (a navigation closes the previous
+  // dwell and opens the next), and it rides j() so the gate token is attached —
+  // server/api.ts 403s every non-GET without it.
+  viewLog: (events: ViewLogEventInput[], closes: ViewLogClose[] = []): Promise<{ ids: (number | null)[]; recorded: number; closed: number; enabled: boolean }> =>
+    j('/api/view-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events, closes }) }),
+  viewLogSummary: (): Promise<ViewLogSummary> => j('/api/view-log/summary'),
+  // Demo mode (CHI-325 3c). `available` is false under `npm run dev`, where
+  // there is no CLI to restart the process.
+  demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),
+  // LIGHT memory read for the home status band (CHI-325 3d): four numbers plus a
+  // growth series, never the whole node/link graph.
+  hubMemorySummary: (): Promise<MemorySummaryView | { hubPresent: false }> => j('/api/hub/memory/summary'),
+  demoStart: (): Promise<{ ok: true; restarting: boolean }> =>
+    j('/api/demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  demoExit: (): Promise<{ ok: true; restarting: boolean }> =>
+    j('/api/demo/exit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  viewLogClear: (): Promise<{ cleared: number }> => j('/api/view-log', { method: 'DELETE' }),
+  viewLogSetEnabled: (viewLog: boolean): Promise<{ enabled: boolean }> =>
+    j('/api/view-log/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ viewLog }) }),
 };

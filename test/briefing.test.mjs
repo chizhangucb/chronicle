@@ -33,6 +33,33 @@ test('applyCardAction: done/snooze/reopen; activity survives', () => {
   assert.ok(s.cards.c1.snoozedUntil);
 });
 
+test('reopen overrides a demo baseline state (CHI-325 review)', () => {
+  // The bug: reopen used to DELETE the state entry when there was nothing to
+  // keep. That only works if the operator's state file is the ONLY source of a
+  // card's state, and it is not: withDemoStates layers a demo file's shipped
+  // states UNDERNEATH it. So on a demo console the deleted key let the demo's
+  // "snoozed" reassert itself and Reopen did visibly nothing, forever.
+  //
+  // The prior test only exercised reopen AFTER recordWorkedOn, which took the
+  // other branch and passed throughout.
+  const file = {
+    version: 1, generatedAt: NOW.toISOString(), cadence: 'daily', isDemo: true,
+    cards: [{ id: 'c1', runAt: NOW.toISOString(), kind: 'k', domain: 'safety', needsYou: true, title: 't', summary: 's' }],
+    demoStates: { c1: { state: 'snoozed', at: NOW.toISOString(), snoozedUntil: new Date(NOW.getTime() + 86400000).toISOString() } },
+  };
+  // Baseline: the demo state shows through when the operator has said nothing.
+  assert.equal(b.resolveCards(file, b.withDemoStates(file, { version: 1, cards: {} }), NOW)[0].state, 'snoozed');
+
+  // Reopen with no prior operator entry and nothing to keep: the exact path.
+  const after = b.applyCardAction({ version: 1, cards: {} }, 'c1', 'reopen', NOW);
+  assert.equal(after.cards.c1.state, 'open', 'reopen must write an explicit open entry, not delete the key');
+  assert.ok(after.cards.c1.at, 'reopen records when it happened');
+  assert.equal(
+    b.resolveCards(file, b.withDemoStates(file, after), NOW)[0].state, 'open',
+    'the operator reopening a card must win over the demo baseline',
+  );
+});
+
 test('resolveCards: an expired snooze resolves back to open', () => {
   const file = { version: 1, generatedAt: '', cadence: 'daily', cards: [{ id: 'c1', runAt: NOW.toISOString(), kind: 'k', domain: 'jobs', needsYou: true, title: 't', summary: 's' }] };
   const past = new Date(NOW.getTime() - 86400000).toISOString();
@@ -61,12 +88,12 @@ test('readBriefingFile: demo file rebases dates to now; example is the empty fal
   assert.ok(Math.abs(newest - NOW.getTime()) < 1000);
 });
 
-// ---- validator (D7) ----
-test('validator rejects a spend-domain card (D7 non-spend scope)', () => {
-  const out = v.validateBriefingRun({ cards: [{ id: 'x', kind: 'spend-anomaly', domain: 'spend', needsYou: true, title: 't', summary: 's' }] }, NOW);
-  assert.equal(out.cards.length, 0);
-  assert.equal(out.dropped.length, 1);
-  assert.match(out.dropped[0].errors.join(' '), /domain/);
+// ---- validator (CHI-324 2i: spend domain accepted) ----
+test('validator accepts a spend-domain card (CHI-324 2i)', () => {
+  const out = v.validateBriefingRun({ cards: [{ id: 'spend-anomaly:2026-08-26', kind: 'spend-anomaly', domain: 'spend', needsYou: true, title: 't', summary: 's' }] }, NOW);
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.dropped.length, 0);
+  assert.equal(out.cards[0].domain, 'spend');
 });
 
 test('validator: valid card passes, duplicate id + over-cap dropped', () => {
@@ -96,6 +123,53 @@ test('mergeRuns keeps the first runAt for a re-emitted id; autoResolve clears a 
   const live = { jobs: { jobs: [{ id: 'j', status: 'success', lastExit: 0 }] } };
   const { resolvedIds } = r.autoResolve(file, { version: 1, cards: {} }, live, NOW);
   assert.deepEqual(resolvedIds, ['job-stale:j']); // condition no longer fires
+});
+
+// ---- spend (CHI-324 2i) ----
+test('spend-anomaly resolves when the spike day has rolled past or is no longer flagged', () => {
+  const card = { id: 'spend-anomaly:2026-08-26', kind: 'spend-anomaly', domain: 'spend', needsYou: false, title: 't', summary: 's', runAt: NOW.toISOString() };
+  // same day, still flagged -> stands
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-26', anomaly: { flagged: true } } }, NOW), false);
+  // same day, no longer flagged -> resolves
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-26', anomaly: { flagged: false } } }, NOW), true);
+  // day rolled past the spike day -> resolves (historical)
+  assert.equal(r.checkCardResolved(card, { spend: { today: '2026-08-27', anomaly: { flagged: true } } }, NOW), true);
+  // no spend slice -> left alone (stands, not auto-resolved)
+  assert.equal(r.checkCardResolved(card, {}, NOW), false);
+});
+
+// ---- budget posture (CHI-366) ----
+test('budget-posture resolves on month-roll or return to on-track, stands while over/approaching', () => {
+  const card = { id: 'budget-posture:2026-08', kind: 'budget-posture', domain: 'spend', needsYou: true, title: 't', summary: 's', runAt: NOW.toISOString() };
+  const spend = (today, word) => ({ spend: { today, budget: { state: word ? { word } : null } } });
+  // same month, still over budget -> stands
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'over budget'), NOW), false);
+  // same month, still approaching -> stands
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'approaching'), NOW), false);
+  // same month, back on track -> resolves
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', 'on track'), NOW), true);
+  // same month, budget cleared (state null) -> resolves
+  assert.equal(r.checkCardResolved(card, spend('2026-08-28', null), NOW), true);
+  // month rolled past the card's month -> resolves (that month is closed)
+  assert.equal(r.checkCardResolved(card, spend('2026-09-01', 'over budget'), NOW), true);
+  // no spend slice -> left alone (stands)
+  assert.equal(r.checkCardResolved(card, {}, NOW), false);
+});
+
+test('buildSpendSnapshot slice shape (empty DB is an all-quiet reading)', async () => {
+  const { buildSpendSnapshot } = await import('../server/spendSnapshot.ts');
+  const slice = buildSpendSnapshot(NOW);
+  assert.match(slice.today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(typeof slice.anomaly.flagged, 'boolean');
+  assert.equal(typeof slice.anomaly.escalated, 'boolean');
+  assert.equal(typeof slice.anomaly.includesLaneC, 'boolean');
+  assert.ok(Array.isArray(slice.anomaly.dimensionFlags));
+  assert.ok(Array.isArray(slice.flaggedDays));
+  assert.equal(slice.anomaly.flagged, false); // no sessions -> nothing flags
+  // CHI-366: the slice always carries a budget posture; with no budget configured
+  // its state is null (the briefing then emits no budget card).
+  assert.equal(typeof slice.budget.monthToDate, 'number');
+  assert.equal(slice.budget.state, null);
 });
 
 // ---- routes ----

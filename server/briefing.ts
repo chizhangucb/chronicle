@@ -10,10 +10,9 @@
  * Keeping them apart means a run can never clobber a "done", and the UI never
  * writes into a source the run owns.
  *
- * PHASE-1 SCOPE (D7): the briefing ships with the NON-SPEND cards only (jobs /
- * safety / egress / memory / coverage). The spend cards need the phase-2 spend
- * detector; their absence is a DISCLOSED gap in the surface-contract Briefing
- * inventory, not a silent drop.
+ * SCOPE: the briefing carries jobs / safety / egress / memory / coverage AND
+ * spend (CHI-324 2i — the phase-1 D7 gap closed once the spend detector moved
+ * server-side; the runner assembles a spend slice via server/spendSnapshot.ts).
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -25,8 +24,9 @@ function dataDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
 }
 
-/** Domains a card can belong to (D7: no "spend" this phase). */
-export type BriefingDomain = 'memory' | 'sessions' | 'safety' | 'jobs' | 'coverage';
+/** Domains a card can belong to. Spend joined in CHI-324 2i (the D7 gap closed
+ * once the spend detector moved server-side; see server/spendSnapshot.ts). */
+export type BriefingDomain = 'memory' | 'sessions' | 'safety' | 'jobs' | 'coverage' | 'spend';
 
 export interface BriefingCard {
   id: string;
@@ -160,8 +160,13 @@ export function applyCardAction(state: BriefingStateFile, cardId: string, action
   };
   const at = now.toISOString();
   if (action === 'reopen') {
-    if (Object.keys(keep).length) cards[cardId] = { state: 'open', at, ...keep };
-    else delete cards[cardId];
+    // ALWAYS write an explicit `open` entry; never just delete the key.
+    // Deleting only works when the operator's state file is the ONLY source of
+    // a card's state. It is not: withDemoStates layers a demo file's shipped
+    // states UNDERNEATH this one, so deleting let the demo's "snoozed" reassert
+    // itself and Reopen was a permanent no-op on a demo console (Chi, 2026-08-28).
+    // An explicit entry also records WHEN it was reopened, which delete threw away.
+    cards[cardId] = { state: 'open', at, ...keep };
     return { version: 1, cards };
   }
   if (action === 'snooze') {

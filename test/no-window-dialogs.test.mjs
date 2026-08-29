@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { readSource } from './helpers/read-source.mjs';
 
 // PROJ-01 regression guard: window.prompt/confirm/alert silently no-op in
 // embedded/preview browser contexts (see CLAUDE.md), so the project rename /
@@ -21,7 +21,7 @@ const BANNED = /\b(?:window\.)?(?:prompt|confirm|alert)\s*\(/;
 
 for (const rel of FILES) {
   test(`${rel} has no window.prompt/confirm/alert dialog`, () => {
-    const src = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+    const src = readSource(fileURLToPath(new URL(rel, import.meta.url)));
     for (const line of src.split('\n')) {
       // Ignore the word inside identifiers/comments — only flag call sites.
       const m = line.match(BANNED);

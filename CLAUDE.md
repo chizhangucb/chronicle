@@ -1,6 +1,6 @@
 # Chronicle
 
-Local-first AI coding session manager ("time machine"): imports logs from 4 AI tools (Claude Code, Codex, Cursor, OpenCode), maps every message to a Git code snapshot, adds security redaction, live streaming, and a tabbed Insights analytics home (Overview/Explore/Content) with first-class Subagents. Ships as a local web app via `npx chronicle-cli` (Node 24+): no desktop shell, no cloud, zero outbound network calls. Everything heavy is heuristic and local; there are no LLM calls anywhere.
+Local-first AI coding session manager ("time machine"): imports logs from 4 AI tools (Claude Code, Codex, Cursor, OpenCode), maps every message to a Git code snapshot, adds security redaction, live streaming, and a tabbed Insights analytics home (Overview/Explore/Content) with first-class Subagents. Ships as a local web app via `npx chronicle-cli` (Node 24+): no desktop shell, no cloud, no telemetry. The one outbound call is opt-out (CHI-324 2f/D7): the Claude plan-windows feature reads your own subscription quota from api.anthropic.com, on by default, off with one Settings toggle; Codex plan windows are read locally. Everything heavy is heuristic and local; there are no LLM calls anywhere.
 
 Satellite of the AIOS hub; owning project folder: `personal-projects/chronicle`. Canonical pattern rules: `$HUB/governance/satellite-repos.md`. Binding per-repo contract: `$HUB/governance/repo-contract.md`. Registry row: `$HUB/operations.md` `## Satellites`. `$HUB` = `$AIOS_HUB` (default `~/chizhang-2`).
 
@@ -46,6 +46,9 @@ The always-loaded floor is the working rules below plus this pointer table; gove
 | Writing for Chi | `$HUB/governance/communication-style.md` |
 | Skill authoring + budgets | `$HUB/governance/skill-authoring.md` |
 | Credentials + shared secret store | `$HUB/governance/secrets.md` |
+| Build + landing-to-main discipline | `$HUB/governance/build-discipline.md` |
+| Action posture (what needs Chi's OK) | `$HUB/governance/tool-actions.md` |
+| Gating model + immovable floors | `$HUB/governance/action-gating.md` |
 
 ## Working rules
 

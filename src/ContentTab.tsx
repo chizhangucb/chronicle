@@ -131,7 +131,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               {!c.exact && (
                 <>
                   {' ≈'}
-                  <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+                  <InfoTip def="spend.token-attribution" />
                 </>
               )}
               {' '}<InfoTip text={t(c.info)} />
@@ -169,7 +169,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
             {result.calibrated && (
               <>
                 {' ≈'}
-                <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+                <InfoTip def="spend.token-attribution" />
               </>
             )}
           </h3>
@@ -193,7 +193,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
             {result.calibrated && (
               <>
                 {' ≈'}
-                <InfoTip text={t('Estimated from message text length, scaled to billed totals — tool/skill token attribution is approximate.')} />
+                <InfoTip def="spend.token-attribution" />
               </>
             )}
           </h3>

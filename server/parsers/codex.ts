@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
+import { isSyntheticUserText } from '../../shared/synthetic.ts';
 
 export const CODEX_SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
 
@@ -105,7 +106,9 @@ export async function parseCodexSession(file: string): Promise<ParseResult> {
     const t = p.type || o.type;
     if (t === 'message' && p.role === 'user') {
       const text = itemText(p.content);
-      if (text) { events.push({ ts, kind: 'user', text }); if (!firstPrompt) firstPrompt = text.slice(0, 200); }
+      // Push every user row (active-time needs them); only the display-name
+      // fallback skips synthetic wrappers (CHI-368).
+      if (text) { events.push({ ts, kind: 'user', text }); if (!firstPrompt && !isSyntheticUserText(text)) firstPrompt = text.slice(0, 200); }
     } else if (t === 'message' && p.role === 'assistant') {
       const text = itemText(p.content);
       if (text) events.push({ ts, kind: 'assistant', text });

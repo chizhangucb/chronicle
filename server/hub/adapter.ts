@@ -17,14 +17,17 @@ import { collectEgress, type EgressSlice } from './slices/egress.ts';
 import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
 import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
 import { collectJobs, type JobsSlice } from './slices/jobs.ts';
+import { collectRecords, EMPTY_RECORDS, type RecordsSlice } from './slices/records.ts';
 import { collectAutomations } from './slices/automations.ts';
 import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
 import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
+import { collectHubFileTouches, hubTouchSignature } from './slices/fileTouches.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
 import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs } from './freshness.ts';
+import { dataDir } from '../db.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_JOBS, DEMO_RECORDS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
 
 // The two HEAVY slices re-check freshness at most this often (a stat-walk over
 // the whole hub markdown corpus / every built graph is not free); inside the
@@ -56,6 +59,9 @@ export interface HubAdapter {
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
   /** Scheduled jobs: launchd + cron + hub registry + repo templates (organ 1e). */
   jobs(): JobsSlice;
+  /** Append-only hub records (CHI-324): decisions + session ledger, index
+   * fields only (never the decision body). LIGHT slice, read fresh. */
+  records(): RecordsSlice;
   /** Memory graph over the hub markdown corpus, titles/paths only (organ 1g).
    * HEAVY: freshness-cached. */
   memoryGraph(): Promise<MemorySlice>;
@@ -95,16 +101,34 @@ export class LiveHubAdapter implements HubAdapter {
   jobs(): JobsSlice {
     return collectJobs({ registry: collectAutomations(this.root), repoRoot: packageRoot() });
   }
+  // Records is a LIGHT slice: two small JSONL reads, read fresh per request.
+  records(): RecordsSlice {
+    return collectRecords(this.root);
+  }
   memoryGraph(): Promise<MemorySlice> {
     // Sig folds in the memory-scope config file's mtime (CHI-339), not just the
     // hub's .md tree: without it, a confirmed scope edit would never invalidate
     // this heavy slice's cache (the config lives under ${HOME}, outside the hub).
+    const hubRoot = this.root;
     return freshSliceAsync(
       'memory',
-      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}`,
+      // Fold in a cheap session signature so the Usage lane's transcript touches
+      // (CHI-385) refresh after new sessions import, not only when the .md tree
+      // or scope config change.
+      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'))}:${pathsMaxMtimeMs([memoryScopeConfigPath()])}:${hubTouchSignature()}`,
       () => {
         const { config, source } = loadMemoryConfig();
-        return collectMemoryGraph(this.root, { config, configSource: source });
+        return collectMemoryGraph(this.root, {
+          config,
+          configSource: source,
+          // Usage channel a: hub-file reads/edits from this machine's sessions.
+          fileTouches: collectHubFileTouches(hubRoot),
+          // Cross-run accrual (deletions + link-degree deltas). The collector
+          // writes these under the data dir and diffs against the last run;
+          // both read empty on the first scan and say so, honestly.
+          snapshotPath: join(dataDir, 'memory-scope-snapshot.json'),
+          degreeHistoryPath: join(dataDir, 'memory-degree-history.json'),
+        });
       },
       { ttlMs: HEAVY_TTL_MS },
     );
@@ -141,6 +165,9 @@ export class DemoHubAdapter implements HubAdapter {
   jobs(): JobsSlice {
     return DEMO_JOBS;
   }
+  records(): RecordsSlice {
+    return DEMO_RECORDS;
+  }
   memoryGraph(): Promise<MemorySlice> {
     return Promise.resolve(demoMemory());
   }
@@ -176,6 +203,9 @@ export class NullHubAdapter implements HubAdapter {
   }
   jobs(): JobsSlice {
     return EMPTY_JOBS;
+  }
+  records(): RecordsSlice {
+    return EMPTY_RECORDS;
   }
   memoryGraph(): Promise<MemorySlice> {
     return Promise.resolve(EMPTY_MEMORY);

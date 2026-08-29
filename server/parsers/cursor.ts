@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
+import { isSyntheticUserText } from '../../shared/synthetic.ts';
 
 interface Snapshot {
   db: DatabaseSync;
@@ -547,7 +548,9 @@ function makeSession(
       cwd: folder,
       started_at,
       ended_at,
-      first_prompt: (events.find((e) => e.kind === 'user')?.text || title || '').slice(0, 200),
+      // CHI-368: skip synthetic user rows (command echoes / IPC wrappers) so the
+      // display-name fallback is a real human prompt, not a raw `<…>` wrapper.
+      first_prompt: (events.find((e) => e.kind === 'user' && !isSyntheticUserText(e.text))?.text || title || '').slice(0, 200),
       skipped: 0,
     },
     events,

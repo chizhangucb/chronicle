@@ -1,9 +1,9 @@
 # Chronicle product contract
 
-Status: living · Owner: Chi Zhang · Location: `~/personal-projects/chronicle` (`chizhangucb/chronicle`, public, npm `chronicle-cli`) · License: Apache-2.0 (relicensed from MIT, CHI-323 D9; third-party notices in `NOTICE`)
+Status: living · Owner: Chi Zhang · Location: `~/personal-projects/chronicle` (`chizhangucb/chronicle`, public, npm `chronicle-cli`) · License: Apache-2.0 (third-party notices in `NOTICE`)
 
 ## Purpose
-A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND (CHI-323 phase 1) a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a confirm-first write gate. On-machine and heuristic: no outbound network, no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude, identical to what Varde already incurred).
+A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND a set of hub-conditional ops surfaces over a nisse-format hub: Modules, Safety, Jobs, Briefing, and the V2 Nebula Memory graph, plus a confirm-first write gate. On-machine and heuristic: no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); the one outbound call is opt-out — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
 
 ## Surfaces
 - CLI (`npx chronicle-cli`, bins `chronicle`/`chronicle-cli`): runs the local web app in the foreground; `--port` (default 41730), `--no-open`. Node 24+. Setup subcommand `chronicle hub set|status|clear <path>` points the console at a nisse-format hub.
@@ -21,7 +21,7 @@ A local-first session-data engine and operator console for your AI coding stack.
 The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture, jobs, briefing state, and memory scope through the confirm-first gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). Varde still reads the `contract_*` views only (`aggregator/sources/chronicle.ts`, `spend-chronicle.ts`) for its spend/session lanes during the no-flag-day rollout; Chronicle is an adapter Varde consumes, not a consumer of Varde.
 
 ## Internals
-Walked once (CHI-303). Two seams earn grandfathered sub-contracts (register, not rewrite); the rest covered here.
+Two seams earn grandfathered sub-contracts (register, not rewrite); the rest covered here.
 
 - **surface / IA contract** (`spec/surface-contract.md`): †grandfathered. The frozen product shape (routes, enumerables, per-surface inventory, e2e pins) with its own Change rule; the release walk's IA-conformance target.
 - **contract_* DB views** (`server/db.ts`, `PRAGMA user_version`): †grandfathered. `contract_message_metrics` + `contract_sessions` are the stable read seam; base tables stay free to refactor. `user_version` = 1; a bump means a breaking view change, chronicle + Varde in one merge.
@@ -29,10 +29,10 @@ Walked once (CHI-303). Two seams earn grandfathered sub-contracts (register, not
 - **analysis engines + live SSE** (`server/insights.ts`, `explore.ts`, `content.ts`, `live.ts`): internal; shape owned by the surface contract.
 
 ## Non-goals
-No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. (Dropped, CHI-323: "not an aggregate multi-tool console" — Chronicle now owns that role; the ops surfaces are the aggregate operator console, and Varde is being decommissioned into it over the no-flag-day rollout.)
+No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. Chronicle IS the aggregate multi-tool operator console (the ops surfaces), the role Varde is being decommissioned into.
 
 ## Invariants
-CHI SIGN-OFF TO EDIT. The signed floor architecture (CHI-307/323, decisions ledger 2026-08-25): two HARD floors, everything else posture.
+CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 
 **Hard floors (never violated):**
 - No telemetry ever: chronicle never phones home; there is no view-log or outbound analytics.
@@ -44,13 +44,13 @@ CHI SIGN-OFF TO EDIT. The signed floor architecture (CHI-307/323, decisions ledg
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
-**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond a hub the operator connects. The forward gate model is tiered auto-approval (reversible auto, irreversible confirm), CHI-329.
+**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the briefing / scope-suggest runners are user- or launchd-triggered headless Claude); no outbound network beyond the opt-out Claude-quota read and a hub the operator connects. The forward gate model is tiered auto-approval (reversible auto, irreversible confirm).
 
 ## Change triggers
 Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route; a new `contract_*` view column (with the `user_version` call).
-- **Merge decided (CHI-307, 2026-08-25).** Varde merges into Chronicle; composed-not-merged is retired. Chronicle wins every identity slot; Varde's unique surfaces migrate in over a 4-phase, no-flag-day rollout. Each phase lands with a signed surface-contract revision and rewrites the affected sections here (Surfaces, Consumers, Non-goals).
-- **Signed invariant architecture for the merged product** (applies as ported features land, per phase): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants. Rationale: decisions ledger 2026-08-25 (session 46f0f484).
+- **Merge decided.** Varde merges into Chronicle; composed-not-merged is retired. Chronicle wins every identity slot; Varde's unique surfaces migrate in over a 4-phase, no-flag-day rollout. Each phase lands with a signed surface-contract revision and rewrites the affected sections here (Surfaces, Consumers, Non-goals).
+- **Signed invariant architecture for the merged product** (applies as ported features land, per phase): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants.
 - **Cloud-scale moment.** If Chronicle plus Nisse reach online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 
 ## Pointers
@@ -58,6 +58,6 @@ In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubri
 
 ## Roadmap
 Only Now is a commitment.
-- **Now:** release-walk hardening on the 1.3.x line (CHI-310).
-- **Next:** Varde merge, 4 phases: port unique organs behind the nisse-hub adapter; consolidate spend/sessions; home merge + unified reference + demo mode + local view log; decommission Varde (CHI-307 decision, merge parent in the Chronicle Linear project).
+- **Now:** release-walk hardening on the 1.3.x line.
+- **Next:** Varde merge, 4 phases: port unique organs behind the nisse-hub adapter; consolidate spend/sessions; home merge + unified reference + demo mode + local view log; decommission Varde.
 - **Later:** native desktop shell (deferred, bridge = PWA/dedicated window); cloud-platform exposure; contracts/registry rendered for a wider audience.

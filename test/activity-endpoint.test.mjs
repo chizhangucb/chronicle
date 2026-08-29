@@ -5,10 +5,18 @@
 // and drives it over HTTP — exercising query-param parsing (`since`/`days`),
 // the response shape, live-flag detection, and the burn math end to end.
 //
-// fixture-vs-now: 'Today'/live/window math is relative to Date.now(), while the
-// static fixtures are frozen in the past — so every timestamp below is seeded
-// RELATIVE to now (per the task brief). The DB is seeded directly (not via the
-// parser) so the timestamps are exactly what the burn/live math sees.
+// fixture-vs-now: 'Today'/live/window math is relative to `now`, while the static
+// fixtures are frozen in the past — so every timestamp below is seeded RELATIVE
+// to `now`. The DB is seeded directly (not via the parser) so the timestamps are
+// exactly what the burn/live math sees.
+//
+// `now` is a FIXED noon-UTC instant, injected into the route (mountActivity({now})),
+// NOT the real Date.now() (CHI-389). Anchoring to real time made the "Today"
+// window only minutes wide just after UTC midnight, where s_left's `ended_at`
+// (now - 9min) crossed to the previous UTC day and inverted against its clamped
+// `started_at` — dropping it from the window and turning main red on CI (UTC) for
+// a ~9-minute stretch each day. A frozen noon anchor removes all wall-clock
+// coupling and makes the spanner10d time-of-day handling below deterministic too.
 //
 // Minor gate: replaceSession gates any session with agent_active_ms < 5min AND
 // < 10 messages into minor=1 (invisible to aggregates) — so each fixture
@@ -19,7 +27,10 @@ import express from 'express';
 import { withTempDb } from './helpers.mjs';
 
 const DAY = 86400000;
-const now = Date.now();
+// Frozen noon-UTC clock (see header): 12:00 keeps every window comfortably wide
+// and far from a UTC-midnight boundary, so the fixtures below are valid at any
+// real time of day. The exact date is arbitrary; only that it is fixed matters.
+const now = Date.UTC(2026, 0, 15, 12, 0, 0);
 const iso = (ms) => new Date(ms).toISOString();
 
 // UTC midnight of "today" — the burn MEDIAN baseline groups by UTC calendar
@@ -131,7 +142,7 @@ before(async () => {
   );
 
   const app = express();
-  mountActivity(app);
+  mountActivity(app, { now });
   await new Promise((resolve) => {
     server = app.listen(0, () => { baseUrl = `http://127.0.0.1:${server.address().port}`; resolve(); });
   });

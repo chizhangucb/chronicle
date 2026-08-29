@@ -1,7 +1,7 @@
 {
   "name": "chronicle-cli",
-  "version": "1.3.1",
-  "description": "Local-first AI coding session time machine",
+  "version": "1.4.0",
+  "description": "Local-first session manager + Insights analytics for AI coding sessions: import Claude Code, Codex, Cursor & OpenCode, replay to the exact Git snapshot, redact secrets. npx chronicle-cli, no cloud, no telemetry.",
   "bin": {
     "chronicle": "bin/chronicle.mjs",
     "chronicle-cli": "bin/chronicle.mjs"
@@ -24,9 +24,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "standalone": "npm run build && node server/standalone.ts",
-    "test": "node --test 'test/**/*.test.mjs'",
+    "test": "node --import ./test/no-ambient-hub.mjs --test 'test/**/*.test.mjs'",
     "test:e2e": "playwright test",
     "walk": "node test/e2e/walk.mjs",
+    "walk:seeded": "node scripts/walk-seed.mjs",
     "typecheck": "tsc -b",
     "prepack": "rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json",
     "prepublishOnly": "npm run typecheck && npm test"

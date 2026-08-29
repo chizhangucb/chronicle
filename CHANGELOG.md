@@ -5,6 +5,74 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **The home answers "what needs you" before "what did it cost".** Insights opens with
+  your daily briefing cards, one line each, then the KPI strip you already had, then a
+  new status band reading Spend, Memory, Sessions, Safety and Jobs at a glance: a trend
+  line, the baseline number it is being compared against, and a link into each. The band
+  never raises an alarm of its own; a highlighted row is always an echo of a briefing
+  card above it, so exactly one place on the page tells you something new. The page ends
+  with a sources strip: which tools the numbers came from, how fresh they are, and which
+  cost basis is showing. Prefer the old view? One Settings toggle turns both bands off.
+- **A reference for every number on the console.** The new Reference page defines every
+  metric Chronicle shows, rendered from the same registry the small "i" tips read, so the
+  page cannot drift from the surfaces. It also keeps definitions for surfaces that were
+  deliberately retired, so a term you remember stays lookup-able even when its page is
+  gone.
+- **Try Chronicle before importing anything.** `npx chronicle-cli --demo` builds a
+  complete synthetic console: four projects, five model vendors, four months of history,
+  a flagged spend day, and every ops surface populated. It never touches your real data
+  and never makes a network call. A zero-data install now offers it directly.
+- **Install it as an app.** Chrome and Edge will offer to install Chronicle, and
+  `npx chronicle-cli --app` opens it in its own window with no tab strip or address bar.
+  No service worker, so an upgrade is never masked by a cached page.
+- **A local view log, off-switch included.** Chronicle can record which of its own
+  surfaces you use, tagged human or agent so automated runs never read as yours. It lives
+  only in your database, is kept 180 days, and never leaves the machine. Settings shows
+  the counts and clears them.
+- **Briefing filtering and history.** Filter by needs-you, awareness or handled; handled
+  cards group by the day you acted on them and state their own 90-day retention. Cards
+  open more than two days show how long they have been waiting.
+- **Consistent page widths.** Every non-dashboard page now shares one frame width instead
+  of six different ones, with long prose holding its own comfortable line length.
+
+### Fixed
+
+- Reopening a handled briefing card works on a demo console (it silently reverted before).
+- Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
+  to do nothing.
+- The Modules table fills the page instead of reserving space for a panel that is not open.
+
+## 1.4.0 - 2026-08-27
+
+- **Insights is now five tabs.** The analytics home splits into Overview, Explore,
+  Content, **Spend**, and **Sessions**. Overview stays the headline read; Spend and
+  Sessions are dedicated deep-views for where your money and your time actually go.
+- **A dedicated Spend tab.** Month-to-date budget with a daily pace and a month-end
+  projection, spend-over-time you can stack by project or by model vendor, per-model
+  and per-source breakdowns, an efficiency panel (cache hit rate, jumbo outputs, long
+  context, right-sizing, cache churn, repeat file reads), roster compliance, and
+  per-skill and per-MCP-server spend. Every derived number carries its own definition.
+- **A spend anomaly tile on Overview.** Replaces the old burn tile: today's spend
+  against your typical day (a 14-day median), the top project and model driving the
+  change, and any recently flagged days. Proxy-lane spend is called out as
+  unattributable rather than smeared across a driver it cannot be tied to.
+- **Plan windows.** See how much of each Claude and Codex usage window is left. Claude
+  reads your own subscription quota (the one outbound call the app makes, on by
+  default, off with a single Settings toggle); Codex is read locally.
+- **A Sessions tab.** Busiest days and projects, automation grouped by job, and a
+  session table you can sort by cost, duration, or recency.
+- **Ask your data in plain language.** A new page answers questions like "how much did
+  I spend on Opus last week?" locally against your Chronicle database. Nothing leaves
+  your machine.
+- **Ops surfaces for hub users.** When an AIOS hub is detected, Chronicle adds Modules,
+  Safety, Jobs, Briefing, Memory, and Records views for reading and managing it, and
+  the daily briefing now raises a spend card when today's spend runs unusually high.
+  These surfaces are hidden entirely when no hub is present, so the standard install is
+  unchanged.
+- **Relicensed from MIT to Apache-2.0.** Chronicle now ships under Apache-2.0 with a
+  NOTICE file, adding an explicit patent grant while staying permissive for downstream
+  use.
+
 ## 1.3.1 - 2026-08-25
 
 - **Rebuilt sessions are now labeled where other tools can see it.** 1.3.0 already

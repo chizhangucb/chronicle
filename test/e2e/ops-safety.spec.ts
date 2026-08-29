@@ -32,6 +32,32 @@ test.describe('demo hub: /safety renders posture + gaps, writes are inert', () =
     await expect(page.locator('.gap-card')).not.toHaveCount(0);
   });
 
+  // CHI-374 sweep pin: /safety's actionable gap cards carry the SAME off-brass
+  // --attention treatment as the briefing needs-you card, so "act on this" reads
+  // identically app-wide. Watch-only gaps stay neutral.
+  test('actionable gap cards use the off-brass attention accent, watch gaps do not', async ({ page }) => {
+    await page.goto(demo.baseURL + '/safety');
+    const actionable = page.locator('.gap-card.actionable').first();
+    if (await actionable.count() === 0) test.skip(true, 'demo fixture has no actionable gap');
+    await expect(actionable).toBeVisible();
+    const style = await actionable.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { border: cs.borderLeftColor, bg: cs.backgroundColor };
+    });
+    expect(style.border).toBe('rgb(205, 95, 60)'); // --attention #cd5f3c
+    expect(style.border).not.toBe('rgb(192, 138, 30)'); // --brass #c08a1e
+
+    const watch = page.locator('.gap-card.watch').first();
+    if (await watch.count() > 0) {
+      const watchStyle = await watch.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { border: cs.borderLeftColor, bg: cs.backgroundColor };
+      });
+      expect(watchStyle.border).not.toBe(style.border);
+      expect(watchStyle.bg).not.toBe(style.bg);
+    }
+  });
+
   test('the confidential drill-down is 403 (hard-gated, never served by default)', async ({ page }) => {
     const res = await page.request.get(demo.baseURL + '/api/hub/safety/confidential');
     expect(res.status()).toBe(403);

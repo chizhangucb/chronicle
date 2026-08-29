@@ -48,9 +48,9 @@
           },
           {
             "type": "command",
-            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/ticket-tracker-nudge.py\" 2>/dev/null || true",
+            "command": "python3 \"${AIOS_HUB:-$HOME/chizhang-2}/.claude/hooks/session-obligations.py\" 2>/dev/null || true",
             "timeout": 10,
-            "statusMessage": "Ticket hygiene reminder"
+            "statusMessage": "Session obligations reminder"
           }
         ]
       }

@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chronicle — AI Session Time Machine</title>
+    <!-- PWA bridge (CHI-325 D10): a manifest makes Chrome/Edge offer Install, so
+         Chronicle gets a dock icon and its own window. Deliberately NO service
+         worker: a cached app shell could mask an `npx chronicle-cli` upgrade,
+         and there is nothing to gain offline from a server on localhost. The
+         real desktop shell is its own ticket (CHI-327). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <meta name="theme-color" content="#171310" />
   </head>
   <body>
     <div id="root"></div>

@@ -25,6 +25,30 @@ export interface ChronicleConfig {
   // Opt-in for the hard-gated confidential marker drill-down (CHI-323 D8),
   // default OFF. Only honored on a live hub. Never on the public/default build.
   confidentialMarkers?: boolean;
+  // Spend-tab Claude Plan windows (CHI-324 2f / D7), default ON (opt-OUT). The
+  // ONE outbound call in Chronicle: reads the user's own Claude quota from
+  // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
+  // fully offline instance. Codex windows are always local (never gated here).
+  planWindows?: boolean;
+  // Opt-in for /ask (CHI-351): the local claude-CLI-backed metric chat. Default
+  // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
+  // CLI being present AND a non-demo console (all enforced server-side).
+  ask?: boolean;
+  // Monthly spend budget in USD (CHI-366). The server-visible home for what used
+  // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
+  // headless briefing runner read the SAME number (they can never disagree).
+  // null / absent = no budget set. Local app pref, written like the toggles
+  // above via /settings — NOT an egress/hub gate surface.
+  monthlyBudget?: number | null;
+  // Local-only view log (CHI-325 3a / D7), default ON (opt-OUT). Records which
+  // surfaces get used, actor-tagged, in chronicle.db. Nothing about it is
+  // outbound — the no-telemetry floor is untouched — but it records the
+  // operator's own behavior, so it gets a visible switch and a Clear button in
+  // Settings rather than being invisible machinery. See server/viewlog.ts.
+  viewLog?: boolean;
+  // The two home bands (CHI-325 3d / D2), default ON (opt-OUT). Off collapses /
+  // back to exactly the Overview that shipped before the merge's phase 3.
+  homeBands?: boolean;
   [key: string]: unknown;
 }
 

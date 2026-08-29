@@ -21,6 +21,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getHubAdapter } from '../server/hub/adapter.ts';
 import { db } from '../server/db.ts';
+import { buildSpendSnapshot } from '../server/spendSnapshot.ts';
 import { packageRoot } from '../server/hub/paths.ts';
 import type { BriefingCard, BriefingFile, BriefingStateFile } from '../server/briefing.ts';
 import { autoResolve, mergeRuns } from '../server/briefing-resolve.ts';
@@ -71,7 +72,8 @@ function coverage(): unknown {
 }
 
 /** Assemble the briefing input snapshot from the adapter slices. Keeps the
- * `live-data.json` filename (CORRECTION #3). Non-spend (D7): no spend slice. */
+ * `live-data.json` filename (CORRECTION #3). CHI-324 2i: carries a spend slice
+ * (server/spendSnapshot.ts), the SAME anomaly reading the Overview tile shows. */
 export function assembleSnapshot(now: Date): Record<string, unknown> {
   const a = getHubAdapter();
   return {
@@ -84,7 +86,15 @@ export function assembleSnapshot(now: Date): Record<string, unknown> {
     // the phase-2 insights coupling. Present as an empty marker so the skill
     // knows they were considered, not forgotten.
     coverage: coverage() ?? null,
+    // Spend anomaly reading (CHI-324 2i), priced server-side at the theoretical
+    // basis from the same burn cells the Overview tile uses. Never throws.
+    spend: safeSpend(now),
   };
+}
+
+/** The spend slice must never kill the run (a fresh machine has no sessions). */
+function safeSpend(now: Date): unknown {
+  try { return buildSpendSnapshot(now); } catch { return null; }
 }
 
 export function buildPrompt(dir: string, now: Date): string {
@@ -148,7 +158,14 @@ export function main(argv: string[] = process.argv.slice(2)): number {
 
   const prompt = buildPrompt(runnerDir, now);
   const claude = findClaude();
-  const args = ['-p', prompt, '--allowedTools', 'Read,Glob,Grep', ...(process.env.CHRONICLE_BRIEFING_MODEL ? ['--model', process.env.CHRONICLE_BRIEFING_MODEL] : [])];
+  // CHI-351: confine the built-in set to EXACTLY Read/Glob/Grep. `--allowedTools`
+  // only auto-approves; it does NOT restrict availability (verified on CLI
+  // 2.1.247: the model still had Bash/Write). `--tools` limits which built-ins
+  // exist at all, so this read-only briefing run truly cannot Bash/Write. Both
+  // flags together: `--tools` bounds availability, `--allowedTools` skips the
+  // per-tool prompt so the headless run doesn't stall.
+  const args = ['-p', prompt, '--tools', 'Read', 'Glob', 'Grep', '--allowedTools', 'Read,Glob,Grep',
+    ...(process.env.CHRONICLE_BRIEFING_MODEL ? ['--model', process.env.CHRONICLE_BRIEFING_MODEL] : [])];
 
   if (dryRun) {
     console.log(`[dry-run] ${claude ?? 'claude (NOT FOUND)'} ${JSON.stringify(args)}`);

@@ -10,11 +10,19 @@ import { mountInsights }   from './routes/insights.ts';
 import { mountExplore }    from './routes/explore.ts';
 import { mountContent }    from './routes/content.ts';
 import { mountActivity }   from './routes/activity.ts';
+import { mountDetectors }  from './routes/detectors.ts';
+import { mountWaste }      from './routes/waste.ts';
+import { mountRouting }    from './routes/routing.ts';
+import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountHub }        from './routes/hub.ts';
 import { mountBriefing }   from './routes/briefing.ts';
+import { mountAsk }        from './routes/ask.ts';
+import { mountViewLog }    from './routes/viewlog.ts';
+import { mountDemo }       from './routes/demo.ts';
 import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
 import type { Gate } from './gate/core.ts';
 import { startAutoSync }   from './autosync.ts';
+import { pruneViewLog }    from './viewlog.ts';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -46,8 +54,21 @@ mountInsights(api);
 mountExplore(api);
 mountContent(api);
 mountActivity(api);
+mountDetectors(api);
+mountWaste(api);
+mountRouting(api);
+mountPlanWindows(api);
 mountHub(api);
 mountBriefing(api);
+mountAsk(api);
+mountViewLog(api);
+mountDemo(api);
+
+// Rolling 180-day retention on the view log (CHI-325 D8), once per boot.
+// Pruning here rather than per write keeps a DELETE scan out of the
+// navigation path; pruneViewLog swallows its own failure so a locked DB at
+// this exact moment costs stale rows, never startup.
+pruneViewLog();
 
 // Auto-sync starts with the server in every run mode (dev / standalone);
 // watchers + timer live on globalThis so SSR reloads don't orphan them.

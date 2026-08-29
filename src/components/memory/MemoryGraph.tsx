@@ -218,8 +218,10 @@ export function MemoryGraph({
       // Round 3 ("nodes look too similar"): the spread widened; leaves start
       // smaller and hubs climb higher before the cap, so link degree reads
       // at a glance instead of everything rendering near one size.
-      const drama = register.nodeStyle === "glow" ? 1.5 : register.nodeStyle === "hybrid" ? 1.3 : 0.9;
-      const cap = register.nodeStyle === "glow" ? 26 : register.nodeStyle === "hybrid" ? 30 : 14;
+      // Sizes shrunk a notch (CHI-385 review: the default nodes read too large):
+      // less drama and a lower hub cap so the graph is calmer at rest.
+      const drama = register.nodeStyle === "glow" ? 1.5 : register.nodeStyle === "hybrid" ? 1.1 : 0.9;
+      const cap = register.nodeStyle === "glow" ? 26 : register.nodeStyle === "hybrid" ? 22 : 14;
       const base = register.nodeStyle === "hybrid" ? 0.6 : 1;
       const val = Math.min(base + Math.pow(deg, register.nodeStyle === "hybrid" ? 0.8 : 0.7) * drama, cap);
       return emphasis === "boost" ? Math.max(val * 1.6, 4) : val;
@@ -542,7 +544,7 @@ export function MemoryGraph({
   );
 
   return (
-    <div ref={wrap} className="relative h-full w-full overflow-hidden">
+    <div ref={wrap} className="memory-graph-canvas">
       {size.width > 0 ? (
         <ForceGraph3D
           ref={graphRef}
@@ -570,7 +572,7 @@ export function MemoryGraph({
           // Hybrid cores are crisp: full opacity, higher sphere resolution.
           nodeOpacity={register.nodeStyle === "hybrid" ? 1 : 0.92}
           nodeResolution={register.nodeStyle === "hybrid" ? 16 : 8}
-          nodeRelSize={3}
+          nodeRelSize={2.2}
           nodeVal={nodeVal}
           nodeThreeObject={
             register.nodeStyle === "glow"

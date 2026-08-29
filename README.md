@@ -3,8 +3,11 @@
 Local-first session manager for AI coding assistants. Import your conversation logs,
 click any message to **time-travel** to the exact code state at that moment
 (reconstructed from your project's Git history), and see where your tokens and time
-actually go. Everything runs on your machine: no LLM calls, no cloud, no outbound
-network — source logs and project repos are never written to.
+actually go. Everything runs on your machine: no LLM calls, no cloud, no telemetry.
+The one network call is opt-out — Chronicle can read *your own* Claude plan quota
+from Anthropic (the same request Claude Code makes; Codex quota is read locally),
+and one Settings toggle turns it off. Source logs and project repos are never
+written to.
 
 Full docs: **[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
 

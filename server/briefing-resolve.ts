@@ -9,8 +9,8 @@
  *    condition no longer fires, the card resolves itself, however it got fixed.
  *    Code decides, never the model.
  *
- * D7: the spend-card conditions (spend-anomaly, budget-posture) are omitted —
- * those cards are not emitted this phase. Non-spend conditions (jobs / egress /
+ * CHI-324 2i: the spend-anomaly condition is now re-checked (the card is emitted
+ * once the spend detector is server-side). Non-spend conditions (jobs / egress /
  * safety / source freshness) are re-checked; other kinds return null (left alone).
  */
 import type { BriefingCard, BriefingFile, BriefingStateFile, CardStateEntry } from './briefing.ts';
@@ -22,6 +22,11 @@ interface LiveShape {
   jobs?: { jobs?: { id: string; status: string; lastExit?: number | null }[] };
   egress?: { enabled?: boolean; gateConfigFound?: boolean };
   safetyGaps?: { actionable?: { title?: string; id?: string }[] };
+  spend?: {
+    today?: string;
+    anomaly?: { flagged?: boolean };
+    budget?: { state?: { word?: string } | null } | null;
+  } | null;
 }
 
 const slugify = (s: string): string => s.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-+|-+$/g, '');
@@ -57,6 +62,29 @@ export function checkCardResolved(card: BriefingCard, live: unknown, now: Date):
       const actionable = data.safetyGaps?.actionable;
       if (!Array.isArray(actionable)) return false;
       return !actionable.some((g) => slugify(g.title ?? '') === slug || g.id === slug);
+    }
+    case 'spend-anomaly': {
+      // A spend spike is actionable only on its OWN day. It resolves once the
+      // day has rolled past the card's day (the spike is historical), or when
+      // today's reading is no longer flagged. It stands only while the SAME day
+      // is still flagged. No spend slice in the snapshot → leave it alone.
+      const spend = data.spend;
+      if (!spend || typeof spend.today !== 'string') return false;
+      const cardDay = card.id.slice('spend-anomaly:'.length);
+      if (spend.today !== cardDay) return true; // day rolled past the spike day
+      return spend.anomaly?.flagged !== true;
+    }
+    case 'budget-posture': {
+      // Budget posture is month-scoped. It resolves once the MONTH rolls past the
+      // card's month (that month is closed), or when this month's state returns to
+      // "on track" (or the budget is cleared → no state). It stands only while the
+      // SAME month is still approaching/over. No spend slice → leave it alone.
+      const spend = data.spend;
+      if (!spend || typeof spend.today !== 'string') return false;
+      const cardMonth = card.id.slice('budget-posture:'.length);
+      if (spend.today.slice(0, 7) !== cardMonth) return true; // month rolled past
+      const word = spend.budget?.state?.word ?? null;
+      return word !== 'approaching' && word !== 'over budget';
     }
     default:
       return null;

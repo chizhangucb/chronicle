@@ -37,14 +37,12 @@ test('sidebar top nav has exactly Insights and Projects, no Home entry', async (
   await expect(page.locator('.sidebar')).not.toContainText('⌂');
 });
 
-// ── Drift-pin (b): `/` shows Overview / Explore / Content tabs ────────────────
-test('the hub at / shows Overview / Explore / Content tabs', async ({ page }) => {
+// ── Drift-pin (b): `/` shows exactly the five CHI-324 hub tabs ────────────────
+test('the hub at / shows exactly Overview / Explore / Content / Spend / Sessions tabs', async ({ page }) => {
   await gotoHome(page);
   const tabs = page.locator('.home-dashboard .tabs .tab');
-  await expect(tabs).toHaveCount(3);
-  await expect(tabs.nth(0)).toHaveText('Overview');
-  await expect(tabs.nth(1)).toHaveText('Explore');
-  await expect(tabs.nth(2)).toHaveText('Content');
+  await expect(tabs).toHaveCount(5);
+  await expect(tabs).toHaveText(['Overview', 'Explore', 'Content', 'Spend', 'Sessions']);
   // Overview is the default (active) tab.
   await expect(page.locator('.home-dashboard .tabs .tab.on')).toHaveText('Overview');
 });
@@ -71,16 +69,29 @@ test('/insights?tab=explore redirects to /?tab=explore with the Explore tab acti
   await expect(page.locator('.pivot').first()).toBeVisible();
 });
 
-// ── Drift-pin (e): Overview DOM order KPIs → activity → burn → charts, and the
-// recent-sessions ledger no longer mounts here (moved to /projects, D1) ───────
-test('Overview reading order: KPIs → activity → burn → charts, no ledger', async ({ page }) => {
+// ── Drift-pin (e): Overview DOM order KPIs → activity → anomaly tile → charts,
+// the recent-sessions ledger no longer mounts here (moved to /projects, D1),
+// and Top-sessions-by-cost is retired from Overview (CHI-324) ─────────────────
+test('Overview reading order: status band → KPIs → activity → anomaly → charts → provenance, no ledger or top-sessions', async ({ page }) => {
   await gotoHome(page); // default window is Today, so the Activity block is present
   await expect(page.locator('.home-dashboard .activity-card')).toBeVisible();
   // The ledger moved to /projects (D1) — it must not mount on this page at all.
   await expect(page.locator('.home-dashboard .recent-ledger')).toHaveCount(0);
+  // Top-sessions-by-cost is retired from Overview (CHI-324 — absorbed by the
+  // Sessions tab's cost sort); its heading must not appear.
+  await expect(page.getByRole('heading', { name: /Top sessions by cost/i })).toHaveCount(0);
   const order = await page.evaluate(() => {
     const root = document.querySelector('.home-dashboard')!;
-    const sel = ['.kpis', '.activity-card', '.burn-card', '.grid2'];
+    // `.burn-card` is the anomaly tile's stable class (kept in place per D6);
+    // `.sot-card` is the full-width spend-over-time chart (CHI-324 review — it
+    // replaced the old `.grid2` [chart | spend-by-model] row on Overview).
+    // EXTENDED for CHI-325 3d. This check is relative-order only, so the new
+    // bands would have slipped past it silently while its name and this comment
+    // went false: a pin that still passes but no longer describes the surface is
+    // worse than no pin. `.status-band` and `.provenance-strip` are the phase-3
+    // additions; the briefing band is hub-conditional so it is pinned separately
+    // in home-bands.spec.ts rather than here (this server has no hub).
+    const sel = ['.kpis', '.status-band', '.activity-card', '.burn-card', '.sot-card', '.provenance-strip'];
     const els = sel.map((s) => root.querySelector(s));
     if (els.some((e) => !e)) return 'missing';
     // Confirm each element strictly precedes the next in document order.
@@ -103,11 +114,12 @@ test('no horizontal overflow on the hub at 1366', async ({ page }) => {
   expect(ok).toBe(true);
 });
 
-test('window toggle to 7d hides the Activity block, keeps the Burn tile', async ({ page }) => {
+test('window toggle to 7d hides the Activity block, the anomaly tile persists', async ({ page }) => {
   await gotoHome(page);
   await expect(page.locator('.activity-card')).toBeVisible();
   await page.locator('.home-dashboard .rangebar button', { hasText: /^7d$/ }).click();
   await expect(page.locator('.activity-card')).toHaveCount(0);
+  // The anomaly tile (BurnTile's slot, `.burn-card`) persists on every window.
   await expect(page.locator('.burn-card')).toBeVisible();
 });
 

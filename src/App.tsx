@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation, useRoute, useSearch } from 'wouter';
+import { Link, useLocation, useRoute, useSearch } from 'wouter';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Toast from '@radix-ui/react-toast';
-import { api, type Settings } from './api.js';
+import { api, type Settings, type ViewLogSummary } from './api.js';
 import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
@@ -14,7 +14,12 @@ import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
 import BriefingPage from './BriefingPage.tsx';
 import MemoryPage from './MemoryPage.tsx';
+import RecordsPage from './RecordsPage.tsx';
+import AskPage from './AskPage.tsx';
+import ReferencePage from './ReferencePage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
+import { useAskStatus } from './useAskStatus.ts';
+import { useViewLog } from './useViewLog.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
@@ -75,8 +80,15 @@ export default function App() {
   const [atJobs] = useRoute('/jobs');
   const [atBriefing] = useRoute('/briefing');
   const [atMemory] = useRoute('/memory');
+  const [atRecords] = useRoute('/records');
+  const [atAsk] = useRoute('/ask');
+  // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
+  // stock public install with no hub still has it.
+  const [atReference] = useRoute('/reference');
   const hub = useHubStatus();
   const hubPresent = hub?.present ?? false;
+  const { status: askStatus, refresh: refreshAsk } = useAskStatus();
+  const askEnabled = askStatus?.enabled ?? false;
   const search = useSearch();
   const projectId = projectParams?.id ?? peParams?.id ?? pcParams?.id;
   const sessionId = sessionParams?.id;
@@ -84,6 +96,21 @@ export default function App() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Local-only view log (CHI-325 3a). Mounted ONCE here so every route change in
+  // the app funnels through one recorder. The tab argument is what lets the log
+  // distinguish "opened /" from "lives in the Spend tab" — the actual question
+  // when deciding whether a tab earns its space. Hub tabs are a `?tab=` param;
+  // the project view's Explore/Content are their own routes, so they are read
+  // off the path instead.
+  const viewTab = atHome || atInsights
+    ? (new URLSearchParams(search).get('tab') ?? 'overview')
+    : atProjExplore ? 'explore'
+    : atProjContent ? 'content'
+    : atProject ? 'overview'
+    : null;
+  useViewLog(viewTab);
+
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
   const [liveInfo, setLiveInfo] = useState<LiveChangeInfo | null>(null);
@@ -139,10 +166,18 @@ export default function App() {
         e.preventDefault();
         setSearchOpen((o) => !o);
       }
+      // Cmd-J routes to /ask from anywhere and focuses the input (CHI-351).
+      // Only when Ask is enabled (toggle + CLI + non-demo) so the shortcut never
+      // lands on a soft-failed route.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && askEnabled) {
+        e.preventDefault();
+        navigate('/ask');
+        window.dispatchEvent(new Event('ask:focus'));
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [askEnabled, navigate]);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -207,6 +242,12 @@ export default function App() {
               <span className="sb-icon">❖</span><span className="sb-label">{t('Memory')}</span>
             </button>
           )}
+          {hubPresent && (
+            <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
+              onClick={() => navigate('/records')}>
+              <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
+            </button>
+          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -226,6 +267,24 @@ export default function App() {
         </nav>
 
         <nav className="sb-bottom">
+          {/* Ask (CHI-351): its OWN one-item group at the top of sb-bottom,
+              fenced by a separator above AND below, signalling a cross-cutting
+              capability (not nav, not chrome). Renders ONLY when enabled
+              server-side (Settings toggle + claude CLI + non-demo). Not
+              hub-conditional. Enumerable: spec/surface-contract.md */}
+          {askEnabled && (
+            <>
+              <div className="sb-sep" />
+              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title={`${t('Ask')}  ⌘J`}
+                onClick={() => { navigate('/ask'); window.dispatchEvent(new Event('ask:focus')); }}>
+                <span className="sb-icon">∴</span><span className="sb-label">{t('Ask')}</span>
+              </button>
+              <div className="sb-sep" />
+            </>
+          )}
+          <Link className={`sb-item util ${atReference ? 'on' : ''}`} href="/reference" title={t('Reference')}>
+            <span className="sb-icon">※</span><span className="sb-label">{t('Reference')}</span>
+          </Link>
           <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
             <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
           </button>
@@ -296,6 +355,11 @@ export default function App() {
         {atJobs && <JobsPage />}
         {atBriefing && <BriefingPage />}
         {atMemory && <MemoryPage />}
+        {atRecords && <RecordsPage />}
+        {atReference && <ReferencePage />}
+        {atAsk && (askEnabled
+          ? <AskPage />
+          : <div className="page center muted">{t('Ask is not available. Enable it in Settings (requires the claude CLI).')}</div>)}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}
@@ -319,7 +383,7 @@ export default function App() {
       {wizardOpen && (
         <ImportWizard onClose={() => setWizardOpen(false)} onImported={() => { refresh(); }} />
       )}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onAskChanged={refreshAsk} />}
       {searchOpen && (
         <SearchModal onClose={() => setSearchOpen(false)}
           onOpen={(sid: string) => { setSearchOpen(false); navigate(`/session/${encodeURIComponent(sid)}`); }} />
@@ -338,21 +402,27 @@ export default function App() {
 
 export interface SettingsModalProps {
   onClose: () => void;
+  onAskChanged?: () => void;
 }
 
-function SettingsModal({ onClose }: SettingsModalProps) {
+function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
+  // Read the server's own verdict so the Ask row can explain itself.
+  const { status: askStatus } = useAskStatus();
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
-      autoSync: true, autoSyncPaused: false,
-      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10,
+      autoSync: true, autoSyncPaused: false, ask: false,
+      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true, homeBands: true,
+      monthlyBudget: null,
     }));
   }, []);
-  async function toggle(key: 'autoSync' | 'autoSyncPaused') {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask' | 'planWindows' | 'homeBands') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
     try { setSettings(await api.patchSettings({ [key]: next[key] })); } catch {}
+    // Re-check /ask/status so the sidebar entry appears/disappears without a reload.
+    if (key === 'ask') onAskChanged?.();
   }
   return (
     <Modal onClose={onClose} title={t('Settings')}>
@@ -373,8 +443,122 @@ function SettingsModal({ onClose }: SettingsModalProps) {
               <span>{t('Pause auto-sync')}</span>
               <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
             </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.planWindows !== false} onChange={() => toggle('planWindows')} />
+              <span>{t('Claude plan windows (quota)')}</span>
+              <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.homeBands !== false} onChange={() => toggle('homeBands')} />
+              <span>{t('Home bands')}</span>
+              <span className="muted small">{t('Show the daily briefing cards and the 5-domain status band at the top of Insights. Turn this off for just the numbers: the charts, KPIs and tables are unchanged either way.')}</span>
+            </label>
+            <label className="settings-row">
+              <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />
+              <span>{t('Ask (alpha version)')}</span>
+              <span className="muted small">
+                {t('Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.')}
+                {/* Ask needs the toggle AND the claude CLI AND a non-demo console
+                    (all decided server-side). With the toggle on and one of the
+                    others missing, ticking the box appeared to do nothing at all:
+                    no page, no sidebar item, no explanation (Chi, 2026-08-28).
+                    Say which condition is unmet rather than failing silently. */}
+                {settings.ask === true && askStatus && !askStatus.enabled ? (
+                  <span className="settings-why">
+                    {askStatus.demo
+                      ? t('Not available in demo mode: Ask runs your real claude CLI against your real sessions, so it stays off on a synthetic console.')
+                      : !askStatus.claudePresent
+                        ? t('The claude CLI was not found on your PATH, so the ∴ Ask item stays hidden. Install it and reload.')
+                        : t('Ask is unavailable right now.')}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+            <ViewLogSettings />
           </div>
         )}
     </Modal>
+  );
+}
+
+// The view-log readout (CHI-325 3a / D7). A recorder of the operator's own
+// behavior gets a visible switch, an honest count, and a Clear button — being
+// invisible machinery would be the wrong posture even for something that never
+// leaves the machine.
+//
+// It reads the log rather than merely toggling it because the numbers are the
+// point: a human/agent split you can see is what makes the actor columns
+// trustworthy. Deeper questions ("which surface did I actually live in last
+// month") go through /ask, which already runs SELECT-only over the same db.
+function ViewLogSettings() {
+  const [summary, setSummary] = useState<ViewLogSummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => { api.viewLogSummary().then(setSummary).catch(() => setSummary(null)); };
+  useEffect(load, []);
+
+  if (!summary) return null;
+
+  // Dwell reads as seconds under a minute, minutes above: "4.2m" is a visit,
+  // "38s" is a bounce, and the two need to be distinguishable at a glance.
+  const fmtDwell = (ms: number | null) => (ms == null ? '-' : ms < 60000 ? `${Math.round(ms / 1000)}s` : `${(ms / 60000).toFixed(1)}m`);
+  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : '-');
+
+  return (
+    <div className="settings-block">
+      <label className="settings-block-head">
+        <input
+          type="checkbox"
+          checked={summary.enabled}
+          disabled={busy}
+          onChange={async () => {
+            setBusy(true);
+            try { await api.viewLogSetEnabled(!summary.enabled); load(); } catch { /* ignore */ }
+            setBusy(false);
+          }}
+        />
+        <span>{t('Local view log')}</span>
+      </label>
+      <p className="muted small">
+        {t('Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.')}
+      </p>
+      {summary.rows === 0 ? (
+        <p className="muted small">{t('Nothing recorded yet.')}</p>
+      ) : (
+        <>
+          <p className="muted small">
+            {summary.rows} {t('events')} · {summary.humanRows} {t('you')} · {summary.agentRows} {t('agent')} · {day(summary.firstTs)} → {day(summary.lastTs)}
+          </p>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>{t('Surface')}</th><th>{t('You')}</th><th>{t('Agent')}</th><th>{t('Typical visit')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.routes.slice(0, 5).map((r) => (
+                <tr key={r.route}>
+                  <td>{r.route}</td>
+                  <td>{r.humanVisits}</td>
+                  <td>{r.agentVisits}</td>
+                  <td>{fmtDwell(r.humanDwellMs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button
+            type="button"
+            className="btn ghost small"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try { await api.viewLogClear(); load(); } catch { /* ignore */ }
+              setBusy(false);
+            }}
+          >
+            {t('Clear the log')}
+          </button>
+        </>
+      )}
+    </div>
   );
 }

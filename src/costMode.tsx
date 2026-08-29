@@ -52,7 +52,8 @@ export function CostModeToggle(): JSX.Element {
   const { mode, setMode } = useCostMode();
   return (
     <div className="cost-mode-toggle" role="group" aria-label={t('Cost basis')}>
-      <span className="cm-label">{t('Cost')}</span>
+      {/* CHI-324 cross-cutting: the COST prefix label is removed — the control
+          reads just "List price | Billed". The aria-label carries the meaning. */}
       <button type="button" className={`cm-opt ${mode === 'theoretical' ? 'on' : ''}`}
         aria-pressed={mode === 'theoretical'} onClick={() => setMode('theoretical')}>
         {t('List price')}
@@ -61,7 +62,7 @@ export function CostModeToggle(): JSX.Element {
         aria-pressed={mode === 'real'} onClick={() => setMode('real')}>
         {t('Billed')}
       </button>
-      <InfoTip text={t('List price shows the metered list-price cost of every token (what an API caller would pay). Billed shows what you actually pay: models covered by your subscription (Claude tiers, gpt-5.6 / Codex) bill ~$0 under the plan, so their billed cost is 0.')} />
+      <InfoTip def="spend.cost-basis" />
     </div>
   );
 }

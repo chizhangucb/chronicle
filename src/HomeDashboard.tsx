@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
-  insightsUrl, activityUrl,
+  api, insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
+  type BriefingResult,
 } from './api.js';
+import { sessionDisplayName } from './ProjectDetail.jsx';
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
@@ -13,16 +14,22 @@ import { fmtInt, fmtMoney, pluralize } from './format.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
+import { BriefingBand, HomeStatusBand, ProvenanceStrip } from './home/HomeBands.tsx';
+import { useHubStatus } from './useHubStatus.ts';
+import { useSyncStatus } from './useSyncStatus.ts';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
+import SpendOverTime from './insights/SpendOverTime.tsx';
+import SpendTab from './SpendTab.tsx';
+import SessionsHubTab from './SessionsHubTab.tsx';
+import SortCaret from './SortCaret.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
-import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
-import { densifyBuckets, capDenseBuckets, dayKeyOf, fmtDayLabel, fmtHourLabel } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation, type BucketedCell } from './windowedUsage.ts';
+import { fmtDayLabel } from './charts/timeBuckets.ts';
+import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
 import { useCostMode } from './costMode.tsx';
-import { sessionDisplayName } from './ProjectDetail.jsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
+import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 // The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
@@ -36,7 +43,7 @@ import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 // live; see RecentLedger.tsx and ProjectsPage.tsx). Explore/Content reuse the
 // existing tab components at scope=all.
 
-type Tab = 'overview' | 'explore' | 'content';
+type Tab = 'overview' | 'explore' | 'content' | 'spend' | 'sessions';
 
 // Window toggle: all five options live on this ONE surface (spec §2.2a). Today =
 // fractional-days-since-local-midnight; All = no cutoff (days omitted). The
@@ -108,7 +115,12 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
   // bare `/` with no param.
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get('tab');
-  const tab: Tab = tabParam === 'explore' ? 'explore' : tabParam === 'content' ? 'content' : 'overview';
+  const tab: Tab =
+    tabParam === 'explore' ? 'explore'
+    : tabParam === 'content' ? 'content'
+    : tabParam === 'spend' ? 'spend'
+    : tabParam === 'sessions' ? 'sessions'
+    : 'overview';
   const selectTab = (next: Tab) => navigate(next === 'overview' ? '/' : `/?tab=${next}`);
 
   // Fractional days since LOCAL midnight — same "Today" semantics as
@@ -143,6 +155,26 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
   const { data: insights, stale: insightsStale } = useCachedFetch<InsightsResult>(insightsUrl(days ?? undefined));
   const { data: activity } = useCachedFetch<ActivityResult>(activityUrl(sinceRef.current, days));
 
+  // Home bands (CHI-325 3d). Opt-OUT: `homeBands` defaults on, and turning it
+  // off collapses / back to exactly the Overview that shipped before this
+  // change. Read from /settings rather than localStorage so the preference is
+  // one server-visible truth, like the budget (CHI-366).
+  const hub = useHubStatus();
+  const hubPresent = hub?.present ?? false;
+  const { text: syncText } = useSyncStatus();
+  const [bandsOn, setBandsOn] = useState(true);
+  const [briefing, setBriefing] = useState<BriefingResult | null>(null);
+  const loadBriefing = () => { api.briefing().then(setBriefing).catch(() => setBriefing(null)); };
+  useEffect(() => {
+    api.settings().then((cfg) => setBandsOn(cfg.homeBands !== false)).catch(() => setBandsOn(true));
+  }, []);
+  useEffect(() => {
+    // The briefing is a hub organ, so there is nothing to fetch without one.
+    if (bandsOn && hubPresent) loadBriefing();
+    else setBriefing(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bandsOn, hubPresent]);
+
   if (projects === null) return <div className="page center muted">Loading…</div>;
   if (!projects.length) return <WelcomeEmpty onImport={onImport} />;
 
@@ -161,6 +193,12 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
             <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>
               {t('Content')}
             </button>
+            <button type="button" className={`tab ${tab === 'spend' ? 'on' : ''}`} onClick={() => selectTab('spend')}>
+              {t('Spend')}
+            </button>
+            <button type="button" className={`tab ${tab === 'sessions' ? 'on' : ''}`} onClick={() => selectTab('sessions')}>
+              {t('Sessions')}
+            </button>
           </div>
           <RangeBar value={win} onChange={setWin} />
         </div>
@@ -172,23 +210,45 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
       <div className="insights-page">
         {tab === 'overview' && (
           <>
+            {/* Band 1 (CHI-325 3d): what needs your eyes. It sits ABOVE the
+                numbers because it is the only part of the home that asks
+                something of you; everything below is a read. */}
+            {bandsOn && <BriefingBand briefing={briefing} onChanged={loadBriefing} />}
+
             {insights
               ? <KpiStrip result={insights} />
               : <div className="muted pad8">{t('Loading…')}</div>}
 
+            {/* Band 2: the same five domains the ops nav covers, as a second
+                READ of the tiles above (trend glyph + explicit baseline), not a
+                dedupe of them. */}
+            {bandsOn && (
+              <HomeStatusBand insights={insights} activity={activity} briefing={briefing}
+                hubPresent={hubPresent} days={days} />
+            )}
+
             {isToday && <ActivityBlock activity={activity} onOpenSession={onOpenSession} />}
 
-            <BurnTile activity={activity} win={win} onOpenSession={onOpenSession} />
+            <AnomalyTile activity={activity} insights={insights} win={win} days={days} onOpenSession={onOpenSession} />
 
             {insights && (
               <div className={insightsStale ? 'range-refreshing' : undefined}>
                 <InsightsCharts result={insights} days={days} />
               </div>
             )}
+
+            {/* Band 3 (D11): where these numbers came from and how old they
+                are. The topbar sync pill says when data last landed; it does
+                not say which SOURCES are behind the figures, which on a console
+                merging four tools plus a hub plus a proxy lane is the
+                credibility question. */}
+            {bandsOn && <ProvenanceStrip insights={insights} hubPresent={hubPresent} syncText={syncText} />}
           </>
         )}
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
         {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
+        {tab === 'spend' && <SpendTab insights={insights} activity={activity} win={win} days={days} />}
+        {tab === 'sessions' && <SessionsHubTab insights={insights} />}
       </div>
     </div>
   );
@@ -263,46 +323,46 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   return (
     <div className="kpis">
       <div className="kpi">
-        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip text={t('Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Total includes automation spend, broken out below. Toggle List price vs Billed in the topbar.')} /></div>
+        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
         <div className="s" title={`${t('interactive')} ${fmtMoney(kpis.interactiveSpend, 2)} · ${t('automation')} ${fmtMoney(auto.automationCost, 2)} (${autoByJobText})`}>
           {t('incl.')} {fmtMoney(auto.automationCost, auto.automationCost < 1 ? 2 : 0)} {t('automation')}
         </div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Sessions')} <InfoTip text={t('Interactive sessions only. Headless automation runs (weekly/nightly/session-close/spend-advice) are counted separately as automation, not here. A manifest session whose transcript is also imported is counted once, as automation.')} /></div>
+        <div className="l">{t('Sessions')} <InfoTip def="overview.sessions" /></div>
         <div className="v">{kpis.sessionCount}</div>
         <div className="s" title={`${t('automation by job')}: ${autoByJobText}`}>
           {kpis.projectCount} {t('projects')} · {auto.automationSessionCount} {t('automation excluded')}
         </div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tokens')} <InfoTip text={t('Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).')} /></div>
+        <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
         <div className="v">{fmtTok(kpis.tokens)}</div>
         <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Agent active')} <InfoTip text={t('Agent Active sums every gap between messages except gaps before a typed human prompt, each gap capped at 10 minutes; gaps ending in a tool result are never capped.')} /></div>
+        <div className="l">{t('Agent active')} <InfoTip def="overview.agent-active" /></div>
         <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
         <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Your engaged')} <InfoTip text={t('Engaged sums every gap between messages, each capped at 90 minutes; unlike Agent Active, it makes no distinction between agent work and your own pauses. Leverage = agent active ÷ engaged.')} /></div>
+        <div className="l">{t('Your engaged')} <InfoTip def="overview.engaged" /></div>
         <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
         <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tool calls')} <InfoTip text={t('Total tool invocations (Bash, Read, Edit, …) across all sessions in range. Each call and its result also carry token cost — see the Content tab.')} /></div>
+        <div className="l">{t('Tool calls')} <InfoTip def="overview.tool-calls" /></div>
         <div className="v">{fmtCount(kpis.toolCalls)}</div>
         <div className="s">{kpis.topTool ? `${kpis.topTool}-${t('heavy')}` : '—'}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Error rate')} <InfoTip text={t('Share of tool results that returned an error (heuristic match on the result text). Delta compares the prior period of the same length.')} /></div>
+        <div className="l">{t('Error rate')} <InfoTip def="overview.error-rate" /></div>
         <div className="v">{kpis.errorRate.toFixed(1)}<span className="u">%</span></div>
         <div className="s">{result.errors} {t('errors')}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Commits')} <InfoTip text={t('Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.')} /></div>
+        <div className="l">{t('Commits')} <InfoTip def="overview.commits" /></div>
         <div className="v">{kpis.commits}</div>
         <div className="s">{t('linked')}</div>
       </div>
@@ -367,50 +427,72 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
 // ---- Burn tile: current window spend vs a baseline (Today → 14-day daily
 // median; Nd → prior-Nd; All → NO baseline, since none honestly exists over an
 // unbounded window). Warn tint (--warn) when spend runs >2× the baseline. ----
-function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult | null; win: WindowKey; onOpenSession?: (id: string, projectId: number) => void }) {
+function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activity: ActivityResult | null; insights: InsightsResult | null; win: WindowKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
-  if (!activity) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
-  const burn = activity.burn;
-  const current = priceCellsByDay(burn.windowSpendTokensByModelByDay, mode);
-  const baseline = priceCells(burn.baselineTokensByModel, mode);
-  const hasBaseline = baseline > 0;
-  const ratio = hasBaseline ? current / baseline : null;
-  const hot = ratio != null && ratio > 2;
+  // Hooks run unconditionally (rules-of-hooks) — the null-activity guard reads
+  // the memoized value but never skips the hook.
+  const burn = activity?.burn ?? null;
+  // ONE shared window-scoped anomaly view (identical to the Spend-tab card).
+  const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
+  // Top session ranked by COST in this window (CHI-324 review — the old server
+  // pick ranked by TOKENS but showed cost, so a wider window's top could show a
+  // SMALLER figure than a narrower one). The insights windowed cells give the
+  // in-window per-session share, so the max-cost pick is monotonic across widening
+  // windows and respects the List/Billed toggle. Same math the retired
+  // Top-sessions-by-cost table used.
+  const topSession = useMemo(() => {
+    if (!insights) return null;
+    const bySession = groupByKey(insights.windowedTokensByModel, (c) => c.sessionId);
+    let best: { row: InsightsResult['sessions'][number]; cost: number } | null = null;
+    for (const s of insights.sessions) {
+      const cost = costOfBucketedCells(bySession.get(s.id) ?? [], mode);
+      if (cost > 0 && (!best || cost > best.cost)) best = { row: s, cost };
+    }
+    return best;
+  }, [insights, mode]);
+
+  if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+
+  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
   const baselineLabel = win === 'today' ? t('typical day (14-day median)')
     : win === '7d' ? t('prior 7 days')
     : win === '30d' ? t('prior 30 days')
     : win === '90d' ? t('prior 90 days')
     : '';
-  // Comparison bar: baseline is the 100% reference; current fills relative to it
-  // (capped at 100% width). Only meaningful when a baseline exists.
+  // Window span for the no-baseline support line, so a bounded window that just
+  // lacks a full PRIOR period (not enough history yet) never mislabels as "all
+  // time" (CHI-324 review — 90d had no prior-90d in range).
+  const winSpanLabel = win === '7d' ? t('last 7 days')
+    : win === '30d' ? t('last 30 days')
+    : win === '90d' ? t('last 90 days')
+    : win === 'today' ? t('today')
+    : t('all time');
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
-  const topCost = priceCells(burn.topSessionTokensByModel, mode);
   const openTop = () => {
-    if (!burn.topSessionId) return;
-    if (onOpenSession) onOpenSession(burn.topSessionId, 0);
-    else navigate(`/session/${encodeURIComponent(burn.topSessionId)}`);
+    if (!topSession) return;
+    if (onOpenSession) onOpenSession(topSession.row.id, topSession.row.project_id);
+    else navigate(`/session/${encodeURIComponent(topSession.row.id)}`);
   };
+
+  // Multi-day windows carry the flagged-days line (single-day Today has none).
+  const showFlaggedDays = win !== 'today' && flaggedDays.length > 0;
 
   return (
     <div className={`card burn-card ${hot ? 'warn' : ''}`}>
       <div className="burn-head">
-        <span className="eyebrow">{t('Burn rate')}</span>
-        <InfoTip text={t('Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged.')} />
+        <span className="eyebrow">{t('Spend anomaly')}</span>
+        <InfoTip def="overview.anomaly" />
       </div>
       <div className="burn-row">
         <div className="burn-now">
-          {/* D6: the ratio is the headline when a baseline exists (warn-tinted via
-              .burn-card.warn .burn-now .v, unchanged); the absolute window-vs-baseline
-              spend moves to the support line. No-baseline (All) case falls back to the
-              absolute spend headline, same as before. */}
           {ratio != null
             ? <div className="v">×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>}</div>
             : <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>}
           {hasBaseline
             ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} {t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
-            : <div className="s muted">{t('all time · no baseline')}</div>}
+            : <div className="s muted">{win === 'all' ? t('all time · no baseline') : `${winSpanLabel} · ${t('no prior period to compare yet')}`}</div>}
         </div>
       </div>
       {hasBaseline && (
@@ -419,17 +501,63 @@ function BurnTile({ activity, win, onOpenSession }: { activity: ActivityResult |
           <div className={`burn-fill ${hot ? 'hot' : ''}`} style={{ width: `${fillPct}%` }} />
         </div>
       )}
-      {burn.topSessionId && (
+
+      {/* Movers: top project + top model by spend in this window (moves with the
+          window). Each lens is one glyph + label + name + window spend. */}
+      {(topProject || topModel) && (
+        <div className="anom-mover">
+          {topProject && (
+            <span>
+              <span className="anom-glyph">{MOVER_GLYPH.project}</span>{' '}
+              <span className="muted">{t('top project')} </span>
+              <b>{topProject.value}</b> {fmtMoney(topProject.cost, topProject.cost < 1 ? 2 : 0)}
+            </span>
+          )}
+          {topProject && topModel && <span className="anom-sep"> · </span>}
+          {topModel && (
+            <span>
+              <span className="anom-glyph">{MOVER_GLYPH.model}</span>{' '}
+              <span className="muted">{t('top model')} </span>
+              <b>{topModel.value}</b> {fmtMoney(topModel.cost, topModel.cost < 1 ? 2 : 0)}
+            </span>
+          )}
+        </div>
+      )}
+      {/* Lane C honesty note — the total can move on unattributable proxy spend. */}
+      {laneCToday > 0 && (
+        <div className="anom-lanec" title={t(LANE_C_NOTE_TIP)}>
+          {t('incl.')} {fmtMoney(laneCToday, 2)} {t('proxy lane, not attributable to a mover')}
+        </div>
+      )}
+      {/* Flagged-days line (multi-day windows) → deep-links to the Spend tab. The
+          date shows only for a lone flag; a longer window only adds OLDER flags,
+          so a single latest date would look "stuck" as the count grows. */}
+      {showFlaggedDays && (
+        <div className="anom-flagged" onClick={() => navigate('/?tab=spend')} role="button" tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter') navigate('/?tab=spend'); }}>
+          {pluralize(flaggedDays.length, t('flagged day'), t('flagged days'))}
+          {flaggedDays.length === 1 && <>{' · '}{fmtDayLabel(flaggedDays[0].day, localeOf())}</>}
+          {' '}<span className="anom-arrow">→</span>
+        </div>
+      )}
+
+      {topSession && (
         <div className="burn-top" onClick={openTop} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') openTop(); }}>
           <span className="eyebrow">{t('Top session')}</span>
-          <span className="bt-name" title={burn.topSessionName ?? undefined}>{burn.topSessionName}</span>
-          <span className="bt-cost num-col">{fmtMoney(topCost, 2)}</span>
+          <span className="bt-name" title={sessionDisplayName(topSession.row)}>{sessionDisplayName(topSession.row)}</span>
+          <span className="bt-cost num-col">{fmtMoney(topSession.cost, 2)}</span>
         </div>
       )}
     </div>
   );
 }
+
+// The Lane C caveat tooltip (mirrors LANE_C_UNATTRIBUTED_DEFINITION intent;
+// kept local so the tile has no server import beyond the shared math).
+const LANE_C_NOTE_TIP =
+  'Proxy-lane (LiteLLM/OpenRouter) spend is billed on its own log with no session, project, or model attribution, so it is added to the total but never shown as a per-dimension driver.';
+
 
 // ---- Insights Overview charts (everything the old InsightsPage Overview showed
 // AFTER the KPI strip): spend-over-time stacked chart, spend-by-model/sources,
@@ -446,82 +574,9 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
-  // Max densified buckets for the spend chart (cap to prevent runaway rendering).
-  // This matches ExploreTab's cap; for daily/hourly-bounded windows this is rarely
-  // approached, so we cap silently without a UI note.
-  const MAX_DENSE_BUCKETS = 2000;
+  // Spend by model retired from Overview (CHI-324 review #4) — see the render.
 
-  // ---- Spend over time · stacked by project (top 5 by spend in range + Other) ----
-  // Windowed cells (Task 2/3), not raw `s.usage`: a session that started before
-  // the window but ran INTO it contributes only its in-window share, so this
-  // ranking agrees with the KPI strip's Spend and the chart below it.
-  const projectSpend = useMemo(() => {
-    // Day-bucketed pricing (CHI-228): group by project first, then price each
-    // project's slice per day-bucket (costOfBucketedCells) rather than
-    // collapsing to one model bag first (sumByKeyModel + costOfCells), which
-    // would price every day at one flat (latest) rate.
-    const byProject = groupByKey(result.windowedTokensByModel, (c) => String(c.projectId));
-    const m = new Map<number, number>();
-    for (const [key, cells] of byProject) m.set(Number(key), costOfBucketedCells(cells, mode));
-    return m;
-  }, [result, mode]);
-  const projectsBySpend = useMemo(
-    () => [...result.projects].sort((a, b) => (projectSpend.get(b.id) ?? 0) - (projectSpend.get(a.id) ?? 0)),
-    [result, projectSpend],
-  );
-  const topProjects = useMemo(() => projectsBySpend.slice(0, 5), [projectsBySpend]);
-  const otherProjectIds = useMemo(() => new Set(projectsBySpend.slice(5).map((p) => p.id)), [projectsBySpend]);
-  // hourlySpend is only computed server-side for a short window (days<=2, i.e.
-  // the Today window is the only WINDOWS entry that ever qualifies) — falls
-  // back to dailySpend otherwise (server/insights.ts). Both are LOCAL-time
-  // bucket keys (server strftime(...,'localtime')), so the label formatters
-  // below never need the old UTC-double-shift workaround.
-  const useHourly = result.hourlySpend != null;
-  const spendBucketUnit = useHourly ? 'hour' as const : 'day' as const;
-  const spendChartData = useMemo(() => {
-    const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
-    const byBucket = groupByBucket(cells);
-    // D12: dense-fill every bucket from first to last present, so equal bar
-    // spacing represents equal time even when some hours/days had no spend.
-    // Cap to MAX_DENSE_BUCKETS to prevent runaway rendering on very long
-    // time series (matches ExploreTab's approach).
-    const denseKeys = densifyBuckets([...byBucket.keys()], spendBucketUnit);
-    const { keys: bucketKeys } = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
-    const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
-    return bucketKeys.map((bucket) => {
-      const byGroupModel = sumByKeyModel(
-        byBucket.get(bucket) ?? [],
-        (c) => (otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId)),
-      );
-      // `bucket` is either an hour key (YYYY-MM-DDTHH) or a day key
-      // (YYYY-MM-DD); its first 10 chars are always a valid pricing day
-      // (CHI-228) — every cell in this bucket already shares that one day.
-      const day = bucket.slice(0, 10);
-      const row: Record<string, string | number> = { bucket: labelOf(bucket) };
-      for (const [key, byModel] of byGroupModel) row[key] = costOfCells(byModel, day, mode);
-      return row;
-    });
-  }, [result, otherProjectIds, useHourly, spendBucketUnit, mode]);
-  const hasOther = otherProjectIds.size > 0;
-
-  // ---- Spend by model (hbar) ----
-  const spendByModel = useMemo(() => {
-    // Day-bucketed pricing (CHI-228): group by model, then price each
-    // model's cells per day-bucket — a model bag spanning a rate change
-    // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    const byModel = groupByKey(result.windowedTokensByModel, (c) => c.model);
-    return [...byModel.entries()]
-      .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [result, mode]);
-
-  // ---- Sources (hbar) ----
-  const bySource = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of result.sessions) m.set(s.source, (m.get(s.source) ?? 0) + 1);
-    return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [result]);
+  // Sources moved to the Spend tab (CHI-324 review) — paired with Spend by model.
 
   // ---- Global tool mix (top 5 + Other) ----
   const toolMix = useMemo(() => {
@@ -562,70 +617,17 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const tokenTotalsHitRate = (tokenTotals.cacheRead + tokenTotals.input)
     ? (tokenTotals.cacheRead / (tokenTotals.cacheRead + tokenTotals.input)) * 100 : 0;
 
-  // ---- Top sessions by cost ----
-  const topSessions = useMemo(() => {
-    const byModel = sumByKeyModel(result.windowedTokensByModel, (c) => c.sessionId);
-    // Day-bucketed pricing (CHI-228) for cost; tokensOfCells stays on the
-    // flat per-model map (token counts are unaffected by day).
-    const bySession = groupByKey(result.windowedTokensByModel, (c) => c.sessionId);
-    return result.sessions
-      .map((s) => {
-        const m = byModel.get(s.id);
-        return { session: s, cost: costOfBucketedCells(bySession.get(s.id) ?? [], mode), tokens: tokensOfCells(m) };
-      })
-      .sort((a, b) => b.cost - a.cost)
-      .slice(0, 15);
-  }, [result, mode]);
+  // Top sessions by cost is RETIRED from Overview (CHI-324) — absorbed by the
+  // Sessions tab's cost sort. The product ends with exactly two session lists:
+  // the /projects ledger and the Sessions tab.
 
   return (
     <>
-      <div className="grid2">
-        <div className="card">
-          <h3>{t('Spend over time · stacked by project')}{useHourly ? ` · ${t('Hourly')}` : ''}</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={spendChartData}>
-              <CartesianGrid {...GRID_PROPS} />
-              <XAxis dataKey="bucket" {...AXIS_PROPS} />
-              <YAxis {...AXIS_PROPS} tickFormatter={(v: number) => fmtMoney(v, 0)} />
-              <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
-              {topProjects.map((p, i) => (
-                <Bar key={p.id} dataKey={String(p.id)} stackId="a" name={p.name} fill={projectColors.get(p.id) ?? CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]} />
-              ))}
-              {hasOther && <Bar dataKey="other" stackId="a" name={t('Other')} fill="var(--ink-3)" />}
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="legend">
-            {topProjects.map((p) => (
-              <span key={p.id}><span className="dot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</span>
-            ))}
-            {hasOther && <span style={{ color: 'var(--ink-3)' }}>+ {otherProjectIds.size} {t('in Other')}</span>}
-          </div>
-        </div>
-        <div className="card">
-          <h3>{t('Spend by model')} · {rangeLabel}</h3>
-          {spendByModel.map((r, i) => {
-            const max = spendByModel[0]?.value || 1;
-            return (
-              <div className="hbar" key={r.name}>
-                <span className="n" title={r.name}>{r.name}</span>
-                <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{fmtMoney(r.value, 0)}</span>
-              </div>
-            );
-          })}
-          <h3>{t('Sources')}</h3>
-          {bySource.map((r, i) => {
-            const max = bySource[0]?.value || 1;
-            return (
-              <div className="hbar" key={r.name}>
-                <span className="n" title={r.name}>{r.name}</span>
-                <div className="track"><div className="seg" style={{ width: `${(r.value / max) * 100}%`, background: CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length] }} /></div>
-                <span className="v num">{r.value}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Spend-over-time is FULL-WIDTH on Overview (CHI-324 review): it's the
+          headline chart, and Spend by model + Sources both moved to the Spend
+          tab (de-duped, and pairing the tall chart with a 2-row Sources card
+          left an ugly empty half). */}
+      <SpendOverTime result={result} />
 
       <div className="grid2b">
         <WorkingRhythm result={result} />
@@ -667,9 +669,9 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               <th>{t('Cache Read')}</th>
               <th>{t('Cache Write')} <span className="ttl-tag">5m</span></th>
               <th>{t('Cache Write')} <span className="ttl-tag">1h</span></th>
-              <th>{t('Hit rate')} <InfoTip text={t('Cache read ÷ (cache read + input): the share of prompt-side tokens served from cache instead of re-sent at full input price. Higher = cheaper turns.')} /></th>
-              <th>{t('Msgs')} <InfoTip text={t('Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.')} /></th>
-              <th>{t('Cost')}</th>
+              <th>{t('Hit rate')} <InfoTip def="overview.cache-hit" /></th>
+              <th>{t('Msgs')} <InfoTip def="overview.messages" /></th>
+              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
@@ -703,38 +705,6 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
         </table>
       </div>
 
-      <div className="card" style={{ marginTop: 10 }}>
-        <h3>{t('Top sessions by cost')} · {rangeLabel}</h3>
-        {/* `.pane` (min-width:0 + overflow:auto) so a long session title scrolls
-            this table internally instead of widening the whole page. */}
-        <div className="pane">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left' }}>{t('Session')}</th>
-                <th style={{ textAlign: 'left' }}>{t('Project')}</th>
-                <th>{t('Cost')}</th>
-                <th>{t('Tokens')}</th>
-                <th>{t('Active')}</th>
-                <th>{t('When')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topSessions.map(({ session, cost, tokens }) => (
-                <tr key={session.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(session.id)}`)}>
-                  <td>{sessionDisplayName(session)}</td>
-                  <td style={{ textAlign: 'left', color: projectColors.get(session.project_id) ?? 'var(--brass-text)' }}>{session.project_name}</td>
-                  <td className="cost">{fmtMoney(cost, 2)}</td>
-                  <td>{fmtTok(tokens)}</td>
-                  <td>{fmtActive(session.agent_active_ms || 0)}</td>
-                  <td>{session.started_at ? fmtDayLabel(dayKeyOf(new Date(session.started_at)), localeOf()) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!topSessions.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
-      </div>
     </>
   );
 }

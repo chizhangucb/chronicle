@@ -206,6 +206,46 @@ function buildRoutes(base, ctx) {
       await page.waitForTimeout(100);
     },
   });
+  routes.push({
+    slug: 'insights-spend',
+    async setup(page, notes) {
+      await gotoInsights(page);
+      await page.locator('.tabs .tab', { hasText: 'Spend' }).click();
+      // Spend fetches detectors/waste/routing/plan-windows async — give them a beat.
+      await page.waitForSelector('.spend-tab .budget-band', { timeout: NAV_TIMEOUT_MS });
+      // CHI-369: the budget band flashes "$0 month to date" until the SEPARATE
+      // month-insights fetch resolves; wait for the month-to-date figure to
+      // settle (non-$0) so the capture shows the real budget, not the pre-fetch
+      // $0. fmtMoney(x,0) prints "$0" / "$9,421" (no decimals), so `^\$0` only
+      // matches a true zero. Bounded + swallowed so a legitimately-$0 month
+      // still captures (with the $0 shown) rather than hanging the walk.
+      const budgetSettled = await page.waitForFunction(() => {
+        const el = document.querySelector('.spend-tab .budget-band .bb-mtd');
+        const txt = el && el.textContent ? el.textContent.trim() : '';
+        return txt.length > 0 && !/^\$0(\D|$)/.test(txt);
+      }, { timeout: 6000 }).then(() => true).catch(() => false);
+      if (!budgetSettled) notes.push('budget band still read $0 month-to-date after 6s (month-insights fetch not settled, or this month is genuinely $0) — captured as-is');
+      // Plan windows' Claude meter is an external api.anthropic.com read (opt-out,
+      // slow). Give it a bounded beat to leave "Loading…"; if it's still loading
+      // we CAPTURE ANYWAY rather than block the walk on an external API — the
+      // still-loading panel is a DISCLOSED note below, not a stuck-spinner defect.
+      const pwSettled = await page.waitForFunction(() => {
+        const pw = [...document.querySelectorAll('.spend-tab .card')].find((c) => /Plan windows/.test(c.textContent || ''));
+        return !!pw && !/Loading…/.test(pw.textContent || '');
+      }, { timeout: 8000 }).then(() => true).catch(() => false);
+      if (!pwSettled) notes.push('Plan windows still "Loading…" after 8s — the Claude quota read is an external api.anthropic.com call (opt-out); captured mid-load rather than blocking the walk on an external API');
+      await page.waitForTimeout(300);
+    },
+  });
+  routes.push({
+    slug: 'insights-sessions',
+    async setup(page) {
+      await gotoInsights(page);
+      await page.locator('.tabs .tab', { hasText: 'Sessions' }).click();
+      await page.waitForSelector('.sessions-hub .sh-sessions-table', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForTimeout(300);
+    },
+  });
 
   routes.push({
     slug: 'search-modal',
@@ -262,6 +302,18 @@ function buildRoutes(base, ctx) {
         await page.waitForSelector('.memory-page, .page.center', { timeout: NAV_TIMEOUT_MS });
         await page.waitForSelector('.memory-canvas-wrap canvas', { timeout: NAV_TIMEOUT_MS }).catch(() => {});
         await page.waitForTimeout(1500); // let the force sim + camera settle before the shot
+      },
+    });
+    routes.push({
+      slug: 'records',
+      async setup(page) {
+        // CHI-369: /records was missing from the walk. Wait on `.records-page`
+        // (present once the hub records load) — NOT `.records-table`, which is
+        // absent when the ledger is empty (RecordsPage renders `.records-empty`
+        // instead) or when no hub is connected (`.page center`). The route is
+        // hub-gated above, so `.records-page` is the reliable settled marker.
+        await page.goto(`${base}/records`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.records-page, .page.center', { timeout: NAV_TIMEOUT_MS });
       },
     });
   }
@@ -510,8 +562,13 @@ async function main() {
           if (!allowed(String(err))) consoleErrors.push({ type: 'pageerror', text: String(err) });
         });
 
+        // Per-page settle notes: a route's setup() may push a disclosure here
+        // (e.g. an external plan-windows read still loading at capture) so a
+        // reviewer judging the PNG sees WHY a panel looks mid-load, rather than
+        // the walk silently swallowing it. Written into the per-page JSON below.
+        const settleNotes = [];
         try {
-          await route.setup(page);
+          await route.setup(page, settleNotes);
           const probes = await runProbes(page, width);
           const pngPath = path.join(out, `${slug}.png`);
           await page.screenshot({ path: pngPath, fullPage: true });
@@ -523,6 +580,7 @@ async function main() {
           pageReport.error = err instanceof Error ? err.message : String(err);
         }
         pageReport.consoleErrors = consoleErrors;
+        if (settleNotes.length) pageReport.settleNotes = settleNotes;
 
         fs.writeFileSync(path.join(out, `${slug}.json`), JSON.stringify(pageReport, null, 2));
         pages.push(pageReport);
