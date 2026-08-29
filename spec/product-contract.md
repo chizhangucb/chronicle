@@ -39,7 +39,7 @@ CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 - Never mutate source transcripts: chronicle only ever reads a source tool's logs, and reads a connected nisse-format hub read-only (titles/paths/counts only, never body text, confidential trees pruned).
 
 **Validated-seam writes (all writes go through one):**
-- Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run propose → validated diff → confirm → backup → temp-rename → post-write verify → audit; the briefing uses its two-file run-vs-UI split; hub writes shell the hub's `apply_edit.py` (or a direct-but-gated `hermes send` for the one Tier-2 surface). No raw file edits.
+- Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run propose → validated diff → confirm → backup → temp-rename → post-write verify → audit; the briefing uses its two-file run-vs-UI split; hub writes go through the hub's own gated entry point. No raw file edits.
 - The DB read seam is the `contract_*` views only; base tables are not public. `PRAGMA user_version` gates breaking view changes; a bump ships only with chronicle and Varde together.
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.

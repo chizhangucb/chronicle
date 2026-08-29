@@ -23,7 +23,7 @@
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
 | `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the egress gate posture (config emit-allowlisted, marker phrases reduced to COUNTS) + the push posture (conditioned-auto push pins, emit-allowlisted, scrub-whitelist reduced to a COUNT) + the accepted-gaps register + confirm-first controls that edit the hub-write gate surfaces (kill switch, spend caps, classification, markers, hermes-approvals). Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + confirm-first controls over the hub's gate-config surfaces. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional).** Memory analytics over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side). Header: `MEMORY` + a metric line (notes · links · decisions) + a scope line (`measuring N living notes across <dirs> · M records`) + a **health verdict** (`fresh %` · stale · orphaned · dead links · `+N new`, each warn-tinted when >0 and a jump into the matching Notes-browser preset) + a **RangeBar** window selector. Body: a full-width **3D force-graph canvas** (`react-force-graph-3d` + `three`, lazy-loaded), community-colored, with usage-heat + orphan **lenses**, a **kind legend** that isolates one kind, **FULL/LITE** draw (auto-LITE past 3000 nodes) + **fullscreen**; a right **rail** = node inspector (touches-in-window, links in/out, dead links, Open note) + a slim Scope card (rot threshold, Manage scope → gate flow). Then three lane cards 3-up (**Usage / Freshness / Connectivity**; Growth is the `+N new` verdict stat) and one **Notes browser** owning every row list (presets `touched · connected · orphans · stale · dead`). Most-connected is LIVING-only; `wiki/annex` reads as the records tier. Same hub-conditional gating. | `src/MemoryPage.tsx` (+ `src/components/memory/{MemoryLanes,MemoryCanvasShell,lanes}`) |
@@ -414,8 +414,7 @@ accepted-gaps register.
   rendered, only their count, same posture as confidential markers above. Hidden entirely when the
   gating-policy file is absent.
 - **Gate controls** (confirm-first, only when a writable live hub is present; a single read-only
-  note otherwise, incl. demo): kill switch toggle (destructive confirm) · spend-cap inputs · JSON
-  editors for classification / confidential-markers / hermes-approvals (Tier 2). Every edit goes
+  note otherwise, incl. demo): edits over the connected hub's gate-config surfaces. Every edit goes
   propose -> validated diff card (`GateConfirmDialog`) -> Confirm/Deny; nothing writes without the card.
 - **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
   `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
@@ -428,7 +427,7 @@ accepted-gaps register.
   HARD-GATED: a live hub AND an explicit opt-in flag, else 403. The default/public build never
   serves confidential content.
 - **Demo**: posture shows synthetic data; the gate is INERT for writes (all surfaces unavailable,
-  propose/apply 409), so a demo never touches real machine state (~/.hermes, launchd).
+  propose/apply 409), so a demo never touches real machine state (hub config files, scheduled jobs).
 
 ### `/jobs` — ops surface (hub-conditional, `JobsPage.tsx`)
 
