@@ -129,18 +129,18 @@ const FALLBACK_COLOR = "#8a93a3";
 /** Hint only: the UI may cap its LITE render here. Nothing is dropped. */
 export const CAP_SUGGESTED = 250;
 
-// Directories that must never contribute nodes in the default (public) mode.
-// This is a hard walk-level prune, NOT scope config: user config cannot
-// re-include confidential content in the public projection. The
-// includeConfidential mode lifts it deliberately, to build the separate
-// confidential projection; it never changes default-mode output.
-const CONFIDENTIAL_SEGMENTS = new Set(["confidential", "next-ventures"]);
+// The confidential segments (loaded from the hub at runtime, CHI-390, and passed
+// in) must never contribute nodes in the default (public) mode. This is a hard
+// walk-level prune, NOT scope config: user config cannot re-include confidential
+// content in the public projection. The includeConfidential mode lifts it
+// deliberately, to build the separate confidential projection; it never changes
+// default-mode output.
 
 /** Dirs that are never knowledge and can be huge; skipped unconditionally. */
 const NOISE_DIRS = new Set(["node_modules", ".git", ".obsidian"]);
 
-function pathIsConfidential(relPath: string): boolean {
-  return relPath.split("/").some((segment) => CONFIDENTIAL_SEGMENTS.has(segment));
+function pathIsConfidential(relPath: string, segments: Set<string>): boolean {
+  return relPath.split("/").some((segment) => segments.has(segment));
 }
 
 /**
@@ -160,6 +160,7 @@ function walkMarkdownFiles(
   hubRoot: string,
   scope: MemoryConfig["scope"],
   includeConfidential: boolean,
+  confidentialSegments: Set<string>,
   out: string[] = [],
 ): string[] {
   let entries: string[];
@@ -172,7 +173,7 @@ function walkMarkdownFiles(
     if (entry.startsWith(".") || NOISE_DIRS.has(entry)) continue;
     const full = join(root, entry);
     const rel = relative(hubRoot, full);
-    if (!includeConfidential && pathIsConfidential(rel)) continue; // prune before reading
+    if (!includeConfidential && pathIsConfidential(rel, confidentialSegments)) continue; // prune before reading
     let stat;
     try {
       stat = lstatSync(full);
@@ -182,7 +183,7 @@ function walkMarkdownFiles(
     if (stat.isSymbolicLink()) continue; // never follow; a link could evade the prune
     if (stat.isDirectory()) {
       if (!dirMayContainScoped(rel, scope)) continue;
-      walkMarkdownFiles(full, hubRoot, scope, includeConfidential, out);
+      walkMarkdownFiles(full, hubRoot, scope, includeConfidential, confidentialSegments, out);
     } else if (entry.endsWith(".md")) {
       out.push(full);
     } else if (entry.endsWith(".jsonl") && relative(hubRoot, root) === "records") {
@@ -380,6 +381,7 @@ export interface CollectMemoryOpts {
 
 export async function collectMemoryGraph(
   hubRoot: string,
+  confidentialSegments: Set<string>,
   opts?: CollectMemoryOpts,
 ): Promise<MemorySlice> {
   const includeConfidential = opts?.includeConfidential ?? false;
@@ -388,17 +390,19 @@ export async function collectMemoryGraph(
 
   // Confidential mode moves the confidential roots into the living tier for
   // the SEPARATE confidential projection; the public pass keeps them pruned.
+  // Caveat (CHI-390 review): this lifts the bare declared segment names, and
+  // patternMatches anchors from the hub root, so a top-level confidential tree
+  // matches but a nested confidential subdir is under-included. That projection
+  // is never wired in production today; revisit this if it is.
   const scope = includeConfidential
     ? {
-        living: [...base.scope.living, "wiki/confidential", "next-ventures"],
+        living: [...base.scope.living, ...confidentialSegments],
         historical: base.scope.historical,
-        excluded: base.scope.excluded.filter(
-          (p) => p !== "wiki/confidential" && p !== "next-ventures",
-        ),
+        excluded: base.scope.excluded.filter((p) => !confidentialSegments.has(p)),
       }
     : base.scope;
 
-  const files = walkMarkdownFiles(hubRoot, hubRoot, scope, includeConfidential);
+  const files = walkMarkdownFiles(hubRoot, hubRoot, scope, includeConfidential, confidentialSegments);
 
   const nodes: MemGraphNode[] = [];
   const links: MemGraphLink[] = [];
@@ -423,7 +427,7 @@ export async function collectMemoryGraph(
 
   for (const file of files) {
     const rel = relative(hubRoot, file);
-    if (!includeConfidential && pathIsConfidential(rel)) continue; // defense in depth
+    if (!includeConfidential && pathIsConfidential(rel, confidentialSegments)) continue; // defense in depth
     const tier = tierFor(rel, scope);
     if (tier === "excluded") continue;
 

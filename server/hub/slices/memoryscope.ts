@@ -72,9 +72,9 @@ export const DEFAULT_MEMORY_SCOPE: MemoryScopePatterns = {
     "wiki/annex",
   ],
   // Generic nisse-shaped defaults; an operator overrides via the memory-scope
-  // config. Confidential/next-ventures do NOT need to be listed here: the
-  // walk-level hard prune (CONFIDENTIAL_SEGMENTS in memorygraph.ts) excludes them
-  // in the public projection regardless of any scope config.
+  // config. Confidential trees do NOT need to be listed here: the walk-level hard
+  // prune (the confidential segments loaded from the hub at runtime, CHI-390)
+  // excludes them in the public projection regardless of any scope config.
   excluded: [
     "plans",
     // Pipeline machinery: counting it would fake freshness and growth.
