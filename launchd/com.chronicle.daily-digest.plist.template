@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Chronicle daily-digest emitter job template (CHI-409). Standalone, decoupled
+  from com.chronicle.briefing: the briefing job rides the same 09:00 Pacific
+  slot as the hub's daily-maintenance collect (operations/scheduled-tasks.json
+  "daily-maintenance", first wake after 09:00 Pacific), so the emit it folds in
+  (CHI-398) races the collect and can lag a day. This job runs
+  scripts/emit-daily-digest.ts directly, matching the healthverse/nisse/hermes
+  pattern, at 07:00 -- safely before the collect. The briefing job keeps its
+  own folded emit call too (harmless: the write is idempotent/atomic), so this
+  is pure retiming, not a behavior change to the briefing.
+  Ships DORMANT, same as the briefing template: install yourself with
+  `node scripts/install-jobs.mjs` (fills the __PLACEHOLDERS__), --bootstrap to
+  also load it.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.chronicle.daily-digest</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__REPO__/scripts/emit-daily-digest.ts</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__DATA__/logs/daily-digest.log</string>
+  <key>StandardErrorPath</key>
+  <string>__DATA__/logs/daily-digest.err.log</string>
+</dict>
+</plist>
