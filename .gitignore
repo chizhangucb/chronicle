@@ -30,3 +30,8 @@ graphify-out
 .claude/worktrees/
 # aios_worktree.py drops this marker at a worktree's root; never a repo artifact.
 .aios-worktree
+
+# Python bytecode: a .pyc embeds the ABSOLUTE path of the source it was
+# compiled from, and the guard cannot read it to notice (CHI-416).
+__pycache__/
+*.pyc

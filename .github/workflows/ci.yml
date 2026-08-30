@@ -29,14 +29,20 @@ concurrency:
 
 jobs:
   # Server-side confidentiality gate for this public satellite (CHI-353): blocks
-  # a merge that leaks an owner home path or a committed secret shape. Stdlib
-  # python3, no deps. The richer hub-vocabulary scan is client-side in the hub
-  # egress gate. Keep the job id `confidentiality` stable: branch protection
-  # requires it by that name.
+  # a merge that leaks an owner home path, a committed secret shape, or a
+  # machine-specific identifier (CHI-416). Stdlib python3, no deps. The richer
+  # hub-vocabulary scan is client-side in the hub egress gate, and so is the
+  # hub-value comparison, which needs a hub CI does not have and skips here.
+  # Keep the job id `confidentiality` stable: branch protection requires it by
+  # that name.
   confidentiality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The guard's own tests run FIRST: a guard whose logic has quietly
+      # regressed passes every scan while catching nothing.
+      - name: Confidentiality guard tests
+        run: python3 scripts/tests/test_confidentiality_guard.py
       - name: Confidentiality guard
         run: python3 scripts/confidentiality_guard.py
 
