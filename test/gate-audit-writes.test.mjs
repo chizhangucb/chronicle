@@ -112,10 +112,13 @@ test('gate routes are left to audit themselves (richer rows, with the diff)', as
 // values, redaction-rule patterns and search text.
 test('NO request body or query string ever reaches the audit row', async () => {
   rows.length = 0;
-  await call('PATCH', '/settings?secret=in-the-query', { apiKey: 'sk-should-never-be-logged', nested: { token: 'also-not' } });
+  // Distinctive but NOT credential-shaped: an `sk-`-style literal trips the
+  // repo's confidentiality guard, and the assertion does not need a realistic
+  // secret to prove a body never reaches the row.
+  await call('PATCH', '/settings?secret=in-the-query', { apiKey: 'body-value-must-not-be-logged', nested: { token: 'also-not' } });
   assert.equal(rows.length, 1);
   const serialized = JSON.stringify(rows[0]);
-  assert.doesNotMatch(serialized, /sk-should-never-be-logged/);
+  assert.doesNotMatch(serialized, /body-value-must-not-be-logged/);
   assert.doesNotMatch(serialized, /also-not/);
   assert.doesNotMatch(serialized, /in-the-query/);
   assert.doesNotMatch(serialized, /apiKey/);
