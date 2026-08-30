@@ -55,13 +55,17 @@ class MachineIdentifiers(unittest.TestCase):
     """Incident 1: a machine's launchd labels hardcoded into shipped source."""
 
     def test_owner_launchd_label_in_source_is_blocked(self):
+        # Split "com." from the rest so this file's OWN source never carries a
+        # contiguous owner launchd label -- it is the very leak this guard
+        # blocks, and this test file is now leak-scanned (CHI-419). The runtime
+        # string written to the throwaway repo is still the full literal.
         f = findings_for({"server/gate/approval.ts":
-                          "export const JOBS = ['com.chizhang.daily-maintenance'];\n"})
+                          "export const JOBS = ['com." + "chizhang.daily-maintenance'];\n"})
         self.assertTrue(any("launchd job label" in x for x in f), f)
 
     def test_the_finding_names_the_file_and_line(self):
         f = findings_for({"server/gate/approval.ts":
-                          "// header\nconst x = 'com.chizhang.hygiene-fix';\n"})
+                          "// header\nconst x = 'com." + "chizhang.hygiene-fix';\n"})
         self.assertTrue(any("server/gate/approval.ts:2" in x for x in f), f)
 
     def test_a_third_party_reverse_dns_label_is_fine(self):
@@ -193,7 +197,9 @@ class UnscannableFiles(unittest.TestCase):
 
 class ExistingChecksStillHold(unittest.TestCase):
     def test_absolute_owner_home_path_still_blocks(self):
-        f = findings_for({"src/x.ts": "const p = '/Users/chizhang/notes';\n"})
+        # Split the literal so the owner home-path prefix is assembled at
+        # RUNTIME, never committed to this now-leak-scanned file (CHI-419).
+        f = findings_for({"src/x.ts": "const p = '/Users/" + "chizhang/notes';\n"})
         self.assertTrue(any("home path" in x for x in f), f)
 
     def test_secret_shape_still_blocks(self):
@@ -208,6 +214,41 @@ class ExistingChecksStillHold(unittest.TestCase):
                        capture_output=True)
         os.environ["AIOS_HUB"] = os.path.join(root, "no-such-hub")
         self.assertTrue(any(".gitignore" in x for x in guard.run_checks(root)))
+
+
+class GuardScansItsOwnTestFile(unittest.TestCase):
+    """CHI-419: the guard's own test file is leak-scanned, not self-excluded.
+
+    Before this, scripts/tests/test_confidentiality_guard.py sat in
+    SELF_EXCLUDED_FILES, so a home path or launchd label committed INTO it
+    passed the guard's own CI -- only the hub egress leak-scrub caught it, as a
+    push card after the fact. These pin the exclusion split: LEAK checks now
+    scan this path, the secret-shape check still skips it.
+
+    Every leak fixture is assembled at runtime so THIS source file stays clean
+    while the string written to the throwaway repo is the full literal.
+    """
+
+    # The guard's own test path -- not a leak shape, so a plain literal is fine.
+    TEST_REL = "scripts/tests/test_confidentiality_guard.py"
+
+    def test_home_path_committed_into_this_test_file_is_flagged(self):
+        f = findings_for({self.TEST_REL:
+                          "leak = '/Users/" + "chizhang/x'\n"})
+        self.assertTrue(any("home path" in x for x in f), f)
+
+    def test_machine_id_committed_into_this_test_file_is_flagged(self):
+        f = findings_for({self.TEST_REL:
+                          "leak = 'com." + "chizhang.some-job'\n"})
+        self.assertTrue(any("launchd job label" in x for x in f), f)
+
+    def test_fake_secret_shape_in_this_test_file_stays_exempt(self):
+        # A file's job is to test secret detection, so it legitimately holds
+        # fake secret shapes -- the secret-shape check must skip it (whitelist)
+        # while the leak checks above still apply.
+        f = findings_for({self.TEST_REL:
+                          "fake = 'sk-" + "a" * 20 + "'\n"})
+        self.assertEqual(f, [])
 
 
 if __name__ == "__main__":

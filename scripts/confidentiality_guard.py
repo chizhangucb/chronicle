@@ -65,18 +65,28 @@ MACHINE_ID_SHAPES = (
 )
 
 # Deliberate synthetic fixtures that embed FAKE secret shapes to test the
-# safety machinery. Excused from the secret-shape check ONLY (home-path scanning
-# still applies). A new such fixture is a visible, reviewed addition here.
-SECRET_SCAN_WHITELIST = ("test/hub-safety.test.mjs",)
+# safety machinery. Excused from the secret-shape check ONLY (home-path and
+# machine-id scanning still apply). A new such fixture is a visible, reviewed
+# addition here. The guard's own test file is here (not in SELF_EXCLUDED_FILES)
+# by design (CHI-419): it must stay leak-scanned so a home path or launchd label
+# committed into it fails this guard, but it legitimately builds fake secret
+# shapes to exercise the detector, so only the secret-shape loop skips it.
+SECRET_SCAN_WHITELIST = (
+    "test/hub-safety.test.mjs",
+    "scripts/tests/test_confidentiality_guard.py",
+)
 
 # `.gitignore` must keep covering the local-only secret/config surfaces.
 REQUIRED_GITIGNORE = (".env", ".claude/settings.local.json", "__pycache__")
 
-# Files that legitimately CARRY leak-shaped strings because they document the
-# guard itself (matched as a path prefix / exact path).
+# Files fully excused from EVERY check because they enumerate the leak shapes
+# themselves. Only the guard source belongs here: it spells out HOME_PATH_RE,
+# the machine-id patterns and the secret shapes, so scanning it would flag its
+# own definitions. The test file is deliberately NOT here (CHI-419): it stays
+# leak-scanned and is secret-shape-exempt via SECRET_SCAN_WHITELIST instead, so
+# a home path or launchd label committed into it fails this guard's own CI.
 SELF_EXCLUDED_FILES = {
     "scripts/confidentiality_guard.py",
-    "scripts/tests/test_confidentiality_guard.py",
 }
 
 # Binary fixtures that MUST be tracked because the importer reads that format
