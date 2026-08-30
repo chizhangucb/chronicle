@@ -24,7 +24,7 @@ const FIXTURE_POLICY = {
   push_pins: {
     'hub-repo': {
       remote_urls: ['https://github.com/example-owner/hub-repo.git'], branches: ['main'],
-      any_branch: true, confidential_ok: true, spool_refs: 'refs/ledger/spool/*',
+      any_branch: true, confidential_ok: true, spool_refs: 'refs/example/spool/*',
     },
     'satellite-one': {
       satellite: true, visibility: 'public', remote_urls: ['https://github.com/example-owner/satellite-one.git'],
