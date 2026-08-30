@@ -669,15 +669,18 @@ export class Gate {
     return { applied: false, proposal: p };
   }
 
-  /** Audit line for an allow-class endpoint write (no card, still logged). */
-  auditAllowed(surface: string, detail: Record<string, unknown>): void {
+  /** Audit line for a write that does not go through a gate Surface (CHI-396:
+   * the app's own routes). `event` is "allowed" for a write that happened and
+   * "failed" for one that blew up mid-flight; there is no diff, because these
+   * writes are not diffable the way a config edit is. */
+  auditAllowed(surface: string, detail: Record<string, unknown>, event: 'allowed' | 'failed' = 'allowed'): void {
     this.opts.audit.append({
       ts: new Date(this.now()).toISOString(),
-      event: 'allowed',
+      event,
       surface,
       proposalId: '',
       actor: 'dashboard',
-      reason: 'allow-class endpoint (UI click is the intent)',
+      reason: event === 'failed' ? 'app write failed mid-request' : 'app write (the UI click is the intent)',
       diff: [],
       detail,
     });

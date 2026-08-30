@@ -5,6 +5,11 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **Chronicle now records its own writes, not just the gate's.** Changing a setting,
+  deleting a session, editing a redaction rule: all of it happened with no trace. The
+  write log now covers every route that changes something, with what it was and whether
+  it succeeded. Request bodies are never recorded, only that a write happened and where,
+  so the log can never become a copy of your settings. Page views stay out of it.
 - **The console stops asking permission for changes it can take back.** Every write used
   to open a confirm card, including the reversible ones: editing which folders count as
   knowledge, pausing a scheduled job. Now a change to Chronicle's own state applies when
