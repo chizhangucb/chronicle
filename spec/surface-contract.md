@@ -23,8 +23,8 @@
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
 | `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + confirm-first controls over the hub's gate-config surfaces. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
-| `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and confirm-first pause/resume via the gate's `launchd-jobs` surface. Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + controls over the hub's gate-config surfaces (every one of which cards, always) + the write log: every gate write, newest first, with Undo. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
+| `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and cardless pause/resume via the gate's `launchd-jobs` surface (a protected job still cards). Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
 | `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
 | `/memory` | **Ops surface (hub-conditional).** Memory analytics over the hub's markdown knowledge graph (titles/paths only, confidential pruned server-side). Header: `MEMORY` + a metric line (notes · links · decisions) + a scope line (`measuring N living notes across <dirs> · M records`) + a **health verdict** (`fresh %` · stale · orphaned · dead links · `+N new`, each warn-tinted when >0 and a jump into the matching Notes-browser preset) + a **RangeBar** window selector. Body: a full-width **3D force-graph canvas** (`react-force-graph-3d` + `three`, lazy-loaded), community-colored, with usage-heat + orphan **lenses**, a **kind legend** that isolates one kind, **FULL/LITE** draw (auto-LITE past 3000 nodes) + **fullscreen**; a right **rail** = node inspector (touches-in-window, links in/out, dead links, Open note) + a slim Scope card (rot threshold, Manage scope → gate flow). Then three lane cards 3-up (**Usage / Freshness / Connectivity**; Growth is the `+N new` verdict stat) and one **Notes browser** owning every row list (presets `touched · connected · orphans · stale · dead`). Most-connected is LIVING-only; `wiki/annex` reads as the records tier. Same hub-conditional gating. | `src/MemoryPage.tsx` (+ `src/components/memory/{MemoryLanes,MemoryCanvasShell,lanes}`) |
 | `/records` | **Ops surface (hub-conditional).** The append-only hub records, via the `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY current type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, contacts/operations) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
@@ -402,7 +402,7 @@ Reading order: eyebrow `MODULES · N` + one-line lede → a registry table → a
 
 ### `/safety` — ops surface (hub-conditional, `SafetyPage.tsx`)
 
-Reading order: eyebrow `SAFETY` + lede → posture tiles → push posture → gate controls →
+Reading order: eyebrow `SAFETY` + lede → posture tiles → push posture → gate controls → write log →
 accepted-gaps register.
 - **Posture tiles** (4): Egress gate (ENABLED green / OFF fail-closed danger) · Spend caps
   (per-tx / per-session) · Tool classes (count + read/send/publish/spend breakdown) · Confidential
@@ -413,9 +413,24 @@ accepted-gaps register.
   unpinned-repo default. Emit-ALLOWLIST per pin: `scrub_whitelist` values (identity regexes) are never
   rendered, only their count, same posture as confidential markers above. Hidden entirely when the
   gating-policy file is absent.
-- **Gate controls** (confirm-first, only when a writable live hub is present; a single read-only
-  note otherwise, incl. demo): edits over the connected hub's gate-config surfaces. Every edit goes
-  propose -> validated diff card (`GateConfirmDialog`) -> Confirm/Deny; nothing writes without the card.
+- **Gate controls** (only when a writable live hub is present; a single read-only note otherwise,
+  incl. demo): edits over the connected hub's gate-config surfaces. **All of them card, always**:
+  they edit the gate's own config, so every edit goes propose -> validated diff card
+  (`GateConfirmDialog`) -> Confirm/Deny. The card names WHY it is carding. Surfaces that are off
+  state the shared reason once, not per row.
+- **Approval tiering**: the gate is not confirm-first over every write. Each surface declares
+  `approval`, and ABSENT MEANS CONFIRM. Only surfaces writing Chronicle's own reversible state are
+  `auto`; every hub-writing surface and the Tier 2 surface card. Floors live in
+  `server/gate/core.ts`, not the registry: Tier 2 never autos, a hub-writing surface declaring auto
+  throws at construction, a classifier that throws cards, and **model-generated content cards on
+  every surface** (so a scope suggestion keeps its human review). The per-boot token still guards
+  every write; only the human-confirm step is tiered.
+- **Write log**: every gate write, newest first, off `GET /api/gate/audit`. Columns When · Surface ·
+  Outcome (`applied` for a cardless write, else the raw event) · Change (reason + up to 3 diff rows,
+  `+N more`) · Undo. **Undo** is offered on any row that took a backup; it is NOT its own approval
+  category (the restore meets the same policy, so it cannot walk a loosening past a card) and it
+  verifies the backup against a sha256 recorded at write time before restoring. Rows written
+  through the hub, and action rows, have no local backup and say so.
 - **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
   `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
   acceptance / (watch) revisit trigger + a "Work on this" launcher (`POST /api/launch/gap`: Terminal
@@ -439,7 +454,14 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
   launchd exit of 0.
 - **Actions**: a Log button (only when the job declares a log path) opens a modal tailing the last
   ~100 lines of exactly the paths the slice declared (the browser never sends a path). launchd jobs
-  get a confirm-first Pause / Resume through the gate's `launchd-jobs` surface. A `not-installed`
+  get Pause / Resume through the gate's `launchd-jobs` surface. This applies WITHOUT a card
+  (the plist is never edited, so resume restores exactly the installed schedule) and reports the
+  new state inline; pausing a job whose label
+  reads as enforcement, reporting, or the approval channel (`PROTECTED_JOB_PATTERNS`, matched as
+  case-insensitive substrings by FUNCTION, never by a specific machine's job names) still shows the
+  card, because pausing those disables enforcement or the channel every remaining card travels on.
+  Operators extend the set additively at `~/.chronicle/protected-jobs.json`; nothing there can
+  remove a shipped pattern. A `not-installed`
   repo-template shows the CLI install hint (`node scripts/install-jobs.mjs`) — Chronicle's own job
   templates ship DORMANT (never auto-installed, so no duplicate daily run).
 - **Demo**: synthetic jobs (no real machine scan); the gate is inert so Pause/Resume 409s.
@@ -523,11 +545,16 @@ three analytics lanes → one Notes browser.
   (`scripts/run-scope-suggest.ts`, same seam as `run-briefing.ts`) walks the hub's top-level
   structure NAMES ONLY (never file contents) and proposes a living/historical/excluded mapping,
   kicked by `POST /api/memory/scope-suggest` and polled via `GET /api/memory/scope-suggest/status`
-  (async single-flight, mirroring the briefing run/run-status pair). The suggestion only ever becomes
-  a write through the existing `gatePropose('memory-scope', ...)` confirm-card flow — the route itself
-  never writes. `ScopePanel` (`src/components/memory/ScopePanel.tsx`, a "Manage scope" affordance on
-  the `.memory-scope` side panel) renders the current scope, a hand-edit form, and the AI-suggest
-  button. Demo-refused (409), same posture as every other gate write on this page.
+  (async single-flight, mirroring the briefing run/run-status pair). **The suggestion only ever becomes a write through the
+  confirm-card flow, and the card IS the review step for model output** (the route itself never
+  writes). The surface is otherwise cardless; the split is on PROVENANCE, not on surface: a suggestion is submitted as
+  `gateSubmit('memory-scope', ..., 'suggestion')`, and a `suggestion` source cards on EVERY surface
+  as a floor in `core.ts`. A HAND edit in the panel is the operator typing their own scope, so it
+  applies without a card and the panel says so. (Provenance is an honesty mechanism for the app's own
+  flow, not a security boundary: the gate token is readable by any local process, so a caller willing
+  to lie could POST the change directly either way.) `ScopePanel`
+  (`src/components/memory/ScopePanel.tsx`, a "Manage scope" affordance on the `.memory-scope` side
+  panel) renders the current scope, a hand-edit form, and the AI-suggest button. Demo-refused (409), same posture as every other gate write on this page.
 - **VIZ NOTE**: the Nebula 3D canvas is self-contained WebGL (theme-independent); the surrounding
   page shell is Chronicle-native. WebGL pixels are not e2e-asserted (headless GL is unreliable); the
   release walk runs /memory with a software-GL flag.

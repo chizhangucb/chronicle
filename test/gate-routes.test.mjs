@@ -76,3 +76,38 @@ test('read-only gate GETs never require the token', async () => {
     assert.equal(res.status, 200, `${p} should be reachable without a token`);
   }
 });
+
+// ---- CHI-329: the transport reports the policy's decision ----
+
+test('POST /gate/propose answers {applied:true} for an auto change and never leaves a card', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-auto-'));
+  const target = path.join(dir, 'gate_config.json');
+  fs.writeFileSync(target, JSON.stringify({ enabled: true }));
+  const rows = [];
+  const g2 = new Gate({
+    repoRoot: dir, audit: { append: (r) => rows.push(r), read: (n) => rows.slice(-n) },
+    backupDir: path.join(dir, 'b'),
+    surfaces: [{ id: 'auto', title: 'Auto', target, schema: 'hub-gate-config', approval: 'auto', tier: 1, secondChannel: null }],
+  });
+  const app2 = express();
+  app2.use(express.json());
+  mountGateRoutes(app2, g2);
+  const srv = app2.listen(0);
+  await new Promise((r) => srv.once('listening', r));
+  const url = `http://127.0.0.1:${srv.address().port}`;
+  const res = await fetch(`${url}/gate/propose`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-gate-token': g2.token },
+    body: JSON.stringify({ surface: 'auto', change: { enabled: false }, reason: 'off' }),
+  });
+  const body = await res.json();
+  assert.equal(body.applied, true);
+  assert.ok(!body.proposal, 'an auto change must not hand back a card');
+  assert.equal(JSON.parse(fs.readFileSync(target, 'utf-8')).enabled, false);
+  await new Promise((r) => srv.close(r));
+});
+
+test('POST /gate/undo is token-guarded like every other write', async () => {
+  const res = await post('/gate/undo');
+  assert.equal(res.status, 403);
+});

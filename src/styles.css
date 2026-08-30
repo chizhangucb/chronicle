@@ -1969,10 +1969,30 @@ h4 { margin: 6px 0; }
 .gate-code-input { width: 96px; font-family: var(--mono); background: var(--bg0); border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; color: var(--ink); }
 .gate-code-input.wide { width: 120px; }
 .gate-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
+/* CHI-329: why a change is showing a card rather than applying on its own. */
+.gate-why { margin: 4px 0 10px; }
+/* CHI-329: an auto-applied write says so, so a cardless change is never silent. */
+.gate-applied { color: var(--ok); font-size: 12px; margin: 8px 0 0; }
 .gate-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .gate-expiry { margin-left: auto; }
 .btn.danger { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--bg1)); }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 18%, var(--bg1)); }
+
+/* ---- Write log (CHI-329 WP4) ---- */
+/* The gate's audit trail, rendered. Reuses the confirm dialog's diff type
+   scale so one change reads the same in the card and in the log. */
+.safety-why-off { margin: 8px 0 0; }
+.writelog-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.writelog-table th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.writelog-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.writelog-table tr:last-child td { border-bottom: none; }
+.writelog-diff { max-width: 460px; }
+.writelog-diff-row { display: flex; align-items: baseline; gap: 8px; padding: 1px 0; font-size: 12px; }
+.writelog-badge { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); text-transform: lowercase; }
+.writelog-badge.allowed, .writelog-badge.confirmed { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.writelog-badge.failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.writelog-badge.denied, .writelog-badge.expired { color: var(--ink-3); }
+@media (max-width: 900px) { .writelog-diff { max-width: none; } }
 
 /* ---- Jobs ops surface (CHI-323 3c) ---- */
 .jobs-page { max-width: var(--page-max); }

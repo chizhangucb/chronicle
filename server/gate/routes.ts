@@ -105,6 +105,7 @@ function publicProposal(p: Proposal) {
     reason: p.reason,
     diff: p.diff,
     requiresCode: p.requiresCode ?? false,
+    ...(p.cardReason ? { cardReason: p.cardReason } : {}),
     createdAt: p.createdAt,
     expiresAt: p.expiresAt,
   };
@@ -178,18 +179,50 @@ export function mountGateRoutes(app: Express, gate: Gate): void {
     res.json({ rows: gate.readAudit() });
   }));
 
+  // The single write entry point (CHI-329). The SERVER decides whether this
+  // change auto-applies or needs a card, so the browser cannot reach a softer
+  // path by picking a different endpoint. Answers either
+  // {applied:true, result} or {applied:false, proposal}.
   app.post('/gate/propose', guard(true, (req, res) => {
     const body = req.body ?? {};
-    const proposal = gate.propose(String(body.surface ?? ''), body.change, String(body.reason ?? ''));
-    res.json({ proposal: publicProposal(proposal) });
+    const outcome = gate.submit(
+      String(body.surface ?? ''),
+      body.change,
+      String(body.reason ?? ''),
+      body.source === 'suggestion' ? 'suggestion' : 'operator',
+    );
+    if (outcome.applied) {
+      res.json({ applied: true, result: outcome.result });
+      return;
+    }
+    res.json({ applied: false, proposal: publicProposal(outcome.proposal) });
   }));
 
-  // One-shot write for allow-mode surfaces (the UI click is the intent, no
-  // card); core.ts refuses confirm-mode surfaces here.
+  // One-shot write, auto-classified changes only; core.ts refuses anything the
+  // policy cards. Kept for callers that already know the change is cardless.
   app.post('/gate/apply', guard(true, (req, res) => {
     const body = req.body ?? {};
-    const result = gate.apply(String(body.surface ?? ''), body.change, String(body.reason ?? ''));
+    const result = gate.apply(
+      String(body.surface ?? ''),
+      body.change,
+      String(body.reason ?? ''),
+      'operator',
+      body.source === 'suggestion' ? 'suggestion' : 'operator',
+    );
     res.json({ ok: true, ...result });
+  }));
+
+  // Undo a previous write from its backup (CHI-329 WP4). NOT its own approval
+  // category: the restore's own diff goes through the same policy, so an undo
+  // that loosens something shows a card exactly like any other loosening.
+  app.post('/gate/undo', guard(true, (req, res) => {
+    const body = req.body ?? {};
+    const outcome = gate.undo(String(body.proposalId ?? ''));
+    if (outcome.applied) {
+      res.json({ applied: true, result: outcome.result });
+      return;
+    }
+    res.json({ applied: false, proposal: publicProposal(outcome.proposal) });
   }));
 
   app.post('/gate/confirm', guard(true, (req, res) => {

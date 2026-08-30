@@ -6,10 +6,10 @@ import {
   renameSync,
   writeFileSync,
 } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { validate, applyChange } from './validate.ts';
+import { validate, applyChange, jsonDiff } from './validate.ts';
 
 /**
  * Gate core: the confirm-first write channel, ported from Varde (CHI-323 part 2).
@@ -35,15 +35,35 @@ export interface Surface {
   target: string;
   schema: string;
   tier: 1 | 2;
-  repeatable: boolean;
   secondChannel: string | null;
   /** "file" (default) writes the target; "action" runs a registered ActionImpl
    * (e.g. launchd pause/resume). Same card + audit either way. */
   kind?: 'file' | 'action';
-  /** "allow": the UI click is the intent; apply() runs the whole validate ->
-   * backup -> write -> verify pipeline in one call with an "allowed" audit row,
-   * no confirm card. Default "confirm". */
-  mode?: 'confirm' | 'allow';
+  /**
+   * CHI-329. Whether a change on this surface needs the human confirm card.
+   * ABSENT MEANS "confirm": a surface that forgets to declare a posture gets
+   * the card. Fail closed, always.
+   *
+   * "auto" runs the whole validate -> backup -> write -> verify pipeline in one
+   * call with a single "allowed" audit row. The per-boot token still guards it;
+   * only the human-confirm step is tiered.
+   */
+  approval?: 'auto' | 'confirm';
+  /**
+   * CHI-329. Per-CHANGE narrowing, MONOTONIC BY CONSTRUCTION: it may turn an
+   * "auto" surface into a card for one particular change, and can never do the
+   * reverse. Returns the plain-language reason to show on the card, or null to
+   * leave the surface's declared posture alone.
+   *
+   * The one-way property is the whole point. CHI-329 rev 1 tried two-way
+   * direction-aware rules (auto a "tightening" change on a confirm surface) and
+   * the adversarial review broke them: `hub-spend-caps` and `hub-egress-enabled`
+   * share one schema over one file, and applyChange is called with
+   * surface.schema, never surface.id, so a "tightening" cap decrease could
+   * legally carry a kill-switch re-enable past the rule meant to card it. A
+   * narrowing that only ever ADDS a card has no such failure mode.
+   */
+  narrow?: (change: unknown, diff: DiffEntry[]) => string | null;
   /** "hub-script": satellite code never opens the target for write; the
    * confirmed content is handed to the hub entry point
    * (scripts/egress_gate/apply_edit.py), which validates again, backs up,
@@ -89,14 +109,33 @@ export interface Proposal {
   diff: DiffEntry[];
   /** Action surfaces carry the raw change payload for execute(). */
   change?: unknown;
+  /** Where the change came from (CHI-329). Recorded on the audit row. */
+  source?: ChangeSource;
   /** Tier 2: one-time code delivered over the second channel. Never serialized
    * to the browser; the transport strips it. */
   secondFactor?: string;
   /** Tier 2 marker for the card UI: confirm needs the code. */
   requiresCode?: boolean;
+  /** CHI-329: why this change is showing a card rather than auto-applying.
+   * Plain language, shown on the card (CHI-378's card-UX rule: say why). */
+  cardReason?: string;
   createdAt: string;
   expiresAt: string;
 }
+
+/** CHI-329: the outcome of the tiering decision for ONE change. */
+export interface ApprovalVerdict {
+  auto: boolean;
+  /** Set whenever auto is false; plain language, shown on the card. */
+  cardReason?: string;
+}
+
+/** Provenance of a change, supplied by the caller. NOT a security boundary:
+ * the gate token is fetchable by any local process (routes.ts), so a caller
+ * that wanted to lie could equally POST the change directly. It exists so the
+ * app's OWN scope-suggest flow keeps its human-review card, which
+ * spec/surface-contract.md requires of headless-LLM output. */
+export type ChangeSource = 'operator' | 'suggestion';
 
 export interface AuditRow {
   ts: string;
@@ -121,6 +160,18 @@ export interface AuditStore {
 
 /** Proposals die after this long without a confirm. */
 export const PROPOSAL_TTL_MS = 15 * 60 * 1000;
+
+export function sha256(text: string): string {
+  return createHash('sha256').update(text, 'utf-8').digest('hex');
+}
+
+/** What a completed write reports back. */
+export interface ApplyResult {
+  applied: string;
+  backup: string | null;
+  target: string;
+  diff: DiffEntry[];
+}
 
 export interface GateOptions {
   repoRoot: string;
@@ -148,10 +199,67 @@ export class Gate {
   readonly token = randomBytes(32).toString('hex');
   private proposals = new Map<string, Proposal>();
   private opts: GateOptions;
-  private applying = false;
 
   constructor(opts: GateOptions) {
     this.opts = opts;
+    // CHI-329 floor 3, enforced at construction so a bad registry row can never
+    // ship: a satellite NEVER auto-writes the hub. A loud throw, not a silent
+    // downgrade to confirm, because a row declaring auto here means whoever
+    // wrote it misunderstood the boundary and should hear about it.
+    for (const s of opts.surfaces) {
+      if (s.approval === 'auto' && s.writeVia === 'hub-script') {
+        throw new Error(
+          `gate surface "${s.id}" declares approval:auto with writeVia:hub-script. ` +
+          'A satellite never auto-writes the hub; drop the auto or the hub-script.',
+        );
+      }
+    }
+  }
+
+  /**
+   * CHI-329: the ONE tiering decision. Both propose() and apply() call this
+   * exactly once and neither re-enters the other, so there is a single place a
+   * change can be classified and no way for a client to reach a softer path by
+   * picking a different endpoint.
+   *
+   * Runs on a VALIDATED diff only (callers invoke it after applyChange +
+   * validate + the no-op check), so a narrow() never sees unparsed garbage.
+   */
+  resolveApproval(surface: Surface, change: unknown, diff: DiffEntry[], source: ChangeSource = 'operator'): ApprovalVerdict {
+    // Floor 1: absent posture means the card.
+    if (surface.approval !== 'auto') {
+      return { auto: false, cardReason: 'this surface always shows the card' };
+    }
+    // Floor 1b: machine-generated content is reviewed by a human, on every
+    // surface. spec/surface-contract.md requires the card to BE the review step
+    // for the scope suggestion, which a headless `claude -p` runner writes.
+    // Auto-approving it would delete a signed clause, so this is a floor rather
+    // than a memory-scope special case.
+    if (source === 'suggestion') {
+      return { auto: false, cardReason: 'this change was generated by a model, so a human reviews the diff' };
+    }
+    // Floor 2: Tier 2 is the second-channel surface; the code IS the point.
+    if (surface.tier === 2) {
+      return { auto: false, cardReason: 'Tier 2 surface: confirming needs the code from the Telegram card' };
+    }
+    // Floor 3: belt to the constructor's braces.
+    if (surface.writeVia === 'hub-script') {
+      return { auto: false, cardReason: 'writes the hub through its own entry point; a satellite never auto-writes the hub' };
+    }
+    // Floor 5: a narrow() that throws cards. Fail closed, never fail open.
+    if (surface.narrow) {
+      let reason: string | null;
+      try {
+        reason = surface.narrow(change, diff);
+      } catch (err) {
+        return {
+          auto: false,
+          cardReason: `could not classify this change (${err instanceof Error ? err.message : String(err)}), so it needs the card`,
+        };
+      }
+      if (reason) return { auto: false, cardReason: reason };
+    }
+    return { auto: true };
   }
 
   private now(): number {
@@ -188,7 +296,19 @@ export class Gate {
       }
       if (s.writeVia === 'hub-script') {
         if (!this.opts.hubApply) {
-          return { ...s, resolvedTarget, available: false, unavailableReason: 'hub entry point not configured (no hub checkout)' };
+          // Say the real reason (CHI-395): on a machine WITH a hub checkout this
+          // is almost always the missing entry point, not a missing hub. The
+          // hub deleted scripts/egress_gate/apply_edit.py in CHI-253 as an
+          // unused script; Chronicle was its one caller. A generic "no hub
+          // checkout" here sent the last reader looking in the wrong place.
+          return {
+            ...s,
+            resolvedTarget,
+            available: false,
+            unavailableReason: this.opts.hubRoot
+              ? 'the hub has no scripts/egress_gate/apply_edit.py, so there is no entry point to write through (CHI-395)'
+              : 'hub entry point not configured (no hub checkout)',
+          };
         }
         if (!existsSync(resolvedTarget)) {
           return { ...s, resolvedTarget, available: false, unavailableReason: `target ${resolvedTarget} does not exist (no hub checkout here)` };
@@ -210,55 +330,49 @@ export class Gate {
     return { surface, text };
   }
 
-  /** Step 1 of the flow. Validates the RESULTING file; invalid input is a loud
-   * error and no card is ever shown (nothing is stored). */
-  propose(surfaceId: string, change: unknown, reason: string): Proposal {
+  /**
+   * Build a validated, un-stored, un-audited proposal. The shared front half of
+   * every write path: it runs applyChange -> validate -> no-op check, so by the
+   * time anything classifies or writes this change, the diff is real.
+   * Invalid input is a loud error here and no card is ever shown.
+   */
+  private build(surface: SurfaceStatus, text: string | null, change: unknown, reason: string, source: ChangeSource): Proposal {
     if (this.opts.demo) throw new GateError(409, 'demo seed, gate writes are disabled', 'run on a real console with a hub');
-    const { surface, text } = this.readSurface(surfaceId);
+    const createdAt = this.now();
+    const base = {
+      id: randomBytes(12).toString('hex'),
+      surfaceId: surface.id,
+      reason: String(reason ?? '').trim() || '(no reason given)',
+      source,
+      createdAt: new Date(createdAt).toISOString(),
+      expiresAt: new Date(createdAt + PROPOSAL_TTL_MS).toISOString(),
+    };
     if (surface.kind === 'action') {
-      const impl = this.opts.actions![surface.id];
-      const diff = impl.describe(change);
+      const diff = this.opts.actions![surface.id].describe(change);
       if (diff.length === 0) throw new GateError(400, 'action is a no-op', 'nothing to confirm');
-      const createdAtA = this.now();
-      const proposal: Proposal = {
-        id: randomBytes(12).toString('hex'),
-        surfaceId,
-        reason: String(reason ?? '').trim() || '(no reason given)',
-        before: null,
-        after: '',
-        diff,
-        change,
-        createdAt: new Date(createdAtA).toISOString(),
-        expiresAt: new Date(createdAtA + PROPOSAL_TTL_MS).toISOString(),
-      };
-      this.finalizeTier2(surface, proposal);
-      this.proposals.set(proposal.id, proposal);
-      this.audit({ event: 'proposed', proposal });
-      return proposal;
+      return { ...base, before: null, after: '', diff, change };
     }
     const applied = applyChange(surface.schema, text, change);
     const verdict = validate(surface.schema, applied.after);
     if (!verdict.ok) {
       throw new GateError(
         400,
-        `invalid change for "${surfaceId}": ${verdict.errors.join('; ')}`,
+        `invalid change for "${surface.id}": ${verdict.errors.join('; ')}`,
         'fix the listed fields and propose again',
       );
     }
     if (applied.diff.length === 0) {
       throw new GateError(400, 'change is a no-op: resulting file is identical', 'nothing to confirm');
     }
-    const createdAt = this.now();
-    const proposal: Proposal = {
-      id: randomBytes(12).toString('hex'),
-      surfaceId,
-      reason: String(reason ?? '').trim() || '(no reason given)',
-      before: text,
-      after: applied.after,
-      diff: applied.diff,
-      createdAt: new Date(createdAt).toISOString(),
-      expiresAt: new Date(createdAt + PROPOSAL_TTL_MS).toISOString(),
-    };
+    return { ...base, before: text, after: applied.after, diff: applied.diff };
+  }
+
+  /** Step 1 of the card flow. Validates the RESULTING file; invalid input is a
+   * loud error and no card is ever shown (nothing is stored). Always produces a
+   * card: callers wanting the tiering decision use submit(). */
+  propose(surfaceId: string, change: unknown, reason: string, source: ChangeSource = 'operator'): Proposal {
+    const { surface, text } = this.readSurface(surfaceId);
+    const proposal = this.build(surface, text, change, reason, source);
     this.finalizeTier2(surface, proposal);
     this.proposals.set(proposal.id, proposal);
     this.audit({ event: 'proposed', proposal });
@@ -291,37 +405,45 @@ export class Gate {
     proposal.requiresCode = true;
   }
 
-  /** One-shot write for allow-mode surfaces (no card): same validate -> backup
-   * -> write -> verify pipeline as propose+confirm, audited as "allowed" with
-   * the diff. Refuses confirm-mode surfaces. */
-  apply(surfaceId: string, change: unknown, reason: string, actor = 'operator'): { applied: string; backup: string | null; target: string; diff: DiffEntry[] } {
-    if (this.opts.demo) throw new GateError(409, 'demo seed, gate writes are disabled', 'run on a real console with a hub');
-    const surface = this.listSurfaces().find((s) => s.id === surfaceId);
-    if (!surface) throw new GateError(404, `unknown surface "${surfaceId}"`, 'check server/gate/surfaces.ts');
-    if (surface.mode !== 'allow') {
-      throw new GateError(403, `surface "${surfaceId}" requires the confirm card`, 'use propose + confirm');
+  /**
+   * The single public entry point for a write request (CHI-329 WP2). Decides
+   * ONCE via resolveApproval, then takes exactly one of the two paths. The
+   * client cannot reach a softer path by choosing a different endpoint,
+   * because it never makes the choice.
+   */
+  submit(
+    surfaceId: string,
+    change: unknown,
+    reason: string,
+    source: ChangeSource = 'operator',
+    actor = 'operator',
+  ): { applied: true; result: ApplyResult } | { applied: false; proposal: Proposal } {
+    const { surface, text } = this.readSurface(surfaceId);
+    const built = this.build(surface, text, change, reason, source);
+    const verdict = this.resolveApproval(surface, change, built.diff, source);
+    if (verdict.auto) {
+      return { applied: true, result: { ...this.settle(built, actor, 'allowed'), diff: built.diff } };
     }
-    this.applying = true; // one "allowed" row instead of proposed+confirmed
-    let proposal: Proposal;
-    try {
-      proposal = this.propose(surfaceId, change, reason);
-      const result = this.confirm(proposal.id, actor);
-      this.applying = false;
-      this.opts.audit.append({
-        ts: new Date(this.now()).toISOString(),
-        event: 'allowed',
-        surface: surfaceId,
-        proposalId: proposal.id,
-        actor,
-        reason: proposal.reason,
-        diff: proposal.diff,
-        ...(result.backup ? { backup: result.backup } : {}),
-      });
-      return { ...result, diff: proposal.diff };
-    } catch (err) {
-      this.applying = false;
-      throw err;
+    built.cardReason = verdict.cardReason;
+    this.finalizeTier2(surface, built);
+    this.proposals.set(built.id, built);
+    this.audit({ event: 'proposed', proposal: built });
+    return { applied: false, proposal: built };
+  }
+
+  /** One-shot write, auto-classified changes only: the same validate -> backup
+   * -> write -> verify pipeline as propose+confirm, audited as one "allowed"
+   * row with the diff. Refuses anything the policy says needs the card.
+   * Does NOT route through propose()/confirm(): a proposal is never stored, so
+   * there is no card to expire and no second audit row to suppress. */
+  apply(surfaceId: string, change: unknown, reason: string, actor = 'operator', source: ChangeSource = 'operator'): ApplyResult {
+    const { surface, text } = this.readSurface(surfaceId);
+    const built = this.build(surface, text, change, reason, source);
+    const verdict = this.resolveApproval(surface, change, built.diff, source);
+    if (!verdict.auto) {
+      throw new GateError(403, `surface "${surfaceId}" requires the confirm card: ${verdict.cardReason}`, 'use propose + confirm');
     }
+    return { ...this.settle(built, actor, 'allowed'), diff: built.diff };
   }
 
   private take(proposalId: string): Proposal {
@@ -364,12 +486,26 @@ export class Gate {
       // only the TTL or an explicit deny kills it
       throw new GateError(403, 'second-channel code missing or wrong', 'enter the code from the Telegram card');
     }
+    this.proposals.delete(proposalId);
+    return this.settle(p, actor, 'confirmed');
+  }
+
+  /**
+   * The shared write half: backup -> write -> verify -> audit, for a proposal
+   * that has already been classified and (if carded) confirmed. Never touches
+   * the proposals map; callers own that.
+   *
+   * `event` is the row this writes on success: "confirmed" after a card,
+   * "allowed" for an auto-approved change. There is no suppression flag: the
+   * auto path stores no proposal and emits exactly one row, so two concurrent
+   * auto-applies can no longer swallow each other's audit (CHI-329 WP3).
+   */
+  private settle(p: Proposal, actor: string, event: 'confirmed' | 'allowed'): { applied: string; backup: string | null; target: string } {
     const { surface, text } = this.readSurface(p.surfaceId);
     if (surface.kind === 'action') {
-      this.proposals.delete(proposalId);
       try {
         const applied = this.opts.actions![surface.id].execute(p.change);
-        this.audit({ event: 'confirmed', proposal: p, actor });
+        this.audit({ event, proposal: p, actor });
         return { applied, backup: null, target: surface.id };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -380,12 +516,10 @@ export class Gate {
     }
     const target = surface.resolvedTarget!;
     if (text !== p.before) {
-      this.proposals.delete(proposalId);
       this.audit({ event: 'failed', proposal: p, actor, error: 'target changed since the card was shown' });
       throw new GateError(409, 'target file changed since the proposal was made', 're-propose against the current file');
     }
     if (surface.writeVia === 'hub-script') {
-      this.proposals.delete(proposalId);
       try {
         const result = this.opts.hubApply!({
           surface: surface.id,
@@ -401,7 +535,7 @@ export class Gate {
         if (landed !== p.after) {
           throw new GateError(500, 'post-write verify failed: hub file does not match the confirmed content', result.backup ? `restore from backup ${result.backup}` : 'inspect the hub file');
         }
-        this.audit({ event: 'confirmed', proposal: p, actor, backup: result.backup });
+        this.audit({ event, proposal: p, actor, backup: result.backup });
         return { applied: landed, backup: result.backup ?? null, target };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -428,11 +562,19 @@ export class Gate {
       if (landed !== p.after || !verdict.ok) {
         throw new Error(`post-write verify failed: ${verdict.ok ? 'content mismatch' : verdict.errors.join('; ')}`);
       }
-      this.proposals.delete(proposalId);
-      this.audit({ event: 'confirmed', proposal: p, actor, backup: backup ?? undefined });
+      // CHI-329 WP4: the backup's content hash rides the audit row so an undo
+      // can prove the .bak still holds what we wrote it from. Backups are
+      // ordinary user-writable files and validate() is only a shape check, so a
+      // tampered-but-well-formed config would otherwise restore cleanly.
+      this.audit({
+        event,
+        proposal: p,
+        actor,
+        backup: backup ?? undefined,
+        ...(backup && text !== null ? { detail: { backupSha256: sha256(text) } } : {}),
+      });
       return { applied: landed, backup, target };
     } catch (err) {
-      this.proposals.delete(proposalId);
       const msg = err instanceof Error ? err.message : String(err);
       this.audit({ event: 'failed', proposal: p, actor, backup: backup ?? undefined, error: msg });
       throw new GateError(500, `write failed: ${msg}`, backup ? `restore from backup ${backup}` : 'target was not modified');
@@ -441,6 +583,90 @@ export class Gate {
 
   readAudit(limit = 200): AuditRow[] {
     return this.opts.audit.read(limit);
+  }
+
+  /**
+   * Restore a surface from the backup a previous write took (CHI-329 WP4).
+   *
+   * Two properties the adversarial review insisted on, both load-bearing:
+   *
+   * 1. UNDO IS NOT AN APPROVAL CATEGORY. The restore is submitted as an
+   *    ordinary change, so it meets the same policy as any other write. Rev 1
+   *    proposed "undo of an auto row is itself auto, because restoring a prior
+   *    state is tightening" - which is false, and gave a clean two-step floor
+   *    bypass: auto-approve a tightening change, undo it, and the loosening
+   *    lands with no card ever shown.
+   * 2. THE BACKUP IS VERIFIED. `.bak` files are ordinary user-writable files,
+   *    and validate() checks shape, not content: a permissive-but-well-formed
+   *    config passes it happily. We compare the backup against the sha256
+   *    recorded on the audit row at write time and refuse on any mismatch.
+   */
+  undo(proposalId: string): { applied: true; result: ApplyResult } | { applied: false; proposal: Proposal } {
+    const row = this.opts.audit.read(500).find((r) => r.proposalId === proposalId && (r.event === 'confirmed' || r.event === 'allowed'));
+    if (!row) throw new GateError(404, 'no completed write with that id in the audit trail', 'pick a row that actually wrote something');
+    if (!row.backup) {
+      throw new GateError(409, 'that write took no backup, so there is nothing to restore from', 'a launchd pause/resume is undone by the opposite action, not by this route');
+    }
+    const surface = this.listSurfaces().find((s) => s.id === row.surface);
+    if (!surface) throw new GateError(404, `unknown surface "${row.surface}"`, 'check server/gate/surfaces.ts');
+    if (surface.writeVia === 'hub-script') {
+      // The backup path came from the hub runner; it is a hub-side file this
+      // satellite never created and cannot vouch for.
+      throw new GateError(409, 'hub writes are undone hub-side, not from here', `restore ${row.backup} in the hub checkout`);
+    }
+    if (!existsSync(row.backup)) {
+      throw new GateError(410, `backup ${row.backup} is gone`, 'nothing to restore; the file was removed or the app home was cleared');
+    }
+    const restored = readFileSync(row.backup, 'utf-8');
+    const expected = (row.detail as { backupSha256?: unknown } | undefined)?.backupSha256;
+    if (typeof expected !== 'string') {
+      throw new GateError(409, 'that write predates backup hashing, so the backup cannot be verified', 'restore it by hand if you are sure of its contents');
+    }
+    if (sha256(restored) !== expected) {
+      throw new GateError(
+        409,
+        'the backup file has changed since it was written, so it will not be restored',
+        `inspect ${row.backup} by hand; the gate will not write content it cannot vouch for`,
+      );
+    }
+    // Restore by CONTENT, not by replaying a change payload: the schemas are
+    // merge-based with managed-key whitelists, so a whole backup body is not a
+    // legal `change` for most of them. Diffing the two texts sidesteps that
+    // entirely, and still runs validate + the policy before anything is written.
+    const current = existsSync(surface.resolvedTarget!) ? readFileSync(surface.resolvedTarget!, 'utf-8') : null;
+    let diff: DiffEntry[];
+    try {
+      diff = jsonDiff(current === null ? {} : JSON.parse(current), JSON.parse(restored));
+    } catch {
+      throw new GateError(409, 'this surface is not a JSON file, so it cannot be undone from here', `restore ${row.backup} by hand`);
+    }
+    if (diff.length === 0) {
+      throw new GateError(400, 'nothing to undo: the file already matches the backup', 'no write is needed');
+    }
+    const verdict = validate(surface.schema, restored);
+    if (!verdict.ok) {
+      throw new GateError(409, `the backup does not validate: ${verdict.errors.join('; ')}`, 'restore it by hand after fixing it');
+    }
+    const p: Proposal = {
+      id: randomBytes(12).toString('hex'),
+      surfaceId: surface.id,
+      reason: `undo of the ${row.event} write at ${row.ts}`,
+      source: 'operator',
+      before: current,
+      after: restored,
+      diff,
+      createdAt: new Date(this.now()).toISOString(),
+      expiresAt: new Date(this.now() + PROPOSAL_TTL_MS).toISOString(),
+    };
+    const policy = this.resolveApproval(surface, undefined, diff, 'operator');
+    if (policy.auto) {
+      return { applied: true, result: { ...this.settle(p, 'operator', 'allowed'), diff } };
+    }
+    p.cardReason = policy.cardReason;
+    this.finalizeTier2(surface, p);
+    this.proposals.set(p.id, p);
+    this.audit({ event: 'proposed', proposal: p });
+    return { applied: false, proposal: p };
   }
 
   /** Audit line for an allow-class endpoint write (no card, still logged). */
@@ -463,20 +689,25 @@ export class Gate {
     actor?: string;
     backup?: string;
     error?: string;
+    detail?: Record<string, unknown>;
   }): void {
-    // allow-mode apply() writes one "allowed" row itself; suppress the
-    // intermediate proposed/confirmed rows but always keep failures
-    if (this.applying && input.event !== 'failed' && input.event !== 'expired') return;
+    const p = input.proposal;
+    const detail = {
+      ...(input.detail ?? {}),
+      ...(p.source && p.source !== 'operator' ? { source: p.source } : {}),
+      ...(p.cardReason ? { cardReason: p.cardReason } : {}),
+    };
     this.opts.audit.append({
       ts: new Date(this.now()).toISOString(),
       event: input.event,
-      surface: input.proposal.surfaceId,
-      proposalId: input.proposal.id,
+      surface: p.surfaceId,
+      proposalId: p.id,
       actor: input.actor ?? 'dashboard',
-      reason: input.proposal.reason,
-      diff: input.proposal.diff,
+      reason: p.reason,
+      diff: p.diff,
       ...(input.backup ? { backup: input.backup } : {}),
       ...(input.error ? { error: input.error } : {}),
+      ...(Object.keys(detail).length ? { detail } : {}),
     });
   }
 }

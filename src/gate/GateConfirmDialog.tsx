@@ -51,6 +51,9 @@ export function GateConfirmDialog({
     <Modal onClose={() => { if (!busy) decide('deny'); }} title={t('Confirm this change')} className="gate-dialog">
       <div className="modal-head"><h3>{t('Confirm this change')}</h3></div>
       <p className={plainSentence ? 'gate-lead' : 'muted small gate-lead'}>{plainSentence ?? proposal.reason}</p>
+      {proposal.cardReason && (
+        <p className="muted small gate-why">{t('Why you are seeing this')}: {proposal.cardReason}</p>
+      )}
       {plainSentence && <div className="eyebrow gate-tech-label">{t('technical change')}</div>}
       <div className="gate-diff">
         {proposal.diff.map((e) => (
@@ -58,7 +61,7 @@ export function GateConfirmDialog({
             <span className="gate-diff-path">{e.path}</span>
             <span className="gate-diff-from">{JSON.stringify(e.from) ?? 'unset'}</span>
             <span className="gate-diff-arrow">→</span>
-            <span className="gate-diff-to">{JSON.stringify(e.to)}</span>
+            <span className="gate-diff-to">{JSON.stringify(e.to) ?? 'unset'}</span>
           </div>
         ))}
       </div>

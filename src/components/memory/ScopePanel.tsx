@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Modal from '../../Modal.tsx';
 import { api } from '../../api.js';
-import { gatePropose, type GateProposal, GateError } from '../../gate/gate.ts';
+import { gateSubmit, type GateProposal, GateError } from '../../gate/gate.ts';
 import { t } from '../../i18n.js';
 import type { MemoryScopeEcho } from './types.ts';
 
@@ -80,7 +80,11 @@ export function ScopePanel({
       };
       const days = Number(rotDays);
       if (Number.isFinite(days) && days > 0) change.rotDays = days;
-      onProposal(await gatePropose('memory-scope', change, 'Edit the memory scope from the Scope panel'));
+      // A hand edit is the operator typing their own scope: it applies without
+      // a card (CHI-329). The panel says so rather than silently closing.
+      const out = await gateSubmit('memory-scope', change, 'Edit the memory scope from the Scope panel');
+      if (out.applied) setNotice(t('Scope updated. It takes effect on the next memory read.'));
+      else onProposal(out.proposal);
       setEditing(false);
     } catch (err) {
       fail(err);
@@ -99,8 +103,11 @@ export function ScopePanel({
           stopPolling();
           if (status.suggestion) {
             // The proposal card IS the review step: current vs. proposed
-            // mapping, confirm or deny.
-            onProposal(await gatePropose('memory-scope', { scope: status.suggestion }, "AI-suggested scope mapping (from the hub's folder names; review the diff)"));
+            // mapping, confirm or deny. Marked `suggestion` so the server cards
+            // it even though the surface is otherwise auto (CHI-329 floor 1b) —
+            // model output is never written unreviewed.
+            const out = await gateSubmit('memory-scope', { scope: status.suggestion }, "AI-suggested scope mapping (from the hub's folder names; review the diff)", 'suggestion');
+            if (!out.applied) onProposal(out.proposal);
           } else {
             onError(status.error ?? t('suggest run produced nothing'));
           }
