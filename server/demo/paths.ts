@@ -1,10 +1,11 @@
 // Where the ~/.aios inputs are read from (CHI-325 3c).
 //
-// server/laneC.ts (the LiteLLM proxy spend log) and server/machineSessions.ts
-// (the headless-automation manifest) are the two readers that are NOT backed by
-// chronicle.db, so seeding the demo database alone would leave the proxy lane
-// and the automation-by-job table empty in demo mode. Both now resolve their
-// root here instead of joining homedir() themselves.
+// server/machineSessions.ts (the headless-automation manifest) is not backed by
+// chronicle.db, so seeding the demo database alone would leave the
+// automation-by-job table empty in demo mode. It resolves its root here instead
+// of joining homedir() itself. server/laneC.ts used to as well; since issue #186
+// it resolves the spend log under CHRONICLE_DATA_DIR directly, with the same
+// demo guarantee.
 //
 // In demo the root is the seeded demo directory's own `aios/` folder, so the
 // operator's real ~/.aios is never read in demo, and the demo never depends on

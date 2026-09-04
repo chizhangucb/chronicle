@@ -8,13 +8,13 @@ The one metered routing gateway (LiteLLM Lane C spine): every non-subscription m
 ## Surfaces
 - Loopback endpoint `127.0.0.1:4000` (OpenAI-compatible, master-key auth). The one address metered spokes point at.
 - `openrouter/*` passthrough plus `glm-5.2` / `kimi-k3` short-name aliases (Lane C); `anthropic/*` direct path configured, not live (no key).
-- `~/.aios/litellm/spend.jsonl` — the Lane C raw spend capture (one JSONL row per completed request, metrics only).
+- `$LANE_C_SPEND_LOG`, default `<$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl` — the Lane C raw spend capture (one JSONL row per completed request, metrics only).
 - Installable launchd job (KeepAlive), template in `launchd/`; bounce with `launchctl kickstart -k`.
 - `scripts/litellm/refresh_roster.py [--dry-run]` — refreshes only price + context columns.
 
 ## Owned data
 - `scripts/litellm/config.yaml`: the authoritative deployment set (`store_model_in_db` off, no DB). Every deployment carries `provider.data_collection: deny`.
-- `~/.aios/litellm/spend.jsonl`: Lane C's source-of-truth spend rows, local, outside both git repos. Written only by `lane_c_spend_logger.py`. No Postgres for the spine, ever.
+- The spend log above: Lane C's source-of-truth spend rows, local, never in git. Written only by `lane_c_spend_logger.py`, read by `server/laneC.ts`. No Postgres for the spine, ever.
 
 ## Consumers
 - Hermes: reaches Lane C models via a `custom_providers:` entry pointed at the loopback; its default stays on Codex (Lane B).
@@ -32,7 +32,7 @@ The one metered routing gateway (LiteLLM Lane C spine): every non-subscription m
 CHI SIGN-OFF TO EDIT.
 - `store_model_in_db` stays off; `config.yaml` is authoritative.
 - Every OpenRouter deployment keeps `provider.data_collection: deny` (guarded by `scripts/tests/test_litellm_roster.py`).
-- Master key never inlined; sourced from `~/.secrets/shared.env`.
+- Master key never inlined; sourced from the environment or the gitignored env file `run.sh` reads (`$LITELLM_ENV_FILE`, default `litellm/.env`).
 - Spend rows are metrics only; message content never lands in a row.
 - A new model never enters routing until Chi adds it with a tier and trust level.
 

@@ -1,6 +1,6 @@
-> Moved here on 2026-09-03: Chronicle reads the Lane C spend log this proxy writes, so the proxy lives with its consumer. The routing-policy docs it used to cite were retired with the old repo shape; the policy comments in `config.yaml` are what remains.
+> Moved here on 2026-09-03: Chronicle reads the Lane C spend log this proxy writes, so the proxy lives with its consumer. The routing-policy docs it used to cite were retired with the old repo shape; the policy comments in `config.yaml` are what remains. De-hubbed in issue #186: every path now resolves from this repo or a documented env var.
 
-# LiteLLM spine (AIOS Lane C) — runbook
+# LiteLLM spine (Lane C) — runbook
 
 The single metered routing gateway. This dir is the limb (enforcement config), not the source of truth.
 
@@ -25,16 +25,21 @@ If `uv tool upgrade litellm` is ever run, re-apply the fastapi pin.
 
 ## Launch (loopback, master-key auth)
 
+First, keys. Copy `litellm/.env.example` to `litellm/.env` (gitignored) and fill in
+`OPENROUTER_API_KEY` + `LITELLM_MASTER_KEY`, or export them yourself; `$LITELLM_ENV_FILE`
+moves the file elsewhere. Without them `run.sh` exits 78 naming what is missing, and
+`install-jobs.mjs` declines to bootstrap the job rather than restart-loop it.
+
 Normally you never launch it by hand: launchd `com.chronicle.litellm` keeps it up (template in `launchd/`, install with `node scripts/install-jobs.mjs`). `litellm/run.sh`
-is what that job execs. It sources `OPENROUTER_API_KEY` + `LITELLM_MASTER_KEY` from `~/.secrets/shared.env`
-then binds `127.0.0.1:4000`. Keyless was rejected: with no key and no DB,
-LiteLLM 500s on Hermes's endpoint-probe requests.
+is what that job execs. It resolves its own dir, sources the env file, then binds
+`127.0.0.1:4000`. Keyless was rejected: with no key and no DB, LiteLLM 500s on a
+client's endpoint-probe requests.
 
 ```
 litellm/run.sh
 # or by hand (absolute paths, works from any cwd; relative ones break the spend-logger callback):
-set -a; source ~/.secrets/shared.env; set +a   # OPENROUTER_API_KEY + LITELLM_MASTER_KEY
-LITELLM_DIR="${AIOS_HUB:-$HOME/chizhang-2}/scripts/litellm"
+set -a; source litellm/.env; set +a   # OPENROUTER_API_KEY + LITELLM_MASTER_KEY
+LITELLM_DIR="$PWD/litellm"
 export PYTHONPATH="$LITELLM_DIR:$PYTHONPATH"
 litellm --config "$LITELLM_DIR/config.yaml" --host 127.0.0.1 --port 4000
 ```
@@ -50,9 +55,11 @@ Never restart the live spine to try an edit. Start a second instance on another 
 candidate config, point a temp spend log at `/tmp` so Lane C's real capture stays clean, verify, then kill it.
 
 ```
-set -a; source ~/.secrets/shared.env; set +a
+LANE_C_SPEND_LOG=/tmp/litellm_scratch_spend.jsonl LITELLM_PORT=4111 litellm/run.sh
+# or against a candidate config file:
+set -a; source litellm/.env; set +a
 export LANE_C_SPEND_LOG=/tmp/litellm_scratch_spend.jsonl
-export PYTHONPATH="${AIOS_HUB:-$HOME/chizhang-2}/scripts/litellm:$PYTHONPATH"
+export PYTHONPATH="$PWD/litellm:$PYTHONPATH"
 litellm --config <candidate>.yaml --host 127.0.0.1 --port 4111
 ```
 
@@ -63,9 +70,10 @@ The spine runs with no DB (`GET /spend/logs` 500s by design). `lane_c_spend_logg
 
 - Wired in `config.yaml` as `litellm_settings.callbacks: [lane_c_spend_logger.instance]`; `run.sh` puts this
   dir on `PYTHONPATH`.
-- Appends one JSONL row per completed request to `$LANE_C_SPEND_LOG` (default `~/.aios/litellm/spend.jsonl`).
-  This file IS Lane C's raw capture (read by Varde `aggregator/sources/usage.ts`, Chronicle later, CHI-129).
-  Local, outside both git repos. **No Postgres for the spine, ever.**
+- Appends one JSONL row per completed request to `$LANE_C_SPEND_LOG`, defaulting to
+  `<$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl` — the same root `server/db.ts` uses,
+  so Chronicle's Spend tab reads it with nothing configured. This file IS Lane C's raw capture.
+  Local, never in git. **No Postgres for the spine, ever.**
 - Row shape: `{startTime, model, prompt_tokens, completion_tokens, total_tokens, spend, provider, latency_ms}`.
   **Metrics only**, content never lands. `spend` = LiteLLM `response_cost` (OpenRouter's real charge); a
   zero/absent cost yields a token-only row (no `spend` key), never a guessed $0. `provider`/`latency_ms`
@@ -78,7 +86,7 @@ The spine runs with no DB (`GET /spend/logs` 500s by design). `lane_c_spend_logg
 Lane C's JSONL is our capture; OpenRouter's own numbers are upstream truth. To check for drift, cross-check totals:
 
 1. Sum the JSONL over a window:
-   `python3 -c "import json,sys; print(round(sum(json.loads(l).get('spend',0) for l in open(sys.argv[1]) if l.strip()),6))" ~/.aios/litellm/spend.jsonl`
+   `python3 -c "import json,sys; print(round(sum(json.loads(l).get('spend',0) for l in open(sys.argv[1]) if l.strip()),6))" ~/.chronicle/litellm/spend.jsonl`
 2. Pull OpenRouter's number for the same window (openrouter.ai/activity, or `GET /api/v1/credits`).
 3. Expect near-equality. A gap means lost callback rows (spine restarted mid-request) or OpenRouter counting
    requests that never went through this spine. Run it when a Lane C number looks wrong; not yet automated.
@@ -86,5 +94,6 @@ Lane C's JSONL is our capture; OpenRouter's own numbers are upstream truth. To c
 ## Roster refresh
 
 `python litellm/refresh_roster.py [--dry-run]` updates only price + context from OpenRouter's public
-catalog; never the judgment columns. Deployment gate + wired models are guarded by
-`scripts/tests/test_litellm_roster.py`.
+catalog; never the judgment columns. The roster markdown is a hub document, so point the script at
+one with `--roster PATH`, `$CHRONICLE_ROSTER_MD`, or `$CHRONICLE_HUB` (it resolves
+`<hub>/governance/model-routing.md`). With none of those set it exits 2 and says so.

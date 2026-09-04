@@ -6,7 +6,10 @@
   KeepAlive: launchd restarts it if it dies. Install with `node scripts/install-jobs.mjs`
   (fills __REPO__ / __DATA__), --bootstrap to also load it.
   Keys: run.sh sources $LITELLM_ENV_FILE, default litellm/.env in the repo. Copy
-  litellm/.env.example there first, or the job exits 78 with what is missing.
+  litellm/.env.example there first; without keys run.sh exits 78 naming what is
+  missing, so install-jobs.mjs declines to bootstrap this one until it is
+  configured (KeepAlive would otherwise respawn it forever). ThrottleInterval
+  keeps even a misconfigured restart cheap.
 -->
 <plist version="1.0">
 <dict>
@@ -29,6 +32,8 @@
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
   <key>StandardOutPath</key>
   <string>__DATA__/logs/litellm.log</string>
   <key>StandardErrorPath</key>

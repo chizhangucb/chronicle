@@ -109,5 +109,4 @@ general_settings:
 
 # Auth = master key (above) + loopback bind. CLOUD CAVEAT (revisit trigger): the master
 # key alone is not enough off-laptop; before any cloud / multi-tenant / network-exposed
-# deploy, add network controls (and rotate LITELLM_MASTER_KEY). See
-# litellm/product-contract.md for the shape this file enforces.
+# deploy, add network controls (and rotate LITELLM_MASTER_KEY).

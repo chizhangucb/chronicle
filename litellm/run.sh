@@ -13,7 +13,8 @@
 #   ANTHROPIC_API_KEY  optional, only for the direct anthropic/* route
 #   LANE_C_SPEND_LOG   spend log path (default: <data dir>/litellm/spend.jsonl)
 #   CHRONICLE_DATA_DIR Chronicle's data dir (default: ~/.chronicle)
-#   LITELLM_HOST/PORT  bind (default: 127.0.0.1:4000)
+#   LITELLM_PORT       loopback port (default: 4000) -- for trying a candidate
+#                      config on a second instance without touching the live one
 set -e
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -46,5 +47,9 @@ export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 # Put this dir on PYTHONPATH so the config's `lane_c_spend_logger.instance`
 # success_callback (Lane C spend capture) resolves.
 export PYTHONPATH="$LITELLM_DIR:$PYTHONPATH"
+# The host is NOT a knob. config.yaml's gate is "loopback bind + master key",
+# and off-laptop the key alone is not enough (its CLOUD CAVEAT); an env var that
+# let a user bind 0.0.0.0 would expose an OpenRouter-key-bearing endpoint to the
+# network while the config still claimed loopback-only.
 exec litellm --config "$LITELLM_DIR/config.yaml" \
-  --host "${LITELLM_HOST:-127.0.0.1}" --port "${LITELLM_PORT:-4000}"
+  --host 127.0.0.1 --port "${LITELLM_PORT:-4000}"

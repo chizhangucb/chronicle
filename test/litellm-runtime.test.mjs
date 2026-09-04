@@ -25,6 +25,8 @@ const RUNTIME_FILES = [
   'litellm/lane_c_spend_logger.py',
   'litellm/refresh_roster.py',
   'litellm/.env.example',
+  'litellm/README.md',
+  'litellm/product-contract.md',
   'launchd/com.chronicle.litellm.plist.template',
 ];
 
@@ -41,6 +43,28 @@ test('no runtime file reads AIOS_HUB', () => {
   const roster = read('litellm/refresh_roster.py');
   assert.match(roster, /CHRONICLE_ROSTER_MD/);
   assert.match(roster, /CHRONICLE_HUB/);
+});
+
+test('run.sh binds loopback with no host knob to override it', () => {
+  // The gate config.yaml documents is "loopback bind + master key", and the key
+  // alone is not enough off-laptop. An env-var host would let a user expose an
+  // OpenRouter-key-bearing endpoint while the config still claimed loopback.
+  const sh = read('litellm/run.sh');
+  assert.match(sh, /--host 127\.0\.0\.1/);
+  assert.equal(/LITELLM_HOST/.test(sh), false, 'run.sh grew a host override');
+  assert.equal(/LITELLM_HOST/.test(read('litellm/.env.example')), false, '.env.example advertises a host override');
+  // The port stays a knob: it is how you try a candidate config on a second
+  // instance without touching the live spine.
+  assert.match(sh, /LITELLM_PORT:-4000/);
+});
+
+test('install-jobs will not bootstrap the proxy job before it has keys', () => {
+  // run.sh exits 78 unconfigured, and KeepAlive would turn that into a
+  // permanent respawn loop on a fresh clone.
+  const src = read('scripts/install-jobs.mjs');
+  assert.match(src, /litellmConfigured/);
+  assert.match(src, /skipped bootstrap/);
+  assert.match(read('launchd/com.chronicle.litellm.plist.template'), /<key>ThrottleInterval<\/key>/);
 });
 
 test('run.sh resolves its dir from the script, sources a repo-relative env file', () => {
@@ -148,16 +172,59 @@ print(log.path)`, { CHRONICLE_DATA_DIR: dir, LANE_C_SPEND_LOG: '' });
   assert.equal(spend.byModel[0].tokens, 120);
 });
 
-test('laneCSpendPath: an explicit data dir never falls back to the legacy log', async () => {
-  const { laneCSpendPath } = await import('../server/laneC.ts');
+test('laneCSpendPath: pinned locations never reach the legacy log', async () => {
+  const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
   const pinned = laneCSpendPath({ CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' });
   assert.equal(pinned, path.join('/tmp/no-such-chronicle', 'litellm', 'spend.jsonl'));
   assert.equal(pinned.includes('.aios'), false);
-  // A demo run pins CHRONICLE_DATA_DIR, so demo can never read the real log.
-  const demo = laneCSpendPath({ CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x' });
-  assert.equal(demo, path.join('/tmp/demo-x', 'litellm', 'spend.jsonl'));
-  // LANE_C_SPEND_LOG wins over everything.
+  assert.deepEqual(laneCSpendPaths({ CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' }), [pinned]);
+  // LANE_C_SPEND_LOG beats the data dir.
   assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '/tmp/x.jsonl', CHRONICLE_DATA_DIR: '/tmp/d' }), '/tmp/x.jsonl');
+});
+
+test('laneCSpendPath: demo wins over a LANE_C_SPEND_LOG left in the shell', async () => {
+  // bin/chronicle.mjs spreads the whole env into the demo relaunch, so an
+  // operator who exported LANE_C_SPEND_LOG for a scratch proxy run would
+  // otherwise see their REAL proxy rows inside the demo console.
+  const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
+  const env = { CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x', LANE_C_SPEND_LOG: '/real/spend.jsonl' };
+  assert.equal(laneCSpendPath(env), path.join('/tmp/demo-x', 'litellm', 'spend.jsonl'));
+  assert.deepEqual(laneCSpendPaths(env), [path.join('/tmp/demo-x', 'litellm', 'spend.jsonl')]);
+});
+
+test('laneCSpendPath: a tilde in LANE_C_SPEND_LOG expands, as it does producer-side', async () => {
+  // A quoted LANE_C_SPEND_LOG="~/logs/spend.jsonl" is not expanded by the shell
+  // that sources the env file. Python expands it; if this side did not, the
+  // reader would silently read nothing and the Proxy lane would vanish.
+  const { laneCSpendPath } = await import('../server/laneC.ts');
+  assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '~/logs/spend.jsonl' }),
+    path.join(os.homedir(), 'logs', 'spend.jsonl'));
+});
+
+test('the readers aggregate the legacy log ALONGSIDE the current one', async (t) => {
+  // Resolving to one OR the other would drop months of billed history the first
+  // time the new log came into existence. Both are read, so the move is lossless.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanec-merge-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const current = path.join(dir, 'current.jsonl');
+  const legacy = path.join(dir, 'legacy.jsonl');
+  fs.writeFileSync(current, '{"startTime":"2026-08-12T12:00:00Z","model":"m","spend":0.05,"total_tokens":10}\n');
+  fs.writeFileSync(legacy, '{"startTime":"2026-08-09T12:00:00Z","model":"m","spend":0.03,"total_tokens":7}\n');
+
+  const { readLaneCSpend, readLaneCDailyCost } = await import('../server/laneC.ts');
+  const both = readLaneCSpend(null, [current, legacy]);
+  assert.equal(both.requests, 2);
+  assert.ok(Math.abs(both.totalSpend - 0.08) < 1e-9);
+  assert.equal(both.byModel[0].tokens, 17);
+
+  const days = readLaneCDailyCost(null, [current, legacy]);
+  assert.equal(days.size, 2);
+
+  // A path in the list that does not exist contributes nothing, never a throw.
+  const partial = readLaneCSpend(null, [current, path.join(dir, 'gone.jsonl')]);
+  assert.equal(partial.requests, 1);
+  assert.deepEqual(readLaneCSpend(null, [path.join(dir, 'gone.jsonl')]),
+    { totalSpend: 0, requests: 0, byModel: [] });
 });
 
 test('refresh_roster runs from a fresh clone and says what to configure', (t) => {
