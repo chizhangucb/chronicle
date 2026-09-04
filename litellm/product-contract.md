@@ -3,13 +3,13 @@
 Status: living · Owner: Chi · Location: hub `scripts/litellm/`
 
 ## Purpose
-The one metered routing gateway (LiteLLM Lane C spine): every non-subscription model call goes through a single loopback endpoint that meters it and enforces the no-train gate. Which model may touch a task is set by `governance/model-routing.md`; this module enforces, it does not decide.
+The one metered routing gateway (LiteLLM Lane C spine): every non-subscription model call goes through a single loopback endpoint that meters it and enforces the no-train gate. Which model may touch a task is a policy decision made elsewhere; this module enforces, it does not decide.
 
 ## Surfaces
 - Loopback endpoint `127.0.0.1:4000` (OpenAI-compatible, master-key auth). The one address metered spokes point at.
 - `openrouter/*` passthrough plus `glm-5.2` / `kimi-k3` short-name aliases (Lane C); `anthropic/*` direct path configured, not live (no key).
 - `~/.aios/litellm/spend.jsonl` — the Lane C raw spend capture (one JSONL row per completed request, metrics only).
-- Installable job `com.chizhang.litellm` (launchd, KeepAlive); bounce via `egress spine-restart`.
+- Installable launchd job (KeepAlive), template in `launchd/`; bounce with `launchctl kickstart -k`.
 - `scripts/litellm/refresh_roster.py [--dry-run]` — refreshes only price + context columns.
 
 ## Owned data
@@ -23,7 +23,7 @@ The one metered routing gateway (LiteLLM Lane C spine): every non-subscription m
 - Any metered spoke: points at the loopback endpoint.
 
 ## Non-goals
-- Does NOT decide routing/tier/trust (that is `governance/model-routing.md`).
+- Does NOT decide routing/tier/trust; that policy lives outside this module.
 - Does NOT meter Lane A (Claude, native) or Lane B (Codex, native); those bypass the spine.
 - Does NOT hold subscription OAuth (ToS); does NOT run a DB, Postgres, or Redis.
 - NOT safe on a network-exposed or multi-tenant host as configured (loopback + master key only).
@@ -40,9 +40,9 @@ CHI SIGN-OFF TO EDIT.
 New lane or upstream; a new metered spoke; spend-row schema change; the direct-to-Anthropic path going live; any move off loopback (cloud/multi-tenant). Update this file in the same pass.
 
 ## Pointers
-- Policy brain: `governance/model-routing.md` (lanes, roster, escalation framework, fixer lanes).
+- Policy brain: routing policy is decided outside this module; the roster comments in `config.yaml` are the enforcement view of it.
 - Runbook: `scripts/litellm/README.md` (install, launch, spend capture, OpenRouter reconciliation).
-- Registry rows: `operations.md` (`litellm-spine` job, `## Routing`).
+- Job: `launchd/com.chronicle.litellm.plist.template`.
 - Decisions: `records/decisions.jsonl` 2026-08-04 (Q5 routing), 2026-08-05 (P3a); CHI-100/103/105/111/129/130.
 
 ## Roadmap

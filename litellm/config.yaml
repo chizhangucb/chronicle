@@ -1,5 +1,5 @@
 # LiteLLM spine. AIOS Lane C metered routing.
-# Brain = governance/model-routing.md. This file is the limb; it enforces, it does not decide.
+# This file is the limb: it enforces routing policy, it does not decide it.
 # Loopback only (bind via `--host 127.0.0.1`). store_model_in_db stays off so this file
 # is authoritative (no DB overlay). No Postgres/Redis for personal use.
 #
@@ -23,7 +23,7 @@
 # DeepInfra] on glm-5.2 and kimi-k3; order is a preference, deny stays the hard filter).
 # The openrouter/* passthrough carries no order and still takes the cheapest no-train
 # host. Stricter per-tier pinning (zdr:true, direct-only) is a future tightening,
-# backlog. See governance/model-routing.md.
+# backlog.
 
 model_list:
   # Passthrough to OpenRouter for any model id (Hermes's full reach), gated no-train.
@@ -38,7 +38,7 @@ model_list:
           allow_fallbacks: true
 
   # Short-name aliases so Hermes's runtime `/model` switch works without the openrouter/
-  # prefix (DA-3). Roster (tier/trust/task-fit) lives in governance/model-routing.md.
+  # prefix (DA-3). Roster (tier/trust/task-fit) is decided outside this file.
   - model_name: glm-5.2
     litellm_params:
       model: openrouter/z-ai/glm-5.2
@@ -98,7 +98,7 @@ general_settings:
   # keyless + no DB made LiteLLM 500 on Hermes's endpoint-probe requests and spam a
   # per-request "No connected db" ERROR. The key value lives only in env files outside
   # this repo: ~/.secrets/shared.env is canonical (run.sh sources it for
-  # the spine, per governance/secrets.md), and ~/.hermes/.env carries the propagated
+  # the spine), and ~/.hermes/.env carries the propagated
   # copy Hermes interpolates as ${LITELLM_MASTER_KEY} into its model.api_key. Not in
   # the repo .env. No raw secret in any yaml.
   master_key: os.environ/LITELLM_MASTER_KEY
@@ -106,4 +106,3 @@ general_settings:
 # Auth = master key (above) + loopback bind. CLOUD CAVEAT (revisit trigger): the master
 # key alone is not enough off-laptop; before any cloud / multi-tenant / network-exposed
 # deploy, add network controls (and rotate the key in ~/.secrets/shared.env). See
-# governance/model-routing.md.

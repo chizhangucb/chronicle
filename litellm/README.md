@@ -1,12 +1,11 @@
-> Moved here from chizhang-2 on 2026-09-03: Chronicle reads the Lane C spend log this proxy writes, so the proxy lives with its consumer. Referenced `governance/*` and `operations.md` docs were retired with the old repo shape.
+> Moved here on 2026-09-03: Chronicle reads the Lane C spend log this proxy writes, so the proxy lives with its consumer. The routing-policy docs it used to cite were retired with the old repo shape; the policy comments in `config.yaml` are what remains.
 
 # LiteLLM spine (AIOS Lane C) — runbook
 
 The single metered routing gateway. This dir is the limb (enforcement config), not the source of truth.
 
 - **Shape / interface:** `litellm/product-contract.md` (surfaces, owned data, invariants, roadmap).
-- **Policy brain:** `governance/model-routing.md` (lanes, roster, escalation, no-train gate).
-- **Live job + commands:** `operations.md` (`litellm-spine`; bounce via `egress spine-restart`).
+- **Job:** `launchd/com.chronicle.litellm.plist.template`; bounce with `launchctl kickstart -k gui/$(id -u)/com.chronicle.litellm`.
 
 Below is operational how-to only; anything about shape or policy lives above.
 
@@ -28,7 +27,7 @@ If `uv tool upgrade litellm` is ever run, re-apply the fastapi pin.
 
 Normally you never launch it by hand: launchd `com.chronicle.litellm` keeps it up (template in `launchd/`, install with `node scripts/install-jobs.mjs`). `litellm/run.sh`
 is what that job execs. It sources `OPENROUTER_API_KEY` + `LITELLM_MASTER_KEY` from `~/.secrets/shared.env`
-(per `governance/secrets.md`), then binds `127.0.0.1:4000`. Keyless was rejected: with no key and no DB,
+then binds `127.0.0.1:4000`. Keyless was rejected: with no key and no DB,
 LiteLLM 500s on Hermes's endpoint-probe requests.
 
 ```
