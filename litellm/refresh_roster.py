@@ -11,6 +11,9 @@ Match key = the roster's Route column with the `openrouter/` prefix stripped, lo
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
 future direct-Anthropic route) are left untouched.
 
+This script does not belong in litellm/ (it maintains a hub document; the proxy
+never reads it). Moving it to scripts/ is issue #192.
+
 The roster file itself is a hub document, not a repo one, so its location is
 resolved rather than baked in (issue #186), in this order:
 
