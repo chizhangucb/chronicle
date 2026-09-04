@@ -18,18 +18,18 @@ A local-first session-data engine and operator console for your AI coding stack.
 `~/.chronicle/chronicle.db` (SQLite, full message content): projects, sessions, messages, session tombstones, migrations. Source of truth for the imported session record; writes nowhere else, reads source logs read-only.
 
 ## Consumers
-The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture, jobs, briefing state, and memory scope through the tiered gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). Varde still reads the `contract_*` views only (`aggregator/sources/chronicle.ts`, `spend-chronicle.ts`) for its spend/session lanes during the no-flag-day rollout; Chronicle is an adapter Varde consumes, not a consumer of Varde.
+The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture, jobs, briefing state, and memory scope through the tiered gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). The former Varde console (its only external view consumer) is decommissioned; no external consumer of the `contract_*` views remains.
 
 ## Internals
 Two seams earn grandfathered sub-contracts (register, not rewrite); the rest covered here.
 
 - **surface / IA contract** (`spec/surface-contract.md`): †grandfathered. The frozen product shape (routes, enumerables, per-surface inventory, e2e pins) with its own Change rule; the release walk's IA-conformance target.
-- **contract_* DB views** (`server/db.ts`, `PRAGMA user_version`): †grandfathered. `contract_message_metrics` + `contract_sessions` are the stable read seam; base tables stay free to refactor. `user_version` = 1; a bump means a breaking view change, chronicle + Varde in one merge.
+- **contract_* DB views** (`server/db.ts`, `PRAGMA user_version`): †grandfathered. `contract_message_metrics` + `contract_sessions` are the stable read seam; base tables stay free to refactor. `user_version` = 1; a bump means a breaking view change (no external consumer remains).
 - **parsers** (`server/parsers/`): `claudeCode`, `codex`, `cursor`, `opencode`, four source clients, no sub-contract.
 - **analysis engines + live SSE** (`server/insights.ts`, `explore.ts`, `content.ts`, `live.ts`): internal; shape owned by the surface contract.
 
 ## Non-goals
-No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. Chronicle IS the aggregate multi-tool operator console (the ops surfaces), the role Varde is being decommissioned into.
+No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. Chronicle IS the aggregate multi-tool operator console (the ops surfaces), the role it absorbed from the now-decommissioned Varde.
 
 ## Invariants
 CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
@@ -40,7 +40,7 @@ CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 
 **Validated-seam writes (all writes go through one):**
 - Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run backup → temp-rename → post-write verify → audit, behind a confirm card unless the surface declares `approval: 'auto'` (absent means confirm; the floors that can never auto live in `core.ts`, not the registry); the briefing uses its two-file run-vs-UI split; hub writes go through the hub's own gated entry point. No raw file edits.
-- The DB read seam is the `contract_*` views only; base tables are not public. `PRAGMA user_version` gates breaking view changes; a bump ships only with chronicle and Varde together.
+- The DB read seam is the `contract_*` views only; base tables are not public. `PRAGMA user_version` gates breaking view changes.
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
@@ -49,8 +49,8 @@ CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 ## Change triggers
 Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route; a new `contract_*` view column (with the `user_version` call).
-- **Merge decided.** Varde merges into Chronicle; composed-not-merged is retired. Chronicle wins every identity slot; Varde's unique surfaces migrate in over a 4-phase, no-flag-day rollout. Each phase lands with a signed surface-contract revision and rewrites the affected sections here (Surfaces, Consumers, Non-goals).
-- **Signed invariant architecture for the merged product** (applies as ported features land, per phase): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants.
+- **Merge shipped.** Varde merged into Chronicle at parity and was decommissioned; composed-not-merged retired. Chronicle won every identity slot over a 4-phase, no-flag-day rollout, each phase landing a signed surface-contract revision.
+- **Signed invariant architecture for the merged product** (landed across the 4 phases): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants.
 - **Cloud-scale moment.** If Chronicle plus Nisse reach online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 
 ## Pointers
@@ -59,5 +59,5 @@ In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubri
 ## Roadmap
 Only Now is a commitment.
 - **Now:** release-walk hardening on the 1.3.x line.
-- **Next:** Varde merge, 4 phases: port unique organs behind the nisse-hub adapter; consolidate spend/sessions; home merge + unified reference + demo mode + local view log; decommission Varde.
+- **Next:** open. The 4-phase Varde merge that sat here has shipped: unique organs ported behind the nisse-hub adapter, spend/sessions consolidated, home merge + unified reference + demo mode + local view log, Varde decommissioned.
 - **Later:** native desktop shell (deferred, bridge = PWA/dedicated window); cloud-platform exposure; contracts/registry rendered for a wider audience.
