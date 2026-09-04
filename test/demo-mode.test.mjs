@@ -18,6 +18,7 @@ import path from 'node:path';
 const { demoSessions, DEMO_DAYS } = await import('../server/demo/corpus.ts');
 const { demoDataDir } = await import('../server/demo/seed.ts');
 const { aiosRoot } = await import('../server/demo/paths.ts');
+const { laneCSpendPath } = await import('../server/laneC.ts');
 const { writeDemoSession } = await import('../server/demo/transcripts.ts');
 
 test('demo mode makes NO outbound call for plan windows', async () => {
@@ -57,15 +58,30 @@ test('the demo data dir is keyed by DAY, so a cached demo cannot go stale', () =
   assert.equal(today, demoDataDir(new Date('2026-08-27T23:59:00')));
 });
 
-test('aiosRoot redirects the non-DB readers into the demo dir', () => {
-  // laneC (proxy spend) and machineSessions (automation) are not backed by
-  // chronicle.db, so without this the proxy lane and the automation table would
-  // be empty in demo, or worse, would read the operator's real ~/.aios.
+test('aiosRoot redirects the machine-sessions reader into the demo dir', () => {
+  // machineSessions (automation) is not backed by chronicle.db, so without this
+  // the automation table would be empty in demo, or worse, would read the
+  // operator's real ~/.aios. (laneC moved off this root in issue #186; it
+  // resolves the spend log under CHRONICLE_DATA_DIR directly.)
   const demo = aiosRoot({ CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x' });
   assert.equal(demo, path.join('/tmp/demo-x', 'aios'));
   const live = aiosRoot({});
   assert.equal(live, path.join(os.homedir(), '.aios'));
   assert.ok(!live.startsWith('/tmp/demo-x'));
+});
+
+test('the demo proxy lane is seeded where laneC actually looks', () => {
+  // Producer/consumer agreement in demo: the seeded spend log must sit at the
+  // path laneCSpendPath resolves from the demo dir, or the Spend tab's proxy
+  // lane is silently empty (issue #186).
+  const dir = path.join(os.tmpdir(), 'chronicle-demo-shape-probe');
+  assert.equal(
+    laneCSpendPath({ CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: dir }),
+    path.join(dir, 'litellm', 'spend.jsonl'),
+  );
+  const seed = fs.readFileSync(new URL('../server/demo/seed.ts', import.meta.url), 'utf8');
+  assert.match(seed, /path\.join\(dir, 'litellm', 'spend\.jsonl'\)/,
+    'the demo seeder no longer writes the spend log where laneC reads it');
 });
 
 test('the corpus is deterministic', () => {

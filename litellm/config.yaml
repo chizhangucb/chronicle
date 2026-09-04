@@ -1,4 +1,4 @@
-# LiteLLM spine. AIOS Lane C metered routing.
+# LiteLLM spine. Lane C metered routing.
 # This file is the limb: it enforces routing policy, it does not decide it.
 # Loopback only (bind via `--host 127.0.0.1`). store_model_in_db stays off so this file
 # is authoritative (no DB overlay). No Postgres/Redis for personal use.
@@ -26,7 +26,7 @@
 # backlog.
 
 model_list:
-  # Passthrough to OpenRouter for any model id (Hermes's full reach), gated no-train.
+  # Passthrough to OpenRouter for any model id (a client's full reach), gated no-train.
   - model_name: "openrouter/*"
     litellm_params:
       model: "openrouter/*"
@@ -37,7 +37,7 @@ model_list:
           data_collection: deny
           allow_fallbacks: true
 
-  # Short-name aliases so Hermes's runtime `/model` switch works without the openrouter/
+  # Short-name aliases so a client's runtime `/model` switch works without the openrouter/
   # prefix (DA-3). Roster (tier/trust/task-fit) is decided outside this file.
   - model_name: glm-5.2
     litellm_params:
@@ -72,6 +72,9 @@ model_list:
   # Direct-to-Anthropic path: the non-proxied destination a future stricter per-tier gate
   # would use. CONFIGURED, not live until an Anthropic API key is provisioned (DA-6 lean:
   # deferred; new spend). Not gated by data_collection (direct provider, no proxy hop).
+  # ANTHROPIC_API_KEY is optional: run.sh exports an empty default so this
+  # deployment never blocks startup, and the route only works once you set a
+  # real key (issue #186).
   - model_name: "anthropic/*"
     litellm_params:
       model: "anthropic/*"
@@ -87,22 +90,23 @@ litellm_settings:
   drop_params: true
   # Lane C spend capture (CHI-130). success_callback appends one JSONL row per
   # completed request (model + tokens + authoritative OpenRouter cost) to
-  # $LANE_C_SPEND_LOG (default ~/.aios/litellm/spend.jsonl). The spine leaves no
-  # session files, so this IS Lane C's raw capture; the dashboard reads it,
-  # Chronicle parses it later. Module resolved via PYTHONPATH (run.sh). Metrics
-  # only: no message content ever lands in a row.
+  # $LANE_C_SPEND_LOG, defaulting to <$CHRONICLE_DATA_DIR or ~/.chronicle>/
+  # litellm/spend.jsonl -- the same root server/db.ts uses, so a fresh clone
+  # needs no configuration for Chronicle's Spend tab to read what this writes
+  # (issue #186). The spine leaves no session files, so this IS Lane C's raw
+  # capture. Module resolved via PYTHONPATH (run.sh). Metrics only: no message
+  # content ever lands in a row.
   callbacks: ["lane_c_spend_logger.instance"]
 
 general_settings:
   # Deterministic auth via a master key (env ref, never inlined). Chosen over keyless:
-  # keyless + no DB made LiteLLM 500 on Hermes's endpoint-probe requests and spam a
-  # per-request "No connected db" ERROR. The key value lives only in env files outside
-  # this repo: ~/.secrets/shared.env is canonical (run.sh sources it for
-  # the spine), and ~/.hermes/.env carries the propagated
-  # copy Hermes interpolates as ${LITELLM_MASTER_KEY} into its model.api_key. Not in
-  # the repo .env. No raw secret in any yaml.
+  # keyless + no DB made LiteLLM 500 on a client's endpoint-probe requests and spam a
+  # per-request "No connected db" ERROR. The value comes from the environment:
+  # export it yourself, or put it in the gitignored env file run.sh sources
+  # ($LITELLM_ENV_FILE, default litellm/.env; see litellm/.env.example).
+  # No raw secret in any yaml, ever.
   master_key: os.environ/LITELLM_MASTER_KEY
 
 # Auth = master key (above) + loopback bind. CLOUD CAVEAT (revisit trigger): the master
 # key alone is not enough off-laptop; before any cloud / multi-tenant / network-exposed
-# deploy, add network controls (and rotate the key in ~/.secrets/shared.env). See
+# deploy, add network controls (and rotate LITELLM_MASTER_KEY).

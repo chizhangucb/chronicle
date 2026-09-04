@@ -5,6 +5,13 @@
   Chronicle reads the spend log it writes (server/laneC.ts), so the job lives here.
   KeepAlive: launchd restarts it if it dies. Install with `node scripts/install-jobs.mjs`
   (fills __REPO__ / __DATA__), --bootstrap to also load it.
+  Keys: run.sh sources $LITELLM_ENV_FILE, default litellm/.env in the repo. Copy
+  litellm/.env.example there first; without keys run.sh exits 78 naming what is
+  missing. The requires-env line below is what makes install-jobs.mjs decline to
+  bootstrap this job until those keys carry values (KeepAlive would otherwise
+  respawn it forever). ThrottleInterval keeps even a misconfigured restart cheap.
+
+  install-jobs: requires-env OPENROUTER_API_KEY LITELLM_MASTER_KEY; env-file litellm/.env; env-file-var LITELLM_ENV_FILE
 -->
 <plist version="1.0">
 <dict>
@@ -15,10 +22,21 @@
     <string>/bin/zsh</string>
     <string>__REPO__/litellm/run.sh</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Pin the data dir the installer resolved, so the spend log the proxy
+         writes is the one Chronicle's Spend tab reads (issue #186). Override a
+         path or a key in litellm/.env; run.sh sources it. -->
+    <key>CHRONICLE_DATA_DIR</key>
+    <string>__DATA__</string>
+__EXTRA_ENV__
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
   <key>StandardOutPath</key>
   <string>__DATA__/logs/litellm.log</string>
   <key>StandardErrorPath</key>

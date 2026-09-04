@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HUB_PATHS, HUB_FOLDERS } from './helpers/hub-strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const git = (...args) =>
@@ -24,12 +25,12 @@ const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 // repo-managed harness hooks are gone; none may be tracked again.
 const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 
-// The doc surfaces the restructure owns. litellm/README.md is deliberately out:
-// it is an operational runbook for a spine that genuinely reaches the hub
-// scripts dir, and the runtime AIOS_HUB knob is a product feature #173 leaves
-// untouched. CHANGELOG.md is out because history is allowed to name what was.
+// The doc surfaces the restructure owns. litellm/README.md is out of this set
+// because test/litellm-runtime.test.mjs guards it instead, alongside the runtime
+// it documents (issue #186 de-hubbed both). CHANGELOG.md is out because history
+// is allowed to name what was.
 const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/**/*.md', 'spec/**/*.md'];
-const HUB_STRINGS = /chizhang-2|governance\//i;
+const HUB_STRINGS = new RegExp(`${HUB_PATHS.source}|${HUB_FOLDERS.source}`, 'i');
 
 test('no retired folder is tracked at the repo root', () => {
   const back = RETIRED_ROOT.filter((name) => topLevel.has(name));
