@@ -10,7 +10,7 @@
 #                                       allow_fallbacks.
 #   provider.allow_fallbacks: true   -> if the primary no-train host is unavailable, fall
 #                                       through to ANOTHER no-train host instead of erroring.
-#                                       (CHI-103: was false; deny already blocks training
+#                                       (was false; deny already blocks training
 #                                       providers, so a fallback can only land on another
 #                                       no-train host. true buys resilience with no loss of
 #                                       the no-train guarantee. Does NOT change which host is
@@ -19,7 +19,7 @@
 # tag. Caveat: OpenRouter's data tags are best-effort, not authoritative (their words), so
 # this is defense-in-depth, not a guarantee. Latency note: OpenRouter defaults to the
 # CHEAPEST no-train host (slow), so the alias deployments below steer to a FAST no-train
-# host via provider.order (SHIPPED, CHI-105: order: [Fireworks, Baseten, Together,
+# host via provider.order (SHIPPED: order: [Fireworks, Baseten, Together,
 # DeepInfra] on glm-5.2 and kimi-k3; order is a preference, deny stays the hard filter).
 # The openrouter/* passthrough carries no order and still takes the cheapest no-train
 # host. Stricter per-tier pinning (zdr:true, direct-only) is a future tightening,
@@ -48,7 +48,7 @@ model_list:
         provider:
           data_collection: deny
           allow_fallbacks: true
-          # CHI-105: no-train host steering. deny above is the HARD filter (holds
+          # No-train host steering. deny above is the HARD filter (holds
           # regardless of order); order is only a PREFERENCE for a faster no-train
           # host over OpenRouter's cheapest-default. Every pinned host here is
           # no-train-compliant, so deny still holds even on the first-choice host.
@@ -63,7 +63,7 @@ model_list:
         provider:
           data_collection: deny
           allow_fallbacks: true
-          # CHI-105: no-train host steering. deny above is the HARD filter (holds
+          # No-train host steering. deny above is the HARD filter (holds
           # regardless of order); order is only a PREFERENCE for a faster no-train
           # host over OpenRouter's cheapest-default. Every pinned host here is
           # no-train-compliant, so deny still holds even on the first-choice host.
@@ -88,7 +88,7 @@ router_settings:
 
 litellm_settings:
   drop_params: true
-  # Lane C spend capture (CHI-130). success_callback appends one JSONL row per
+  # Lane C spend capture. success_callback appends one JSONL row per
   # completed request (model + tokens + authoritative OpenRouter cost) to
   # $LANE_C_SPEND_LOG, defaulting to <$CHRONICLE_DATA_DIR or ~/.chronicle>/
   # litellm/spend.jsonl -- the same root server/db.ts uses, so a fresh clone

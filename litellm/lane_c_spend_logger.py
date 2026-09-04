@@ -1,11 +1,11 @@
-"""Lane C spend logger: the LiteLLM spine's success_callback (CHI-130).
+"""Lane C spend logger: the LiteLLM spine's success_callback.
 
 Routing policy is decided outside this module. Architecture: the 2026-08-08
 monitoring-dashboard-direction brainstorm, Q4. This dir is the limb.
 
 The spine is a gateway; it leaves NO session files. A completed request's
 cost (OpenRouter's real charge, routed provider) exists only in-flight and
-otherwise evaporates -- that was the CHI-111 hole. This callback captures it
+otherwise evaporates. This callback captures it
 to a local JSONL, one row per completed request. That file IS Lane C's raw
 capture, and Chronicle's Spend tab is its consumer (server/laneC.ts). No
 Postgres for the spine, ever.
@@ -19,7 +19,7 @@ Wired in config.yaml as `litellm_settings.callbacks: [lane_c_spend_logger.instan
 (run.sh puts this dir on PYTHONPATH).
 
 Confidentiality: metrics only. The row carries model + token counts + the
-authoritative dollar cost + (CHI-105) the routed upstream host label and
+authoritative dollar cost + the routed upstream host label and
 measured latency. It NEVER carries message content, even though the success
 payload does. Dollars are authoritative-from-source (response_cost); a
 zero/absent cost yields a token-only row, never a guessed $0. The upstream
@@ -81,7 +81,7 @@ def _iso(start_time) -> str | None:
 
 
 def _extract_provider(slo: dict) -> str | None:
-    """CHI-105: the upstream no-train host OpenRouter actually routed to
+    """The upstream no-train host OpenRouter actually routed to
     (Fireworks / Baseten / Together / DeepInfra ...), which the spine's
     provider.order steers. OpenRouter surfaces this as a top-level `provider`
     string on the completion response body; LiteLLM's StandardLoggingPayload
@@ -111,7 +111,7 @@ def _extract_provider(slo: dict) -> str | None:
 
 
 def _latency_ms(slo: dict) -> int | None:
-    """CHI-105: end-to-end request latency in ms, from the payload's epoch
+    """End-to-end request latency in ms, from the payload's epoch
     startTime/endTime floats. None when either bound is missing or the span is
     not positive (never emit a bogus 0 or negative latency)."""
     start, end = slo.get("startTime"), slo.get("endTime")
@@ -129,7 +129,7 @@ def build_row(slo: dict | None) -> dict | None:
 
     Row keys (the dashboard's LiteLlmSpendRow contract): startTime, model,
     prompt_tokens, completion_tokens, total_tokens, `spend` ONLY when a real
-    positive cost was captured, and (CHI-105) `provider` + `latency_ms` ONLY
+    positive cost was captured, and `provider` + `latency_ms` ONLY
     when the upstream host / a positive latency span were captured. No content
     field is ever read into a row.
     """
@@ -158,7 +158,7 @@ def build_row(slo: dict | None) -> dict | None:
     if cost > 0:
         row["spend"] = cost
 
-    # CHI-105: no-train host steering visibility. Emit the routed upstream host
+    # No-train host steering visibility. Emit the routed upstream host
     # and measured latency when the payload carries them; omit both otherwise
     # (the dashboard hides the host badge rather than inventing one).
     provider = _extract_provider(slo)
