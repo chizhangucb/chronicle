@@ -14,7 +14,7 @@ const DEST = path.resolve(__dirname, '..', 'docs'); // website/docs/ (generated,
 const GH = 'https://github.com/chizhangucb/chronicle';
 
 // Top-level entries under docs/ that must NOT ship on the public site.
-const EXCLUDE = new Set();
+const EXCLUDE = new Set(['agents', 'adr']); // agent-facing config + ADRs stay in-repo only
 
 // Link targets outside docs/ → absolute GitHub URLs.
 const REWRITES = [

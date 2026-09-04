@@ -94,3 +94,17 @@ Working plans and brainstorms also live under that hub folder (CHI-196).
 ## Visibility
 
 PUBLIC repo (`chizhangucb/chronicle`), published as the unscoped npm package `chronicle-cli`. Fail-closed: nothing confidential lands here (see pre-push scan).
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `chizhangucb/chronicle`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`. `docs/agents/` and `docs/adr/` are excluded from the public docs site by `website/scripts/build-content.mjs`.
