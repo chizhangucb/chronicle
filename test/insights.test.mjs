@@ -18,13 +18,19 @@
 //     messages spaced 2 minutes apart (mirrors sync-hygiene's `baseEvents`
 //     comment: "comfortably clears the default 5-min / 10-message minor
 //     thresholds") while keeping the SAME calendar dates the brief specified
-//     (s1 = 2026-08-01, recent; s2 = 2026-01-01, old) so the days-cutoff
-//     test still exercises real inclusion/exclusion.
+//     (s1 = 14 days ago, recent; s2 = 2026-01-01, old) so the days-cutoff
+//     test still exercises real inclusion/exclusion. s1 is computed from
+//     "now" so the test cannot rot as the calendar moves past a fixed date.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
 
 let dbModule, teardown, insightsModule;
+
+// s1 sits 14 days back: inside the 30d window, outside the 7d one.
+const S1_BASE = new Date(Date.now() - 14 * 86400000);
+S1_BASE.setUTCHours(10, 0, 0, 0);
+const s1At = (minutes) => new Date(S1_BASE.getTime() + minutes * 60000).toISOString();
 
 // 12 messages, 2 minutes apart, alternating user/assistant, starting at
 // `baseIso`. `extra` events (e.g. a tool_use/tool_result pair) are appended
@@ -57,12 +63,12 @@ before(async () => {
   replaceSession(
     {
       id: 's1', project_id: p1.id, source: 'claude-code', file_path: '/tmp/s1.jsonl',
-      started_at: '2026-08-01T10:00:00.000Z', ended_at: '2026-08-01T10:22:00.000Z',
+      started_at: s1At(0), ended_at: s1At(22),
       usage: JSON.stringify({ 'claude-sonnet-5': { input: 100, output: 200, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }),
     },
-    rhythmEvents('2026-08-01T10:00:00.000Z', [
-      { kind: 'tool_use', tool_name: 'Bash', ts: '2026-08-01T10:24:00.000Z' },
-      { kind: 'tool_result', text: 'Error: boom', ts: '2026-08-01T10:24:05.000Z' },
+    rhythmEvents(s1At(0), [
+      { kind: 'tool_use', tool_name: 'Bash', ts: s1At(24) },
+      { kind: 'tool_result', text: 'Error: boom', ts: new Date(S1_BASE.getTime() + 24 * 60000 + 5000).toISOString() },
     ]),
   );
   replaceSession(
@@ -88,7 +94,7 @@ test('computeInsights: aggregates across ALL projects, no project filter', async
 });
 
 test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/commits but NOT dailyActivity/hourlyActivity', async () => {
-  const r = await insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (Aug, recent) stays
+  const r = await insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (14d ago) stays
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
   // dailyActivity/hourlyActivity use their own fixed windows (182d/30d) — both
@@ -160,7 +166,7 @@ test('error counts are precomputed on sessions at import and drive computeInsigh
 test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
-  const r7 = await insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (~Aug 1, well over 7d old) from the days-scoped aggregates
+  const r7 = await insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (14d old) from the days-scoped aggregates
   const rAll = await insightsModule.computeInsights(null);
   assert.equal(r7.sessions.length, 0, 'sanity: days=7 excludes both fixture sessions from the days-scoped session list');
   // The fixed-window aggregate must be IDENTICAL regardless of days=, same
