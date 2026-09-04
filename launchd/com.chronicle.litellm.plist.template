@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LiteLLM spine (Lane C): the loopback metered routing proxy on 127.0.0.1:4000.
+  Chronicle reads the spend log it writes (server/laneC.ts), so the job lives here.
+  KeepAlive: launchd restarts it if it dies. Install with `node scripts/install-jobs.mjs`
+  (fills __REPO__ / __DATA__), --bootstrap to also load it.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.chronicle.litellm</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>__REPO__/litellm/run.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__DATA__/logs/litellm.log</string>
+  <key>StandardErrorPath</key>
+  <string>__DATA__/logs/litellm.err.log</string>
+</dict>
+</plist>
