@@ -1,14 +1,14 @@
 """Lane C spend logger: the LiteLLM spine's success_callback.
 
-Routing policy is decided outside this module. Architecture: the 2026-08-08
-monitoring-dashboard-direction brainstorm, Q4. This dir is the limb.
+Routing policy is decided outside this module; this file only records what was
+already routed. litellm/README.md has the whole picture.
 
-The spine is a gateway; it leaves NO session files. A completed request's
+The proxy is a gateway; it leaves NO session files. A completed request's
 cost (OpenRouter's real charge, routed provider) exists only in-flight and
 otherwise evaporates. This callback captures it
 to a local JSONL, one row per completed request. That file IS Lane C's raw
 capture, and Chronicle's Spend tab is its consumer (server/laneC.ts). No
-Postgres for the spine, ever.
+database for the proxy, ever.
 
 Path (issue #186): $LANE_C_SPEND_LOG if set, else
 <$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl -- the same root
@@ -65,7 +65,7 @@ def default_spend_path(env=None) -> str:
 
 def _iso(start_time) -> str | None:
     """Epoch-seconds float (StandardLoggingPayload.startTime) -> ISO8601 UTC
-    string the dashboard's `new Date(row.startTime)` can parse. Passes an
+    string a reader's `new Date(row.startTime)` can parse. Passes an
     existing string through; returns None if unusable."""
     if start_time is None:
         return None
@@ -82,13 +82,13 @@ def _iso(start_time) -> str | None:
 
 def _extract_provider(slo: dict) -> str | None:
     """The upstream no-train host OpenRouter actually routed to
-    (Fireworks / Baseten / Together / DeepInfra ...), which the spine's
+    (Fireworks / Baseten / Together / DeepInfra ...), which config.yaml's
     provider.order steers. OpenRouter surfaces this as a top-level `provider`
     string on the completion response body; LiteLLM's StandardLoggingPayload
     carries the response under a few version-dependent keys, so walk the known
     candidates and return the first non-empty string. Reads ONLY the provider
     label, never any message/content field. Returns None when absent (the row
-    stays host-less and the dashboard hides the badge, never guesses a host).
+    stays host-less and a reader hides the host, never guesses one).
     """
     # 1. A flattened top-level provider, if a future LiteLLM ever surfaces one.
     direct = slo.get("provider")
@@ -127,7 +127,7 @@ def _latency_ms(slo: dict) -> int | None:
 def build_row(slo: dict | None) -> dict | None:
     """Shape a StandardLoggingPayload dict into one Lane C JSONL row, or None.
 
-    Row keys (the dashboard's LiteLlmSpendRow contract): startTime, model,
+    Row keys (the shape server/laneC.ts reads back): startTime, model,
     prompt_tokens, completion_tokens, total_tokens, `spend` ONLY when a real
     positive cost was captured, and `provider` + `latency_ms` ONLY
     when the upstream host / a positive latency span were captured. No content
@@ -149,7 +149,7 @@ def build_row(slo: dict | None) -> dict | None:
     }
 
     # Authoritative dollars only. A None/0 cost is an honest token-only row,
-    # never a guessed $0 (the dashboard surfaces the gap; it never invents $).
+    # never a guessed $0 (a reader surfaces the gap; it never invents $).
     cost = slo.get("response_cost")
     try:
         cost = float(cost) if cost is not None else 0.0
@@ -160,7 +160,7 @@ def build_row(slo: dict | None) -> dict | None:
 
     # No-train host steering visibility. Emit the routed upstream host
     # and measured latency when the payload carries them; omit both otherwise
-    # (the dashboard hides the host badge rather than inventing one).
+    # (a reader hides the host rather than inventing one).
     provider = _extract_provider(slo)
     if provider:
         row["provider"] = provider

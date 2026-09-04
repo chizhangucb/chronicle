@@ -1,5 +1,5 @@
-# LiteLLM spine. Lane C metered routing.
-# This file is the limb: it enforces routing policy, it does not decide it.
+# The LiteLLM proxy: Lane C metered routing. See litellm/README.md.
+# This file enforces routing policy, it does not decide it.
 # Loopback only (bind via `--host 127.0.0.1`). store_model_in_db stays off so this file
 # is authoritative (no DB overlay). No Postgres/Redis for personal use.
 #
@@ -10,8 +10,7 @@
 #                                       allow_fallbacks.
 #   provider.allow_fallbacks: true   -> if the primary no-train host is unavailable, fall
 #                                       through to ANOTHER no-train host instead of erroring.
-#                                       (was false; deny already blocks training
-#                                       providers, so a fallback can only land on another
+#                                       (deny already blocks training providers, so a fallback can only land on another
 #                                       no-train host. true buys resilience with no loss of
 #                                       the no-train guarantee. Does NOT change which host is
 #                                       picked by default -- still cheapest no-train.)
@@ -19,8 +18,7 @@
 # tag. Caveat: OpenRouter's data tags are best-effort, not authoritative (their words), so
 # this is defense-in-depth, not a guarantee. Latency note: OpenRouter defaults to the
 # CHEAPEST no-train host (slow), so the alias deployments below steer to a FAST no-train
-# host via provider.order (SHIPPED: order: [Fireworks, Baseten, Together,
-# DeepInfra] on glm-5.2 and kimi-k3; order is a preference, deny stays the hard filter).
+# host via provider.order (order: [Fireworks, Baseten, Together, DeepInfra] on glm-5.2 and kimi-k3; order is a preference, deny stays the hard filter).
 # The openrouter/* passthrough carries no order and still takes the cheapest no-train
 # host. Stricter per-tier pinning (zdr:true, direct-only) is a future tightening,
 # backlog.
@@ -88,12 +86,12 @@ router_settings:
 
 litellm_settings:
   drop_params: true
-  # Lane C spend capture. success_callback appends one JSONL row per
-  # completed request (model + tokens + authoritative OpenRouter cost) to
+  # Lane C spend capture. success_callback appends one JSONL row per completed
+  # request (model + tokens + authoritative OpenRouter cost) to
   # $LANE_C_SPEND_LOG, defaulting to <$CHRONICLE_DATA_DIR or ~/.chronicle>/
   # litellm/spend.jsonl -- the same root server/db.ts uses, so a fresh clone
   # needs no configuration for Chronicle's Spend tab to read what this writes
-  # (issue #186). The spine leaves no session files, so this IS Lane C's raw
+  # (issue #186). The proxy leaves no session files, so this IS Lane C's raw
   # capture. Module resolved via PYTHONPATH (run.sh). Metrics only: no message
   # content ever lands in a row.
   callbacks: ["lane_c_spend_logger.instance"]

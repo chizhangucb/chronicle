@@ -11,7 +11,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION } from './helpers/hub-strings.mjs';
+import {
+  HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION, PRIVATE_TICKET, FOREIGN_CONSUMER,
+} from './helpers/hub-strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
@@ -424,14 +426,12 @@ const litellmFiles = () =>
     .filter(Boolean);
 
 test('nothing in litellm/ cites a ticket id a stranger cannot open', () => {
-  const offenders = litellmFiles().filter((rel) => /\bCHI-\d+/.test(read(rel)));
+  const offenders = litellmFiles().filter((rel) => PRIVATE_TICKET.test(read(rel)));
   assert.deepEqual(offenders, [], `private ticket ids are back in: ${offenders}`);
 });
 
 test('nothing in litellm/ names another repo as the reader of the spend log', () => {
-  const offenders = litellmFiles().filter((rel) =>
-    /\bvarde\b|aggregator\/sources/i.test(read(rel)),
-  );
+  const offenders = litellmFiles().filter((rel) => FOREIGN_CONSUMER.test(read(rel)));
   assert.deepEqual(offenders, [], `an out-of-repo consumer is back in: ${offenders}`);
 });
 
