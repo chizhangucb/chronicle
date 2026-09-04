@@ -30,12 +30,14 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-# Trim before testing, so a whitespace-only value counts as missing here just as
-# it does in scripts/install-jobs.mjs. Otherwise the launcher starts with an
-# unusable key and fails later, upstream, where the cause is not obvious.
+# A whitespace-only value is not a key. Strip every space before testing (not
+# just the ends: we only care whether anything is left), so this agrees with
+# scripts/install-jobs.mjs rather than starting with an unusable key and failing
+# later, upstream, where the cause is not obvious.
+# `${(P)key}` is zsh for "the value of the variable NAMED by $key".
 missing=()
 for key in OPENROUTER_API_KEY LITELLM_MASTER_KEY; do
-  [[ -n "${(P)key//[[:space:]]/}" ]] || missing+=($key)
+  [[ -n "${(P)key//[[:space:]]/}" ]] || missing+=("$key")
 done
 if (( ${#missing[@]} )); then
   print -u2 "litellm/run.sh: missing ${missing[*]}."

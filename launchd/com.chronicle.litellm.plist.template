@@ -11,7 +11,7 @@
   bootstrap this job until those keys carry values (KeepAlive would otherwise
   respawn it forever). ThrottleInterval keeps even a misconfigured restart cheap.
 
-  install-jobs: requires-env OPENROUTER_API_KEY LITELLM_MASTER_KEY; env-file litellm/.env
+  install-jobs: requires-env OPENROUTER_API_KEY LITELLM_MASTER_KEY; env-file litellm/.env; env-file-var LITELLM_ENV_FILE
 -->
 <plist version="1.0">
 <dict>
@@ -29,6 +29,7 @@
          path or a key in litellm/.env; run.sh sources it. -->
     <key>CHRONICLE_DATA_DIR</key>
     <string>__DATA__</string>
+__EXTRA_ENV__
   </dict>
   <key>RunAtLoad</key>
   <true/>

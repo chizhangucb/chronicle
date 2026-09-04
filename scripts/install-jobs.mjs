@@ -31,7 +31,14 @@ fs.mkdirSync(path.join(dataDir, 'logs'), { recursive: true });
 // A job that needs secrets before it can stay up declares them in its own
 // template (issue #186):
 //
-//   <!-- install-jobs: requires-env FOO BAR; env-file litellm/.env -->
+//   <!-- install-jobs: requires-env FOO BAR; env-file litellm/.env; env-file-var FOO_ENV -->
+//
+// `env-file` is the path the JOB reads by default. `env-file-var` names the
+// variable that overrides it, and is what lets an operator keep the file
+// outside the repo: when this installer resolves a different path, it writes
+// that variable into the plist so the job reads the same file the readiness
+// check just read. Without that the two disagree and we bootstrap a job that
+// cannot start.
 //
 // A KeepAlive job whose program exits for want of a key would otherwise respawn
 // forever, which is what a fresh clone hits by default. We install the plist
@@ -43,7 +50,12 @@ function parseRequirements(template) {
   const env = (m[1].match(/requires-env\s+([^;]+)/) || [])[1];
   if (!env) return null;
   const file = (m[1].match(/env-file\s+([^;\s]+)/) || [])[1];
-  return { keys: env.trim().split(/\s+/), envFile: file ? file.trim() : null };
+  const fileVar = (m[1].match(/env-file-var\s+([^;\s]+)/) || [])[1];
+  return {
+    keys: env.trim().split(/\s+/),
+    envFile: file ? file.trim() : null,
+    envFileVar: fileVar ? fileVar.trim() : null,
+  };
 }
 
 /** Read `KEY=value` pairs from a dotenv-ish file. Values are not unquoted or
@@ -74,22 +86,37 @@ function envFileKeys(file) {
  */
 function missingEnv(template) {
   const req = parseRequirements(template);
-  if (!req || !req.envFile) return { missing: [], shellOnly: [] };
-  const fromFile = envFileKeys(envFileFor(req));
+  if (!req) return { missing: [], shellOnly: [] };
+  // A template that names required keys but no file to read them from gives the
+  // job no way to receive them, so every key counts as missing. Reporting
+  // "nothing required" here would bootstrap it unchecked.
+  const fromFile = req.envFile ? envFileKeys(envFileFor(req)) : new Set();
   const missing = req.keys.filter((k) => !fromFile.has(k));
   // Named separately so the message can say why an exported key did not count.
   const shellOnly = missing.filter((k) => process.env[k]?.trim());
   return { missing, shellOnly };
 }
 
-/** Where to READ the declared env file. The job always reads the declared repo
- *  path (nothing sets LITELLM_ENV_FILE for it); the override exists so a test,
- *  or an operator who keeps the file elsewhere and symlinks it, can point the
- *  check at the real contents. */
+/** The env file BOTH sides use: this check, and the job once installed. The
+ *  override is honoured only when the template names the variable that carries
+ *  it, because that is what lets us write the path into the plist below. */
 function envFileFor(req) {
   const declared = path.resolve(repoRoot, req.envFile);
-  const override = process.env.LITELLM_ENV_FILE?.trim();
+  const override = req.envFileVar ? process.env[req.envFileVar]?.trim() : null;
   return override ? path.resolve(override) : declared;
+}
+
+const xmlEscape = (v) => v
+  .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+/** The plist lines that hand the job a non-default env-file path, so it reads
+ *  what this installer checked. Empty when the job uses the declared default. */
+function extraEnvFor(template) {
+  const req = parseRequirements(template);
+  if (!req?.envFile || !req.envFileVar) return '';
+  const resolved = envFileFor(req);
+  if (resolved === path.resolve(repoRoot, req.envFile)) return '';
+  return `    <key>${xmlEscape(req.envFileVar)}</key>\n    <string>${xmlEscape(resolved)}</string>`;
 }
 
 const templates = fs.existsSync(templatesDir)
@@ -100,10 +127,15 @@ if (!templates.length) { console.log('No job templates found in launchd/.'); pro
 for (const file of templates) {
   const label = file.replace(/\.plist\.template$/, '');
   const raw = fs.readFileSync(path.join(templatesDir, file), 'utf8');
+  const extraEnv = extraEnvFor(raw);
   const filled = raw
     .replaceAll('__NODE__', process.execPath)
     .replaceAll('__REPO__', repoRoot)
-    .replaceAll('__DATA__', dataDir);
+    .replaceAll('__DATA__', dataDir)
+    // Drop the whole line when there is nothing to add, so the plist keeps its
+    // shape rather than growing a blank.
+    .replace(/^\s*__EXTRA_ENV__\n/m, extraEnv ? `${extraEnv}\n` : '')
+    .replaceAll('__EXTRA_ENV__', extraEnv);
   const dest = path.join(agentsDir, `${label}.plist`);
   fs.writeFileSync(dest, filled);
   console.log(`installed ${dest}`);

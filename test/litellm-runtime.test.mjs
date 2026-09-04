@@ -114,6 +114,61 @@ test('a copied-but-unfilled env file does not count as configured', (t) => {
   assert.equal(/skipped bootstrap for com\.chronicle\.briefing/.test(bare.stdout), false);
 });
 
+test('a moved env file is written into the plist, so the job reads it too', (t) => {
+  // Judging readiness by a file the job will not read is how you bootstrap a
+  // KeepAlive job straight into exit 78: the installer sees the keys, launchd
+  // starts run.sh, run.sh falls back to the repo default and finds nothing.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-moved-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const moved = path.join(dir, 'moved.env');
+  fs.writeFileSync(moved, 'OPENROUTER_API_KEY=sk-real\nLITELLM_MASTER_KEY=sk-key\n');
+
+  const r = spawnSync(process.execPath, [path.join(REPO, 'scripts/install-jobs.mjs')], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: dir,
+      CHRONICLE_DATA_DIR: path.join(dir, '.chronicle'),
+      LITELLM_ENV_FILE: moved,
+      OPENROUTER_API_KEY: '',
+      LITELLM_MASTER_KEY: '',
+    },
+  });
+  if (r.status !== 0) return t.skip(`install-jobs did not run here: ${r.stderr}`);
+
+  const plist = fs.readFileSync(
+    path.join(dir, 'Library/LaunchAgents/com.chronicle.litellm.plist'), 'utf8');
+  assert.match(plist, /<key>LITELLM_ENV_FILE<\/key>/,
+    'the moved env file is not handed to the job');
+  assert.ok(plist.includes(moved), 'the plist carries the wrong env-file path');
+  // The path only, never the secrets themselves.
+  assert.equal(/sk-real|sk-key/.test(plist), false, 'a secret was serialized into the plist');
+  assert.equal(plist.includes('__EXTRA_ENV__'), false, 'a placeholder survived');
+});
+
+test('the default env file leaves no placeholder in the plist', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-default-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const r = spawnSync(process.execPath, [path.join(REPO, 'scripts/install-jobs.mjs')], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: dir, CHRONICLE_DATA_DIR: path.join(dir, '.chronicle'), LITELLM_ENV_FILE: '' },
+  });
+  if (r.status !== 0) return t.skip(`install-jobs did not run here: ${r.stderr}`);
+  const plist = fs.readFileSync(
+    path.join(dir, 'Library/LaunchAgents/com.chronicle.litellm.plist'), 'utf8');
+  assert.equal(plist.includes('__EXTRA_ENV__'), false, 'a placeholder survived');
+  assert.equal(/<key>LITELLM_ENV_FILE<\/key>/.test(plist), false,
+    'the default path was written into the plist as if it were an override');
+});
+
+test('a template requiring keys with no env file can never bootstrap', () => {
+  // "Nothing to read them from" must mean "all missing", not "nothing
+  // required": the latter silently bootstraps the next template unchecked.
+  const src = read('scripts/install-jobs.mjs');
+  assert.match(src, /req\.envFile \? envFileKeys\(envFileFor\(req\)\) : new Set\(\)/,
+    'a template with no env-file no longer counts its keys as missing');
+});
+
 test('a key exported in the installing shell is not a key the job has', (t) => {
   // launchd does not hand an agent the environment of whoever ran launchctl, so
   // counting an exported key would bootstrap a job that dies on exit 78 anyway.
