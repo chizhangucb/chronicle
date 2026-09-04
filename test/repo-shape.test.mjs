@@ -80,3 +80,40 @@ test('the website build excludes docs/agents and docs/adr from the public site',
     assert.ok(excluded.includes(name), `docs/${name} is no longer excluded from the site`);
   }
 });
+
+// --- Guard replacement (issue #175, part of #173) -------------------------
+//
+// The custom confidentiality and staleness guards are gone, replaced by
+// gitleaks in CI plus GitHub's own settings (secret scanning push protection,
+// require-branches-up-to-date on main). These pins stop a hand-rolled guard
+// growing back and stop the gitleaks job losing its version pin.
+
+// Scripts #175 retired. Their CI jobs went with them; the scan they stood in
+// for is gitleaks', and the staleness check is branch protection's `strict`.
+const RETIRED_GUARDS = [
+  'scripts/confidentiality_guard.py',
+  'scripts/tests/test_confidentiality_guard.py',
+  'scripts/landing_preflight.mjs',
+  'test/landing-preflight.test.mjs',
+];
+
+const ci = () => fs.readFileSync(path.join(REPO, '.github/workflows/ci.yml'), 'utf8');
+const ciJobIds = () => [...ci().matchAll(/^ {2}([a-z][\w-]*):$/gm)].map((m) => m[1]);
+
+test('no retired guard script is tracked', () => {
+  const back = RETIRED_GUARDS.filter((rel) => tracked.includes(rel));
+  assert.deepEqual(back, [], `a retired guard script is tracked again: ${back}`);
+});
+
+test('CI declares no hand-rolled confidentiality or staleness job', () => {
+  const back = ciJobIds().filter((id) => id === 'confidentiality' || id === 'staleness');
+  assert.deepEqual(back, [], `a retired CI job is declared again: ${back}`);
+});
+
+test('CI declares a gitleaks job, pinned by version and checksum', () => {
+  assert.ok(ciJobIds().includes('gitleaks'), 'ci.yml declares no `gitleaks` job');
+  const src = ci();
+  assert.match(src, /GITLEAKS_VERSION: '\d+\.\d+\.\d+'/, 'the gitleaks version is not pinned');
+  assert.match(src, /GITLEAKS_SHA256: '[0-9a-f]{64}'/, 'the gitleaks download is not checksum-pinned');
+  assert.match(src, /sha256sum -c/, 'the gitleaks download is never checksum-verified');
+});
