@@ -114,6 +114,31 @@ test('a copied-but-unfilled env file does not count as configured', (t) => {
   assert.equal(/skipped bootstrap for com\.chronicle\.briefing/.test(bare.stdout), false);
 });
 
+test('a key exported in the installing shell is not a key the job has', (t) => {
+  // launchd does not hand an agent the environment of whoever ran launchctl, so
+  // counting an exported key would bootstrap a job that dies on exit 78 anyway.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-shell-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const envFile = path.join(dir, 'litellm.env');
+  fs.writeFileSync(envFile, 'OPENROUTER_API_KEY=\nLITELLM_MASTER_KEY=\n');
+
+  const r = spawnSync(process.execPath, [path.join(REPO, 'scripts/install-jobs.mjs'), '--bootstrap'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: dir,
+      CHRONICLE_DATA_DIR: path.join(dir, '.chronicle'),
+      LITELLM_ENV_FILE: envFile,
+      OPENROUTER_API_KEY: 'sk-exported-in-this-shell',
+      LITELLM_MASTER_KEY: 'sk-exported-in-this-shell',
+    },
+  });
+  if (r.status !== 0) return t.skip(`install-jobs did not run here: ${r.stderr}`);
+  assert.match(r.stdout, /skipped bootstrap for com\.chronicle\.litellm/);
+  // And it says WHY the exported keys did not count.
+  assert.match(r.stdout, /does not inherit it/);
+});
+
 test('run.sh resolves its dir from the script, sources a repo-relative env file', () => {
   const sh = read('litellm/run.sh');
   assert.match(sh, /LITELLM_DIR="\$\{0:A:h\}"/, 'run.sh no longer self-resolves its dir');
@@ -121,6 +146,8 @@ test('run.sh resolves its dir from the script, sources a repo-relative env file'
   assert.match(sh, /OPENROUTER_API_KEY/);
   assert.match(sh, /LITELLM_MASTER_KEY/);
   assert.match(sh, /exit 78/, 'run.sh no longer fails loudly on a missing key');
+  // A whitespace-only value is missing, matching what install-jobs decides.
+  assert.match(sh, /\[\[:space:\]\]/, 'run.sh no longer trims before testing a key');
 });
 
 test('.env.example ships every key run.sh needs, with no values', () => {
@@ -231,6 +258,12 @@ test('laneCSpendPath: a relocated data dir still keeps the legacy history', asyn
   const legacy = path.join(os.homedir(), '.aios', 'litellm', 'spend.jsonl');
   const expected = fs.existsSync(legacy) ? [current, legacy] : [current];
   assert.deepEqual(laneCSpendPaths(env), expected);
+
+  // A data dir that IS the legacy root must not yield the same file twice:
+  // both readers would count every row's dollars twice.
+  const aios = path.join(os.homedir(), '.aios');
+  assert.deepEqual(laneCSpendPaths({ CHRONICLE_DATA_DIR: aios }),
+    [path.join(aios, 'litellm', 'spend.jsonl')]);
 
   // LANE_C_SPEND_LOG beats the data dir, and pins to exactly one log.
   assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '/tmp/x.jsonl', CHRONICLE_DATA_DIR: '/tmp/d' }), '/tmp/x.jsonl');

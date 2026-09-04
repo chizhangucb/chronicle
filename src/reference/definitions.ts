@@ -201,7 +201,7 @@ export const DEFINITIONS: Definition[] = [
     page: 'spend',
     title: 'Proxy lane (billed)',
     plain: () => 'The LiteLLM proxy spend log is the authoritative billed record for proxy-routed models, but it carries only model and time, no session or project. It is shown as its own labeled row and never smeared across sessions.',
-    tech: () => '$LANE_C_SPEND_LOG, else ~/.chronicle/litellm/spend.jsonl (plus the pre-move ~/.aios log while it is still there), via server/laneC.ts',
+    tech: () => '$LANE_C_SPEND_LOG, else <$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl (plus the pre-move ~/.aios log while it is still there), via server/laneC.ts',
   },
   {
     id: 'spend.plan-windows',

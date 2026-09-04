@@ -53,7 +53,10 @@ export function laneCSpendPaths(env: NodeJS.ProcessEnv = process.env): string[] 
   const pinned = env.CHRONICLE_DEMO === '1' || !!env.LANE_C_SPEND_LOG?.trim();
   if (pinned) return [current];
   const legacy = legacyPath();
-  return existsSync(legacy) ? [current, legacy] : [current];
+  // `current === legacy` when the data dir IS ~/.aios. Reading the same file
+  // twice would double every row's billed dollars, so dedupe.
+  if (legacy === current || !existsSync(legacy)) return [current];
+  return [current, legacy];
 }
 
 /** Every readable log's text, in resolution order. A missing file contributes

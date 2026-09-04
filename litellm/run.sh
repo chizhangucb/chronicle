@@ -30,9 +30,13 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+# Trim before testing, so a whitespace-only value counts as missing here just as
+# it does in scripts/install-jobs.mjs. Otherwise the launcher starts with an
+# unusable key and fails later, upstream, where the cause is not obvious.
 missing=()
-[[ -n "$OPENROUTER_API_KEY" ]] || missing+=(OPENROUTER_API_KEY)
-[[ -n "$LITELLM_MASTER_KEY" ]] || missing+=(LITELLM_MASTER_KEY)
+for key in OPENROUTER_API_KEY LITELLM_MASTER_KEY; do
+  [[ -n "${(P)key//[[:space:]]/}" ]] || missing+=($key)
+done
 if (( ${#missing[@]} )); then
   print -u2 "litellm/run.sh: missing ${missing[*]}."
   print -u2 "Set them in the environment, or copy litellm/.env.example to $ENV_FILE and fill it in."

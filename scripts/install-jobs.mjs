@@ -64,14 +64,32 @@ function envFileKeys(file) {
   return set;
 }
 
-/** The declared keys that are still missing, or [] when the job declares none. */
+/**
+ * What the JOB will be missing, judged from what the JOB can see.
+ *
+ * A launchd agent does not inherit the installing shell's environment, so a key
+ * exported in this terminal is NOT a key the job has: counting it would bootstrap
+ * a job that then dies on exit 78 anyway. Only the declared env file counts.
+ * Returns { missing, shellOnly }; both empty when the job declares no needs.
+ */
 function missingEnv(template) {
   const req = parseRequirements(template);
-  if (!req) return [];
-  const fromFile = req.envFile
-    ? envFileKeys(process.env.LITELLM_ENV_FILE || path.resolve(repoRoot, req.envFile))
-    : new Set();
-  return req.keys.filter((k) => !process.env[k]?.trim() && !fromFile.has(k));
+  if (!req || !req.envFile) return { missing: [], shellOnly: [] };
+  const fromFile = envFileKeys(envFileFor(req));
+  const missing = req.keys.filter((k) => !fromFile.has(k));
+  // Named separately so the message can say why an exported key did not count.
+  const shellOnly = missing.filter((k) => process.env[k]?.trim());
+  return { missing, shellOnly };
+}
+
+/** Where to READ the declared env file. The job always reads the declared repo
+ *  path (nothing sets LITELLM_ENV_FILE for it); the override exists so a test,
+ *  or an operator who keeps the file elsewhere and symlinks it, can point the
+ *  check at the real contents. */
+function envFileFor(req) {
+  const declared = path.resolve(repoRoot, req.envFile);
+  const override = process.env.LITELLM_ENV_FILE?.trim();
+  return override ? path.resolve(override) : declared;
 }
 
 const templates = fs.existsSync(templatesDir)
@@ -89,13 +107,19 @@ for (const file of templates) {
   const dest = path.join(agentsDir, `${label}.plist`);
   fs.writeFileSync(dest, filled);
   console.log(`installed ${dest}`);
-  const missing = bootstrap ? missingEnv(raw) : [];
+  const { missing, shellOnly } = bootstrap ? missingEnv(raw) : { missing: [], shellOnly: [] };
   if (missing.length) {
     console.log(
       `skipped bootstrap for ${label}: ${missing.join(', ')} not set yet. Fill them in ` +
       `(see the template's own note), then re-run with --bootstrap. Bootstrapping now ` +
       `would leave a KeepAlive job restart-looping.`,
     );
+    if (shellOnly.length) {
+      console.log(
+        `  note: ${shellOnly.join(', ')} is exported in this shell, but a launchd job ` +
+        `does not inherit it. It has to be in the env file to reach the job.`,
+      );
+    }
   } else if (bootstrap) {
     const r = spawnSync('launchctl', ['bootstrap', `gui/${os.userInfo().uid}`, dest], { encoding: 'utf-8' });
     console.log(r.status === 0 ? `bootstrapped ${label}` : `bootstrap failed for ${label}: ${(r.stderr || '').trim()}`);

@@ -37,9 +37,10 @@ client's endpoint-probe requests.
 
 ```
 litellm/run.sh
-# or by hand (absolute paths, works from any cwd; relative ones break the spend-logger callback):
-set -a; source litellm/.env; set +a   # OPENROUTER_API_KEY + LITELLM_MASTER_KEY
-LITELLM_DIR="$PWD/litellm"
+# or by hand. LITELLM_DIR must be ABSOLUTE: a relative one breaks the
+# spend-logger callback, which resolves through PYTHONPATH.
+LITELLM_DIR=/absolute/path/to/chronicle/litellm
+set -a; source "${LITELLM_ENV_FILE:-$LITELLM_DIR/.env}"; set +a   # OPENROUTER_API_KEY + LITELLM_MASTER_KEY
 export PYTHONPATH="$LITELLM_DIR:$PYTHONPATH"
 litellm --config "$LITELLM_DIR/config.yaml" --host 127.0.0.1 --port 4000
 ```
@@ -57,9 +58,10 @@ candidate config, point a temp spend log at `/tmp` so Lane C's real capture stay
 ```
 LANE_C_SPEND_LOG=/tmp/litellm_scratch_spend.jsonl LITELLM_PORT=4111 litellm/run.sh
 # or against a candidate config file:
-set -a; source litellm/.env; set +a
+LITELLM_DIR=/absolute/path/to/chronicle/litellm
+set -a; source "${LITELLM_ENV_FILE:-$LITELLM_DIR/.env}"; set +a
 export LANE_C_SPEND_LOG=/tmp/litellm_scratch_spend.jsonl
-export PYTHONPATH="$PWD/litellm:$PYTHONPATH"
+export PYTHONPATH="$LITELLM_DIR:$PYTHONPATH"
 litellm --config <candidate>.yaml --host 127.0.0.1 --port 4111
 ```
 
