@@ -75,7 +75,7 @@ npm run build      # vite build → dist/
 ```
 
 The server executes TypeScript directly (Node 24 strips types at load); there is no
-build step for dev. See [CLAUDE.md](CLAUDE.md) and
+build step for dev. See [AGENTS.md](AGENTS.md) and
 [getchronicle.dev/docs](https://getchronicle.dev/docs) for architecture.
 
 ## Family

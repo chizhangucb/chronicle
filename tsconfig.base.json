@@ -7,7 +7,7 @@
     "composite": true,
     "noEmit": true,
 
-    // Full strictness — do not weaken per-file (see CLAUDE.md § TypeScript).
+    // Full strictness: do not weaken per-file.
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,

@@ -8,7 +8,7 @@ Checked-in judge input for the release product walk. The three design skills GEN
 JUDGES: `frontend-design` (aesthetic direction/typography), `dataviz` (charts/heatmaps/stat tiles),
 `ui-ux-pro-max` (UX guidelines/interaction states). Every rule below is phrased so a screenshot or a
 DOM/CSSOM probe can return a verdict, not aspirational prose. Update this file, not ad-hoc call-site
-judgment, when a new rule is needed; CLAUDE.md's UI/UX design-QA section points here.
+judgment, when a new rule is needed.
 
 ## The 4 lenses
 
