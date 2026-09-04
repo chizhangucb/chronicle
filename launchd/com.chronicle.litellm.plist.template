@@ -5,6 +5,8 @@
   Chronicle reads the spend log it writes (server/laneC.ts), so the job lives here.
   KeepAlive: launchd restarts it if it dies. Install with `node scripts/install-jobs.mjs`
   (fills __REPO__ / __DATA__), --bootstrap to also load it.
+  Keys: run.sh sources $LITELLM_ENV_FILE, default litellm/.env in the repo. Copy
+  litellm/.env.example there first, or the job exits 78 with what is missing.
 -->
 <plist version="1.0">
 <dict>
@@ -15,6 +17,14 @@
     <string>/bin/zsh</string>
     <string>__REPO__/litellm/run.sh</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Pin the data dir the installer resolved, so the spend log the proxy
+         writes is the one Chronicle's Spend tab reads (issue #186). Override a
+         path or a key in litellm/.env; run.sh sources it. -->
+    <key>CHRONICLE_DATA_DIR</key>
+    <string>__DATA__</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>

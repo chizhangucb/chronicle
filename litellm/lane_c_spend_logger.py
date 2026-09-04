@@ -7,9 +7,13 @@ The spine is a gateway; it leaves NO session files. A completed request's
 cost (OpenRouter's real charge, routed provider) exists only in-flight and
 otherwise evaporates -- that was the CHI-111 hole. This callback captures it
 to a local JSONL, one row per completed request. That file IS Lane C's raw
-capture: the dashboard aggregator reads it now (aggregator/sources/usage.ts),
-Chronicle grows a parser for the same file later (CHI-129). No Postgres for
-the spine, ever.
+capture, and Chronicle's Spend tab is its consumer (server/laneC.ts). No
+Postgres for the spine, ever.
+
+Path (issue #186): $LANE_C_SPEND_LOG if set, else
+<$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl -- the same root
+server/db.ts uses, so a fresh clone needs no configuration to line the
+producer up with the consumer.
 
 Wired in config.yaml as `litellm_settings.callbacks: [lane_c_spend_logger.instance]`
 (run.sh puts this dir on PYTHONPATH).
@@ -33,13 +37,30 @@ import sys
 
 # The CustomLogger base only exists inside the litellm runtime (the uv tool
 # venv). Import-guard it so the pure shapers (build_row / write_row) stay
-# testable under the hub's plain-python3 pytest.
+# testable under a plain python3.
 try:  # pragma: no cover - trivial import shim
     from litellm.integrations.custom_logger import CustomLogger
 except Exception:  # noqa: BLE001
     CustomLogger = object  # type: ignore[assignment,misc]
 
-DEFAULT_PATH = os.path.expanduser("~/.aios/litellm/spend.jsonl")
+
+def chronicle_data_dir(env=None) -> str:
+    """Chronicle's data dir: $CHRONICLE_DATA_DIR, else ~/.chronicle. Mirrors
+    server/db.ts so the producer and the Spend tab agree on one root."""
+    env = os.environ if env is None else env
+    return env.get("CHRONICLE_DATA_DIR") or os.path.join(
+        os.path.expanduser("~"), ".chronicle")
+
+
+def default_spend_path(env=None) -> str:
+    """Where a spend row lands: $LANE_C_SPEND_LOG, else
+    <data dir>/litellm/spend.jsonl. Both knobs are documented; no machine-
+    specific path is ever baked in (issue #186)."""
+    env = os.environ if env is None else env
+    override = env.get("LANE_C_SPEND_LOG")
+    if override and override.strip():
+        return os.path.expanduser(override.strip())
+    return os.path.join(chronicle_data_dir(env), "litellm", "spend.jsonl")
 
 
 def _iso(start_time) -> str | None:
@@ -168,8 +189,8 @@ def write_row(row: dict, path: str) -> bool:
 class LaneCSpendLogger(CustomLogger):  # type: ignore[misc,valid-type]
     """LiteLLM success_callback. Appends one Lane C row per completed request.
 
-    Path resolves from the constructor arg, else $LANE_C_SPEND_LOG, else
-    ~/.aios/litellm/spend.jsonl.
+    Path resolves from the constructor arg, else default_spend_path()
+    ($LANE_C_SPEND_LOG, else <Chronicle data dir>/litellm/spend.jsonl).
     """
 
     def __init__(self, path: str | None = None):
@@ -178,7 +199,7 @@ class LaneCSpendLogger(CustomLogger):  # type: ignore[misc,valid-type]
             super().__init__()  # type: ignore[misc]
         except Exception:  # noqa: BLE001
             pass
-        self.path = path or os.environ.get("LANE_C_SPEND_LOG") or DEFAULT_PATH
+        self.path = path or default_spend_path()
 
     def _capture(self, kwargs) -> None:
         slo = (kwargs or {}).get("standard_logging_object")

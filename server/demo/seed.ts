@@ -79,8 +79,8 @@ export async function seedDemo(dir = demoDataDir(), log: (msg: string) => void =
   }
   log(`imported ${imported} demo sessions`);
 
-  // Synthetic .aios inputs, so the automation table and the proxy lane are not
-  // empty in demo. Both readers resolve their root through aiosRoot(), which
+  // Synthetic non-DB inputs, so the automation table and the proxy lane are not
+  // empty in demo. Both readers resolve their root from the demo dir, which
   // points here in demo mode.
   writeSyntheticAios(dir, now);
 
@@ -88,12 +88,15 @@ export async function seedDemo(dir = demoDataDir(), log: (msg: string) => void =
   return { seeded: imported, cached: false };
 }
 
-/** The `~/.aios` inputs, redirected under the demo dir. server/laneC.ts and
- *  server/machineSessions.ts read their root through aiosRoot() so that in demo
- *  they see these instead of the operator's real files. */
+/** The non-DB inputs, redirected under the demo dir, so the proxy lane and the
+ *  automation-by-job table are not empty in demo and never read the operator's
+ *  real files. server/machineSessions.ts resolves its root through aiosRoot();
+ *  server/laneC.ts resolves the spend log under CHRONICLE_DATA_DIR directly
+ *  (issue #186), which in demo IS the demo dir. */
 function writeSyntheticAios(dir: string, nowMs: number): void {
   const aios = path.join(dir, 'aios');
-  fs.mkdirSync(path.join(aios, 'litellm'), { recursive: true });
+  fs.mkdirSync(aios, { recursive: true });
+  fs.mkdirSync(path.join(dir, 'litellm'), { recursive: true });
 
   const proxy: string[] = [];
   for (let d = 0; d < 30; d++) {
@@ -103,7 +106,7 @@ function writeSyntheticAios(dir: string, nowMs: number): void {
       proxy.push(JSON.stringify({ startTime: ts, model: 'qwen-2.5-coder', spend: 0.02, total_tokens: 9_000 }));
     }
   }
-  fs.writeFileSync(path.join(aios, 'litellm', 'spend.jsonl'), proxy.join('\n') + '\n');
+  fs.writeFileSync(path.join(dir, 'litellm', 'spend.jsonl'), proxy.join('\n') + '\n');
 
   const jobs = ['weekly-report', 'nightly-sync', 'session-close', 'spend-advice'];
   const machine: string[] = [];

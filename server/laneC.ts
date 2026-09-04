@@ -1,19 +1,43 @@
 // server/laneC.ts
-// Lane C = the LiteLLM proxy spend log (~/.aios/litellm/spend.jsonl). It is the
-// AUTHORITATIVE billed-dollar record for proxy-routed models, but it carries
+// Lane C = the LiteLLM proxy spend log this repo's own proxy writes
+// (litellm/lane_c_spend_logger.py). It is the AUTHORITATIVE billed-dollar
+// record for proxy-routed models, but it carries
 // only model + time dims (no session/project/cwd), so it can never be a session
 // "source" the way claude-code/codex are. We surface it as a standalone "Proxy
 // lane (billed)" KPI tile, NEVER merged into the session-derived spend/tokens
 // (those are Chronicle's own client-side estimates; mixing the two would double
 // the authority story). Live-read on each request — the log is tiny.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { aiosRoot } from './demo/paths.ts';
 
-// Resolved per call rather than at module load: in demo mode the root points
-// into the seeded demo directory (server/demo/paths.ts), and that is only known
-// once CHRONICLE_DATA_DIR is set.
-const spendPath = (): string => join(aiosRoot(), 'litellm', 'spend.jsonl');
+// Legacy location: the log lived under ~/.aios before the proxy runtime was
+// de-hubbed (issue #186). Still read when it is the only one present, so an
+// operator with history does not lose it on upgrade.
+const legacyPath = (): string => join(homedir(), '.aios', 'litellm', 'spend.jsonl');
+
+/**
+ * Where the spend log lives. The SAME resolution the producer uses
+ * (litellm/lane_c_spend_logger.py `default_spend_path`), so a fresh clone lines
+ * the two up with no configuration:
+ *   1. $LANE_C_SPEND_LOG
+ *   2. <$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl
+ *   3. the legacy ~/.aios copy, but only when no data dir is pinned (demo mode
+ *      pins one, so demo can never read the operator's real files) and the
+ *      current location does not exist yet.
+ * Resolved per call rather than at module load: in demo mode CHRONICLE_DATA_DIR
+ * is only known once the demo dir is seeded.
+ */
+export function laneCSpendPath(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env.LANE_C_SPEND_LOG?.trim();
+  if (override) return override;
+  if (env.CHRONICLE_DATA_DIR) return join(env.CHRONICLE_DATA_DIR, 'litellm', 'spend.jsonl');
+  const current = join(homedir(), '.chronicle', 'litellm', 'spend.jsonl');
+  if (existsSync(current)) return current;
+  return existsSync(legacyPath()) ? legacyPath() : current;
+}
+
+const spendPath = (): string => laneCSpendPath();
 
 export interface LaneCModel { model: string; spend: number; requests: number; tokens: number; }
 export interface LaneCSpend { totalSpend: number; requests: number; byModel: LaneCModel[]; }

@@ -11,9 +11,20 @@ Match key = the roster's Route column with the `openrouter/` prefix stripped, lo
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
 future direct-Anthropic route) are left untouched.
 
+The roster file itself is a hub document, not a repo one, so its location is
+resolved rather than baked in (issue #186), in this order:
+
+    --roster PATH
+    $CHRONICLE_ROSTER_MD
+    $CHRONICLE_HUB/governance/model-routing.md   (the knob server/hub/resolve.ts uses)
+
+With none of those set the script runs and explains what to point it at; it
+never guesses a machine-specific path.
+
 Usage:
-    python scripts/litellm/refresh_roster.py           # fetch live, update the file
-    python scripts/litellm/refresh_roster.py --dry-run # print the diff, write nothing
+    python litellm/refresh_roster.py           # fetch live, update the file
+    python litellm/refresh_roster.py --dry-run # print the diff, write nothing
+    python litellm/refresh_roster.py --roster path/to/model-routing.md
 
 Pure stdlib. Network only in main(); the parsing/rewriting functions are offline and
 tested.
@@ -21,13 +32,44 @@ tested.
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import sys
 import urllib.request
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
-ROUTING_MD = pathlib.Path(__file__).resolve().parents[2] / "governance" / "model-routing.md"
+
+_ROSTER_ENV = "CHRONICLE_ROSTER_MD"
+_HUB_ENV = "CHRONICLE_HUB"
+_ROSTER_REL = pathlib.PurePath("governance") / "model-routing.md"
+
+
+def resolve_roster(cli_path=None, env=None):
+    """Locate the roster markdown, or return None when nothing is configured.
+
+    Order: --roster, $CHRONICLE_ROSTER_MD, then
+    $CHRONICLE_HUB/governance/model-routing.md -- the hub knob Chronicle already
+    documents. Nothing here is machine-specific; an unconfigured machine gets
+    None, not a bad guess.
+    """
+    env = os.environ if env is None else env
+    if cli_path:
+        return pathlib.Path(cli_path).expanduser().resolve()
+    direct = (env.get(_ROSTER_ENV) or "").strip()
+    if direct:
+        return pathlib.Path(direct).expanduser().resolve()
+    hub = (env.get(_HUB_ENV) or "").strip()
+    if hub:
+        return (pathlib.Path(hub).expanduser() / _ROSTER_REL).resolve()
+    return None
+
+
+_NO_ROSTER = (
+    "roster: no roster file configured. Pass --roster PATH, or set "
+    f"{_ROSTER_ENV} to a model-routing.md, or set CHRONICLE_HUB to a hub "
+    "that has governance/model-routing.md."
+)
 
 # The roster header row, used to locate the table and the volatile columns.
 _ROUTE_COL = "Route"
@@ -117,12 +159,21 @@ def update_roster_table(md_text, catalog):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--roster", help="path to the roster markdown (overrides the env vars)")
     args = ap.parse_args(argv)
+
+    roster = resolve_roster(args.roster)
+    if roster is None:
+        print(_NO_ROSTER, file=sys.stderr)
+        return 2
+    if not roster.is_file():
+        print(f"roster: {roster} does not exist", file=sys.stderr)
+        return 2
 
     with urllib.request.urlopen(CATALOG_URL, timeout=20) as r:
         catalog = parse_catalog(json.load(r))
 
-    md = ROUTING_MD.read_text()
+    md = roster.read_text()
     new_md, changes = update_roster_table(md, catalog)
     if not changes:
         print("roster: no changes")
@@ -132,7 +183,7 @@ def main(argv=None):
     if args.dry_run:
         print("(dry-run, not written)")
         return 0
-    ROUTING_MD.write_text(new_md)
+    roster.write_text(new_md)
     print(f"roster: updated {len(changes)} row(s)")
     return 0
 
