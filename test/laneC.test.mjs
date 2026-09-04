@@ -22,7 +22,7 @@ test('readLaneCSpend: aggregates by model, tolerant of drift + blank lines', () 
     '{"startTime":"2026-08-12T01:29:51Z","model":"gpt-5.1","total_tokens":29,"spend":0.05,"provider":"Fireworks","latency_ms":1804}',
     'not json at all',
   ].join('\n'));
-  const r = laneC.readLaneCSpend(null, file);
+  const r = laneC.readLaneCSpend(null, [file]);
   assert.equal(r.requests, 3); // the 3 valid rows; blank + bad line skipped
   assert.ok(Math.abs(r.totalSpend - 0.08) < 1e-9);
   assert.equal(r.byModel.length, 2);
@@ -36,20 +36,20 @@ test('readLaneCSpend: aggregates by model, tolerant of drift + blank lines', () 
 });
 
 test('readLaneCSpend: cutoff filters by startTime', () => {
-  const r = laneC.readLaneCSpend('2026-08-10T00:00:00.000Z', file);
+  const r = laneC.readLaneCSpend('2026-08-10T00:00:00.000Z', [file]);
   assert.equal(r.requests, 1); // only the Aug 12 gpt-5.1 row
   assert.equal(r.byModel.length, 1);
   assert.equal(r.byModel[0].model, 'gpt-5.1');
 });
 
 test('readLaneCSpend: missing file returns empty, no throw', () => {
-  const r = laneC.readLaneCSpend(null, join(dir, 'does-not-exist.jsonl'));
+  const r = laneC.readLaneCSpend(null, [join(dir, 'does-not-exist.jsonl')]);
   assert.deepEqual(r, { totalSpend: 0, requests: 0, byModel: [] });
 });
 
 test('readLaneCSpend: missing spend/model fields degrade gracefully', () => {
   writeFileSync(file, '{"startTime":"2026-08-09T06:36:41Z","total_tokens":10}\n');
-  const r = laneC.readLaneCSpend(null, file);
+  const r = laneC.readLaneCSpend(null, [file]);
   assert.equal(r.requests, 1);
   assert.equal(r.totalSpend, 0);
   assert.equal(r.byModel[0].model, 'unknown'); // model missing → 'unknown'
@@ -65,14 +65,14 @@ test('readLaneCDailyCost: sums spend per LOCAL day, drops rows without a usable 
     '{"model":"m","spend":9.99}',            // no startTime → dropped
     '{"startTime":"2026-08-12T12:30:00Z","model":"m","total_tokens":10}', // token-only → adds 0
   ].join('\n'));
-  const m = laneC.readLaneCDailyCost(null, file);
+  const m = laneC.readLaneCDailyCost(null, [file]);
   assert.ok(Math.abs(m.get('2026-08-09') - 0.03) < 1e-9);
   assert.ok(Math.abs(m.get('2026-08-12') - 0.05) < 1e-9); // token-only row added 0
   assert.equal([...m.values()].reduce((a, b) => a + b, 0).toFixed(2), '0.08'); // the 9.99 no-startTime row excluded
 });
 
 test('readLaneCDailyCost: cutoff filters by startTime', () => {
-  const m = laneC.readLaneCDailyCost('2026-08-10T00:00:00.000Z', file);
+  const m = laneC.readLaneCDailyCost('2026-08-10T00:00:00.000Z', [file]);
   assert.equal(m.has('2026-08-09'), false);
   assert.ok(m.has('2026-08-12'));
 });

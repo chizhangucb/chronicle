@@ -10,15 +10,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-
-/** `~/x` -> `<home>/x`. The producer expands the tilde
- *  (litellm/lane_c_spend_logger.py `default_spend_path`), and a shell that
- *  sources a quoted `LANE_C_SPEND_LOG="~/..."` does not — so the two sides only
- *  agree if this side expands too. */
-function expandTilde(p: string): string {
-  if (p === '~') return homedir();
-  return p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
-}
+import { resolveDataDir, expandTilde } from './dataDir.ts';
 
 // Legacy location: the log lived under ~/.aios before the proxy runtime was
 // de-hubbed (issue #186). Read ALONGSIDE the current one rather than instead of
@@ -29,10 +21,10 @@ const legacyPath = (): string => join(homedir(), '.aios', 'litellm', 'spend.json
  * Where a spend row LANDS. The same resolution the producer uses
  * (litellm/lane_c_spend_logger.py `default_spend_path`), so a fresh clone lines
  * the two up with no configuration:
- *   1. demo pins its own dir, and nothing else is consulted — a demo console
- *      can never read the operator's real log, whatever their shell exports
- *   2. $LANE_C_SPEND_LOG
- *   3. <$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl
+ *   1. demo pins its own dir, and nothing else is consulted, so a demo console
+ *      can never read the operator's real log whatever their shell exports
+ *   2. $LANE_C_SPEND_LOG (tilde expanded, as the producer expands it)
+ *   3. <data dir>/litellm/spend.jsonl, the same root server/db.ts uses
  * Resolved per call rather than at module load: in demo mode CHRONICLE_DATA_DIR
  * is only known once the demo dir is seeded.
  */
@@ -42,23 +34,23 @@ export function laneCSpendPath(env: NodeJS.ProcessEnv = process.env): string {
   }
   const override = env.LANE_C_SPEND_LOG?.trim();
   if (override) return expandTilde(override);
-  const data = env.CHRONICLE_DATA_DIR ?? join(homedir(), '.chronicle');
-  return join(data, 'litellm', 'spend.jsonl');
+  return join(resolveDataDir(env), 'litellm', 'spend.jsonl');
 }
 
 /**
- * Every log the READERS below should aggregate: the current one, plus the
- * pre-#186 `~/.aios` log when it is still there. Reading both is what makes the
- * move lossless — resolving to one or the other would silently drop months of
- * billed history the first time the new log came into existence.
+ * Every log the READERS below aggregate: the current one, plus the pre-#186
+ * `~/.aios` log while it is still there. Reading both is what makes the move
+ * lossless; resolving to one or the other would silently drop months of billed
+ * history the first time the new log came into existence.
  *
- * The legacy log is skipped whenever the caller pinned a location (demo, an
- * explicit CHRONICLE_DATA_DIR or LANE_C_SPEND_LOG), so a pinned run can never
- * reach the operator's real files.
+ * Only demo and an explicit LANE_C_SPEND_LOG suppress the legacy read. A plain
+ * CHRONICLE_DATA_DIR does NOT: relocating the data dir is ordinary (server/db.ts
+ * honours it, and the launchd job pins it), so treating it as "pinned" would
+ * strip the history from exactly the operator most likely to have some.
  */
 export function laneCSpendPaths(env: NodeJS.ProcessEnv = process.env): string[] {
   const current = laneCSpendPath(env);
-  const pinned = env.CHRONICLE_DEMO === '1' || !!env.CHRONICLE_DATA_DIR || !!env.LANE_C_SPEND_LOG?.trim();
+  const pinned = env.CHRONICLE_DEMO === '1' || !!env.LANE_C_SPEND_LOG?.trim();
   if (pinned) return [current];
   const legacy = legacyPath();
   return existsSync(legacy) ? [current, legacy] : [current];
@@ -66,8 +58,7 @@ export function laneCSpendPaths(env: NodeJS.ProcessEnv = process.env): string[] 
 
 /** Every readable log's text, in resolution order. A missing file contributes
  *  nothing (the log simply does not exist yet); it is never an error. */
-function spendText(path: string | string[]): string[] {
-  const paths = Array.isArray(path) ? path : [path];
+function spendText(paths: string[]): string[] {
   const out: string[] = [];
   for (const p of paths) {
     try { out.push(readFileSync(p, 'utf8')); } catch { /* not there yet */ }
@@ -86,10 +77,10 @@ interface SpendRow { startTime?: string; model?: string; spend?: number; total_t
 
 // Aggregate proxy spend by model, optionally filtered to rows at/after cutoffIso
 // (ISO string). Missing file → empty (no throw); malformed lines are skipped.
-// `path` is injectable for tests (one path or several); production reads every
-// log laneCSpendPaths() names.
-export function readLaneCSpend(cutoffIso: string | null = null, path: string | string[] = laneCSpendPaths()): LaneCSpend {
-  const texts = spendText(path);
+// `paths` is injectable for tests; production reads every log
+// laneCSpendPaths() names.
+export function readLaneCSpend(cutoffIso: string | null = null, paths: string[] = laneCSpendPaths()): LaneCSpend {
+  const texts = spendText(paths);
   if (!texts.length) return { ...EMPTY, byModel: [] };
 
   const byModel = new Map<string, LaneCModel>();
@@ -137,9 +128,9 @@ function localDayKey(iso: string): string | null {
 // rows (no `spend`) add 0 — never a guessed dollar. Rows without a usable
 // startTime are dropped (cannot be placed on a day). Cost kept unrounded (Lane
 // C spend is routinely sub-cent).
-export function readLaneCDailyCost(cutoffIso: string | null = null, path: string | string[] = laneCSpendPaths()): Map<string, number> {
+export function readLaneCDailyCost(cutoffIso: string | null = null, paths: string[] = laneCSpendPaths()): Map<string, number> {
   const out = new Map<string, number>();
-  for (const line of spendText(path).join('\n').split('\n')) {
+  for (const line of spendText(paths).join('\n').split('\n')) {
     if (!line.trim()) continue;
     let r: SpendRow;
     try { r = JSON.parse(line) as SpendRow; } catch { continue; }

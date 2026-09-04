@@ -11,13 +11,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION } from './helpers/hub-strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
-// The AC grep: hub checkout paths, the hub env var, and the two machine-only
-// directories the runtime used to reach into.
-const HUB_STRINGS = /chizhang-2|\.aios\/|\.secrets\//;
+// The AC grep, plus the pre-move layout: a doc citing `scripts/litellm/...` or
+// `scripts/tests/test_litellm_roster.py` points at files that are not there.
+// Shared with test/repo-shape.test.mjs so the two cannot drift.
+const BANNED = new RegExp(
+  `${HUB_PATHS.source}|${LEGACY_LAYOUT.source}|${HUB_LOCATION.source}`, 'i',
+);
 
 const RUNTIME_FILES = [
   'litellm/run.sh',
@@ -30,8 +34,8 @@ const RUNTIME_FILES = [
   'launchd/com.chronicle.litellm.plist.template',
 ];
 
-test('no runtime file names a hub checkout, ~/.aios or ~/.secrets', () => {
-  const offenders = RUNTIME_FILES.filter((rel) => HUB_STRINGS.test(read(rel)));
+test('no runtime file names a hub checkout, ~/.aios, ~/.secrets or the old layout', () => {
+  const offenders = RUNTIME_FILES.filter((rel) => BANNED.test(read(rel)));
   assert.deepEqual(offenders, [], `hub paths are back in: ${offenders}`);
 });
 
@@ -39,7 +43,7 @@ test('no runtime file reads AIOS_HUB', () => {
   const offenders = RUNTIME_FILES.filter((rel) => /AIOS_HUB/.test(read(rel)));
   assert.deepEqual(offenders, [], `AIOS_HUB is back in: ${offenders}`);
   // refresh_roster.py reads a hub DOCUMENT, so it takes the CHRONICLE_ hub knob
-  // instead — and never defaults to a path.
+  // instead, and never defaults to a path.
   const roster = read('litellm/refresh_roster.py');
   assert.match(roster, /CHRONICLE_ROSTER_MD/);
   assert.match(roster, /CHRONICLE_HUB/);
@@ -62,9 +66,52 @@ test('install-jobs will not bootstrap the proxy job before it has keys', () => {
   // run.sh exits 78 unconfigured, and KeepAlive would turn that into a
   // permanent respawn loop on a fresh clone.
   const src = read('scripts/install-jobs.mjs');
-  assert.match(src, /litellmConfigured/);
+  assert.match(src, /requires-env/, 'install-jobs no longer honours a template requirement');
   assert.match(src, /skipped bootstrap/);
-  assert.match(read('launchd/com.chronicle.litellm.plist.template'), /<key>ThrottleInterval<\/key>/);
+  const plist = read('launchd/com.chronicle.litellm.plist.template');
+  assert.match(plist, /install-jobs: requires-env OPENROUTER_API_KEY LITELLM_MASTER_KEY/);
+  assert.match(plist, /env-file litellm\/\.env/);
+  assert.match(plist, /<key>ThrottleInterval<\/key>/);
+  // The installer stays job-agnostic: the requirement lives in the template.
+  assert.equal(/com\.chronicle\.litellm/.test(src), false,
+    'install-jobs hardcodes a job label again');
+});
+
+test('a copied-but-unfilled env file does not count as configured', (t) => {
+  // The documented first step is "copy .env.example, fill it in". Treating the
+  // file's existence as configured would bootstrap a KeepAlive job straight
+  // into the exit-78 respawn loop the guard exists to prevent.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const envFile = path.join(dir, 'litellm.env');
+  fs.copyFileSync(path.join(REPO, 'litellm/.env.example'), envFile);
+
+  const run = () => spawnSync(process.execPath, [path.join(REPO, 'scripts/install-jobs.mjs'), '--bootstrap'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: dir,
+      CHRONICLE_DATA_DIR: path.join(dir, '.chronicle'),
+      LITELLM_ENV_FILE: envFile,
+      OPENROUTER_API_KEY: '',
+      LITELLM_MASTER_KEY: '',
+    },
+  });
+
+  const bare = run();
+  if (bare.status !== 0) return t.skip(`install-jobs did not run here: ${bare.stderr}`);
+  assert.match(bare.stdout, /skipped bootstrap for com\.chronicle\.litellm/);
+  assert.match(bare.stdout, /OPENROUTER_API_KEY, LITELLM_MASTER_KEY/);
+
+  // A key present but quoted-empty is still unconfigured.
+  fs.writeFileSync(envFile, 'OPENROUTER_API_KEY=sk-real\nLITELLM_MASTER_KEY=""\n');
+  const half = run();
+  assert.match(half.stdout, /skipped bootstrap/);
+  assert.match(half.stdout, /LITELLM_MASTER_KEY not set yet/);
+  assert.equal(/OPENROUTER_API_KEY/.test(half.stdout), false, 'a filled key was reported missing');
+
+  // Jobs that declare no requirement are never withheld.
+  assert.equal(/skipped bootstrap for com\.chronicle\.briefing/.test(bare.stdout), false);
 });
 
 test('run.sh resolves its dir from the script, sources a repo-relative env file', () => {
@@ -165,21 +212,29 @@ print(log.path)`, { CHRONICLE_DATA_DIR: dir, LANE_C_SPEND_LOG: '' });
   const { laneCSpendPath, readLaneCSpend } = await import('../server/laneC.ts');
   assert.equal(laneCSpendPath({ CHRONICLE_DATA_DIR: dir }), written);
 
-  const spend = readLaneCSpend(null, laneCSpendPath({ CHRONICLE_DATA_DIR: dir }));
+  const spend = readLaneCSpend(null, [laneCSpendPath({ CHRONICLE_DATA_DIR: dir })]);
   assert.equal(spend.requests, 1);
   assert.ok(Math.abs(spend.totalSpend - 0.0125) < 1e-9);
   assert.equal(spend.byModel[0].model, 'glm-5.2');
   assert.equal(spend.byModel[0].tokens, 120);
 });
 
-test('laneCSpendPath: pinned locations never reach the legacy log', async () => {
+test('laneCSpendPath: a relocated data dir still keeps the legacy history', async () => {
+  // Relocating the data dir is ordinary (server/db.ts honours it, and the
+  // launchd job pins it), so it must NOT suppress the legacy read: that would
+  // strip the history from exactly the operator most likely to have some.
   const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
-  const pinned = laneCSpendPath({ CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' });
-  assert.equal(pinned, path.join('/tmp/no-such-chronicle', 'litellm', 'spend.jsonl'));
-  assert.equal(pinned.includes('.aios'), false);
-  assert.deepEqual(laneCSpendPaths({ CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' }), [pinned]);
-  // LANE_C_SPEND_LOG beats the data dir.
+  const env = { CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' };
+  const current = laneCSpendPath(env);
+  assert.equal(current, path.join('/tmp/no-such-chronicle', 'litellm', 'spend.jsonl'));
+
+  const legacy = path.join(os.homedir(), '.aios', 'litellm', 'spend.jsonl');
+  const expected = fs.existsSync(legacy) ? [current, legacy] : [current];
+  assert.deepEqual(laneCSpendPaths(env), expected);
+
+  // LANE_C_SPEND_LOG beats the data dir, and pins to exactly one log.
   assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '/tmp/x.jsonl', CHRONICLE_DATA_DIR: '/tmp/d' }), '/tmp/x.jsonl');
+  assert.deepEqual(laneCSpendPaths({ LANE_C_SPEND_LOG: '/tmp/x.jsonl' }), ['/tmp/x.jsonl']);
 });
 
 test('laneCSpendPath: demo wins over a LANE_C_SPEND_LOG left in the shell', async () => {
@@ -189,6 +244,7 @@ test('laneCSpendPath: demo wins over a LANE_C_SPEND_LOG left in the shell', asyn
   const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
   const env = { CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x', LANE_C_SPEND_LOG: '/real/spend.jsonl' };
   assert.equal(laneCSpendPath(env), path.join('/tmp/demo-x', 'litellm', 'spend.jsonl'));
+  // And demo reads that ONE log: never the operator's real or legacy files.
   assert.deepEqual(laneCSpendPaths(env), [path.join('/tmp/demo-x', 'litellm', 'spend.jsonl')]);
 });
 

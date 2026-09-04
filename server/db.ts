@@ -7,6 +7,7 @@ import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from './errors.ts';
 import { invalidateCache } from './cache.ts';
 import type { Event, SessionInput, Project, ModelUsage } from '../shared/types.ts';
+import { resolveDataDir } from './dataDir.ts';
 
 export type ProjectRow = Project;
 
@@ -72,7 +73,7 @@ export interface MessageRow {
   cache_w1h_tokens: number | null;
 }
 
-export const dataDir = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+export const dataDir = resolveDataDir();
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));

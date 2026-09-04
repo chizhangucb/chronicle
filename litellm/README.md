@@ -1,6 +1,6 @@
 > Moved here on 2026-09-03: Chronicle reads the Lane C spend log this proxy writes, so the proxy lives with its consumer. The routing-policy docs it used to cite were retired with the old repo shape; the policy comments in `config.yaml` are what remains. De-hubbed in issue #186: every path now resolves from this repo or a documented env var.
 
-# LiteLLM spine (Lane C) — runbook
+# LiteLLM spine (Lane C): runbook
 
 The single metered routing gateway. This dir is the limb (enforcement config), not the source of truth.
 
@@ -71,7 +71,7 @@ The spine runs with no DB (`GET /spend/logs` 500s by design). `lane_c_spend_logg
 - Wired in `config.yaml` as `litellm_settings.callbacks: [lane_c_spend_logger.instance]`; `run.sh` puts this
   dir on `PYTHONPATH`.
 - Appends one JSONL row per completed request to `$LANE_C_SPEND_LOG`, defaulting to
-  `<$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl` — the same root `server/db.ts` uses,
+  `<$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl`, the same root `server/db.ts` uses,
   so Chronicle's Spend tab reads it with nothing configured. This file IS Lane C's raw capture.
   Local, never in git. **No Postgres for the spine, ever.**
 - Row shape: `{startTime, model, prompt_tokens, completion_tokens, total_tokens, spend, provider, latency_ms}`.
@@ -79,7 +79,7 @@ The spine runs with no DB (`GET /spend/logs` 500s by design). `lane_c_spend_logg
   zero/absent cost yields a token-only row (no `spend` key), never a guessed $0. `provider`/`latency_ms`
   emitted only when the payload carries them.
 - Fail-soft: a logging error is swallowed and never breaks a request. Guarded by
-  `scripts/tests/test_lane_c_spend_logger.py`.
+  `test/litellm-runtime.test.mjs`.
 
 ### OpenRouter reconciliation (drift check, CHI-130 backstop b)
 
@@ -94,6 +94,6 @@ Lane C's JSONL is our capture; OpenRouter's own numbers are upstream truth. To c
 ## Roster refresh
 
 `python litellm/refresh_roster.py [--dry-run]` updates only price + context from OpenRouter's public
-catalog; never the judgment columns. The roster markdown is a hub document, so point the script at
+catalog; never the judgment columns. The roster markdown is a hub document, not a repo one, so point the script at
 one with `--roster PATH`, `$CHRONICLE_ROSTER_MD`, or `$CHRONICLE_HUB` (it resolves
 `<hub>/governance/model-routing.md`). With none of those set it exits 2 and says so.

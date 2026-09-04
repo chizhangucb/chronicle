@@ -7,9 +7,11 @@
   (fills __REPO__ / __DATA__), --bootstrap to also load it.
   Keys: run.sh sources $LITELLM_ENV_FILE, default litellm/.env in the repo. Copy
   litellm/.env.example there first; without keys run.sh exits 78 naming what is
-  missing, so install-jobs.mjs declines to bootstrap this one until it is
-  configured (KeepAlive would otherwise respawn it forever). ThrottleInterval
-  keeps even a misconfigured restart cheap.
+  missing. The requires-env line below is what makes install-jobs.mjs decline to
+  bootstrap this job until those keys carry values (KeepAlive would otherwise
+  respawn it forever). ThrottleInterval keeps even a misconfigured restart cheap.
+
+  install-jobs: requires-env OPENROUTER_API_KEY LITELLM_MASTER_KEY; env-file litellm/.env
 -->
 <plist version="1.0">
 <dict>

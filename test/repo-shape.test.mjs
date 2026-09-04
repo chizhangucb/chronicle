@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HUB_PATHS, HUB_FOLDERS } from './helpers/hub-strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const git = (...args) =>
@@ -29,7 +30,7 @@ const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 // it documents (issue #186 de-hubbed both). CHANGELOG.md is out because history
 // is allowed to name what was.
 const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/**/*.md', 'spec/**/*.md'];
-const HUB_STRINGS = /chizhang-2|governance\//i;
+const HUB_STRINGS = new RegExp(`${HUB_PATHS.source}|${HUB_FOLDERS.source}`, 'i');
 
 test('no retired folder is tracked at the repo root', () => {
   const back = RETIRED_ROOT.filter((name) => topLevel.has(name));
