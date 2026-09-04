@@ -28,46 +28,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Server-side confidentiality gate for this public satellite (CHI-353): blocks
-  # a merge that leaks an owner home path, a committed secret shape, or a
-  # machine-specific identifier (CHI-416). Stdlib python3, no deps. The richer
-  # hub-vocabulary scan is client-side in the hub egress gate, and so is the
-  # hub-value comparison, which needs a hub CI does not have and skips here.
-  # Keep the job id `confidentiality` stable: branch protection requires it by
-  # that name.
-  confidentiality:
+  # Secret scan (issue #175). Replaces the hand-rolled confidentiality guard:
+  # gitleaks scans the full history on a push to main and the PR's own commits
+  # on a pull request, so a leaked credential fails the merge. GitHub's secret
+  # scanning push protection is the first line and this is the backstop that
+  # catches the shapes GitHub's providers do not know.
+  #
+  # The staleness job that used to sit here is gone too: branch protection's
+  # `required_status_checks.strict` on main enforces branches-up-to-date
+  # natively, which is all that guard was hand-rolling.
+  #
+  # Keep the job id `gitleaks` stable: branch protection requires it by name.
+  #
+  # The binary rather than gitleaks-action: no marketplace dependency, no
+  # licence-key path, and the download is pinned by version AND checksum, so a
+  # retagged release cannot change what runs. Bump both values together.
+  gitleaks:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # The guard's own tests run FIRST: a guard whose logic has quietly
-      # regressed passes every scan while catching nothing.
-      - name: Confidentiality guard tests
-        run: python3 scripts/tests/test_confidentiality_guard.py
-      - name: Confidentiality guard
-        run: python3 scripts/confidentiality_guard.py
-
-  # Pre-PR staleness guard (CHI-362): fail a PR whose branch is behind
-  # origin/main, so a stale branch is caught before it surfaces as a surprise
-  # DIRTY conflict at merge time (the CHI-324 PR #135 miss). Backs
-  # build-discipline.md "Landing to main" (rebase onto current main + dry-run the
-  # merge); this is the unskippable version of that step. PR-only: a push to
-  # main can't be behind itself. Checks out the PR HEAD (not the merge ref) with
-  # full history so the guard can compare against and dry-run-merge origin/main.
-  staleness:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: '8.30.1'
+      GITLEAKS_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
+      - name: Install gitleaks (pinned)
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
 
-      - name: Staleness guard (behind-main + conflict map)
-        run: node scripts/landing_preflight.mjs
+      # --redact keeps a finding's value out of the public build log; the file
+      # and line in the report are enough to act on.
+      - name: Scan for secrets
+        run: |
+          set -euo pipefail
+          args=(git --redact --verbose)
+          if [ -n "${PR_BASE_SHA}" ]; then
+            args+=(--log-opts="${PR_BASE_SHA}..${PR_HEAD_SHA}")
+          fi
+          gitleaks "${args[@]}" .
+        env:
+          # Read the PR SHAs through the environment rather than interpolating
+          # `${{ }}` into the script body, so nothing from the event payload is
+          # ever spliced into the shell as code.
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
   check:
     runs-on: ubuntu-latest
