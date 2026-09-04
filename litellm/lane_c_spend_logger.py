@@ -1,6 +1,6 @@
 """Lane C spend logger: the LiteLLM spine's success_callback (CHI-130).
 
-Policy brain: governance/model-routing.md. Architecture: the 2026-08-08
+Routing policy is decided outside this module. Architecture: the 2026-08-08
 monitoring-dashboard-direction brainstorm, Q4. This dir is the limb.
 
 The spine is a gateway; it leaves NO session files. A completed request's

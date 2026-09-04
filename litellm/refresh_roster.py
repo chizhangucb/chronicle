@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Refresh the volatile columns of the routing roster from OpenRouter's public catalog.
 
-The roster table in governance/model-routing.md is hand-curated for judgment columns
+The routing roster table is hand-curated for judgment columns
 (tier, trust, task-fit, lane) and auto-refreshed only for volatile facts (price,
 context window). This script updates ONLY the volatile columns; it never touches the
 judgment columns, and it never adds or removes rows. Reading a public price list is
-not routing content through anyone (governance/model-routing.md roster rule).
+not routing content through anyone.
 
 Match key = the roster's Route column with the `openrouter/` prefix stripped, looked
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
