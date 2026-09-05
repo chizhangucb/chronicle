@@ -117,6 +117,20 @@ shared/     types.ts — the normalized event model shared by server and client
 docs/       This documentation set
 ```
 
+## Going deeper
+
+This page is the setup and the day-to-day loop. The rest of the contributor knowledge is split
+by what you need:
+
+- [Architecture](contributing/architecture.md): the shape to keep, the seven load-bearing
+  decisions, and where the seams are.
+- [Code map](contributing/code-map.md): what lives where, and which file owns a decision.
+- [Patterns](contributing/patterns.md): the TypeScript rules and the verification loop.
+- [Gotchas](contributing/gotchas.md): the traps that have already cost someone a day.
+- [Standards](contributing/standards.md): what a PR has to clear before it lands.
+- [Voice](contributing/voice.md): how Chronicle writes, in docs, comments and PRs.
+- [Releasing](contributing/release.md): how a tag becomes an npm publish.
+
 ## Related
 
 - [How it works](architecture/how-it-works.md) — the system design, data model, ingestion, and
