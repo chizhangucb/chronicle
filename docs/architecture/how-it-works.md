@@ -475,10 +475,10 @@ priority: allow-list wins first, then custom rules before built-ins, then earlie
 overlap. `scanSession(messages)` is the batch path used by the Security Check panel and the
 redacted Markdown export.
 
-> **Contributor gotcha.** The "is this tool result an error?" check exists in three places —
-> `ERROR_RE` in `server/insights.ts`, the same pattern in `server/routes/projects.ts`, and
-> `isErrorResult` in `src/SessionView.tsx`. Change one, change all three, or the Errors counts
-> diverge.
+> **Contributor gotcha.** The "is this tool result an error?" check has one server-side copy,
+> `server/errors.ts`, which every server consumer imports. `isErrorResult` in
+> `src/SessionView.tsx` is a separate client twin of the same rule: change one, change the
+> other, or the Errors counts diverge. See [Gotchas](../contributing/gotchas.md).
 
 ### Live streaming (`server/live.ts`)
 

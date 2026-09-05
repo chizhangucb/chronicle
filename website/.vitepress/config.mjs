@@ -14,10 +14,19 @@ const sidebar = [
   { text: 'Architecture', items: [
     { text: 'How it works', link: '/architecture/how-it-works' },
   ] },
+  { text: 'Contributing', items: [
+    { text: 'Overview', link: '/contributing' },
+    { text: 'Architecture', link: '/contributing/architecture' },
+    { text: 'Code map', link: '/contributing/code-map' },
+    { text: 'Patterns', link: '/contributing/patterns' },
+    { text: 'Gotchas', link: '/contributing/gotchas' },
+    { text: 'Standards', link: '/contributing/standards' },
+    { text: 'Voice', link: '/contributing/voice' },
+    { text: 'Releasing', link: '/contributing/release' },
+  ] },
   { text: 'More', items: [
     { text: 'Changelog', link: '/changelog' },
     { text: 'Docs home', link: '/' },
-    { text: 'Contributing', link: '/contributing' },
   ] },
 ];
 
@@ -26,6 +35,7 @@ const nav = [
   { text: 'Guide', link: '/guide/quickstart', activeMatch: '/guide/' },
   { text: 'Reference', link: '/reference/supported-tools', activeMatch: '/reference/' },
   { text: 'Architecture', link: '/architecture/how-it-works', activeMatch: '/architecture/' },
+  { text: 'Contributing', link: '/contributing', activeMatch: '/contributing' },
   { text: 'Changelog', link: '/changelog' },
 ];
 
