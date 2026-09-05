@@ -1,8 +1,8 @@
 // The home merge: briefing band, status band, provenance strip (CHI-325 3d).
 //
 // The properties worth pinning are the HONESTY rules, not the pixels:
-//   - the five domains, in order, as a contract enumerable
-//   - with NO hub the three hub-fed rows still render, as the Nisse upsell
+//   - the four domains, in order, as a contract enumerable
+//   - with NO hub the two hub-fed rows still render, as the Nisse upsell
 //     rather than vanishing (D2)
 //   - the band cannot contradict the KPI strip above it (the failure that
 //     shipped in the first draft: 118 messages labelled as sessions)
@@ -15,7 +15,7 @@ const state = readSeedState();
 const DOMAINS = ['Spend', 'Sessions', 'Safety', 'Jobs'];
 
 test.describe('status band (seeded, no hub)', () => {
-  test('renders exactly the five domains in the contract order', async ({ page }) => {
+  test('renders exactly the four domains in the contract order', async ({ page }) => {
     await page.goto(state.baseURL + '/');
     await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
     const band = page.locator('.status-band');

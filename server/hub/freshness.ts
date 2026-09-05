@@ -10,13 +10,13 @@
 // signature (max-mtime over a handful of files) on every request.
 //
 // The heavy slice (codegraphs over every built graph.json) must NOT stat-walk
-// the corpus per request. Their
-// freshness CHECK is TTL-gated (freshSlice ttlMs): inside the TTL window the
-// cached value is returned without touching the filesystem; past it, the
-// signature is recomputed and the value rebuilt only if files actually changed.
-// Their built value is also mirrored to ~/.chronicle/hub-cache/<slice>.json so
-// it survives a process restart; those writes are temp-file + rename (the
-// gate's atomic pattern) so a concurrent recompute can't tear a read.
+// the corpus per request. Its freshness CHECK is TTL-gated (freshSlice ttlMs):
+// inside the TTL window the cached value is returned without touching the
+// filesystem; past it, the signature is recomputed and the value rebuilt only
+// if files actually changed. Its built value is also mirrored to
+// ~/.chronicle/hub-cache/<slice>.json so it survives a process restart; those
+// writes are temp-file + rename (the gate's atomic pattern) so a concurrent
+// recompute can't tear a read.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -129,12 +129,12 @@ export function freshSlice<T>(
 
 /**
  * Async variant for the HEAVY slice (codegraphs over every built graph.json).
- * Same TTL gate as freshSlice,
- * but `compute` is async and the resolved value is mirrored to the on-disk
- * hub-cache so it survives a process restart. Inside the TTL window it returns
- * the cached value WITHOUT the stat-walk; past it, the signature is recomputed
- * and `compute` runs only on an actual change. On a cold start it warms from the
- * on-disk cache (still verified against the current signature).
+ * Same TTL gate as freshSlice, but `compute` is async and the resolved value is
+ * mirrored to the on-disk hub-cache so it survives a process restart. Inside the
+ * TTL window it returns the cached value WITHOUT the stat-walk; past it, the
+ * signature is recomputed and `compute` runs only on an actual change. On a cold
+ * start it warms from the on-disk cache (still verified against the current
+ * signature).
  */
 export async function freshSliceAsync<T>(
   key: string,
