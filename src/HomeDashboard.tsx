@@ -22,7 +22,7 @@ import SessionsHubTab from './SessionsHubTab.tsx';
 import SortCaret from './SortCaret.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
-import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields, splitAutomation } from './windowedUsage.ts';
+import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields } from './windowedUsage.ts';
 import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -240,17 +240,10 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     const byModel = sumByModel(result.windowedTokensByModel);
     const tokens = tokensOfCells(byModel);
     const { input, cacheRead } = sumFields(byModel);
-    // Automation split (CHI-233 Part C): manifest session_ids are excluded from
-    // the headline INTERACTIVE count and bucketed by job. `interactiveCells` is
-    // the windowed cells for NON-manifest sessions; automation.automationCost
-    // is present-transcript + absent-transcript automation spend. Total spend =
-    // interactive + automation (broken out, never hidden). Day-bucketed pricing
-    // (CHI-228) throughout so a rate-change straddle prices per day.
-    const manifestIds = new Set(result.machineSessions.ids);
-    const interactiveCells = result.windowedTokensByModel.filter((c) => !manifestIds.has(c.sessionId));
-    const interactiveSpend = costOfBucketedCells(interactiveCells, mode);
-    const automation = splitAutomation(result.sessions, result.windowedTokensByModel, result.machineSessions, mode);
-    const cost = interactiveSpend + automation.automationCost;
+    // One spend figure, estimated from the sessions and priced client-side from
+    // the shared price table. Day-bucketed pricing (CHI-228) so a window that
+    // straddles a rate change prices each day's share at that day's rate.
+    const cost = costOfBucketedCells(result.windowedTokensByModel, mode);
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
     const topTool = result.toolDist[0]?.name ?? null;
     const totalHeads = result.errorsByProject.reduce((n, r) => n + r.head_count, 0);
@@ -258,51 +251,23 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     const cachedPct = (cacheRead + input) ? (cacheRead / (cacheRead + input)) * 100 : 0;
     const leverage = engagedMs ? agentActiveMs / engagedMs : 0;
     return {
-      cost, interactiveSpend, automation, tokens, agentActiveMs, engagedMs, toolCalls, topTool, errorRate, cachedPct, leverage,
-      sessionCount: automation.interactiveSessionCount, projectCount: projectsTouched.size, commits: result.commits,
+      cost, tokens, agentActiveMs, engagedMs, toolCalls, topTool, errorRate, cachedPct, leverage,
+      sessionCount: result.sessions.length, projectCount: projectsTouched.size, commits: result.commits,
     };
   }, [result, mode]);
-  // Automation transparency (CHI-233 Part C, hard requirement): the interactive
-  // count carries a visible "N automation excluded" sub-label + a by-job
-  // tooltip; the Spend tile breaks out the automation portion.
-  const auto = kpis.automation;
   const modeLabel = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
-  const autoByJobText = auto.byJob.length
-    ? auto.byJob.map((b) => `${b.job}: ${fmtMoney(b.cost, 2)} · ${b.sessions}`).join('; ')
-    : t('none in range');
-
-  // Lane C proxy-lane billed spend — shown only when the LiteLLM log actually
-  // has spend in range. Sub-cent values get 4 decimals so they read as non-zero.
-  const laneC = result.laneC;
-  const hasLaneC = laneC.requests > 0;
-  const fmtLaneC = (v: number): string => {
-    if (v <= 0) return fmtMoney(0, 2);
-    if (v < 0.0001) return '<$0.0001';
-    if (v < 0.01) return `$${v.toFixed(4)}`;
-    return fmtMoney(v, 2);
-  };
-  const stripModel = (m: string): string => m.replace(/^openrouter\//, '');
-  const laneCTip = laneC.byModel.map((m) => `${stripModel(m.model)}: ${fmtLaneC(m.spend)} · ${m.requests} ${t('req')}`).join('; ')
-    + `. ${t('Billed by the LiteLLM proxy lane — authoritative $, not session-linked.')}`;
-  const laneCSub = laneC.byModel.length === 1
-    ? `${stripModel(laneC.byModel[0].model)} · ${laneC.requests} ${t('req')}`
-    : `${laneC.byModel.length} ${t('models')} · ${laneC.requests} ${t('req')}`;
 
   return (
     <div className="kpis">
       <div className="kpi">
         <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
-        <div className="s" title={`${t('interactive')} ${fmtMoney(kpis.interactiveSpend, 2)} · ${t('automation')} ${fmtMoney(auto.automationCost, 2)} (${autoByJobText})`}>
-          {t('incl.')} {fmtMoney(auto.automationCost, auto.automationCost < 1 ? 2 : 0)} {t('automation')}
-        </div>
+        <div className="s" title={t('estimated from sessions')}>{t('estimated from sessions')}</div>
       </div>
       <div className="kpi">
         <div className="l">{t('Sessions')} <InfoTip def="overview.sessions" /></div>
         <div className="v">{kpis.sessionCount}</div>
-        <div className="s" title={`${t('automation by job')}: ${autoByJobText}`}>
-          {kpis.projectCount} {t('projects')} · {auto.automationSessionCount} {t('automation excluded')}
-        </div>
+        <div className="s" title={`${kpis.projectCount} ${t('projects')}`}>{kpis.projectCount} {t('projects')}</div>
       </div>
       <div className="kpi">
         <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
@@ -334,13 +299,6 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
         <div className="v">{kpis.commits}</div>
         <div className="s">{t('linked')}</div>
       </div>
-      {hasLaneC && (
-        <div className="kpi">
-          <div className="l"><span className="lbl" title={t('Proxy lane (billed)')}>{t('Proxy lane (billed)')}</span> <InfoTip text={laneCTip} /></div>
-          <div className="v">{fmtLaneC(laneC.totalSpend)}</div>
-          <div className="s" title={laneCSub}>{laneCSub}</div>
-        </div>
-      )}
     </div>
   );
 }
@@ -422,7 +380,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
 
   if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
-  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays, laneCToday } = anom;
+  const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays } = anom;
   const baselineLabel = win === 'today' ? t('typical day (14-day median)')
     : win === '7d' ? t('prior 7 days')
     : win === '30d' ? t('prior 30 days')
@@ -491,12 +449,6 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
           )}
         </div>
       )}
-      {/* Lane C honesty note — the total can move on unattributable proxy spend. */}
-      {laneCToday > 0 && (
-        <div className="anom-lanec" title={t(LANE_C_NOTE_TIP)}>
-          {t('incl.')} {fmtMoney(laneCToday, 2)} {t('proxy lane, not attributable to a mover')}
-        </div>
-      )}
       {/* Flagged-days line (multi-day windows) → deep-links to the Spend tab. The
           date shows only for a lone flag; a longer window only adds OLDER flags,
           so a single latest date would look "stuck" as the count grows. */}
@@ -520,12 +472,6 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     </div>
   );
 }
-
-// The Lane C caveat tooltip (mirrors LANE_C_UNATTRIBUTED_DEFINITION intent;
-// kept local so the tile has no server import beyond the shared math).
-const LANE_C_NOTE_TIP =
-  'Proxy-lane (LiteLLM/OpenRouter) spend is billed on its own log with no session, project, or model attribution, so it is added to the total but never shown as a per-dimension driver.';
-
 
 // ---- Insights Overview charts (everything the old InsightsPage Overview showed
 // AFTER the KPI strip): spend-over-time stacked chart, spend-by-model/sources,

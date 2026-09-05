@@ -78,12 +78,6 @@ test('computeAnomaly: a sub-$1 dimension value never flags (noise floor)', () =>
   assert.equal(a.dimensionFlags.length, 0);
 });
 
-test('computeAnomaly: includesLaneC flag threads through for the honesty caveat', () => {
-  const days = [...priorDays(3, 10, 1), { day: '2026-08-20', cost: 30 }];
-  assert.equal(computeAnomaly(days, '2026-08-20', DEFAULT_SPEND_THRESHOLDS.anomaly, { includesLaneC: true }).includesLaneC, true);
-  assert.equal(computeAnomaly(days, '2026-08-20').includesLaneC, false);
-});
-
 test('computeFlaggedDays: a prior spike day flags vs its own trailing median, newest first', () => {
   const days = [...priorDays(14, 10, 1), { day: '2026-08-18', cost: 30 }, { day: '2026-08-19', cost: 10 }, { day: '2026-08-20', cost: 12 }];
   const flags = computeFlaggedDays(days, '2026-08-20'); // today (08-20) is the headline, excluded

@@ -1,7 +1,7 @@
 // E2E drift-pins for the `/?tab=spend` Spend tab (CHI-324 2b/2d/2e). Guards the
 // signed surface-contract shape: budget BAND up top (no anomaly card — anomaly
 // is the Overview tile only), the shared spend chart with a [project|provider]
-// stack toggle, and the reading order down to the proxy lane.
+// stack toggle, and the reading order down the tab.
 import { test, expect, type Page } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
@@ -37,7 +37,7 @@ test('Spend tab reading order: budget → chart → efficiency (present cards st
   await expect(page.locator('.spend-tab .budget-band')).toBeVisible();
   await expect(page.locator('.spend-tab .sot-card')).toBeVisible();
   await expect(page.locator('.spend-tab .eff-head')).toBeVisible();
-  // Budget band, spend chart, and efficiency always render; skills/proxy are
+  // Budget band, spend chart, and efficiency always render; skills/MCP is
   // data-conditional, so assert the order of whatever IS present (never
   // out-of-order), requiring at least the three always-on anchors.
   const order = await page.evaluate(() => {

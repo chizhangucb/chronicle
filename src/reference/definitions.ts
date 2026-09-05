@@ -12,8 +12,8 @@
 // migration and /reference translates exactly as far as the dictionary reaches.
 // No new key namespace.
 //
-// `vars` exists for the handful of tips that quote a live number (how many
-// automation runs the manifest holds, say). On /reference there is no call
+// `vars` exists for the handful of tips that quote a live number (a live count
+// from the page, say). On /reference there is no call
 // site, so `vars` is absent and the definition must still read correctly: write
 // the fallback wording first, then the interpolation.
 //
@@ -74,15 +74,14 @@ export const DEFINITIONS: Definition[] = [
     id: 'overview.spend',
     page: 'overview',
     title: 'Spend',
-    plain: () => 'Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Total includes automation spend, broken out below. Toggle List price vs Billed in the topbar.',
+    plain: () => 'Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Toggle List price vs Billed in the topbar.',
     tech: () => 'session_model_cost, priced client-side from src/models.ts',
   },
   {
     id: 'overview.sessions',
     page: 'overview',
     title: 'Sessions',
-    plain: () => 'Interactive sessions only. Headless automation runs (weekly/nightly/session-close/spend-advice) are counted separately as automation, not here. A manifest session whose transcript is also imported is counted once, as automation.',
-    tech: () => '~/.aios/machine_sessions.jsonl supplies the automation side',
+    plain: () => 'Sessions imported from your coding tools that started or ran inside the selected window.',
   },
   {
     id: 'overview.tokens',
@@ -189,13 +188,6 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'Estimated from message text length, scaled to billed totals. Tool and skill token attribution is approximate.',
   },
   {
-    id: 'spend.proxy-lane',
-    page: 'spend',
-    title: 'Proxy lane (billed)',
-    plain: () => 'The LiteLLM proxy spend log is the authoritative billed record for proxy-routed models, but it carries only model and time, no session or project. It is shown as its own labeled row and never smeared across sessions.',
-    tech: () => '$LANE_C_SPEND_LOG, else <$CHRONICLE_DATA_DIR or ~/.chronicle>/litellm/spend.jsonl (plus the pre-move ~/.aios log while it is still there), via server/laneC.ts',
-  },
-  {
     id: 'spend.plan-windows',
     page: 'spend',
     title: 'Plan windows',
@@ -203,18 +195,6 @@ export const DEFINITIONS: Definition[] = [
   },
 
   // ---- Insights / Sessions ----
-  {
-    id: 'sessions.human-all',
-    page: 'sessions',
-    title: 'Human vs all',
-    plain: (c) => `Human shows only interactive sessions (matching the KPI Sessions count). All adds the headless automation jobs from ~/.aios/machine_sessions.jsonl${c.vars?.automationCount != null ? ` (currently ${c.vars.automationCount} automation runs)` : ''}. Automation-by-job below is always automation, unaffected by this toggle.`,
-  },
-  {
-    id: 'sessions.automation-by-job',
-    page: 'sessions',
-    title: 'Automation by job',
-    plain: () => 'Always automation, unaffected by the human/all toggle. Sourced from the ~/.aios/machine_sessions.jsonl manifest (weekly / nightly / session-close / spend-advice jobs).',
-  },
   {
     id: 'sessions.context-tokens',
     page: 'sessions',
@@ -382,7 +362,19 @@ export const DEFINITIONS: Definition[] = [
     id: 'retired.burn-tile',
     page: 'retired',
     title: 'Burn tile (retired)',
-    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced in CHI-324 by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers, flagged days, and the proxy-lane note.',
+    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced in CHI-324 by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers and flagged days.',
+  },
+  {
+    id: 'retired.proxy-lane',
+    page: 'retired',
+    title: 'Proxy lane (retired)',
+    plain: () => 'A separate spend figure read from a local LiteLLM proxy’s billed-dollar log, shown as its own KPI tile and a slim row on Spend. Removed: Chronicle now shows one spend figure, estimated from your sessions, and reads no spend log outside its own data folder.',
+  },
+  {
+    id: 'retired.machine-sessions',
+    page: 'retired',
+    title: 'Automation sessions (retired)',
+    plain: () => 'A manifest of headless automation runs written by another tool, used to split the session count into human and automation and to bucket automation spend by job. Removed with the proxy lane: Chronicle counts the sessions it imports and nothing else.',
   },
 
   // ---- Retired: the Memory surface, dropped in the shrink (#219 / spec #215).

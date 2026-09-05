@@ -13,7 +13,6 @@
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './windowUsage.ts';
-import { readLaneCDailyCost } from './laneC.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
 
 const DAY = 86400000;
@@ -67,9 +66,6 @@ export interface ActivityBurn {
   // client can price (at the toggled mode) → CostedDay[] → the shared
   // computeAnomaly (movers + flagged days). Server ships cells, not dollars.
   anomalyDays: AnomalyDayCells[];
-  // Lane C per-day $ (already priced by LiteLLM) for headline/anomaly inclusion
-  // + the unattributable note (D8). Keyed by LOCAL day.
-  laneCByDay: Record<string, number>;
   // LOCAL "today" key (YYYY-MM-DD), the anchor computeAnomaly compares against.
   today: string;
 }
@@ -343,7 +339,6 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
     addUsage(d.bySource[c.source] ?? (d.bySource[c.source] = {}), { [c.model]: c.cells });
   }
   const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-  const laneCByDay = Object.fromEntries(readLaneCDailyCost(anomalyCutoff));
   const nowD = new Date(now);
   const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
 
@@ -358,7 +353,6 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
       topSessionName: top ? displayName(top.row) : null,
       topSessionTokensByModel: top?.cells ?? {},
       anomalyDays,
-      laneCByDay,
       today,
     },
   };

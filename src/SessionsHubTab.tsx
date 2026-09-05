@@ -14,10 +14,10 @@ import { fmtDayLabel, dayKeyOf } from './charts/timeBuckets.ts';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 
 // The Sessions tab (CHI-324 2g): the ANALYZE half of the two session lists
-// (the /projects ledger is the MANAGE half). Header count + [human|all] toggle →
-// three-up aggregates (busiest days · busiest projects · automation by job) →
-// ONE flat sessions table (chips cost|duration|recent, cost default), click-to-
-// extend. All spend is priced client-side from the windowed cells.
+// (the /projects ledger is the MANAGE half). Header count → two-up aggregates
+// (busiest days · busiest projects) → ONE flat sessions table (chips
+// cost|duration|recent, cost default), click-to-extend. All spend is priced
+// client-side from the windowed cells.
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -32,17 +32,14 @@ function fmtTok(n: number): string {
 }
 
 const PAGE = 25;
-type Mode = 'human' | 'all';
 type Sort = 'cost' | 'duration' | 'recent';
 
 export default function SessionsHubTab({ insights }: { insights: InsightsResult | null }): JSX.Element {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
-  const [who, setWho] = useState<Mode>('human');
   const [sort, setSort] = useState<Sort>('cost');
   const [shown, setShown] = useState(PAGE);
 
-  const automationIds = useMemo(() => new Set(insights?.machineSessions.ids ?? []), [insights]);
   // Per-session cost + tokens from the windowed cells (in-window share).
   const costBySession = useMemo(() => {
     const m = new Map<string, number>();
@@ -61,11 +58,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
 
   const projectColors = useMemo(() => projectColorMap((insights?.projects ?? []).map((p) => p.id)), [insights]);
 
-  // Interactive sessions only (human), or all incl. automation manifest ids.
-  const rows = useMemo(() => {
-    const all = insights?.sessions ?? [];
-    return who === 'human' ? all.filter((s) => !automationIds.has(s.id)) : all;
-  }, [insights, who, automationIds]);
+  const rows = useMemo(() => insights?.sessions ?? [], [insights]);
 
   const sorted = useMemo(() => {
     const withVals = rows.map((s) => ({
@@ -76,7 +69,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
     return withVals;
   }, [rows, sort, costBySession, tokBySession]);
 
-  // --- Aggregates (respect the toggle for days/projects; automation is always automation) ---
+  // --- Aggregates ---
   const busiestDays = useMemo(() => {
     const m = new Map<string, { sessions: number; active: number; tokens: number; cost: number }>();
     for (const s of rows) {
@@ -99,38 +92,17 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
     return [...m.entries()].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 8);
   }, [rows, costBySession, tokBySession]);
 
-  const automationByJob = useMemo(() => {
-    const m = new Map<string, { runs: number; tokens: number; cost: number }>();
-    for (const ms of insights?.machineSessions.sessions ?? []) {
-      const a = m.get(ms.job) ?? { runs: 0, tokens: 0, cost: 0 };
-      a.runs++;
-      const u = ms.usage;
-      a.tokens += (u?.input ?? 0) + (u?.output ?? 0) + (u?.cacheRead ?? 0) + (u?.cacheWrite5m ?? 0) + (u?.cacheWrite1h ?? 0);
-      a.cost += ms.cost_usd ?? 0;
-      m.set(ms.job, a);
-    }
-    return [...m.entries()].map(([job, v]) => ({ job, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 8);
-  }, [insights]);
-
   if (!insights) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
-  const automationCount = insights.sessions.filter((s) => automationIds.has(s.id)).length;
   const visible = sorted.slice(0, shown);
 
   return (
     <div className="sessions-hub">
       <div className="sh-head">
-        <span className="muted small">{fmtInt(rows.length)} {who === 'human' ? t('interactive sessions') : t('sessions (incl. automation)')}</span>
-        <div className="sh-toggle">
-          <div className="stack-toggle" role="group" aria-label={t('Session set')}>
-            <button type="button" className={`st-opt ${who === 'human' ? 'on' : ''}`} onClick={() => setWho('human')}>{t('human')}</button>
-            <button type="button" className={`st-opt ${who === 'all' ? 'on' : ''}`} onClick={() => setWho('all')}>{t('all')}</button>
-          </div>
-          <InfoTip def="sessions.human-all" vars={{ automationCount }} />
-        </div>
+        <span className="muted small">{fmtInt(rows.length)} {t('sessions')}</span>
       </div>
 
-      <div className="grid3">
+      <div className="grid2b">
         <div className="card">
           <h3>{t('Busiest days')}</h3>
           <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Day')}</th><th>{t('Sessions')}</th><th>{t('Active')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
@@ -146,14 +118,6 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
               <tr key={p.id}><td style={{ textAlign: 'left' }}><span className="dot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</td><td>{p.sessions}</td><td>{fmtInt(p.msgs)}</td><td>{fmtTok(p.tokens)}</td><td className="cost">{fmtMoney(p.cost, 2)}</td></tr>
             ))}</tbody></table>
           {!busiestProjects.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
-        </div>
-        <div className="card">
-          <h3>{t('Automation by job')} <InfoTip def="sessions.automation-by-job" /></h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Job')}</th><th>{t('Runs')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
-            <tbody>{automationByJob.map((j) => (
-              <tr key={j.job}><td style={{ textAlign: 'left' }}>{j.job}</td><td>{j.runs}</td><td>{fmtTok(j.tokens)}</td><td className="cost">{fmtMoney(j.cost, 2)}</td></tr>
-            ))}</tbody></table>
-          {!automationByJob.length && <div className="muted small pad8">{t('No automation runs in range.')}</div>}
         </div>
       </div>
 

@@ -44,7 +44,8 @@ switched off; the Spend tab is simply empty of metered rows.
 - `litellm/config.yaml` is the authoritative deployment set. `store_model_in_db` is off
   and there is no database; the file is the whole configuration.
 - The spend log is the raw capture. Local, never in git, written only by
-  `litellm/lane_c_spend_logger.py`, read by `server/laneC.ts`.
+  `litellm/lane_c_spend_logger.py`. Chronicle does not read it: the app shows one
+  spend figure, estimated from your sessions (issue #217).
 
 ### Non-goals
 
@@ -188,4 +189,3 @@ The roster is a personal document rather than a repo one, so point the script at
 - Routing policy is decided outside this directory. The comments in `config.yaml` are the
   enforcement view of it.
 - The launchd template is `launchd/com.chronicle.litellm.plist.template`.
-- Chronicle's reader is `server/laneC.ts`.

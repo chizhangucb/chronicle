@@ -79,49 +79,7 @@ export async function seedDemo(dir = demoDataDir(), log: (msg: string) => void =
   }
   log(`imported ${imported} demo sessions`);
 
-  // Synthetic non-DB inputs, so the automation table and the proxy lane are not
-  // empty in demo. Both readers resolve their root from the demo dir, which
-  // points here in demo mode.
-  writeSyntheticAios(dir, now);
-
   fs.writeFileSync(path.join(dir, DONE_MARKER), new Date().toISOString());
   return { seeded: imported, cached: false };
 }
 
-/** The non-DB inputs, redirected under the demo dir, so the proxy lane and the
- *  automation-by-job table are not empty in demo and never read the operator's
- *  real files. server/machineSessions.ts resolves its root through aiosRoot();
- *  server/laneC.ts resolves the spend log under CHRONICLE_DATA_DIR directly
- *  (issue #186), which in demo IS the demo dir. */
-function writeSyntheticAios(dir: string, nowMs: number): void {
-  const aios = path.join(dir, 'aios');
-  fs.mkdirSync(aios, { recursive: true });
-  fs.mkdirSync(path.join(dir, 'litellm'), { recursive: true });
-
-  const proxy: string[] = [];
-  for (let d = 0; d < 30; d++) {
-    const ts = new Date(nowMs - d * 86_400_000).toISOString();
-    proxy.push(JSON.stringify({ startTime: ts, model: 'deepseek-v3', spend: 0.04 + (d % 5) * 0.01, total_tokens: 18_000 + d * 300 }));
-    if (d % 3 === 0) {
-      proxy.push(JSON.stringify({ startTime: ts, model: 'qwen-2.5-coder', spend: 0.02, total_tokens: 9_000 }));
-    }
-  }
-  fs.writeFileSync(path.join(dir, 'litellm', 'spend.jsonl'), proxy.join('\n') + '\n');
-
-  const jobs = ['weekly-report', 'nightly-sync', 'session-close', 'spend-advice'];
-  const machine: string[] = [];
-  for (let d = 0; d < 28; d++) {
-    const job = jobs[d % jobs.length];
-    machine.push(JSON.stringify({
-      session_id: `demo-machine-${d}`,
-      job,
-      started_at: new Date(nowMs - d * 86_400_000).toISOString(),
-      model: 'claude-sonnet-5',
-      input_tokens: 12_000 + d * 200,
-      output_tokens: 2_400,
-      cache_read_input_tokens: 6_000,
-      cost_usd: 0.09,
-    }));
-  }
-  fs.writeFileSync(path.join(aios, 'machine_sessions.jsonl'), machine.join('\n') + '\n');
-}

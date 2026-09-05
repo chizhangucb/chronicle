@@ -23,12 +23,10 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'sr
 
 // The ONLY legitimate `text=` sites: tooltips whose body is runtime data, not a
 // definition, so they can never be a registry entry.
-//   HomeDashboard  the proxy-lane tile quotes the actual per-model spend split
 //   ContentTab     each characteristic's wording is SERVER-supplied
 //                  (server/content.ts Characteristic.info), which is already a
 //                  single source; copying it here would create the second one.
 const TEXT_PROP_ALLOWLIST = new Set([
-  'HomeDashboard.tsx',
   'ContentTab.tsx',
 ]);
 
@@ -107,13 +105,8 @@ test('every definition reads correctly with NO vars', () => {
 });
 
 test('a definition that takes vars still uses them', () => {
-  // The two interpolating definitions must actually change when given a value,
-  // or the vars plumbing is dead code that will rot.
-  const humanAll = DEF_BY_ID.get('sessions.human-all');
-  assert.ok(humanAll);
-  assert.notEqual(humanAll.plain({}), humanAll.plain({ vars: { automationCount: 42 } }));
-  assert.ok(humanAll.plain({ vars: { automationCount: 42 } }).includes('42'));
-
+  // An interpolating definition must actually change when given a value, or the
+  // vars plumbing is dead code that will rot.
   const freshness = DEF_BY_ID.get('memory.freshness');
   assert.ok(freshness);
   assert.ok(freshness.plain({}).includes('30'), 'falls back to the default threshold');
