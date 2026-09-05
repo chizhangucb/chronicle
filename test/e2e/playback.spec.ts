@@ -47,6 +47,24 @@ const state = readSeedState();
 // purely so server/git.ts's isGitRepo(project.path) finds real history.
 const FIXTURE_REPO_DIR = '/tmp/fixture-project';
 
+// CHI #245 — THE one file in the suite that must not run parallel.
+//
+// Everything else is worker-isolated: each worker gets its own seeded data
+// dir and its own server (helpers.ts). This repo is the exception. Its path
+// is fixed machine-wide, because it has to equal the fixture session's `cwd`
+// for server/git.ts to resolve snapshots against it, so every worker would
+// share the one directory. Two hazards, both real:
+//   - `makeFixtureRepo` rm -rf's and rebuilds it, so a second worker running
+//     `beforeAll` would delete the repo out from under a test in flight;
+//   - the "long commit subject" test below COMMITS to it, and the other
+//     tests assert on nearest-preceding-commit resolution, so they depend on
+//     the history state each other leaves behind — order matters inside the
+//     file regardless of the sharing.
+// Serial at the file level pins the whole file to one worker in one order,
+// which fixes both. Per-worker repos are not an option while the path has to
+// match the fixture's cwd.
+test.describe.configure({ mode: 'serial' });
+
 interface FixtureMessage {
   seq: number;
   ts?: string | null;

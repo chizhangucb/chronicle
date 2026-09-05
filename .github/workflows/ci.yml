@@ -8,7 +8,8 @@
 # - All TypeScript compiles without errors (the type gate)
 # - All unit tests pass (test suite)
 # - The Vite client bundle builds without errors
-# - The E2E smoke suite passes (function, overflow, data-scale, perf floor)
+# - The E2E smoke suite passes (function, overflow, data-scale, perf floor),
+#   run parallel and split across three shards — see the `e2e-shard` job
 #
 # Node 24 is REQUIRED — the server + tests run .ts natively via Node's
 # type-stripping, which requires Node 24+.
@@ -116,8 +117,28 @@ jobs:
       - name: Build
         run: npm run build
 
-  e2e:
+  # The E2E suite, sharded across 3 runners (issue #245). Each shard is a full
+  # independent runner: its own install, its own Chromium, its own build, and
+  # its own seeded Chronicle instances (globalSetup provisions one per worker,
+  # so a shard seeds `workers` of them). Nothing is shared between shards.
+  #
+  # Why 3: the fixed setup — checkout, npm ci, browser download, build — is
+  # ~34s a shard and does not shrink. Past 3 shards it dominates the test time
+  # they are splitting, and the next real lever is caching the browser and
+  # node_modules, which is deliberately out of scope here.
+  #
+  # `e2e-shard` is the matrix; `e2e` below is the roll-up. Branch protection
+  # requires the name `e2e`, and a matrix job publishes one check PER shard
+  # (`e2e-shard (1)` …), which would leave the required check unsatisfiable.
+  # Keep the roll-up job id `e2e` stable for that reason.
+  e2e-shard:
     runs-on: ubuntu-latest
+    strategy:
+      # Let every shard finish: a failure in shard 2 should not hide whether
+      # shards 1 and 3 were green.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -135,5 +156,22 @@ jobs:
       - name: Build client
         run: npm run build
 
-      - name: Run E2E smoke suite
-        run: npm run test:e2e
+      - name: Run E2E smoke suite (shard ${{ matrix.shard }}/3)
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/3
+
+  # Roll-up so the three shards satisfy the single required `e2e` check.
+  # `needs` alone is not enough: a skipped or failed dependency makes this job
+  # skip, and a skipped check reads as neutral, not failed. The explicit
+  # result test is what turns any non-success shard into a red `e2e`.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-shard
+    if: always()
+    steps:
+      - name: Verify every shard succeeded
+        run: |
+          set -euo pipefail
+          echo "shard result: ${SHARD_RESULT}"
+          [ "${SHARD_RESULT}" = "success" ]
+        env:
+          SHARD_RESULT: ${{ needs.e2e-shard.result }}
