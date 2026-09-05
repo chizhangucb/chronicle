@@ -1,4 +1,4 @@
-// E2E for /ask (CHI-351): the gate is server-side, so these pins hold on CI
+// E2E for /ask (CHI-351): the guard is server-side, so these pins hold on CI
 // (no claude binary) as strongly as locally. Default seeded harness: Ask is OFF
 // (toggle default off) so there is NO `∴ Ask` entry and the route fails soft.
 // Demo: POST /api/ask is refused with 409 like every runner. The gating FORMULA
@@ -36,9 +36,9 @@ test.describe('demo mode: /ask is refused', () => {
   test.afterAll(() => { if (demo) stopDemo(demo); });
 
   test('POST /api/ask returns 409 (nothing spawns)', async ({ page }) => {
-    const { token } = await (await page.request.get(demo.baseURL + '/api/gate/token')).json();
+    const { token } = await (await page.request.get(demo.baseURL + '/api/write-token')).json();
     const res = await page.request.post(demo.baseURL + '/api/ask', {
-      headers: { 'x-gate-token': token, 'Content-Type': 'application/json' },
+      headers: { 'x-chronicle-write-token': token, 'Content-Type': 'application/json' },
       data: { question: 'which mcp server cost most?', costMode: 'list' },
     });
     expect(res.status()).toBe(409);

@@ -16,35 +16,19 @@ import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountAsk }        from './routes/ask.ts';
 import { mountViewLog }    from './routes/viewlog.ts';
 import { mountDemo }       from './routes/demo.ts';
-import { makeConsoleGate, mountGateRoutes, gateTokenGuard } from './gate/routes.ts';
-import { auditWrites } from './gate/audit-writes.ts';
-import type { Gate } from './gate/core.ts';
+import { writeTokenGuard, mountWriteToken } from './writeToken.ts';
 import { startAutoSync }   from './autosync.ts';
 import { pruneViewLog }    from './viewlog.ts';
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __chronicleGate: Gate | undefined;
-}
-// One gate per boot; on globalThis so Vite SSR reloads don't remint the token
-// mid-session (which would 403 the open tab's cached token) — same pattern as
-// server/cache.ts / server/autosync.ts.
-const gate: Gate = (globalThis.__chronicleGate ??= makeConsoleGate());
 
 export const api = express();
 api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH
 
-// Gate token guard on EVERY mutating route (CHI-323 D2): the ported gate routes
-// AND Chronicle's existing writes (import, sync, project/session ops, settings,
-// security rules), one consistent posture. See gateTokenGuard. The
-// tiered auto-approval model is CHI-329.
-api.use(gateTokenGuard(gate));
+// Per-boot write token on EVERY mutating route (CHI-222): import, sync,
+// project/session ops, settings, security rules — one consistent posture, no
+// split. Same-origin guard, not auth; see server/writeToken.ts.
+api.use(writeTokenGuard());
 
-// Every write that is not a gate surface still lands in the write log (CHI-396).
-// After the token guard, so a rejected request is never recorded as a write.
-api.use(auditWrites(gate));
-
-mountGateRoutes(api, gate);
+mountWriteToken(api);
 mountImportSync(api);
 mountSettings(api);
 mountProjects(api);
