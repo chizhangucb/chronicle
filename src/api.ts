@@ -4,9 +4,9 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
-import { gateToken } from './gate/token.ts';
+import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
 
-// Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
+// Mutating methods carry the per-boot write token (CHI-222). Every write in
 // the app funnels through j(), so attaching the token here is the whole client
 // half of "token on all writes" — no per-call plumbing.
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -15,12 +15,12 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   const method = (opts?.method ?? 'GET').toUpperCase();
   const once = async (refetch: boolean): Promise<Response> => {
     if (!MUTATING.has(method)) return fetch(url, opts);
-    const headers = { ...(opts?.headers as Record<string, string> | undefined), 'x-gate-token': await gateToken(refetch) };
+    const headers = { ...(opts?.headers as Record<string, string> | undefined), [WRITE_TOKEN_HEADER]: await writeToken(refetch) };
     return fetch(url, { ...opts, headers });
   };
   let res = await once(false);
   // The per-boot token rotates on a server restart; one refetch+retry recovers
-  // an open tab (matches Varde's tokenPost). Retry only the CSRF 403, mutating only.
+  // an open tab. Retry only the CSRF 403, mutating only.
   if (res.status === 403 && MUTATING.has(method)) res = await once(true);
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => ({}));
@@ -710,7 +710,7 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, costMode }),
   }),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
-  // so they carry the gate token like every other write, CHI-323 review #2).
+  // so they carry the write token like every other write).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
   }),
@@ -740,7 +740,7 @@ export const api = {
   content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
   // View log (CHI-325 3a). The POST is batched (a navigation closes the previous
-  // dwell and opens the next), and it rides j() so the gate token is attached —
+  // dwell and opens the next), and it rides j() so the write token is attached —
   // server/api.ts 403s every non-GET without it.
   viewLog: (events: ViewLogEventInput[], closes: ViewLogClose[] = []): Promise<{ ids: (number | null)[]; recorded: number; closed: number; enabled: boolean }> =>
     j('/api/view-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events, closes }) }),

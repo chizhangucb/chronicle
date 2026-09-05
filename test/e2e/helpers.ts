@@ -241,12 +241,12 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
     return f;
   });
 
-  // Writes now carry the per-boot gate token (CHI-323 D2). The browser client
+  // Writes carry the per-boot write token (CHI-222). The browser client
   // attaches it automatically; this Node-side seed fetch must fetch it first.
-  const gateToken = ((await (await fetch(`${baseURL}/api/gate/token`)).json()) as { token: string }).token;
+  const writeToken = ((await (await fetch(`${baseURL}/api/write-token`)).json()) as { token: string }).token;
   const importRes = await fetch(`${baseURL}/api/import`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-gate-token': gateToken },
+    headers: { 'content-type': 'application/json', 'x-chronicle-write-token': writeToken },
     body: JSON.stringify({ source: 'claude-code', logDir: project.logDir, files: [sessionFile, ...miniFiles] }),
   });
   if (!importRes.ok) throw new Error(`Seed import failed (${importRes.status}): ${await importRes.text()}`);

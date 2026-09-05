@@ -7,8 +7,8 @@ import { readConfig, writeConfig } from '../autosync.ts';
 //   GET    /api/view-log/summary  the Settings readout
 //   DELETE /api/view-log          the Settings Clear button
 //
-// NOTE the gate: server/api.ts mounts gateTokenGuard on EVERY non-GET, so both
-// the POST and the DELETE arrive with `x-gate-token` or get a 403. The client
+// NOTE the guard: server/api.ts mounts writeTokenGuard on EVERY non-GET, so
+// both the POST and the DELETE arrive with the write token or get a 403. The client
 // side of that is free (src/api.ts `j()` attaches the token to every mutating
 // method already), but a caller that hand-rolls a fetch here will 403, which
 // is the intended posture, not a bug to work around.

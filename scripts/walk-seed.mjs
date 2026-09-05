@@ -100,7 +100,7 @@ async function main() {
   try {
     await waitForServer(`${baseURL}/api/settings`);
 
-    // Seed through the real import API (scan -> import), gated by the boot token.
+    // Seed through the real import API (scan -> import), guarded by the boot token.
     const scanRes = await fetch(`${baseURL}/api/scan?dir=${encodeURIComponent(fixtureDir)}`);
     if (!scanRes.ok) throw new Error(`scan failed (${scanRes.status}): ${await scanRes.text()}`);
     const scan = await scanRes.json();
@@ -110,7 +110,7 @@ async function main() {
     const missing = specs.filter((s) => !byId.has(s.sessionId)).map((s) => s.sessionId);
     if (missing.length) throw new Error(`seeded sessions missing from scan: ${missing.join(', ')}`);
 
-    const gateToken = (await (await fetch(`${baseURL}/api/gate/token`)).json()).token;
+    const writeToken = (await (await fetch(`${baseURL}/api/write-token`)).json()).token;
     // One import per logDir (sessions across projects have different logDirs).
     const byDir = new Map();
     for (const s of specs) {
@@ -122,7 +122,7 @@ async function main() {
     for (const [logDir, files] of byDir) {
       const res = await fetch(`${baseURL}/api/import`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-gate-token': gateToken },
+        headers: { 'content-type': 'application/json', 'x-chronicle-write-token': writeToken },
         body: JSON.stringify({ source: 'claude-code', logDir, files }),
       });
       if (!res.ok) throw new Error(`import failed (${res.status}): ${await res.text()}`);

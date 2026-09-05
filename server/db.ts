@@ -410,6 +410,11 @@ DROP VIEW IF EXISTS contract_sessions;
 PRAGMA user_version = 0;
 `);
 
+// CHI-222: the write gate (propose -> diff card -> confirm, backup, verify,
+// undo) and its audit trail are gone. A database written by an older Chronicle
+// still carries the table, so drop it once — nothing reads it any more.
+db.exec('DROP TABLE IF EXISTS gate_audit;');
+
 // FTS5 full-text index over message content (external-content table kept in
 // sync inside replaceSession — delete+reinsert, no triggers). Node's bundled
 // SQLite ships FTS5, but verify at startup and fail soft: search falls back
