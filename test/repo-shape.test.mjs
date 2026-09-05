@@ -86,7 +86,7 @@ test('the doc glob list reaches a top-level doc, not just a nested one', () => {
   // narrow again and every assertion above it keeps passing.
   const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
   const nesting = (rel) => rel.split('/').length;
-  for (const dir of ['docs', 'litellm']) {
+  for (const dir of ['docs', 'spec', 'litellm']) {
     const under = docs.filter((rel) => rel.startsWith(`${dir}/`));
     assert.ok(under.length, `the doc set reaches nothing under ${dir}/`);
     assert.ok(
