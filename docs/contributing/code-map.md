@@ -51,7 +51,7 @@ The parser is the only place that knows a tool's native format.
 | `errors.ts` | The one server-side tool-result error heuristic |
 | `noiseGate.ts` | The `minor` session flag |
 | `durations.ts` | Agent-active and engaged time, computed at import |
-| `windowUsage.ts` | The overlap-based windowing primitive every windowed route uses |
+| `rangeUsage.ts` | The overlap-based range primitive every ranged route uses |
 | `ask.ts`, `askDb.ts` | `/ask`: the pure guard and envelope logic, and the cost surface |
 
 ## `src/`

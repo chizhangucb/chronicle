@@ -1,7 +1,7 @@
-// Unit tests for src/windowedUsage.ts (feedback-round Task 3): the client-side
-// aggregation over server/windowUsage.ts's WindowedUsageCell/BucketedUsageCell
-// arrays (`/api/insights` windowedTokensByModel/dailySpend/hourlySpend,
-// `/api/projects/:id` analytics.windowedTokensByModel) — grouping by
+// Unit tests for src/rangedUsage.ts (feedback-round Task 3): the client-side
+// aggregation over server/rangeUsage.ts's RangeUsageCell/BucketedUsageCell
+// arrays (`/api/insights` rangedTokensByModel/dailySpend/hourlySpend,
+// `/api/projects/:id` analytics.rangedTokensByModel) — grouping by
 // model/key/bucket and pricing via src/models.ts costOf, WITHOUT ever
 // flattening different models' tokens together before pricing (each model has
 // its own $/token rate).
@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sumByModel, sumByKeyModel, groupByBucket, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells, sumFields,
-} from '../src/windowedUsage.ts';
+} from '../src/rangedUsage.ts';
 import { costOf } from '../src/models.ts';
 
 function cell(input = 0, output = 0, cacheRead = 0, cacheWrite5m = 0, cacheWrite1h = 0) {
@@ -37,7 +37,7 @@ test('costOfCells: prices each model at ITS OWN rate before summing (never flatt
   assert.equal(costOfCells(byModel), (costOf('claude-sonnet-5', sonnetCellA.cells) ?? 0) + (costOf('claude-opus', opusCellA.cells) ?? 0));
 });
 
-test('costOfCells: undefined map (e.g. a session with no windowed cells) is $0, not a throw', () => {
+test('costOfCells: undefined map (e.g. a session with no ranged cells) is $0, not a throw', () => {
   assert.equal(costOfCells(undefined), 0);
 });
 

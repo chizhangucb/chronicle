@@ -100,7 +100,7 @@ export default function CodePanel({ projectId, commit, noRepo, loading }: CodePa
         <h3>No Git history</h3>
         <p className="muted small">Time travel reconstructs code from Git commits.<br />
           This project isn't a Git repository (or has no commits), so snapshots aren't available.<br />
-          Conversation playback still works. More frequent commits = higher replay fidelity.</p>
+          Conversation playback still works. More frequent commits = higher playback fidelity.</p>
       </div>
     );
   }

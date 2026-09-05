@@ -13,7 +13,7 @@ then clean by construction.
 **At export.** Store the full transcript and redact when content leaves: the redacted
 Markdown export, and the Security Check panel that shows what would be stripped.
 
-Redacting at ingest destroys replay. A prompt with its key blanked is not the prompt the model
+Redacting at ingest destroys playback. A prompt with its key blanked is not the prompt the model
 saw, and a tool result with a host blanked no longer explains the failure that followed. It is
 also irreversible against a false positive: a regex that eats a UUID has eaten it for good,
 and re-importing from the source log reproduces the same loss.
@@ -21,11 +21,11 @@ and re-importing from the source log reproduces the same loss.
 ## Decision
 
 The local database holds full content. Redaction runs at the export boundary
-(`server/security.ts`), so replay is faithful and export is safe.
+(`server/security.ts`), so playback is faithful and export is safe.
 
 ## Consequences
 
-- Replay shows exactly what happened, including the secret that caused the incident.
+- Playback shows exactly what happened, including the secret that caused the incident.
 - **`~/.chronicle/chronicle.db` is as sensitive as the source logs it was built from.** It is
   a local file on a machine the user already controls, and it is never uploaded, but it is not
   a sanitised artifact and must not be shared as one.

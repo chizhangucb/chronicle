@@ -9,7 +9,7 @@ not free to relitigate casually, and where the seams are.
 ## What Chronicle is
 
 A session-review and pattern-analysis tool. It imports transcripts from four AI coding tools,
-replays them against Git history, analyses usage and prompt patterns, and redacts on export.
+plays them back against Git history, analyses usage and prompt patterns, and redacts on export.
 
 That is the whole product. Chronicle is independent: another tool may read Chronicle's data;
 Chronicle never reads another tool's files. The only foreign data it touches is the source
@@ -29,7 +29,7 @@ the cost that was accepted. Read the one that touches your area before you chang
 2. [Git history is the only source of code state](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0002-git-is-the-only-code-state.md).
    No snapshot store, never current disk.
 3. [Redaction runs at the export boundary](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0003-redaction-at-the-export-boundary.md).
-   The local database holds full content so replay is faithful.
+   The local database holds full content so playback is faithful.
 4. [A flat five-kind event model](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0004-flat-five-kind-event-model.md) is the ingestion
    contract across all four tools.
 5. [The server ships token cells; the client prices them](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0005-server-ships-tokens-client-prices.md).

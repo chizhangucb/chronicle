@@ -148,7 +148,7 @@ export interface SeededData {
   miniAlphaId: string;
   miniBravoId: string;
   miniMinorId: string;
-  // Task 7 (window-matrix): two more mini sessions, timestamped RELATIVE TO
+  // Task 7 (range-matrix): two more mini sessions, timestamped RELATIVE TO
   // Date.now() at seed time (not a fixed calendar date like the three
   // above) — see the writeMiniSession call sites below for why.
   spanningSessionId: string;
@@ -388,7 +388,7 @@ function writeFixtures(fixtureDir: string): Omit<SeededData, 'dataDir' | 'fixtur
     promptText: 'Mini fixture Charlie: quick tweak.',
   });
 
-  // Task 7 (window-matrix): the fixture above is pinned to a fixed calendar
+  // Task 7 (range-matrix): the fixture above is pinned to a fixed calendar
   // date (2026-08), so it's invisible to "Today"/"7d"/"30d" windows once this
   // suite runs far enough past that date (explore.spec.ts's header comment
   // already documents this exact fragility). These two sessions are seeded
@@ -404,7 +404,7 @@ function writeFixtures(fixtureDir: string): Omit<SeededData, 'dataDir' | 'fixtur
   // before now, which is trivially always "today" (an end 5 minutes shy of
   // "now" cannot itself be in the future or cross back over a *later*
   // midnight). This is the exact regression shape overlapGate
-  // (server/windowUsage.ts) fixes: the OLD gate compared only
+  // (server/rangeUsage.ts) fixes: the OLD gate compared only
   // `started_at >= cutoff` and would have dropped this session from "Today"
   // even though ~26h of its own activity ran INTO today. 30 turns (60
   // messages, well over the noise-gate's 10-message floor) spread evenly
@@ -420,18 +420,18 @@ function writeFixtures(fixtureDir: string): Omit<SeededData, 'dataDir' | 'fixtur
     promptText: 'Mini fixture Spanning: overnight investigation of the parser regression.',
   });
   // todayOnlySessionId: entirely inside the last 40 minutes — the naive-gate
-  // control case alongside the spanning session above for window-matrix.spec.ts's
+  // control case alongside the spanning session above for range-matrix.spec.ts's
   // overlap-gate and probes.spec.ts's dense-time-axis assertions.
   //
   // These two sessions are seeded relative to seed-`now` (not local midnight),
   // so run in the first ~35 min after local midnight and their activity lands
   // just BEFORE midnight, outside a genuine `[midnight, now]` Today window —
   // this WAS an "accepted low-probability risk" that hit CI twice on PR #143.
-  // neutralizes it: window-matrix.spec.ts freezes its browser clock to
+  // neutralizes it: range-matrix.spec.ts freezes its browser clock to
   // local noon (`page.clock.setFixedTime`), so the Today window is a fixed 12h
   // ending at ~now and always contains both sessions regardless of wall clock.
   // Any spec asserting Today-window DATA against these two must apply the same
-  // freeze (only window-matrix does today).
+  // freeze (only range-matrix does today).
   writeMiniSession(fixtureDir, {
     sessionId: todayOnlySessionId,
     dateISO: new Date(nowMs - 40 * 60 * 1000).toISOString(),

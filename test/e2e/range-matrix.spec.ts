@@ -1,8 +1,8 @@
-// Task 7 (feedback-round plan): window-matrix regression pins for the two P0s
+// Task 7 (feedback-round plan): range-matrix regression pins for the two P0s
 // fixed on this branch —
 //   1. sessions spanning local midnight vanished from "Today" (the OLD
 //      per-engine gate compared only `started_at >= cutoff`; the fix is
-//      `overlapGate` in server/windowUsage.ts, which includes a session
+//      `overlapGate` in server/rangeUsage.ts, which includes a session
 //      whose activity RAN INTO the window even if it started earlier).
 //   2. a raw fractional-day count ("0.99…D") leaked into the Explore card
 //      title instead of reading "Today".
@@ -12,12 +12,12 @@
 // and ends 5 minutes before seed time (always today, local); `todayOnlySessionId`
 // is entirely inside the last 40 minutes. Both are non-minor (>=10 messages)
 // and live in the SAME project as the big fixture, so every window below has
-// guaranteed in-window data at both the home page at `/` (scope=all) and the fixture
+// guaranteed in-range data at both the home page at `/` (scope=all) and the fixture
 // project's `/project/:id` (scope=project) — regardless of what real date
 // this suite happens to run on.
 //
 // DETERMINISTIC "Today": the Today window's WIDTH is set entirely
-// client-side. The rangebar sends `days = daysToday` = fractional days since
+// client-side. The range toggle sends `days = daysToday` = fractional days since
 // LOCAL midnight (src/HomeDashboard.tsx / src/ProjectDetail.tsx), and the
 // server computes the cutoff as `now - days*day` (server/insights.ts etc.), so
 // window width == daysToday*day. Run in the first ~35 min after local midnight
@@ -70,7 +70,7 @@ async function waitSettled(page: Page): Promise<void> {
 
 async function assertNonEmpty(page: Page, label: string): Promise<void> {
   for (const needle of NO_DATA_STRINGS) {
-    await expect(page.locator('body'), `${label}: found "${needle}" — fixture data should always be in-window`)
+    await expect(page.locator('body'), `${label}: found "${needle}" — fixture data should always be in-range`)
       .not.toContainText(needle);
   }
 }
@@ -80,14 +80,14 @@ async function assertNonEmpty(page: Page, label: string): Promise<void> {
 // independently-scoped sub-cards (usage characteristics, tool-results-by-tool,
 // skills, subagents — split into separate Skills/Subagents cards in Task 14,
 // D5/D7) that each show their OWN "No sessions in range." when there's no
-// data of THAT specific kind in-window — e.g. the window-matrix fixture's
+// data of THAT specific kind in-range — e.g. the range-matrix fixture's
 // spanning/today mini sessions (test/e2e/helpers.ts) are plain
 // user/assistant turns with no tool_use/subagent activity, so the
 // tool-results/skills/subagents cards legitimately render empty even
-// though the tab as a whole has real in-window session data. So instead of
+// though the tab as a whole has real in-range session data. So instead of
 // asserting NO "No sessions in range." text anywhere on the page (too
 // strict — flags real, correct empty states), assert the one signal that's
-// always non-zero whenever ANY session lands in-window: the composition
+// always non-zero whenever ANY session lands in-range: the composition
 // footer's own calibrated token total (`t('Calibrated tokens {range}: …')`
 // in ContentTab.tsx), which sums every message's text length across every
 // session in scope regardless of whether any of them called a tool.
@@ -167,22 +167,22 @@ async function fixtureProjectId(): Promise<number> {
 
 const TABS = ['Overview', 'Explore', 'Content'] as const;
 
-// ---- Insights home (/) — rangebar buttons are exactly Today/7d/30d/90d/All (home.spec.ts) ----
-const HOME_WINDOWS = ['Today', '7d', '30d'] as const;
+// ---- Insights home (/) — range toggle buttons are exactly Today/7d/30d/90d/All (home.spec.ts) ----
+const HOME_RANGES = ['Today', '7d', '30d'] as const;
 
-test.describe('window-matrix: Insights home (/) — Today/7d/30d × Overview/Explore/Content', () => {
-  for (const win of HOME_WINDOWS) {
+test.describe('range-matrix: Insights home (/) — Today/7d/30d × Overview/Explore/Content', () => {
+  for (const range of HOME_RANGES) {
     for (const tabName of TABS) {
-      test(`${win} × ${tabName}: renders non-empty${tabName === 'Explore' || tabName === 'Content' ? ', no float-day leak' : ''}`, async ({ page }) => {
+      test(`${range} × ${tabName}: renders non-empty${tabName === 'Explore' || tabName === 'Content' ? ', no float-day leak' : ''}`, async ({ page }) => {
         await page.goto(`${state.baseURL}/`);
         await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
 
-        await page.locator('.home-dashboard .rangebar button', { hasText: new RegExp(`^${win}$`) }).click();
+        await page.locator('.home-dashboard .rangebar button', { hasText: new RegExp(`^${range}$`) }).click();
         await waitSettled(page);
         await page.locator('.home-dashboard .tabs .tab', { hasText: new RegExp(`^${tabName}$`) }).click();
         await waitSettled(page);
 
-        const label = `Home ${win} × ${tabName}`;
+        const label = `Home ${range} × ${tabName}`;
         if (tabName === 'Explore') await assertNoFloatDayLeak(page, label);
         if (tabName === 'Content') {
           await assertContentNoFloatDayLeak(page, label);
@@ -192,21 +192,21 @@ test.describe('window-matrix: Insights home (/) — Today/7d/30d × Overview/Exp
         }
         // Overview is where the Sessions KPI renders (Explore/Content hide
         // .kpis) — see the overlapGate isolation comment above.
-        if (win === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
+        if (range === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
       });
     }
   }
 });
 
-// ---- Project detail (/project/:id) — rangebar buttons are Today/7d/30d/90d/All
+// ---- Project detail (/project/:id) — range toggle buttons are Today/7d/30d/90d/All
 // (unified with the home page's vocabulary via the shared RangeBar.tsx, D10, Task 17) ----
 
-// Drift-pin: the project rangebar's option set + labels must equal the home page's
+// Drift-pin: the project range toggle's option set + labels must equal the home page's
 // exactly (same 5 options, same order) — this is the regression the D10
 // unification (shared RangeBar.tsx) exists to prevent. Before Task 17 this
 // rendered Today/7 Days/30 Days/1 Year/All time, a fully independent
 // vocabulary from the home page's Today/7d/30d/90d/All.
-test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the home page at /', async ({ page }) => {
+test('the range toggle on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the home page at /', async ({ page }) => {
   const projectId = await fixtureProjectId();
   await page.goto(`${state.baseURL}/`);
   const homeOpts = page.locator('.home-dashboard .rangebar button');
@@ -220,26 +220,26 @@ test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d /
   expect(await projectOpts.allTextContents()).toEqual(homeLabels);
 });
 
-const PROJECT_WINDOWS: { click: string; label: string }[] = [
+const PROJECT_RANGES: { click: string; label: string }[] = [
   { click: 'Today', label: 'Today' },
   { click: '7d', label: '7d' },
   { click: '30d', label: '30d' },
 ];
 
-test.describe('window-matrix: project detail (/project/:id) — Today/7d/30d × Overview/Explore/Content', () => {
-  for (const win of PROJECT_WINDOWS) {
+test.describe('range-matrix: project detail (/project/:id) — Today/7d/30d × Overview/Explore/Content', () => {
+  for (const range of PROJECT_RANGES) {
     for (const tabName of TABS) {
-      test(`${win.label} × ${tabName}: renders non-empty${tabName === 'Explore' || tabName === 'Content' ? ', no float-day leak' : ''}`, async ({ page }) => {
+      test(`${range.label} × ${tabName}: renders non-empty${tabName === 'Explore' || tabName === 'Content' ? ', no float-day leak' : ''}`, async ({ page }) => {
         const projectId = await fixtureProjectId();
         await page.goto(`${state.baseURL}/project/${projectId}`);
         await expect(page.locator('.project-detail .kpis').first()).toBeVisible();
 
-        await page.locator('.project-detail .rangebar button', { hasText: new RegExp(`^${win.click}$`) }).click();
+        await page.locator('.project-detail .rangebar button', { hasText: new RegExp(`^${range.click}$`) }).click();
         await waitSettled(page);
         await page.locator('.project-detail .tabs .tab', { hasText: new RegExp(`^${tabName}$`) }).click();
         await waitSettled(page);
 
-        const label = `Project ${win.label} × ${tabName}`;
+        const label = `Project ${range.label} × ${tabName}`;
         if (tabName === 'Explore') await assertNoFloatDayLeak(page, label);
         if (tabName === 'Content') {
           await assertContentNoFloatDayLeak(page, label);
@@ -247,7 +247,7 @@ test.describe('window-matrix: project detail (/project/:id) — Today/7d/30d × 
         } else {
           await assertNonEmpty(page, label);
         }
-        if (win.label === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
+        if (range.label === 'Today' && tabName === 'Overview') await assertTodaySessionCountIsTwo(page, label);
       });
     }
   }

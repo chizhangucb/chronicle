@@ -103,11 +103,11 @@ then built-ins, then earliest match.
 expiry. A new write path that does not call `invalidateCache()` serves stale analytics
 indefinitely, and the bug looks like a UI that will not refresh.
 
-## Windowing is overlap, not a start-time cutoff
+## Ranging is overlap, not a start-time cutoff
 
 A session belongs to a time window when its activity span overlaps the window. The obvious
 implementation, filtering on `started_at >= cutoff`, drops a long session that began before the
-window and ran into it. `server/windowUsage.ts` is the shared primitive; windowed routes use
+range and ran into it. `server/rangeUsage.ts` is the shared primitive; ranged routes use
 it rather than writing their own cutoff.
 
 ## Client libraries are `devDependencies`

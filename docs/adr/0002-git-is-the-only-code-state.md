@@ -34,6 +34,6 @@ Every call is a read-only query (`rev-list`, `ls-tree`, `show`, `diff-tree`, `re
   revisited only on user demand, not pre-emptively.
 - A message older than the repo's first commit resolves to the oldest commit with
   `beforeHistory: true`, rather than failing.
-- A project that is not a Git repo still imports and replays; it just has no code pane.
+- A project that is not a Git repo still imports and plays back; it just has no code pane.
 - Merge commits need `-m --first-parent`, or `diff-tree` reports an empty diff. See
   [gotchas](../contributing/gotchas.md).

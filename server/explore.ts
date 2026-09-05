@@ -8,7 +8,7 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, windowedUsage, bucketedUsage, type UsageCells } from './windowUsage.ts';
+import { overlapGate, rangedUsage, bucketedUsage, type UsageCells } from './rangeUsage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
@@ -93,7 +93,7 @@ const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'wee
 //
 // LOCAL time, via SQLite's 'localtime' modifier — matching the round's
 // convention that every user-facing day/hour bucketing is local, not UTC
-// (server/windowUsage.ts's `bucketKeyExpr`; see the Home spend-over-time
+// (server/rangeUsage.ts's `bucketKeyExpr`; see the Home spend-over-time
 // "Aug 12 on Aug 13" defect this convention exists to prevent). `ts` columns
 // are stored as UTC ISO strings, so a bare `substr`/un-adorned `strftime`
 // (the old form here) sliced/split the UTC string directly — wrong bucket
@@ -179,9 +179,9 @@ function parseUsageCells(usage: string | null): Record<string, ModelUsageCell> {
 
 // Loads in-scope sessions' metadata (name/summary/first_prompt for label resolution) +
 // raw usage, honoring the SAME scope + days + COALESCE(minor,0)=0 gate the message
-// queries use, via overlapGate (so its session set matches windowedUsage's — a session
+// queries use, via overlapGate (so its session set matches rangedUsage's — a session
 // spanning the cutoff isn't dropped here while being included there). Token MAGNITUDE
-// no longer comes from this raw parse (see windowedUsage call sites below); this is now
+// no longer comes from this raw parse (see rangedUsage call sites below); this is now
 // a metadata/label-only loader.
 function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }, scope: Scope): SessionUsageParsed[] {
   const rows = db.prepare(`
@@ -196,7 +196,7 @@ function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|num
   }));
 }
 
-// Maps windowUsage.ts's UsageCells (cacheWrite5m/cacheWrite1h field names) onto this
+// Maps rangeUsage.ts's UsageCells (cacheWrite5m/cacheWrite1h field names) onto this
 // file's own ModelUsageCell shape (cw5m/cw1h) — same values, different field names (the
 // Task 1 review's carried "consolidate parseUsage" pointer stayed deferred rather than
 // unifying the two shapes; this is the small adapter instead).
@@ -280,9 +280,9 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // null (not '') for the windowed-usage primitives — see the insights.ts comment for why.
   const cutoffIso = q.days ? cutoff : null;
   const sc = scopeClause(q.scope);
-  // overlapGate (Task 2, the P0 fix — see server/windowUsage.ts): a session whose activity
+  // overlapGate (Task 2, the P0 fix — see server/rangeUsage.ts): a session whose activity
   // ran INTO the window now counts, not just one that STARTED in it. `m.ts >= ?` additionally
-  // restricts message-level aggregates below to messages that actually fall in-window (not
+  // restricts message-level aggregates below to messages that actually fall in-range (not
   // every message of a session that merely overlaps it) — two cutoff binds, both `cutoff`.
   const base = `JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
     WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND m.ts >= ?`;
@@ -386,7 +386,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // of re-querying sessions×projects with the identical scope/cutoff/minorGate
   // filters a second time.
   // Project id → name, needed to key EXACT_USAGE_GROUPS' group='project' rows the same way
-  // groupExpr('project') keys cellRows (p.name) — windowedUsage's cells carry projectId,
+  // groupExpr('project') keys cellRows (p.name) — rangedUsage's cells carry projectId,
   // not the name. Only queried when actually needed (group='project').
   const projectNameById = q.group === 'project'
     ? new Map((db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]).map((p) => [p.id, p.name]))
@@ -396,10 +396,10 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
     // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; day-
     // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
-    // in-window share of per-message tokens — not loadSessionUsage's raw `sessions.usage`
+    // in-range share of per-message tokens — not loadSessionUsage's raw `sessions.usage`
     // parse, which (even after its own overlapGate fix above) would over-count a spanning
-    // session's FULL billed usage instead of its in-window share. Day-bucketed (rather than
-    // the plain windowedUsage) so tokensByModelByDay can be populated alongside the
+    // session's FULL billed usage instead of its in-range share. Day-bucketed (rather than
+    // the plain rangedUsage) so tokensByModelByDay can be populated alongside the
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
     const bucketedCells = bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, 'day');
@@ -495,15 +495,15 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
       FROM messages m ${base} ${g.where} GROUP BY gk
     `).all(...bind()) as unknown as { gk: string|number; chars: number }[];
-    // Calibration base + per-model split come from windowedUsage — the
+    // Calibration base + per-model split come from rangedUsage — the
     // authoritative sessions.usage (input+output = the Insights Tokens KPI, per the 5d
-    // "narrow Insights Tokens to input+output" decision) SCALED to the in-window share,
+    // "narrow Insights Tokens to input+output" decision) SCALED to the in-range share,
     // NOT per-message assistant sums and not the raw unscaled billed cell — so calibrated
-    // tool/skill Spend prices off the real in-window billed total at a real blended rate.
-    const windowedCells = windowedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso);
+    // tool/skill Spend prices off the real in-range billed total at a real blended rate.
+    const rangedCells = rangedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso);
     const modelSplit = new Map<string, { input: number; output: number }>();
     let billedAll = 0;
-    for (const c of windowedCells) {
+    for (const c of rangedCells) {
       const cur = modelSplit.get(c.model) ?? { input: 0, output: 0 };
       cur.input += c.cells.input; cur.output += c.cells.output;
       modelSplit.set(c.model, cur);
@@ -643,7 +643,7 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   // primitive only supports hour/day granularity, not the weekly/monthly
   // rollups this file also serves, so per-message-scaled bucket placement for
   // this session-usage-sourced path is left as a known follow-up, not this
-  // task's scope (the total/ranked `rows` above ARE fully windowedUsage-scaled).
+  // task's scope (the total/ranked `rows` above ARE fully rangedUsage-scaled).
   const sessionSql = `SELECT ${bs} AS bkt, s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
     FROM sessions s JOIN projects p ON p.id = s.project_id
     WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}`;

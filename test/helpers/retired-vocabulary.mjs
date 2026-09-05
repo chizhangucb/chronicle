@@ -43,6 +43,23 @@ export const RETIRED_WORDS = [
   { word: 'private ticket id', re: PRIVATE_TICKET },
 ];
 
+/** Phrases CONTEXT.md (issue #181) retired, landed by issue #256. Unlike
+ *  RETIRED_WORDS these are phrase-scoped, because the bare words survive in the
+ *  senses the glossary keeps: `window` is still the plan window and the context
+ *  window (and the browser's own `window`), and `Playback` carries no `replay`.
+ *
+ *  `replay` is the one absolute: nothing in the product is a replay. Playback
+ *  and time travel own those meanings, and the parsers' repeated usage lines own
+ *  theirs. The single surviving spelling is the frozen migration name, stripped
+ *  by SCHEMA_LITERALS before the sweep reads a line. */
+export const RETIRED_PHRASES = [
+  { phrase: 'replay', re: /\breplay/i },
+  { phrase: 'window toggle', re: /\bwindow toggle\b/i },
+  { phrase: 'rangebar as a name', re: /\b(?:project|the|a|shared) rangebar\b/ },
+  { phrase: 'windowed usage', re: /\bwindowed (?:usage|cells|billed)\b/i },
+  { phrase: 'in-window', re: /\bin-window\b/i },
+];
+
 /** Route prefixes the shrink unmounted. A tracked file that mounts or fetches
  *  one has re-grown a surface (routes are pinned live in
  *  test/removed-routes.test.mjs; this is the source-level pin). */

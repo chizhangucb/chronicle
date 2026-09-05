@@ -37,24 +37,24 @@ export function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): C
   });
 }
 
-// The window's inclusive start day (YYYY-MM-DD, local) — `today` minus (days-1).
-// Null for the All window (no bound).
-export function windowStartDay(today: string, days: number | null): string | null {
+// The range's inclusive start day (YYYY-MM-DD, local) — `today` minus (days-1).
+// Null for the All range (no bound).
+export function rangeStartDay(today: string, days: number | null): string | null {
   if (days == null) return null;
   const [y, m, d] = today.split('-').map(Number);
   const start = new Date(y, m - 1, d - (Math.max(Math.round(days), 1) - 1));
   return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
 }
 
-// The ONE window-scoped anomaly view, shared verbatim by the Overview tile and
+// The ONE range-scoped anomaly view, shared verbatim by the Overview tile and
 // the Spend-tab card so the two surfaces can NEVER disagree (review —
 // they showed different All totals, and 90d > All, because they read different,
 // differently-bounded sources). Everything here derives from burn.anomalyDays,
-// which the server now sizes to cover the FULL window + a 14-day baseline for
+// which the server now sizes to cover the FULL range + a 14-day baseline for
 // every window. `current` = window sum; `ratio` = current / server prior-period
-// baseline; movers = top project + top model by window spend; flaggedDays =
+// baseline; movers = top project + top model by range spend; flaggedDays =
 // per-day spikes in the window.
-export interface WindowAnomaly {
+export interface RangeAnomaly {
   current: number;
   baseline: number;
   hasBaseline: boolean;
@@ -65,11 +65,11 @@ export interface WindowAnomaly {
   flaggedDays: FlaggedDay[];
 }
 
-export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days: number | null): WindowAnomaly {
+export function rangeAnomaly(burn: ActivityResult['burn'], mode: CostMode, days: number | null): RangeAnomaly {
   const costedDays = buildCostedDays(burn, mode);
-  const winStart = windowStartDay(burn.today, days);
-  const inWindow = (day: string) => (winStart ? day >= winStart : true) && day <= burn.today;
-  const current = costedDays.filter((d) => inWindow(d.day)).reduce((s, d) => s + d.cost, 0);
+  const rangeStart = rangeStartDay(burn.today, days);
+  const inRange = (day: string) => (rangeStart ? day >= rangeStart : true) && day <= burn.today;
+  const current = costedDays.filter((d) => inRange(d.day)).reduce((s, d) => s + d.cost, 0);
   let baseline = 0;
   for (const [model, cell] of Object.entries(burn.baselineTokensByModel)) baseline += costOf(model, cell, undefined, mode) ?? 0;
   const hasBaseline = baseline > 0;
@@ -80,16 +80,16 @@ export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days
     hasBaseline,
     ratio,
     hot: ratio != null && ratio > 2,
-    topProject: topDimInWindow(costedDays, burn.today, winStart, 'project'),
-    topModel: topDimInWindow(costedDays, burn.today, winStart, 'model'),
-    flaggedDays: computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, winStart ?? undefined),
+    topProject: topDimInRange(costedDays, burn.today, rangeStart, 'project'),
+    topModel: topDimInRange(costedDays, burn.today, rangeStart, 'model'),
+    flaggedDays: computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, rangeStart ?? undefined),
   };
 }
 
 // The top value of one dimension by absolute spend within [start, today]
 // (start === null → the whole series, the All window). Window-scoped, so the
-// movers move as the window changes.
-export function topDimInWindow(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
+// movers move as the range changes.
+export function topDimInRange(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
   const totals = new Map<string, number>();
   for (const d of days) {
     if (d.day > today || (start && d.day < start)) continue;
