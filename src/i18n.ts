@@ -12,7 +12,7 @@ const zh = {
   'error': '错误',
   'live': '进行中',
   'Burn rate': '消耗速率',
-  'Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged.': '本时段的花费与基线对比（今天取过去 14 个完整日的中位数，较长时段取上一周期）。超过基线 2 倍会被标记。',
+  'Your spend in this range versus a baseline (Today uses the median of the last 14 complete days; longer ranges use the prior period). Over 2× the baseline is flagged.': '本时段的花费与基线对比（今天取过去 14 个完整日的中位数，较长时段取上一周期）。超过基线 2 倍会被标记。',
   'vs': '对比',
   'typical day (14-day median)': '典型日（14 日中位数）',
   'prior 7 days': '前 7 天',
@@ -593,9 +593,9 @@ const zh = {
   // Task 13: Burn tile reshuffle + KPI InfoTip sweep
   'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
     '范围内所有会话计费的输入 + 输出词元；不含缓存读写。缓存占比 = 缓存读取 ÷（缓存读取 + 新输入）。',
-  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the range but ran into it are pro-rated by their in-range token share.':
     '根据计费词元数按标价在本地估算，并非真实账单数据；窗口开始前就已运行、延续到窗口内的会话按其窗口内词元占比折算。',
-  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+  'Git commits within this range (a raw git log count) — not filtered to only commits a tracked session caused.':
     '此窗口内的 Git 提交数（原始 git log 计数）——不筛选是否由已跟踪会话触发。',
   'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
     '每一条标准化事件记录——用户、助手、思考、工具调用与工具结果——不仅限于人机对话轮次。',
@@ -612,7 +612,7 @@ const ja = {
   'error': 'エラー',
   'live': '進行中',
   'Burn rate': '消費ペース',
-  'Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period). Over 2× the baseline is flagged.': 'この期間の支出とベースラインの比較（今日は直近14日間の中央値、長い期間は前の期間を使用）。ベースラインの2倍を超えると強調表示されます。',
+  'Your spend in this range versus a baseline (Today uses the median of the last 14 complete days; longer ranges use the prior period). Over 2× the baseline is flagged.': 'この期間の支出とベースラインの比較（今日は直近14日間の中央値、長い期間は前の期間を使用）。ベースラインの2倍を超えると強調表示されます。',
   'vs': '対',
   'typical day (14-day median)': '平常日（14日間の中央値）',
   'prior 7 days': '前の7日間',
@@ -1198,9 +1198,9 @@ const ja = {
   // Task 13: Burn tile reshuffle + KPI InfoTip sweep
   'Input + output tokens billed across sessions in range; cache reads/writes are excluded from this count. % cached = cache reads ÷ (cache reads + fresh input).':
     '範囲内の全セッションで課金された入力+出力トークン数（キャッシュの読み書きは含みません）。% cached = キャッシュ読み取り ÷（キャッシュ読み取り + 新規入力）。',
-  'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.':
+  'Priced locally from billed token counts at list price, never billed data; sessions that started before the range but ran into it are pro-rated by their in-range token share.':
     '課金対象トークン数を表示価格でローカル推定した値であり、実際の請求データではありません。ウィンドウ開始前から続いていたセッションは、ウィンドウ内のトークン比率で按分されます。',
-  'Git commits within this window (a raw git log count) — not filtered to only commits a tracked session caused.':
+  'Git commits within this range (a raw git log count) — not filtered to only commits a tracked session caused.':
     'このウィンドウ内の Git コミット数（生の git log カウント）— 追跡対象セッションが引き起こしたものに限定されません。',
   'Every normalized event row — user, assistant, thinking, tool call, and tool result — not just human/assistant chat turns.':
     'すべての正規化イベント行 — ユーザー、アシスタント、思考、ツール呼び出し、ツール結果 — 人間/アシスタントの会話ターンだけではありません。',

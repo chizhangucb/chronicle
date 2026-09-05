@@ -21,8 +21,8 @@ switched off; the Spend tab is simply empty of metered rows.
 - **Lane C** - calls billed per token, which is what the spine meters. Claude Code and
   Codex subscription calls are not Lane C and never touch the proxy.
 - **Roster** - the hand-curated table of which models are allowed, at what tier and
-  trust level. It is a personal document that lives outside this repo; `refresh_roster.py`
-  updates it, and the proxy never reads it.
+  trust level. It is a personal document that lives outside this repo, and the proxy
+  never reads it. `scripts/refresh_roster.py` maintains it.
 
 ## Contract
 
@@ -36,8 +36,6 @@ switched off; the Spend tab is simply empty of metered rows.
   one JSONL row per completed request, metrics only.
 - A launchd job, template in `launchd/com.chronicle.litellm.plist.template`, installed by
   `scripts/install-jobs.mjs`.
-- `litellm/refresh_roster.py [--dry-run]` - refreshes only the roster's price and context
-  columns.
 
 ### Owned data
 
@@ -177,11 +175,10 @@ Run it when a spend number looks wrong. It is not automated.
 
 ## Roster refresh
 
-`python litellm/refresh_roster.py [--dry-run]` updates only the price and context columns
-of the roster from OpenRouter's public catalog, never the judgment columns
-(`test/litellm-guards.test.mjs` pins that, including that no row is added or dropped).
-The roster is a personal document rather than a repo one, so point the script at it with
-`--roster PATH` or `$CHRONICLE_ROSTER_MD`. With neither set it exits 2 and says so.
+Not part of this spine. The proxy never reads the roster and the roster never
+configures the proxy, so the refresher lives at `scripts/refresh_roster.py` and is
+run with `npm run refresh-roster` (`test/refresh-roster.test.mjs` guards it). It is
+named here only because the Roster is a term this runbook uses.
 
 ## Where things live
 

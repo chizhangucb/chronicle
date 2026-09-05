@@ -1,4 +1,4 @@
-// server/activity.ts's burn.windowSpendTokensByModel (the CURRENT-
+// server/activity.ts's burn.rangeSpendTokensByModel (the CURRENT-
 // window spend figure the Home Burn tile shows — the exact number the
 // audit found overstated ~50% for Sonnet-5-heavy usage during the intro
 // window) must carry a day-bucketed breakdown so the client can price a
@@ -45,15 +45,15 @@ before(async () => {
 
 after(async () => { teardown?.(); });
 
-test('computeActivity(days=null): burn.windowSpendTokensByModelByDay splits the All-window total by LOCAL day', () => {
+test('computeActivity(days=null): burn.rangeSpendTokensByModelByDay splits the All-window total by LOCAL day', () => {
   const r = activity.computeActivity(null, null);
-  assert.ok(r.burn.windowSpendTokensByModelByDay, 'burn must carry windowSpendTokensByModelByDay');
-  assert.equal(r.burn.windowSpendTokensByModelByDay['2026-08-15']['claude-sonnet-5'].input, 1_000_000);
-  assert.equal(r.burn.windowSpendTokensByModelByDay['2026-09-01']['claude-sonnet-5'].input, 1_000_000);
+  assert.ok(r.burn.rangeSpendTokensByModelByDay, 'burn must carry rangeSpendTokensByModelByDay');
+  assert.equal(r.burn.rangeSpendTokensByModelByDay['2026-08-15']['claude-sonnet-5'].input, 1_000_000);
+  assert.equal(r.burn.rangeSpendTokensByModelByDay['2026-09-01']['claude-sonnet-5'].input, 1_000_000);
 
-  const byDaySum = Object.values(r.burn.windowSpendTokensByModelByDay)
+  const byDaySum = Object.values(r.burn.rangeSpendTokensByModelByDay)
     .reduce((n, byModel) => n + Object.values(byModel).reduce((m, c) => m + c.input + c.output, 0), 0);
-  const flatTotal = Object.values(r.burn.windowSpendTokensByModel).reduce((n, c) => n + c.input + c.output, 0);
+  const flatTotal = Object.values(r.burn.rangeSpendTokensByModel).reduce((n, c) => n + c.input + c.output, 0);
   assert.equal(byDaySum, flatTotal, 'day-bucketed sum must reconcile exactly with the flat total');
   assert.equal(flatTotal, 2_000_000);
 });

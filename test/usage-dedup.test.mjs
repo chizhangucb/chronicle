@@ -70,11 +70,11 @@ before(async () => {
   //     with identical cells. Pre-fix `usage` therefore double-counts call one.
   session(seed, 'dup', { m: { input: 30, output: 450, cacheWrite5m: 0, cacheWrite1h: 1520, cacheRead: 15800 } }, path.join(dir, 'gone.jsonl'));
   msg(seed, 'dup', 0, dup);
-  msg(seed, 'dup', 1, dup);            // replay of the same call
+  msg(seed, 'dup', 1, dup);            // repeat of the same call
   msg(seed, 'dup', 2, other);
 
   // (b) Adjacent all-zero rows must NOT collapse: they cannot be shown to be a
-  //     replay, and the only false positive found across every transcript on
+  //     repeat, and the only false positive found across every transcript on
   //     disk was exactly this shape (a pair of `<synthetic>` rows).
   session(seed, 'zeros', { '<synthetic>': { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 } }, path.join(dir, 'gone2.jsonl'));
   msg(seed, 'zeros', 0, { model: '<synthetic>', input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 });
@@ -108,7 +108,7 @@ after(() => {
 const row = (id) => dbModule.db.prepare('SELECT usage, usage_source, imported_at FROM sessions WHERE id = ?').get(id);
 
 describe('backfill', () => {
-  test('collapses an adjacent replayed row and rebuilds sessions.usage from the survivors', () => {
+  test('collapses an adjacent repeated usage row and rebuilds sessions.usage from the survivors', () => {
     const r = row('dup');
     assert.equal(r.usage_source, 'rederived');
     // Call one counted once (10/100/5000/700) plus call two (10/250/5800/120).
@@ -120,7 +120,7 @@ describe('backfill', () => {
   test('clears the token columns of the dropped row so message sums stop double-counting', () => {
     const rows = dbModule.db.prepare(
       'SELECT seq, input_tokens FROM messages WHERE session_id = ? ORDER BY seq').all('dup');
-    // NULL, not 0 — that keeps "dropped as a replay" distinguishable from
+    // NULL, not 0 — that keeps "dropped as a repeat" distinguishable from
     // "genuinely billed zero" on any later pass. Readers all COALESCE.
     assert.deepEqual(rows.map((x) => x.input_tokens), [10, null, 10]);
     // And the message rows now sum to the same figure as sessions.usage.

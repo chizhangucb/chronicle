@@ -15,7 +15,7 @@ import { fmtInt, fmtMoney } from './format.js';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './windowedUsage.ts';
+import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './rangedUsage.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
@@ -71,14 +71,14 @@ export interface ProjectAnalytics {
   activity: ActivityRow[];
   errors: number;
   commits: number;
-  // Windowed per-session, per-model, per-day billed cells (Task 2/3, project-
+  // Ranged per-session, per-model, per-day billed cells (Task 2/3, project-
   // scoped; day-bucketed) — the client prices these via costOf
   // for the Cost/Tokens KPI tiles and Cost by model bars, instead of summing
-  // raw session.usage, so a session that started before the window but ran
-  // INTO it contributes only its in-window share, and one that straddles a
+  // raw session.usage, so a session that started before the range but ran
+  // INTO it contributes only its in-range share, and one that straddles a
   // rate change (e.g. Sonnet 5's intro window) prices each day correctly
-  // (mirrors server/insights.ts's windowedTokensByModel).
-  windowedTokensByModel: BucketedUsageCell[];
+  // (mirrors server/insights.ts's rangedTokensByModel).
+  rangedTokensByModel: BucketedUsageCell[];
 }
 
 export interface ProjectDetailData {
@@ -204,7 +204,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // "Today" = fractional days since local midnight, computed once per range change
   // (a stable value avoids a Date.now()-driven refetch loop). `rangeDays` is the
   // shared resolver (RangeBar.tsx, D10) — same option set + semantics as the `/`
-  // home page's window toggle so the two vocabularies cannot drift again.
+  // home page's range toggle so the two vocabularies cannot drift again.
   const days = useMemo(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0);
     const daysToday = (Date.now() - d.getTime()) / 86400000;
@@ -248,7 +248,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       // The renamed name is now stale everywhere it's cached client-side
       // (ProjectPicker's list, this project's own detail payload, etc.) —
       // drop the whole SWR cache so the next read of any of those URLs goes
-      // back to the server instead of replaying the old name for the rest
+      // back to the server instead of re-sending the old name for the rest
       // of the session.
       invalidateClientCache();
       setRenaming(false);
@@ -287,23 +287,23 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     // Agent active total: same per-session fallback as the "duration" sort
     // (agent_active_ms when present, else wall-clock start→end).
     const activeMs = sessions.reduce((sum, s) => sum + sessionDurationMs(s), 0);
-    // Cost/tokens: windowed per-model cells (Task 2/3), not raw session.usage —
-    // a session that started before the window but ran INTO it contributes
-    // only its in-window share, so these KPIs agree with the session list
+    // Cost/tokens: ranged per-model cells (Task 2/3), not raw session.usage —
+    // a session that started before the range but ran INTO it contributes
+    // only its in-range share, so these KPIs agree with the session list
     // above (which is already overlap-gated server-side) at every window.
     let totalCost = 0, totalIn = 0, totalOut = 0;
-    const windowedByModel = sumByModel(analytics.windowedTokensByModel);
+    const rangedByModel = sumByModel(analytics.rangedTokensByModel);
     // Day-bucketed pricing: group by model, then price each
     // model's cells per day-bucket — a model bag spanning a rate change
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    const windowedByModelCells = groupByKey(analytics.windowedTokensByModel, (c) => c.model);
+    const rangedByModelCells = groupByKey(analytics.rangedTokensByModel, (c) => c.model);
     const costByModelMap = new Map<string, number>();
     const modelsSeen = new Set<string>();
-    for (const [m, cell] of windowedByModel) {
+    for (const [m, cell] of rangedByModel) {
       modelsSeen.add(m);
       totalIn += cell.input;
       totalOut += cell.output;
-      costByModelMap.set(m, costOfBucketedCells(windowedByModelCells.get(m) ?? [], mode));
+      costByModelMap.set(m, costOfBucketedCells(rangedByModelCells.get(m) ?? [], mode));
     }
     for (const cost of costByModelMap.values()) totalCost += cost;
     const costByModel = [...costByModelMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);

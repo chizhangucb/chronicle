@@ -44,7 +44,7 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
 - [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Anomaly tile
       → Insights charts → Provenance strip LAST. NOTHING renders above the KPI strip (#220: the
       briefing band and the status band are removed). NO recent-sessions ledger on `/`.
-- [ ] Tabs Overview / Explore / Content / Spend / Sessions and a five-option window toggle
+- [ ] Tabs Overview / Explore / Content / Spend / Sessions and a five-option range toggle
       (Today/7d/30d/90d/All) present.
 - [ ] `/projects` is the dense `.rail-proj` LIST (pdot · name · live dot … count · gear menu; meta =
       branch/"needs association" · relative time) — NEVER the bordered `.projects-grid` card treatment.
@@ -83,7 +83,7 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
       `modal-in` animation finishes, `getComputedStyle(el).transform` must still center it, not
       revert to `none`.
 - [ ] Every modal offers a close affordance (✕) reachable by keyboard; Escape closes it.
-- [ ] Toasts auto-dismiss; if app logic implies a non-default window, `duration={N}` is passed
+- [ ] Toasts auto-dismiss; if app logic implies a non-default duration, `duration={N}` is passed
       explicitly (Radix `Toast.Root` defaults to 5000ms).
 
 ### Charts (any Recharts or hand-rolled SVG/CSS visualization)
@@ -242,7 +242,7 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
 - **Dense time-series:** every rendered time-series chart must be zero-filled from its first
   to its last bucket, so equal bar/point spacing always represents equal time, never a collapsed
   run of empty buckets reading visually as one wide bar. Implemented via `src/charts/timeBuckets.ts`
-  `densifyBuckets` (client-side) + `server/windowUsage.ts` / `server/explore.ts` bucketing
+  `densifyBuckets` (client-side) + `server/rangeUsage.ts` / `server/explore.ts` bucketing
   (server-side). **CI-probed by `test/e2e/probes.spec.ts` TIME-AXIS probe** — reads x-axis tick
   labels from rendered Recharts charts in a bounded bucket range and asserts consecutive labels
   are exactly one day/hour/month apart (not a gap of multiple buckets). Detects the regression

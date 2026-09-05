@@ -15,7 +15,7 @@ refactor while letting the bug back in through a different route.
 
 **Sweep before you pin.** A bug is rarely alone. When you find one, look for the same mistake
 in its siblings, and fix the class rather than the instance. A duplicated heuristic, a missing
-cache invalidation, a naive window cutoff: each of those has been wrong in more than one place
+cache invalidation, a naive range cutoff: each of those has been wrong in more than one place
 at once. The pin then covers the class.
 
 If the sweep turns up more than the PR can carry, fix what you can, file the rest with what you

@@ -31,7 +31,6 @@ const RUNTIME_FILES = [
   'litellm/run.sh',
   'litellm/config.yaml',
   'litellm/lane_c_spend_logger.py',
-  'litellm/refresh_roster.py',
   'litellm/.env.example',
   'litellm/README.md',
   'launchd/com.chronicle.litellm.plist.template',
@@ -45,9 +44,6 @@ test('no runtime file names a private checkout, a machine-only dir or the old la
 test('no runtime file reads a retired checkout env var', () => {
   const offenders = RUNTIME_FILES.filter((rel) => /AIOS_HUB|CHRONICLE_HUB/.test(read(rel)));
   assert.deepEqual(offenders, [], `a retired checkout env var is back in: ${offenders}`);
-  // refresh_roster.py points at a document outside the repo, so it takes one
-  // explicit knob and never defaults to a path.
-  assert.match(read('litellm/refresh_roster.py'), /CHRONICLE_ROSTER_MD/);
 });
 
 test('run.sh binds loopback with no host knob to override it', () => {
@@ -294,50 +290,6 @@ print(log.path)`, { CHRONICLE_DATA_DIR: dir, LANE_C_SPEND_LOG: '' });
   assert.ok(Math.abs(row.spend - 0.0125) < 1e-9);
 });
 
-test('refresh_roster runs from a fresh clone and says what to configure', (t) => {
-  const r = spawnSync('python3', [path.join(REPO, 'litellm/refresh_roster.py'), '--dry-run'], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      PYTHONDONTWRITEBYTECODE: '1',
-      CHRONICLE_HUB: '', CHRONICLE_ROSTER_MD: '',
-    },
-  });
-  if (skipWithoutPython(t, r)) return;
-  assert.equal(r.status, 2, `expected a clean config exit, got ${r.status}: ${r.stderr}`);
-  assert.match(r.stderr, /no roster file configured/);
-  assert.match(r.stderr, /CHRONICLE_ROSTER_MD/);
-});
-
-test('refresh_roster --roster refreshes only the volatile columns', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'roster-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const md = path.join(dir, 'model-routing.md');
-  fs.writeFileSync(md, [
-    '## Roster',
-    '',
-    '| Model | Route | Tier | Price in/out (auto) | Context (auto) |',
-    '| --- | --- | --- | --- | --- |',
-    '| glm | openrouter/z-ai/glm-5.2 | workhorse | $0.00 / $0.00 | 0 |',
-    '',
-  ].join('\n'));
-
-  const r = spawnSync('python3', ['-c', `import json, pathlib, sys
-sys.path.insert(0, ${JSON.stringify(path.join(REPO, 'litellm'))})
-import refresh_roster as rr
-catalog = {'z-ai/glm-5.2': (0.5, 1.5, 131072)}
-p = pathlib.Path(${JSON.stringify(md)})
-new, changes = rr.update_roster_table(p.read_text(), catalog)
-p.write_text(new)
-print(len(changes))`], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
-  if (skipWithoutPython(t, r)) return;
-  assert.equal(r.status, 0, r.stderr);
-  const out = fs.readFileSync(md, 'utf8');
-  assert.match(out, /\$0\.50 \/ \$1\.50/);
-  assert.match(out, /\| 131072 \|/);
-  assert.match(out, /workhorse/, 'a judgment column was rewritten');
-});
-
 // --- The runbook reads for a stranger (issue #187) -------------------------
 // A contributor who is not the author has no tracker, no sibling repo and no
 // private checkout. Every
@@ -347,6 +299,23 @@ const litellmFiles = () =>
   execFileSync('git', ['ls-files', '--', 'litellm'], { cwd: REPO, encoding: 'utf8' })
     .split('\n')
     .filter(Boolean);
+
+test('litellm/ holds proxy runtime and nothing else', () => {
+  // The roster refresher sat here for years because it was adjacent in an older
+  // layout, not because it belonged: the proxy never reads the roster and the
+  // roster never configures the proxy, so it moved to scripts/ (issue #192).
+  // Listing the folder rather than banning one filename is what stops the next
+  // operator script landing here for the same "it was nearby" reason.
+  const expected = [
+    'litellm/.env.example',
+    'litellm/README.md',
+    'litellm/config.yaml',
+    'litellm/lane_c_spend_logger.py',
+    'litellm/run.sh',
+  ];
+  assert.deepEqual(litellmFiles().sort(), expected,
+    'litellm/ gained or lost a file; it holds proxy runtime only');
+});
 
 test('nothing in litellm/ cites a ticket id a stranger cannot open', () => {
   const offenders = litellmFiles().filter((rel) => PRIVATE_TICKET.test(read(rel)));

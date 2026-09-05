@@ -43,7 +43,7 @@ test('densifyBuckets: hour — fills across a local day boundary', () => {
   );
 });
 
-test('dayKeyOf / hourKeyOf: format matches server/windowUsage.ts localBucketKeyFromIso', () => {
+test('dayKeyOf / hourKeyOf: format matches server/rangeUsage.ts localBucketKeyFromIso', () => {
   const d = new Date(2026, 7, 13, 9); // Aug 13 2026, 9am LOCAL — month is 0-indexed
   assert.equal(dayKeyOf(d), '2026-08-13');
   assert.equal(hourKeyOf(d), '2026-08-13T09');

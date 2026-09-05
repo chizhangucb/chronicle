@@ -80,7 +80,21 @@ GitHub Actions, with organization `chizhangucb`, repository `chronicle`, workflo
 - **`check`** runs typecheck, the test suite, and the client build on Node 24, with Python 3.12
   pinned for the guards that shell out to it. `CHRONICLE_REQUIRE_PYTHON=1` turns a
   "no python3" skip into a failure, so a silently skipped guard cannot pass CI.
-- **`e2e`** runs the Playwright smoke suite against a seeded large fixture in real Chromium.
+- **`changes`** classifies the PR's diff through `scripts/ci/e2e-applies.sh`. A change confined
+  to `docs/`, `website/` or root-level markdown cannot reach the running app, so it skips the
+  e2e gate. Anything else runs it, and a push to `main` or a manual dispatch always runs it.
+  The gate is skipped only on an explicit `false`: if this job itself fails, the e2e jobs still
+  run, because a skipped required check reads as passing and would let a red PR through.
+- **`e2e-shard`** runs the Playwright smoke suite against a seeded large fixture in real
+  Chromium, as a 3-way matrix. Each shard is a full runner with its own install, browser, build
+  and seed, and runs the suite parallel on two workers.
+- **`e2e`** is the roll-up: it depends on the shards and goes red unless every one succeeded.
+  Branch protection requires this name, not the matrix's, so keep the job id stable.
+- **`e2e-stub`** publishes under that same check name `e2e` and runs only when `changes` returned
+  an explicit `false`, so a docs-only PR satisfies the required check instead of waiting on a job
+  that will never run. Both jobs publish an `e2e` check run on every run, one of them skipped, so
+  the PR shows two `e2e` rows; the conditions are strict complements, so the skipped one never
+  carries the verdict.
 
 Branches-up-to-date is enforced natively by branch protection's
 `required_status_checks.strict`, not by a workflow job.

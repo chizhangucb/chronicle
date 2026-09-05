@@ -1,6 +1,6 @@
 // E2E for the Insights home at `/` (product-IA fix, 2026-08-13).
 // The old separate `/insights` dashboard is gone: `/` IS the Insights home, with
-// Overview / Explore / Content tabs and a five-option window toggle. This suite
+// Overview / Explore / Content tabs and a five-option range toggle. This suite
 // also carries the DRIFT-PIN tests that would have caught the two-surface
 // regression (sidebar entries, tabs, window options, /insights redirect,
 // Overview DOM order).
@@ -73,8 +73,8 @@ test('the home page at / shows exactly Overview / Explore / Content / Spend / Se
   await expect(page.locator('.home-dashboard .tabs .tab.on')).toHaveText('Overview');
 });
 
-// ── Drift-pin (c): the window toggle has exactly the five options ─────────────
-test('the window toggle on / has exactly Today / 7d / 30d / 90d / All', async ({ page }) => {
+// ── Drift-pin (c): the range toggle has exactly the five options ──────────────
+test('the range toggle on / has exactly Today / 7d / 30d / 90d / All', async ({ page }) => {
   await gotoHome(page);
   const opts = page.locator('.home-dashboard .rangebar button');
   await expect(opts).toHaveCount(5);
@@ -152,7 +152,7 @@ test('no horizontal overflow on the home page at 1366', async ({ page }) => {
   expect(ok).toBe(true);
 });
 
-test('window toggle to 7d hides the Activity block, the anomaly tile persists', async ({ page }) => {
+test('range toggle to 7d hides the Activity block, the anomaly tile persists', async ({ page }) => {
   await gotoHome(page);
   await expect(page.locator('.activity-card')).toBeVisible();
   await page.locator('.home-dashboard .rangebar button', { hasText: /^7d$/ }).click();

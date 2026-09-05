@@ -4,7 +4,7 @@ import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, planWindowsUrl } 
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
-import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './windowedUsage.ts';
+import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
 import { t } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
@@ -21,7 +21,7 @@ import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type St
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
 // → plan windows → efficiency → skills/MCP.
 
-const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
+const RANGE_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
 // Legacy home: the monthly budget used to live ONLY here (moved it
 // server-side so every surface reads one number). Read once on mount to migrate
 // an existing value up to /settings, then cleared.
@@ -34,13 +34,13 @@ function readLegacyLocalBudget(): number | null {
   catch { return null; }
 }
 
-export default function SpendTab({ insights, activity, win, days }: {
-  insights: InsightsResult | null; activity: ActivityResult | null; win: RangeKey; days: number | null;
+export default function SpendTab({ insights, activity, range, days }: {
+  insights: InsightsResult | null; activity: ActivityResult | null; range: RangeKey; days: number | null;
 }): JSX.Element {
   const { mode } = useCostMode();
   const today = activity?.burn.today ?? null;
 
-  // Budget is MONTH-scoped, independent of the rangebar: fetch a month-to-date
+  // Budget is MONTH-scoped, independent of the range toggle: fetch a month-to-date
   // insights (days = day-of-month) so the meter is right on any window.
   const dayOfMonth = today ? Number(today.slice(8, 10)) : null;
   const { data: monthInsights } = useCachedFetch<InsightsResult>(insightsUrl(dayOfMonth ?? undefined));
@@ -53,11 +53,11 @@ export default function SpendTab({ insights, activity, win, days }: {
       <BudgetBand monthInsights={monthInsights} today={today} />
       <div className="grid2">
         {insights ? <SpendOverTime result={insights} /> : <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>}
-        <SpendBreakdownCard insights={insights} win={win} />
+        <SpendBreakdownCard insights={insights} range={range} />
       </div>
       <PlanWindowsCard />
-      <EfficiencyCard insights={insights} win={win} days={days} />
-      <SkillsMcpRow win={win} days={days} />
+      <EfficiencyCard insights={insights} range={range} days={days} />
+      <SkillsMcpRow range={range} days={days} />
     </div>
   );
 }
@@ -177,15 +177,15 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
 }
 
 // ---- Anomaly card: the deep-view sibling of the Overview tile. Same math
-// (window-scoped ratio + top project/model movers + flagged days). ----
+// (range-scoped ratio + top project/model movers + flagged days). ----
 // ---- Spend breakdown card: Spend by model ($) + Sources (session count by
 // tool vendor), stacked so this card matches the spend chart's height. Sources
 // moved here from Overview — it pairs with the $ breakdown. ----
-function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null; win: RangeKey }): JSX.Element {
+function SpendBreakdownCard({ insights, range }: { insights: InsightsResult | null; range: RangeKey }): JSX.Element {
   const { mode } = useCostMode();
   const rows = useMemo(() => {
     if (!insights) return [];
-    const byModel = groupByKey(insights.windowedTokensByModel, (c) => c.model);
+    const byModel = groupByKey(insights.rangedTokensByModel, (c) => c.model);
     return [...byModel.entries()]
       .filter(([name]) => !PSEUDO_MODELS.has(name)) // drop $0 synthetic pseudo-model
       .map(([name, cells]) => ({ name, value: costOfBucketedCells(cells, mode) }))
@@ -202,7 +202,7 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
   const srcMax = sources[0]?.value || 1;
   return (
     <div className="card">
-      <h3>{t('Spend by model')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
+      <h3>{t('Spend by model')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
       {rows.map((r, i) => (
         <div className="hbar" key={r.name}>
           <span className="n" title={r.name}>{r.name}</span>
@@ -286,7 +286,7 @@ function PlanWindowsCard(): JSX.Element {
 // the per-message /api/detectors slice. Waste signals are pass 2. ----
 interface DetectorRow { name: string; pct: number; state: StateWord; barPct: number; def: string }
 
-function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | null; win: RangeKey; days: number | null }): JSX.Element {
+function EfficiencyCard({ insights, range, days }: { insights: InsightsResult | null; range: RangeKey; days: number | null }): JSX.Element {
   const { mode } = useCostMode();
   const { data: det } = useCachedFetch<DetectorCounts>(detectorsUrl(days));
   const { data: waste } = useCachedFetch<WasteResult>(wasteUrl(days));
@@ -360,7 +360,7 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
   return (
     <div className="card">
       <div className="eff-head">
-        <h3 style={{ margin: 0 }}>{t('Efficiency')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
+        <h3 style={{ margin: 0 }}>{t('Efficiency')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
         <span className="muted small">{t('whole scan')}</span>
       </div>
       <div className="eff-sub">— {t('detectors')}</div>
@@ -405,7 +405,7 @@ function fmtTok(n: number): string {
   return String(Math.round(n));
 }
 
-function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JSX.Element {
+function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null }): JSX.Element {
   const { mode } = useCostMode();
   const { data: skillRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'skill', days }));
   const { data: mcpRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'mcp', days }));
@@ -420,7 +420,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
   return (
     <div className="grid2b">
       <div className="card">
-        <h3>{t('Priced skills')} <span className="sub3">· {t(WIN_LABEL[win])}</span> <InfoTip def="spend.priced-skills" /></h3>
+        <h3>{t('Priced skills')} <span className="sub3">· {t(RANGE_LABEL[range])}</span> <InfoTip def="spend.priced-skills" /></h3>
         <table className="tbl">
           <thead>
             <tr>
@@ -444,7 +444,7 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
         {!skills.length && <div className="muted small pad8">{t('No skill spend in range.')}</div>}
       </div>
       <div className="card">
-        <h3>{t('MCP server spend')} <span className="sub3">· {t(WIN_LABEL[win])}</span></h3>
+        <h3>{t('MCP server spend')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
         {/* A table (not hbars) to match Priced skills AND because MCP spend spans
             orders of magnitude — the double-count inflates the top server so far
             that bars leave every other row an invisible sliver. Calls makes the

@@ -32,7 +32,7 @@ export function invalidateCache(): void {
 // Returns the cached value for `key` if it was computed at the current
 // generation; otherwise calls `compute()`, stores the result at the current
 // generation, and returns it. If `compute()` returns a Promise that rejects,
-// the entry is evicted so the failure isn't replayed on later reads — the
+// the entry is evicted so the failure isn't repeated on later reads — the
 // next call retries instead of waiting for an invalidation.
 export function cached<T>(key: string, compute: () => T): T {
   const entry = state.map.get(key);

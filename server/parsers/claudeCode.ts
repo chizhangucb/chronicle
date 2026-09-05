@@ -340,7 +340,7 @@ function usageCells(u: ClaudeUsage): ModelUsage {
 // truth, and 1.67-2.04x against Anthropic's own reported usage.
 // `uuid` is per-LINE and cannot collapse them.
 // The only stable per-CALL key is `(message.id, requestId)`: the only pair the
-// transcript repeats verbatim across a replay.
+// transcript repeats verbatim across the repeated usage lines.
 //
 // ATTRIBUTION, and this is the dominant path rather than an edge case: 58.8% of
 // calls OPEN with a `{"type":"thinking","thinking":""}` line that
@@ -392,7 +392,7 @@ function clearEventUsage(e: Event): void {
 // line's first event can claim the slot.
 function recordCall(reg: CallRegistry, o: ClaudeLine, u: ClaudeUsage): string {
   const msgId = o.message?.id;
-  // A line carrying NEITHER id can never be PROVEN a replay, so it gets a
+  // A line carrying NEITHER id can never be PROVEN a repeat, so it gets a
   // private key and is billed on its own, rather than collapsed into whatever
   // unkeyed line came before it.
   const key = (msgId || o.requestId) ? `${msgId ?? ''}:${o.requestId ?? ''}` : `\u0000anon:${reg.anon++}`;
@@ -402,11 +402,11 @@ function recordCall(reg: CallRegistry, o: ClaudeLine, u: ClaudeUsage): string {
     reg.slots.set(key, { model: o.message?.model || 'unknown', cells, event: null });
     return key;
   }
-  // Keep-max PER CELL: a replayed line can be truncated, so the largest value
+  // Keep-max PER CELL: a repeated usage line can be truncated, so the largest value
   // seen for each cell is the real one. Swapping the whole record when its
   // total is larger agrees exactly across all 3,132 duplicate keys on disk
   // (cell-wise max never once exceeded record max), so this stays reconcilable
-  // while additionally surviving a partial replay.
+  // while additionally surviving a partial repeat.
   slot.cells = {
     input: Math.max(slot.cells.input, cells.input),
     output: Math.max(slot.cells.output, cells.output),

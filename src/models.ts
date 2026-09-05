@@ -2,7 +2,7 @@
 // in `shared/pricing.ts` so the server side (the
 // the shared spend math) can price too — still ONE table, not duplicated. This
 // file re-exports every pricing symbol so existing client importers
-// (ExploreTab, costMode, windowedUsage, session/stats, session/OverviewMode, …)
+// (ExploreTab, costMode, rangedUsage, session/stats, session/OverviewMode, …)
 // keep their `from './models.ts'` import path unchanged. Nothing about client
 // behavior changes; the price table simply moved one folder over.
 //

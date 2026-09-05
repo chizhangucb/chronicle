@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Res
 import type { InsightsResult } from '../api.js';
 import {
   costOfCells, costOfBucketedCells, groupByKey, groupByBucket, sumByKeyModel, type BucketedCell,
-} from '../windowedUsage.ts';
+} from '../rangedUsage.ts';
 import { densifyBuckets, capDenseBuckets, fmtDayLabel, fmtHourLabel } from '../charts/timeBuckets.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.tsx';
 import { CATEGORICAL_COLORS } from '../colors.ts';
@@ -15,7 +15,7 @@ import { providerOf, PROVIDER_ORDER, type Provider } from '../../shared/provider
 // Spend-over-time stacked bar with a bare [project | provider] stack toggle and
 // a quiet median dash on the same y-scale. Shared by the Overview
 // tab (InsightsCharts) and the Spend tab so the two charts cannot drift. Title
-// stays "Spend over time" (name + window only); NO flagged-day markers — the
+// stays "Spend over time" (name + range only); NO flagged-day markers — the
 // anomaly tile carries flags. `provider` = model VENDOR (anthropic/openai/
 // google), NOT `source` (that is the tool vendor, the Sources chart). Prices
 // every bucket at its own day's rate and honors the List/Billed
@@ -42,7 +42,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
 
   // Top 5 projects by windowed spend + Other (project stack).
   const { topProjects, otherProjectIds } = useMemo(() => {
-    const byProject = groupByKey(result.windowedTokensByModel, (c) => String(c.projectId));
+    const byProject = groupByKey(result.rangedTokensByModel, (c) => String(c.projectId));
     const spend = new Map<number, number>();
     for (const [key, cells] of byProject) spend.set(Number(key), costOfBucketedCells(cells, mode));
     const sorted = [...result.projects].sort((a, b) => (spend.get(b.id) ?? 0) - (spend.get(a.id) ?? 0));
@@ -54,7 +54,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   // "other" vendor to the legend.
   const presentProviders = useMemo(() => {
     const present = new Set<Provider>();
-    for (const c of result.windowedTokensByModel) if (!PSEUDO_MODELS.has(c.model)) present.add(providerOf(c.model));
+    for (const c of result.rangedTokensByModel) if (!PSEUDO_MODELS.has(c.model)) present.add(providerOf(c.model));
     return PROVIDER_ORDER.filter((p) => present.has(p));
   }, [result]);
 

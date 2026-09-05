@@ -11,7 +11,7 @@ https://github.com/chizhangucb/chronicle/releases
   personal operations folder and grew a second product's worth of surfaces to do that job.
   That folder is gone, and every page that read it rendered empty or refused to load on any
   machine but one. All of it is removed in this release, listed here so an upgrade holds no
-  surprises. What you use Chronicle for is untouched: import, browse, replay, time-travel,
+  surprises. What you use Chronicle for is untouched: import, browse, playback, time travel,
   Insights / Explore / Content / Spend / Sessions, redaction and redacted export, Ask.
 
   Pages gone, their routes now unrouted: **Modules**, **Jobs**, **Records**, **Memory**,
@@ -85,6 +85,13 @@ https://github.com/chizhangucb/chronicle/releases
   and clears them.
 - **Consistent page widths.** Every non-dashboard page now shares one frame width instead
   of six different ones, with long prose holding its own comfortable line length.
+
+### Changed
+
+- **One word for the time filter: range.** The Today / 7d / 30d / 90d / All control is a
+  **range toggle** everywhere it appears, and every explanation on `/reference` that used to
+  say "window" now says "range". *Window* is left to mean only a plan window or a context
+  window, so the two are never confused on the Spend tab.
 
 ### Fixed
 
