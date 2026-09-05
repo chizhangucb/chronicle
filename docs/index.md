@@ -5,11 +5,17 @@ conversation logs your AI coding assistants already write, and maps every messag
 exact state of your code at that moment — reconstructed from your project's Git history.
 Click any message, and travel back to the code as it was.
 
-Everything runs on your machine. There are **no LLM calls anywhere, no cloud backend, and no
-telemetry**. The only outbound call is opt-out: Chronicle can read *your own* Claude plan
-quota from Anthropic (the same request Claude Code makes; Codex quota is read locally), and one
-Settings toggle turns it off. Your source logs and project repos are never written to.
-Chronicle observes and organizes your AI tools; it never replaces them.
+Everything runs on your machine. There is **no cloud backend and no telemetry**, and
+**nothing in the analysis path calls a model**: every number Chronicle shows is computed by a
+local heuristic or a static table. The one feature that does use a model is **Ask**, which is
+off by default. Turn it on and Chronicle runs `claude -p` locally, on the Claude subscription
+you already pay for, once per question you type. Chronicle ships no API key of its own; leave
+the toggle off and no model runs at all.
+
+The only other outbound call is opt-out: Chronicle can read *your own* Claude plan quota from
+Anthropic (the same request Claude Code makes; Codex quota is read locally), and one Settings
+toggle turns it off. Your source logs and project repos are never written to. Chronicle
+observes and organizes your AI tools; it never replaces them.
 
 Chronicle imports from four tools today — **Claude Code, Codex, Cursor, and OpenCode** — and
 unifies their sessions into a single, path-based project view.

@@ -111,6 +111,37 @@ test('CI declares no hand-rolled confidentiality or staleness job', () => {
   assert.deepEqual(back, [], `a retired CI job is declared again: ${back}`);
 });
 
+// The shrink (spec #215) left `scripts/` holding only Chronicle's own tooling, and
+// took every dormant job template out of the published tarball. `install-jobs.mjs`
+// and the LiteLLM plist stay TRACKED for the optional local proxy spine, but a user
+// who runs `npx chronicle-cli` must never receive a scheduled-job template they did
+// not ask for -- so the npm `files` list ships neither.
+const HUB_ONLY_SCRIPTS = [
+  'scripts/emit-daily-digest.ts',
+  'launchd/com.chronicle.daily-digest.plist.template',
+];
+
+test('no hub-only script or job template is tracked', () => {
+  const back = HUB_ONLY_SCRIPTS.filter((rel) => tracked.includes(rel));
+  assert.deepEqual(back, [], `a hub-only script is tracked again: ${back}`);
+});
+
+test('the published package ships no job template', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const files = pkg.files ?? [];
+  assert.ok(!files.includes('launchd'), '`launchd` is back in the published files list');
+  assert.ok(
+    files.includes('!scripts/install-jobs.mjs'),
+    'the job installer is no longer excluded from the published files list',
+  );
+  // Every tracked job template lives under launchd/, which is not published; a
+  // template anywhere else would slip past that exclusion.
+  const strays = tracked.filter(
+    (rel) => /\.(plist|plist\.template)$|crontab/.test(rel) && !rel.startsWith('launchd/'),
+  );
+  assert.deepEqual(strays, [], `a job template is tracked outside launchd/: ${strays}`);
+});
+
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
   assert.ok(ciJobIds().includes('gitleaks'), 'ci.yml declares no `gitleaks` job');
   const src = ci();

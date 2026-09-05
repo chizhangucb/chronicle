@@ -3,11 +3,10 @@
 //
 // The normal `npm run walk` runs against the maintainer's real ~/.chronicle DB,
 // which is nearly all `claude-*` — so the Spend tab's [project|provider] toggle,
-// the median-session dash, and the routing table show ~one vendor. This launcher
-// seeds a throwaway temp DB with the vendor-varied fixture set
-// (test/fixtures/walk-vendors.mjs — anthropic / openai / google / off-roster
-// across three projects), starts a standalone server against it in DEMO hub mode
-// (so the ops/Records routes render too), then runs the standard walk against it.
+// and the median-session dash show ~one vendor. This launcher seeds a throwaway
+// temp DB with the vendor-varied fixture set (test/fixtures/walk-vendors.mjs —
+// anthropic / openai / google across three projects), starts a standalone server
+// against it, then runs the standard walk against it.
 //
 // It NEVER touches the operator's real DB: everything lands in an mkdtemp
 // CHRONICLE_DATA_DIR that is removed on exit. Seeding goes through the real

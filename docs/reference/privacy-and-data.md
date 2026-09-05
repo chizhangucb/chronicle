@@ -11,9 +11,16 @@ leaves your machine, and where your data physically lives.
 
 - **All work happens on-device.** Importing, parsing, storing, searching, time-travel,
   causality analysis, redaction, and computing Insights run entirely on your machine.
-- **No LLM calls, anywhere.** Everything that could look like AI — causality confidence tiers,
-  secret redaction, cost computation, Insights aggregation — is a local heuristic or a static
-  table. Chronicle never sends your conversations to a model.
+- **No model call in the analysis path.** Everything that could look like AI — causality
+  confidence tiers, secret redaction, cost computation, Insights aggregation — is a local
+  heuristic or a static table. No number on a dashboard is ever produced by a model.
+- **Ask is opt-in and runs on your own subscription.** The one feature that uses a model is
+  Ask, and it is off until you turn it on in Settings. When it is on, each question you type
+  spawns `claude -p` on your machine, signed in as you, billed to the Claude subscription you
+  already pay for. Chronicle ships no API key and no account of its own. The spawned run gets
+  exactly one tool — a read-only, SELECT-only query handle on `chronicle.db` — so it can read
+  your session data to answer you, and cannot write anything or reach the network on its own.
+  Leaving the toggle off means no model ever runs.
 - **No cloud backend, no account.** There is nothing to sign into and no server that holds
   your data.
 - **Your source logs are never written to.** Chronicle reads your tools' logs; it does not
