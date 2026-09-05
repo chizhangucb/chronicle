@@ -128,13 +128,6 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
 // CHI-233 Part C: the machine-session manifest surfaces in the payload. The
 // real manifest may or may not exist on the test machine, so assert only the
 // contract shape (ids + sessions arrays), not specific values.
-test('computeInsights: exposes the machineSessions manifest (ids + sessions arrays, no throw)', async () => {
-  const r = await insightsModule.computeInsights(null);
-  assert.ok(r.machineSessions);
-  assert.ok(Array.isArray(r.machineSessions.ids));
-  assert.ok(Array.isArray(r.machineSessions.sessions));
-});
-
 // Perf fix: error stats are no longer regexed out of every tool_result head
 // per request — replaceSession precomputes result_count/error_count on the
 // session row (shared server/errors.ts heuristic) and computeInsights just

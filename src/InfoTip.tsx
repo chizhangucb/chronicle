@@ -17,8 +17,8 @@ export interface InfoTipProps {
   /**
    * Raw text. The NARROW escape hatch, for tooltips whose content is runtime
    * DATA rather than a definition and so can never be a registry entry: the
-   * proxy-lane tile's per-model breakdown, and the Content tab's
-   * server-supplied per-characteristic wording. Everything else must use
+   * Content tab's server-supplied per-characteristic wording. Everything else
+   * must use
    * `def` (test/reference-registry.test.mjs enforces the allowlist).
    */
   text?: string;

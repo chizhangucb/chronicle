@@ -6,9 +6,9 @@
 // leave a `.info-bubble` element mounted after the pointer/focus has moved
 // off every trigger.
 //
-// Surface: the merged Home/Insights hub KPI row (`/`) has 6-7 `.info-tip`
-// triggers (Agent active / Your engaged / Tool calls / Error rate / Proxy
-// lane) laid out in a `repeat(auto-fit, minmax(132px, 1fr))` grid — at
+// Surface: the merged Home/Insights hub KPI row (`/`) has several `.info-tip`
+// triggers (Agent active / Your engaged / Tool calls / Error rate) laid out
+// in a `repeat(auto-fit, minmax(132px, 1fr))` grid — at
 // 1024px wide that wraps to several columns, so "right-most" is found by
 // measuring bounding rects at runtime rather than assuming DOM order.
 import { test, expect, type Page } from '@playwright/test';

@@ -25,8 +25,7 @@ export function priceCellsAtDay(byModel: ActivityTokensByModel, day: string, mod
 
 // Build the costed day series the shared spend math runs over: each server day
 // cell priced at the toggled mode AND at its own day's rate, per-dimension
-// (model/project/source), with the unattributable Lane C proxy spend folded
-// into the day TOTAL only (never into a dimension — D8).
+// (model/project/source).
 export function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): CostedDay[] {
   return burn.anomalyDays.map((d) => {
     const byDimension: Partial<Record<AnomalyDimension, Record<string, number>>> = {
@@ -34,9 +33,7 @@ export function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): C
       project: Object.fromEntries(Object.entries(d.byProject).map(([p, cells]) => [p, priceCellsAtDay(cells, d.day, mode)])),
       source: Object.fromEntries(Object.entries(d.bySource).map(([s, cells]) => [s, priceCellsAtDay(cells, d.day, mode)])),
     };
-    const modelTotal = priceCellsAtDay(d.byModel, d.day, mode);
-    const laneC = burn.laneCByDay[d.day] ?? 0;
-    return { day: d.day, cost: modelTotal + laneC, byDimension };
+    return { day: d.day, cost: priceCellsAtDay(d.byModel, d.day, mode), byDimension };
   });
 }
 
@@ -66,7 +63,6 @@ export interface WindowAnomaly {
   topProject: { value: string; cost: number } | null;
   topModel: { value: string; cost: number } | null;
   flaggedDays: FlaggedDay[];
-  laneCToday: number;
 }
 
 export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days: number | null): WindowAnomaly {
@@ -87,7 +83,6 @@ export function windowAnomaly(burn: ActivityResult['burn'], mode: CostMode, days
     topProject: topDimInWindow(costedDays, burn.today, winStart, 'project'),
     topModel: topDimInWindow(costedDays, burn.today, winStart, 'model'),
     flaggedDays: computeFlaggedDays(costedDays, burn.today, DEFAULT_SPEND_THRESHOLDS.anomaly, winStart ?? undefined),
-    laneCToday: burn.laneCByDay[burn.today] ?? 0,
   };
 }
 

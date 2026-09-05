@@ -178,28 +178,3 @@ describe('CHI-223 contract views', () => {
     assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 0);
   });
 });
-
-// ── Widened bug sweep (CLAUDE.md standing rule) ──────────────────────────────
-// The pattern class is "aggregate a billed magnitude without a per-call identity
-// key", not just "the Claude Code parser". The other billed surface is the
-// machine-session manifest, which feeds the Spend tile's automation bucket.
-describe('CHI-286 sweep: machine-session manifest', () => {
-  test('readMachineSessions never counts one session_id twice', async () => {
-    const { readMachineSessions } = await import('../server/machineSessions.ts');
-    const manifest = path.join(dir, 'machine_sessions.jsonl');
-    const line = (id, ts) => JSON.stringify({
-      session_id: id, job: 'weekly', ts, model: 'sonnet',
-      usage: { input_tokens: 1, cache_read_tokens: 2, cache_write_tokens: 3, output_tokens: 4 },
-    });
-    // The manifest is append-only, so a re-spawned job can write the same
-    // session_id twice. Unguarded that double-bills automation spend.
-    fs.writeFileSync(manifest, [
-      line('s1', '2026-08-01T00:00:00Z'),
-      line('s1', '2026-08-01T00:05:00Z'),
-      line('s2', '2026-08-01T00:10:00Z'),
-    ].join('\n') + '\n');
-    const result = readMachineSessions(null, manifest);
-    assert.equal(new Set(result.ids).size, result.ids.length, 'ids must be distinct');
-    assert.equal(result.ids.length, 2);
-  });
-});

@@ -156,16 +156,12 @@ Nothing renders above item 1: the Overview opens on the KPI strip (#220).
 
 1. **KPI strip** (`.kpis`, `KpiStrip`) — headline tiles from one `/api/insights` fetch: Spend ·
    Sessions · Tokens · Agent active (InfoTip) · Your engaged (InfoTip, shows leverage) · Tool
-   calls (InfoTip) · Error rate (InfoTip) · Commits, plus a conditional **Proxy lane (billed)**
-   tile shown only when the LiteLLM lane has spend in range.
+   calls (InfoTip) · Error rate (InfoTip) · Commits. Exactly 8 tiles — no conditional 9th.
    - **Spend** carries a visible mode label (`list price` / `billed ~$0 under subscription`) and a
-     sub-line breaking out the automation portion (`incl. $X automation`). The total INCLUDES
-     automation spend (broken out, never hidden).
-   - **Sessions** is the INTERACTIVE count only (headless automation excluded) and carries a
-     visible sub-label `N automation excluded` plus an InfoTip. Automation sessions come from the
-     `~/.aios/machine_sessions.jsonl` manifest (weekly/nightly/session-close/spend-advice jobs),
-     bucketed by job; a manifest session whose transcript is also imported is counted once, as
-     automation (transcript wins, never double counted).
+     sub-line `estimated from sessions`. ONE spend figure, estimated from the imported sessions and
+     priced client-side from the shared price table. No second lane, no merge.
+   - **Sessions** is the count of imported sessions in range, with a sub-label naming the number of
+     projects touched.
 2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
@@ -176,8 +172,7 @@ Nothing renders above item 1: the Overview opens on the KPI strip (#220).
    <baselineLabel>`; comparison bar when a baseline exists; a clickable top-session row (persists on
    every window; All falls back to absolute spend). ADDS: a **top-movers line** (top 2 dimension
    movers, e.g. `◫ chronicle +$9.40 · ▤ claude-fable-5 +$7.10`); a **flagged-days line** on multi-day
-   windows (`1 flagged day · Aug 24 →` linking to the Spend tab); and the **Lane-C note** when
-   proxy spend contributes to the total (`incl. $0.42 proxy lane, not attributable to a mover`).
+   windows (`1 flagged day · Aug 24 →` linking to the Spend tab).
    No flagged-day markers live on the chart — the tile carries flags.
 4. **Insights charts** (`InsightsCharts`) — **Spend over time** **FULL-WIDTH** (the headline chart,
    no half-width partner; title `SPEND OVER TIME`, no suffix) with a bare segmented **[project |
@@ -232,21 +227,17 @@ scopes the tab.
    COMPLIANCE** (on-roster % · off-roster models + `$` · Prepare promotion launcher).
 5. **grid2**: **Priced skills** (Skill · Runs · Tokens · Cost) | **MCP server spend** hbars + the
    double-count caption.
-6. **Proxy lane** slim row (`authoritative $ · not session-linked`).
 - **Billed flip** everywhere (`Billed` cost basis): covered models re-rank ~$0 with a `COVERED` tag;
-  no-model-split rows gray as `theoretical · no model split`; the proxy lane stays real.
+  no-model-split rows gray as `theoretical · no model split`.
 
 ### `/` Sessions tab — reading order top → bottom (`SessionsHubTab.tsx`)
 
-1. **Header row**: a muted count line at left; a right-aligned **[human | all]** toggle + InfoTip
-   (human default = interactive only, matching the KPI Sessions count; `all` adds headless
-   automation).
-2. **Three-up aggregates** (`grid3` grammar, `auto-fit` 3 → 2+1 → 1): **Busiest days** (Day ·
-   Sessions · Active · Tokens · Cost) | **Busiest projects** (Project · Sessions · Msgs · Tokens ·
-   Cost) | **Automation by job** (Job · Runs · Tokens · Cost; InfoTip: always automation, unaffected
-   by the toggle — sourced from `~/.aios/machine_sessions.jsonl` via `machineSessions.ts`, NOT
-   `automations.ts`). All three sortable, default **Cost desc**; ONLY the active column shows the
-   down-caret (hover caret otherwise); headers `nowrap`.
+1. **Header row**: a muted count line at left (`N sessions`, matching the KPI Sessions count). No
+   toggle — there is one session set.
+2. **Two-up aggregates** (`grid2b` grammar): **Busiest days** (Day · Sessions · Active · Tokens ·
+   Cost) | **Busiest projects** (Project · Sessions · Msgs · Tokens · Cost). Both sortable, default
+   **Cost desc**; ONLY the active column shows the down-caret (hover caret otherwise); headers
+   `nowrap`.
 3. **ONE sessions table** (replaces both the old Top-sessions and All-sessions): chips
    **[cost | duration | recent]**, **cost default** (the default option sits far left), FLAT in
    every mode (NO day sub-headers — day-grouping stays `/projects`-ledger-only; per-day tallies live
@@ -524,11 +515,11 @@ when empty and is absent in demo (demo never records).
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
 | Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
-| Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days/Lane-C lines (keeps the burn-tile anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the pixel reference |
-| Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp → proxy lane; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
+| Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days lines (keeps the burn-tile anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the pixel reference |
+| Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |
 | Monthly budget is server-backed: the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once) | `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
-| Sessions tab = [human\|all] toggle + 3-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend | `test/e2e/sessions-tab.spec.ts` — "Sessions tab toggle + aggregates + one flat table" |
+| Sessions tab = count line + 2-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend | `test/e2e/sessions-tab.spec.ts` — "Sessions tab two-up aggregates + one flat table" |
 | Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
 | Records nav hidden + `/api/hub/records` absent-sentinel when the hub is absent | `test/e2e/ops-records.spec.ts` — "no Records nav item; /api/hub/records returns the absent sentinel" |
 | `/records` renders the sessions-type table (Date / Session ID / Repo / Focus) from the hub (demo); type switcher present | `test/e2e/ops-records.spec.ts` + `test/hub-records.test.mjs` — records slice parse + newest-first + imported-id link |

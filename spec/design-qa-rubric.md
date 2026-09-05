@@ -107,11 +107,8 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
   are the only money/number formatters — 0dp grouped (`fmtMoney(n, 0)`) for KPIs/axes/summaries/
   bar labels, 2dp grouped (`fmtMoney(n, 2)`) for detail tables/tooltips/per-row cost. A raw
   `` `$${v}` `` template literal or a bare `.toFixed()` call on a money value anywhere in `src/`
-  is a P0 finding by construction (grep for it) — **documented exception:** `fmtLaneC` in
-  `src/HomeDashboard.tsx` (proxy-lane billed spend), which deliberately falls back to raw
-  `.toFixed(4)`/a literal `<$0.0001` string for sub-cent values, per its inline comment ("never
-  round a non-zero spend down to a misleading $0.00"); this is a known, comment-documented
-  carve-out, not a new finding — mirrors the `--heat-axis-offset` token carve-out below.
+  is a P0 finding by construction (grep for it). The one former carve-out, `fmtLaneC`, went with
+  the proxy lane (#217); the `--heat-axis-offset` token carve-out below still stands.
 - **`font:` shorthand trap.** Any CSS rule that sets the `font:` shorthand resets
   `font-variant-numeric` to `normal`; a rule combining `font:` with a numeric column MUST re-state
   `font-variant-numeric: tabular-nums;` as a trailing declaration in the same rule. Checkable by

@@ -1,9 +1,10 @@
 // The LiteLLM spine runtime is de-hubbed (issue #186): a stranger who clones
-// Chronicle can start the proxy and see its rows in the Spend tab.
+// Chronicle can start the proxy and get a spend log on a documented path.
 //
 // These pin the behaviour, not the prose: every path resolves from the repo or
-// a documented env var, the producer and the consumer agree on one default, and
-// no machine-specific path can settle back into a runtime file.
+// a documented env var, and no machine-specific path can settle back into a
+// runtime file. Chronicle itself no longer reads the log (issue #217) — the
+// proxy lane is gone — so nothing here asserts a consumer.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -268,7 +269,7 @@ print(m.default_spend_path())`, { CHRONICLE_DATA_DIR: '', LANE_C_SPEND_LOG: '' }
   assert.equal(bare.stdout.trim(), path.join(os.homedir(), '.chronicle', 'litellm', 'spend.jsonl'));
 });
 
-test('a written row is one the Spend tab reads back', async (t) => {
+test('a written row lands on the documented path with no message content', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanec-rt-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -291,86 +292,10 @@ print(log.path)`, { CHRONICLE_DATA_DIR: dir, LANE_C_SPEND_LOG: '' });
   assert.equal(written, path.join(dir, 'litellm', 'spend.jsonl'));
   const raw = fs.readFileSync(written, 'utf8');
   assert.equal(raw.includes('SECRET'), false, 'message content leaked into a spend row');
-
-  // Consumer: the SAME path, resolved independently from the same env.
-  const { laneCSpendPath, readLaneCSpend } = await import('../server/laneC.ts');
-  assert.equal(laneCSpendPath({ CHRONICLE_DATA_DIR: dir }), written);
-
-  const spend = readLaneCSpend(null, [laneCSpendPath({ CHRONICLE_DATA_DIR: dir })]);
-  assert.equal(spend.requests, 1);
-  assert.ok(Math.abs(spend.totalSpend - 0.0125) < 1e-9);
-  assert.equal(spend.byModel[0].model, 'glm-5.2');
-  assert.equal(spend.byModel[0].tokens, 120);
-});
-
-test('laneCSpendPath: a relocated data dir still keeps the legacy history', async () => {
-  // Relocating the data dir is ordinary (server/db.ts honours it, and the
-  // launchd job pins it), so it must NOT suppress the legacy read: that would
-  // strip the history from exactly the operator most likely to have some.
-  const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
-  const env = { CHRONICLE_DATA_DIR: '/tmp/no-such-chronicle' };
-  const current = laneCSpendPath(env);
-  assert.equal(current, path.join('/tmp/no-such-chronicle', 'litellm', 'spend.jsonl'));
-
-  const legacy = path.join(os.homedir(), '.aios', 'litellm', 'spend.jsonl');
-  const expected = fs.existsSync(legacy) ? [current, legacy] : [current];
-  assert.deepEqual(laneCSpendPaths(env), expected);
-
-  // A data dir that IS the legacy root must not yield the same file twice:
-  // both readers would count every row's dollars twice.
-  const aios = path.join(os.homedir(), '.aios');
-  assert.deepEqual(laneCSpendPaths({ CHRONICLE_DATA_DIR: aios }),
-    [path.join(aios, 'litellm', 'spend.jsonl')]);
-
-  // LANE_C_SPEND_LOG beats the data dir, and pins to exactly one log.
-  assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '/tmp/x.jsonl', CHRONICLE_DATA_DIR: '/tmp/d' }), '/tmp/x.jsonl');
-  assert.deepEqual(laneCSpendPaths({ LANE_C_SPEND_LOG: '/tmp/x.jsonl' }), ['/tmp/x.jsonl']);
-});
-
-test('laneCSpendPath: demo wins over a LANE_C_SPEND_LOG left in the shell', async () => {
-  // bin/chronicle.mjs spreads the whole env into the demo relaunch, so an
-  // operator who exported LANE_C_SPEND_LOG for a scratch proxy run would
-  // otherwise see their REAL proxy rows inside the demo console.
-  const { laneCSpendPath, laneCSpendPaths } = await import('../server/laneC.ts');
-  const env = { CHRONICLE_DEMO: '1', CHRONICLE_DATA_DIR: '/tmp/demo-x', LANE_C_SPEND_LOG: '/real/spend.jsonl' };
-  assert.equal(laneCSpendPath(env), path.join('/tmp/demo-x', 'litellm', 'spend.jsonl'));
-  // And demo reads that ONE log: never the operator's real or legacy files.
-  assert.deepEqual(laneCSpendPaths(env), [path.join('/tmp/demo-x', 'litellm', 'spend.jsonl')]);
-});
-
-test('laneCSpendPath: a tilde in LANE_C_SPEND_LOG expands, as it does producer-side', async () => {
-  // A quoted LANE_C_SPEND_LOG="~/logs/spend.jsonl" is not expanded by the shell
-  // that sources the env file. Python expands it; if this side did not, the
-  // reader would silently read nothing and the Proxy lane would vanish.
-  const { laneCSpendPath } = await import('../server/laneC.ts');
-  assert.equal(laneCSpendPath({ LANE_C_SPEND_LOG: '~/logs/spend.jsonl' }),
-    path.join(os.homedir(), 'logs', 'spend.jsonl'));
-});
-
-test('the readers aggregate the legacy log ALONGSIDE the current one', async (t) => {
-  // Resolving to one OR the other would drop months of billed history the first
-  // time the new log came into existence. Both are read, so the move is lossless.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanec-merge-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const current = path.join(dir, 'current.jsonl');
-  const legacy = path.join(dir, 'legacy.jsonl');
-  fs.writeFileSync(current, '{"startTime":"2026-08-12T12:00:00Z","model":"m","spend":0.05,"total_tokens":10}\n');
-  fs.writeFileSync(legacy, '{"startTime":"2026-08-09T12:00:00Z","model":"m","spend":0.03,"total_tokens":7}\n');
-
-  const { readLaneCSpend, readLaneCDailyCost } = await import('../server/laneC.ts');
-  const both = readLaneCSpend(null, [current, legacy]);
-  assert.equal(both.requests, 2);
-  assert.ok(Math.abs(both.totalSpend - 0.08) < 1e-9);
-  assert.equal(both.byModel[0].tokens, 17);
-
-  const days = readLaneCDailyCost(null, [current, legacy]);
-  assert.equal(days.size, 2);
-
-  // A path in the list that does not exist contributes nothing, never a throw.
-  const partial = readLaneCSpend(null, [current, path.join(dir, 'gone.jsonl')]);
-  assert.equal(partial.requests, 1);
-  assert.deepEqual(readLaneCSpend(null, [path.join(dir, 'gone.jsonl')]),
-    { totalSpend: 0, requests: 0, byModel: [] });
+  const row = JSON.parse(raw.trim().split(/\n/)[0]);
+  assert.equal(row.model, 'glm-5.2');
+  assert.equal(row.total_tokens, 120);
+  assert.ok(Math.abs(row.spend - 0.0125) < 1e-9);
 });
 
 test('refresh_roster runs from a fresh clone and says what to configure', (t) => {

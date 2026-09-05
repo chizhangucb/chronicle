@@ -19,10 +19,8 @@ import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type St
 
 // The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
-// → plan windows → efficiency → skills/MCP → proxy lane. This increment ships
-// the posture row, chart row, and proxy lane; the three server-backed sections
-// (plan windows = quota reads, efficiency = detectors/roster, skills/MCP =
-// explore spend) land next. Chronicle's grammar; Varde content only.
+// → plan windows → efficiency → skills/MCP. Chronicle's grammar; Varde content
+// only.
 
 const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
 // Legacy home: the monthly budget used to live ONLY here (CHI-366 moved it
@@ -61,7 +59,6 @@ export default function SpendTab({ insights, activity, win, days }: {
       <PlanWindowsCard />
       <EfficiencyCard insights={insights} win={win} days={days} />
       <SkillsMcpRow win={win} days={days} />
-      <ProxyLaneRow insights={insights} />
     </div>
   );
 }
@@ -181,7 +178,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
 }
 
 // ---- Anomaly card: the deep-view sibling of the Overview tile. Same math
-// (window-scoped ratio + top project/model movers + flagged days + Lane-C). ----
+// (window-scoped ratio + top project/model movers + flagged days). ----
 // ---- Spend breakdown card: Spend by model ($) + Sources (session count by
 // tool vendor), stacked so this card matches the spend chart's height. Sources
 // moved here from Overview (CHI-324 review) — it pairs with the $ breakdown. ----
@@ -511,21 +508,6 @@ function SkillsMcpRow({ win, days }: { win: RangeKey; days: number | null }): JS
         {!mcp.length && <div className="muted small pad8">{t('No MCP spend in range.')}</div>}
         {mcp.length > 0 && <div className="muted small pad8">{t('A call can fan out to several servers — rows double-count and do not sum to the day total.')}</div>}
       </div>
-    </div>
-  );
-}
-
-// ---- Proxy lane slim row (authoritative billed $, not session-linked, D8) ----
-function ProxyLaneRow({ insights }: { insights: InsightsResult | null }): JSX.Element | null {
-  const laneC = insights?.laneC;
-  if (!laneC || laneC.totalSpend <= 0) return null;
-  // Sub-cent proxy spend renders "<$0.01" rather than a misleading "$0.00".
-  const costLabel = laneC.totalSpend < 0.005 ? `<${fmtMoney(0.01, 2)}` : fmtMoney(laneC.totalSpend, 2);
-  return (
-    <div className="card proxy-lane-row">
-      <span className="eyebrow">{t('Proxy lane (billed)')}</span>
-      <span className="pl-cost num-col">{costLabel}</span>
-      <span className="muted small">litellm · {t('authoritative $ · not session-linked')} · {laneC.requests} {t('req')}</span>
     </div>
   );
 }

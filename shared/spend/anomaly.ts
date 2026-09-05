@@ -16,8 +16,7 @@ import { DEFAULT_SPEND_THRESHOLDS } from './thresholds.ts';
 
 // Anomaly mover dimensions, named in Chronicle's vocabulary (source = tool
 // vendor claude-code/codex/…, the faithful port of Varde's byClient; mcp from
-// the dormant mcp_server column; agent = agent_type). Lane C is deliberately
-// NOT a dimension — it is unattributable (see LANE_C_UNATTRIBUTED_DEFINITION).
+// the dormant mcp_server column; agent = agent_type).
 export type AnomalyDimension = 'model' | 'project' | 'source' | 'skill' | 'agent' | 'mcp';
 export const ANOMALY_DIMENSIONS: AnomalyDimension[] = ['model', 'project', 'source', 'skill', 'agent', 'mcp'];
 const DIM_LABEL: Record<AnomalyDimension, string> = {
@@ -50,9 +49,6 @@ export interface AnomalyResult {
   windowDays: number;
   benchmarkPerDay: number;
   dimensionFlags: DimensionFlag[]; // top 10 by todayCost
-  /** true when Lane C (proxy-lane) spend is folded into these day totals, so
-   * the tile can show the "total can move with no attributable mover" caveat. */
-  includesLaneC: boolean;
 }
 
 function median(nums: number[]): number {
@@ -105,7 +101,6 @@ export function computeAnomaly(
   days: CostedDay[],
   today: string,
   thresholds: AnomalyThresholds = DEFAULT_SPEND_THRESHOLDS.anomaly,
-  opts: { includesLaneC?: boolean } = {},
 ): AnomalyResult {
   const { multiplier, escalation, windowDays, benchmarkPerDay, dimFlagFloorUsd } = thresholds;
   const prior = days.filter((d) => d.day < today && d.cost > 0).slice(-windowDays);
@@ -141,6 +136,5 @@ export function computeAnomaly(
     windowDays,
     benchmarkPerDay,
     dimensionFlags: dimensionFlags.slice(0, 10),
-    includesLaneC: opts.includesLaneC ?? false,
   };
 }

@@ -238,16 +238,14 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
 
 /* ---- KPI / stat tile (5c primitive — no call sites until 5d wires real metrics) ---- */
 /* Auto-fit so tiles WRAP instead of clipping at narrow widths (INS-KPIS-CLIP):
-   at ~1040px the old fixed repeat(8,1fr) squeezed the last tile past its label;
-   the optional 9th Lane-C proxy tile flows onto a second row rather than
-   needing a `.kpis-9` override. 132px min keeps a tile wide enough for its value. */
+   at ~1040px the old fixed repeat(8,1fr) squeezed the last tile past its label.
+   132px min keeps a tile wide enough for its value. */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; margin-bottom: 12px; }
 .kpi {
   background: var(--bg1); border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; cursor: default;
   /* Grid items default to min-width:auto (content-based), so a long
-     unwrappable label/value/sub-line (e.g. the proxy-lane tile's
-     "z-ai/glm-5.2 · 5 req" sub-line) would otherwise force this tile's grid
+     unwrappable label/value/sub-line would otherwise force this tile's grid
      track wider than its `1fr` share, pushing the row past its container
      (F2 fix). min-width:0 + overflow:hidden let the ellipsis rules below on
      `.l`/`.s` actually clip instead of stretching the tile. */
@@ -260,11 +258,9 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
   color: var(--ink-3); white-space: nowrap; display: flex; align-items: center; gap: 4px;
   min-width: 0;
 }
-/* Label text wraps in `.lbl` (only the proxy-lane label needs this today —
-   "PROXY LANE (BILLED)" is the longest label and the one squeezed at the
-   9-tile density) so it truncates with an ellipsis instead of being
-   hard-clipped by `.kpi`'s overflow:hidden with no visual indicator; the
-   InfoTip icon stays a fixed-size flex sibling so it never gets clipped. */
+/* Label text in `.lbl` truncates with an ellipsis instead of being hard-clipped
+   by `.kpi`'s overflow:hidden with no visual indicator; the InfoTip icon stays a
+   fixed-size flex sibling so it never gets clipped. */
 .kpi .l .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .kpi .v { font: 600 22px/1.2 var(--mono); font-variant-numeric: tabular-nums; margin-top: 4px; color: var(--ink); }
 .kpi .v .u { font-size: 12px; font-weight: 400; color: var(--ink-3); }
@@ -272,9 +268,8 @@ body.resizing .sidebar, body.resizing .home-rail { transition: none; }
    line — a wrapped sub-line makes one tile taller than its row siblings
    (RHYTHM violation) and, combined with the grid content-min-width trap
    above, could push the whole row wider than its container (LAYOUT
-   violation). Callers with content that can run long (the proxy-lane
-   model/req summary) pass a `title` attribute so the full text is still
-   reachable on hover. */
+   violation). Callers with content that can run long pass a `title` attribute
+   so the full text is still reachable on hover. */
 .kpi .s {
   font: 11px var(--mono); color: var(--ink-3); margin-top: 2px; font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -729,8 +724,6 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .mcp-table { table-layout: fixed; width: 100%; }
 .mcp-table col.c-srv { width: 48%; }
 .mcp-table td.mcp-srv { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.proxy-lane-row { display: flex; align-items: center; gap: var(--gap-3); }
-.proxy-lane-row .pl-cost { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 
 /* Efficiency detectors (CHI-324 2e): name · value+state-word · bar · definition. */
 .eff-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
@@ -781,7 +774,6 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* CHI-324 2g: Sessions tab. */
 .sessions-hub { display: flex; flex-direction: column; gap: 10px; }
 .sh-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
-.sh-toggle { display: inline-flex; align-items: center; gap: var(--gap-2); }
 .sh-tablehead { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); margin-bottom: var(--gap-2); }
 .more-btn {
   margin-top: var(--gap-3); width: 100%; cursor: pointer; background: var(--bg2);
@@ -789,12 +781,12 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
   font: 12px var(--mono); padding: 6px; text-align: center;
 }
 .more-btn:hover { color: var(--ink); background: var(--bg1); }
-/* Keep the aggregate tables inside their narrow grid3 cards (compact, first col
+/* Keep the aggregate tables inside their narrow grid2b cards (compact, first col
    ellipsised) and cap the sessions table's Session name so the later columns
    (Project · Source · Ctx · Active · Cost · When) stay on screen. */
-.sessions-hub .grid3 .tbl { font-size: 11px; }
-.sessions-hub .grid3 .tbl th, .sessions-hub .grid3 .tbl td { padding: 3px 5px; }
-.sessions-hub .grid3 .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-hub .grid2b .tbl { font-size: 11px; }
+.sessions-hub .grid2b .tbl th, .sessions-hub .grid2b .tbl td { padding: 3px 5px; }
+.sessions-hub .grid2b .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
 .sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessions-hub .sh-sessions-table col.c-session { width: 52%; }
@@ -1759,14 +1751,13 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* CHI-324 anomaly-tile extras (AnomalyTile) — top-movers line, Lane-C honesty
-   note, and the multi-day flagged-days deep-link. Sit between the comparison
-   bar and the top-session row; glyph in ink-3, mover names in ink. */
+/* CHI-324 anomaly-tile extras (AnomalyTile) — top-movers line and the multi-day
+   flagged-days deep-link. Sit between the comparison bar and the top-session
+   row; glyph in ink-3, mover names in ink. */
 .anom-mover { margin-top: var(--gap-3); font: 11px var(--mono); color: var(--ink-2); line-height: 1.5; }
 .anom-mover .anom-glyph { color: var(--ink-3); }
 .anom-mover .anom-sep { color: var(--ink-3); }
 .anom-mover b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.anom-lanec { margin-top: var(--gap-1); font: 11px var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .anom-flagged { margin-top: var(--gap-2); font: 11px var(--mono); color: var(--warn); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .anom-flagged:hover { text-decoration: underline; }
 .anom-flagged .anom-arrow { color: var(--warn); }

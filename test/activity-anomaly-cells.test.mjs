@@ -1,7 +1,7 @@
 // CHI-324 2c: computeActivity emits per-day per-dimension token CELLS
 // (burn.anomalyDays) so the client can price → CostedDay[] → the shared
 // computeAnomaly. Server ships cells, not dollars. Also asserts burn.today and
-// burn.laneCByDay are present.
+// the anomaly day cells are present.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
@@ -63,10 +63,9 @@ const anomalyTokenSum = (r) =>
   r.burn.anomalyDays.reduce((s, d) => s + Object.values(d.byModel).reduce((t, c) => t + c.input + c.output, 0), 0);
 after(async () => { await teardown?.(); });
 
-test('burn carries today + laneCByDay + anomalyDays', () => {
+test('burn carries today + anomalyDays', () => {
   const r = activity.computeActivity(null, 1);
   assert.equal(r.burn.today, localToday);
-  assert.ok(r.burn.laneCByDay && typeof r.burn.laneCByDay === 'object'); // empty is fine (no proxy log)
   assert.ok(Array.isArray(r.burn.anomalyDays) && r.burn.anomalyDays.length >= 1);
 });
 

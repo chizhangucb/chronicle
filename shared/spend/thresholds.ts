@@ -146,15 +146,6 @@ export const REREADS_DEFINITION =
   'Read tool calls that fetched a file already read earlier in the same session. Wasted tokens are ESTIMATED ' +
   'from the repeated results’ content length at ~4 characters per token.';
 
-// The Lane C (proxy-lane) unattributable caveat (CHI-324 D8): Lane C spend rides
-// the headline totals but has no session/project/model attribution, so it can
-// never appear as an anomaly dimension mover. Shown wherever the anomaly ratio
-// or a headline total includes proxy-lane spend.
-export const LANE_C_UNATTRIBUTED_DEFINITION =
-  'Proxy-lane (LiteLLM/OpenRouter) spend is billed on its own log with no session, project, or model ' +
-  'attribution, so it is added to headline totals but never smeared across sessions and never shown as a ' +
-  'per-dimension driver. A total can move on proxy-lane spend alone with no attributable mover.';
-
 // The MCP double-count caveat (CHI-324 D6): a single call can fan out to several
 // MCP servers, so per-server spend double-counts and does not sum to the day total.
 export const MCP_DOUBLE_COUNT_DEFINITION =

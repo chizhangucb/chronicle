@@ -337,8 +337,8 @@ function usageCells(u: ClaudeUsage): ModelUsage {
 // transcript lines (an empty `thinking` block, then text, then tool_use), and
 // EVERY one of those lines repeats the full `message.usage`. Summing per line
 // billed one call two or three times — measured 2.20-2.44x against transcript
-// truth, and 1.67-2.04x against Anthropic's own reported usage in
-// ~/.aios/machine_sessions.jsonl. `uuid` is per-LINE and cannot collapse them.
+// truth, and 1.67-2.04x against Anthropic's own reported usage.
+// `uuid` is per-LINE and cannot collapse them.
 // The only stable per-CALL key is `(message.id, requestId)`, which is also the
 // exact key shape Varde's parseSpendLines uses, so the two tools reconcile.
 //

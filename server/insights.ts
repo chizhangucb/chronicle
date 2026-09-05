@@ -12,8 +12,6 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
-import { readLaneCSpend, type LaneCSpend } from './laneC.ts';
-import { readMachineSessions, type MachineSessionsResult } from './machineSessions.ts';
 import { overlapGate, bucketedUsage, type BucketedUsageCell } from './windowUsage.ts';
 
 export interface InsightsSessionRow {
@@ -51,9 +49,6 @@ export interface InsightsResult {
   dailyActivity: { day: string; count: number }[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
-  // Lane C: authoritative proxy-lane billed spend (LiteLLM), model+time only,
-  // NOT session-linked. Honors the same `days=` cutoff as the rest of the page.
-  laneC: LaneCSpend;
   // Windowed billed cells (Task 2, feedback-round P0 fix): per-session,
   // per-model, per-LOCAL-day, in-window-scaled — the client (Task 3; CHI-228
   // day-aware pricing) prices these for the KPI strip / spend-by-model /
@@ -71,14 +66,6 @@ export interface InsightsResult {
   // computed) for a short window, so it's null unless days<=2 (Today or just
   // past it); the client falls back to dailySpend otherwise.
   hourlySpend: BucketedUsageCell[] | null;
-  // Machine-session manifest (~/.aios/machine_sessions.jsonl, CHI-233 Part C):
-  // the set of AUTOMATION session_ids in range, plus per-session job/model/raw
-  // token usage. The client excludes these ids from the interactive session
-  // count and prices their cells (server ships cells, not $) into a separate
-  // automation bucket by job. A manifest session whose transcript is already in
-  // the scan is deduped out on the client (transcript wins) — never counted
-  // twice. Honors the same `days=` cutoff as the rest of the page.
-  machineSessions: MachineSessionsResult;
 }
 
 const CALENDAR_WINDOW_DAYS = 182;
@@ -260,8 +247,7 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
 
   return {
     sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits,
-    dailyActivity, hourlyActivity, projects, laneC: readLaneCSpend(cutoff || null),
+    dailyActivity, hourlyActivity, projects,
     windowedTokensByModel, dailySpend, hourlySpend,
-    machineSessions: readMachineSessions(cutoff || null),
   };
 }
