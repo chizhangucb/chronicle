@@ -13,7 +13,6 @@ import ModulesPage from './ModulesPage.tsx';
 import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
 import BriefingPage from './BriefingPage.tsx';
-import MemoryPage from './MemoryPage.tsx';
 import RecordsPage from './RecordsPage.tsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
@@ -79,7 +78,6 @@ export default function App() {
   const [atSafety] = useRoute('/safety');
   const [atJobs] = useRoute('/jobs');
   const [atBriefing] = useRoute('/briefing');
-  const [atMemory] = useRoute('/memory');
   const [atRecords] = useRoute('/records');
   const [atAsk] = useRoute('/ask');
   // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
@@ -237,12 +235,6 @@ export default function App() {
             </button>
           )}
           {hubPresent && (
-            <button className={`sb-item ${atMemory && !rail ? 'on' : ''}`} title={t('Memory')}
-              onClick={() => navigate('/memory')}>
-              <span className="sb-icon">❖</span><span className="sb-label">{t('Memory')}</span>
-            </button>
-          )}
-          {hubPresent && (
             <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
               onClick={() => navigate('/records')}>
               <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
@@ -354,7 +346,6 @@ export default function App() {
         {atSafety && <SafetyPage />}
         {atJobs && <JobsPage />}
         {atBriefing && <BriefingPage />}
-        {atMemory && <MemoryPage />}
         {atRecords && <RecordsPage />}
         {atReference && <ReferencePage />}
         {atAsk && (askEnabled

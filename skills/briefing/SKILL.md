@@ -97,7 +97,7 @@ Do NOT invent a spend finding when `anomaly.flagged` is false and `state.word` i
   `spend-anomaly:<today>`, `budget-posture:<YYYY-MM>`.
 - `kind` (string, short machine-readable, e.g. `job-failure`, `egress-off`,
   `spend-anomaly`).
-- `domain` — one of: `jobs`, `safety`, `memory`, `sessions`, `coverage`, `spend`.
+- `domain` — one of: `jobs`, `safety`, `sessions`, `coverage`, `spend`.
 - `needsYou` (boolean) — true only when the operator must act; false for an FYI.
 - `title` (one line, <=160), `summary` (one or two sentences, <=600).
 - Optional plain-language fields: `whatHappened`, `whatItMeans`, `whatToDo`.

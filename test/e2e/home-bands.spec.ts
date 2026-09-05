@@ -12,7 +12,7 @@ import { readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 
-const DOMAINS = ['Spend', 'Sessions', 'Memory', 'Safety', 'Jobs'];
+const DOMAINS = ['Spend', 'Sessions', 'Safety', 'Jobs'];
 
 test.describe('status band (seeded, no hub)', () => {
   test('renders exactly the five domains in the contract order', async ({ page }) => {
@@ -27,7 +27,7 @@ test.describe('status band (seeded, no hub)', () => {
   test('with no hub the ops rows show the Nisse upsell, not an error and not nothing', async ({ page }) => {
     await page.goto(state.baseURL + '/');
     await expect(page.locator('.status-band')).toBeVisible();
-    for (const domain of ['Memory', 'Safety', 'Jobs']) {
+    for (const domain of ['Safety', 'Jobs']) {
       const row = page.locator('.status-band .band-row', { hasText: domain });
       await expect(row).toHaveCount(1);
       await expect(row).toContainText(/install Nisse/i);

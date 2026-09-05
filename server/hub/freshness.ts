@@ -9,8 +9,8 @@
 // Light slices (records, modules, roster, egress, safety) compute a cheap
 // signature (max-mtime over a handful of files) on every request.
 //
-// Heavy slices (memoryGraph over the whole hub markdown corpus; codegraphs over
-// every built graph.json) must NOT stat-walk the corpus per request. Their
+// The heavy slice (codegraphs over every built graph.json) must NOT stat-walk
+// the corpus per request. Their
 // freshness CHECK is TTL-gated (freshSlice ttlMs): inside the TTL window the
 // cached value is returned without touching the filesystem; past it, the
 // signature is recomputed and the value rebuilt only if files actually changed.
@@ -128,8 +128,8 @@ export function freshSlice<T>(
 }
 
 /**
- * Async variant for the HEAVY slices (memoryGraph over the whole hub markdown
- * corpus, codegraphs over every built graph.json). Same TTL gate as freshSlice,
+ * Async variant for the HEAVY slice (codegraphs over every built graph.json).
+ * Same TTL gate as freshSlice,
  * but `compute` is async and the resolved value is mirrored to the on-disk
  * hub-cache so it survives a process restart. Inside the TTL window it returns
  * the cached value WITHOUT the stat-walk; past it, the signature is recomputed

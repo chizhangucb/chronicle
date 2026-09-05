@@ -8,8 +8,8 @@
  * Ported from Varde (CHI-323 part 2). Chronicle drops Varde's `aggregator-config`
  * schema (its own config file, not a Chronicle surface) and the DEFAULT_CONFIG
  * import; it keeps the hub-write schemas (gate_config / classification / markers),
- * the Tier-2 hermes-approvals schema, and memory-scope (registered by the memory
- * organ). js-yaml is a new runtime dep (D9 NOTICE).
+ * and the Tier-2 hermes-approvals schema. js-yaml is a new runtime dep
+ * (D9 NOTICE).
  */
 import yaml from 'js-yaml';
 import type { DiffEntry } from './core.ts';
@@ -105,94 +105,6 @@ const schemas: Record<string, SchemaImpl> = {
           if (typeof val !== 'boolean') errors.push('enabled: expected boolean');
         }
         // Anything else is the gate's own business: pass through unvalidated.
-      }
-      return { ok: errors.length === 0, errors };
-    },
-  },
-
-  // Memory scope (used by the memory organ, 1g): living/historical/excluded glob
-  // lists + rot thresholds. Named-key merge; every other key in the target file
-  // passes through untouched. Self-contained (no Chronicle-specific imports), so
-  // it ports now and the memory surface registers it later.
-  'memory-scope': {
-    apply(currentText, change) {
-      const { obj, error } = parseJson(currentText);
-      if (error) throw new Error(`current memory config is unparseable (${error}); fix it by hand first`);
-      if (typeof change !== 'object' || change === null || Array.isArray(change)) {
-        throw new Error('change for memory-scope must be an object of managed keys');
-      }
-      const managed = ['scope', 'rotDays', 'rotDaysByKind'];
-      for (const key of Object.keys(change)) {
-        if (!managed.includes(key)) {
-          throw new Error(`${key}: not a key this surface manages (${managed.join(', ')})`);
-        }
-      }
-      const c = change as Record<string, unknown>;
-      if (c.scope !== undefined) {
-        if (typeof c.scope !== 'object' || c.scope === null || Array.isArray(c.scope)) {
-          throw new Error('scope: expected an object with living/historical/excluded lists');
-        }
-        for (const key of Object.keys(c.scope)) {
-          if (!['living', 'historical', 'excluded'].includes(key)) {
-            throw new Error(`scope.${key}: not a tier (living, historical, excluded)`);
-          }
-        }
-      }
-      const beforeMemory = typeof obj?.memory === 'object' && obj.memory !== null ? obj.memory : {};
-      const nextMemory = {
-        ...beforeMemory,
-        ...(c.rotDays !== undefined ? { rotDays: c.rotDays } : {}),
-        ...(c.rotDaysByKind !== undefined ? { rotDaysByKind: c.rotDaysByKind } : {}),
-        ...(c.scope !== undefined
-          ? { scope: { ...(beforeMemory.scope ?? {}), ...(c.scope as object) } }
-          : {}),
-      };
-      const next = { ...(obj ?? {}), memory: nextMemory };
-      return {
-        after: JSON.stringify(next, null, 2) + '\n',
-        diff: jsonDiff(beforeMemory, nextMemory, 'memory'),
-      };
-    },
-    validate(text) {
-      const { obj, error } = parseJson(text);
-      if (error) return { ok: false, errors: [`not valid JSON: ${error}`] };
-      const errors: string[] = [];
-      const memory = obj?.memory;
-      if (memory !== undefined) {
-        if (typeof memory !== 'object' || memory === null || Array.isArray(memory)) {
-          return { ok: false, errors: ['memory: expected an object'] };
-        }
-        if (memory.scope !== undefined) {
-          if (typeof memory.scope !== 'object' || memory.scope === null || Array.isArray(memory.scope)) {
-            errors.push('memory.scope: expected an object');
-          } else {
-            for (const tier of ['living', 'historical', 'excluded']) {
-              const list = memory.scope[tier];
-              if (list === undefined) continue;
-              if (!Array.isArray(list) || !list.every((v: unknown) => typeof v === 'string' && v.trim())) {
-                errors.push(`memory.scope.${tier}: expected a list of non-empty glob strings`);
-              } else if (list.some((v: string) => v.includes('..') || v.startsWith('/'))) {
-                errors.push(`memory.scope.${tier}: globs are hub-relative (no absolute paths, no ..)`);
-              }
-            }
-          }
-        }
-        if (memory.rotDays !== undefined) {
-          if (typeof memory.rotDays !== 'number' || !Number.isFinite(memory.rotDays) || memory.rotDays <= 0) {
-            errors.push('memory.rotDays: expected a positive number of days');
-          }
-        }
-        if (memory.rotDaysByKind !== undefined) {
-          if (typeof memory.rotDaysByKind !== 'object' || memory.rotDaysByKind === null || Array.isArray(memory.rotDaysByKind)) {
-            errors.push('memory.rotDaysByKind: expected an object map');
-          } else {
-            for (const [kind, days] of Object.entries<any>(memory.rotDaysByKind)) {
-              if (typeof days !== 'number' || !Number.isFinite(days) || days <= 0) {
-                errors.push(`memory.rotDaysByKind.${kind}: expected a positive number of days`);
-              }
-            }
-          }
-        }
       }
       return { ok: errors.length === 0, errors };
     },

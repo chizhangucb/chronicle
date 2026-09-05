@@ -186,14 +186,8 @@ export const DEMO_RECORDS: RecordsSlice = {
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { packageRoot } from './paths.ts';
-import type { MemorySlice } from './slices/memorygraph.ts';
 import type { DashGraphEntry } from './slices/codegraph.ts';
 
-/** Synthetic memory graph (generic-fictional notes), generated from a small
- * temp hub so its shape always matches the real slice. */
-export function demoMemory(): MemorySlice {
-  return JSON.parse(readFileSync(join(packageRoot(), 'data', 'memory.demo.json'), 'utf8')) as MemorySlice;
-}
 export function demoCodegraphs(): DashGraphEntry[] {
   try {
     return (JSON.parse(readFileSync(join(packageRoot(), 'data', 'codegraphs.demo.json'), 'utf8')).graphs ?? []) as DashGraphEntry[];
@@ -202,16 +196,3 @@ export function demoCodegraphs(): DashGraphEntry[] {
   }
 }
 
-/** Empty-but-valid memory slice for the absent adapter (never reached: the route
- * guards on status().present first). */
-export const EMPTY_MEMORY: MemorySlice = {
-  stats: { totalFiles: 0, totalWorkspaces: 0, stale: 0, missing: 0, freshness: 0, capSuggested: 0, totalNotes: 0, totalLinks: 0, living: 0, historical: 0 },
-  scope: { source: 'defaults', configured: false, tiers: { living: [], historical: [], excluded: [] }, rotDays: 90, rotDaysByKind: {}, dirs: [] },
-  rot: { thresholdDays: 90, thresholdsByKind: {}, buckets: [], oldest: [], oldCount: 0, flagged: [], measured: 0 },
-  growth: { series: [], birthsByWindow: { '7': 0, '30': 0, '90': 0, '180': 0 }, deletions: null },
-  usage: { totals: { transcript: 0, wikilink: 0, briefing: 0 }, perNote: [] },
-  connectivity: { unlinked: { count: 0, list: [] }, mostConnected: [], deadLinks: { count: 0, list: [] } },
-  nodes: [],
-  links: [],
-  noteDates: [],
-};

@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import {
   api,
   type ActivityResult, type InsightsResult, type ResolvedCardView,
-  type BriefingResult, type JobsSliceView, type SafetyGapsView, type MemorySummaryView,
+  type BriefingResult, type JobsSliceView, type SafetyGapsView,
   type CardActionView,
 } from '../api.js';
 import { StatusBand, Sparkline, GapDots, type BandRow } from './StatusBand.tsx';
@@ -113,15 +113,11 @@ export function HomeStatusBand({ insights, activity, briefing, hubPresent, days 
   const { mode } = useCostMode();
   const [jobs, setJobs] = useState<JobsSliceView | null>(null);
   const [gaps, setGaps] = useState<SafetyGapsView | null>(null);
-  const [memory, setMemory] = useState<MemorySummaryView | null>(null);
 
   useEffect(() => {
     if (!hubPresent) return;
-    // The band reads the LIGHT memory summary, never the full graph: /hub/memory
-    // ships every node and link, which has no business on the default route.
     api.hubJobs().then((j) => setJobs('hubPresent' in j ? null : j)).catch(() => setJobs(null));
     api.hubSafety().then((s2) => setGaps('hubPresent' in s2 ? null : s2.gaps)).catch(() => setGaps(null));
-    api.hubMemorySummary().then((m) => setMemory('hubPresent' in m && m.hubPresent === false ? null : m)).catch(() => setMemory(null));
   }, [hubPresent]);
 
   if (!activity?.burn || !insights) return null;
@@ -179,7 +175,6 @@ export function HomeStatusBand({ insights, activity, briefing, hubPresent, days 
       state: todaySessions > 0 ? t('active') : t('quiet'),
       tone: todaySessions > 0 ? 'ok' : 'neutral',
     },
-    memoryRow(memory, hubPresent, flagged.has('memory')),
     safetyRow(gaps, hubPresent, flagged.has('safety')),
     jobsRow(jobs, hubPresent, flagged.has('jobs')),
   ];
@@ -197,22 +192,6 @@ function upsell(name: string, domain: string, to: string): BandRow {
     primary: <span className="muted">{t('not connected')}</span>,
     context: <span className="muted">{t('install Nisse to light this up')}</span>,
     state: undefined, tone: 'neutral',
-  };
-}
-
-function memoryRow(memory: MemorySummaryView | null, hubPresent: boolean, flagged: boolean): BandRow {
-  if (!hubPresent) return upsell('Memory', 'memory', '/memory');
-  if (!memory) return { name: 'Memory', to: '/memory', domain: 'memory', primary: <span className="muted">-</span>, context: <span className="muted">{t('reading…')}</span>, tone: 'neutral' };
-  return {
-    name: 'Memory', to: '/memory', domain: 'memory',
-    primary: <><b>{memory.totalNotes}</b> {t('notes')}</>,
-    context: <><b>{Math.round((memory.freshness ?? 0) * 100)}%</b> {t('fresh')}</>,
-    glyph: <Sparkline values={memory.growth ?? []} label={t('note growth')} />,
-    flagged,
-    // The stale count is the collector's own read; with none, the row claims
-    // nothing rather than inventing an "ok".
-    state: typeof memory.stale === 'number' ? (memory.stale > 0 ? `${memory.stale} ${t('stale')}` : t('ok')) : undefined,
-    tone: typeof memory.stale === 'number' && memory.stale > 0 ? 'warn' : 'ok',
   };
 }
 

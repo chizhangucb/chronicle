@@ -83,9 +83,8 @@ export function assembleSnapshot(now: Date): Record<string, unknown> {
     safety: a.safetyNet(),
     egress: a.egress(),
     safetyGaps: a.safetyGaps(),
-    // memory grounding lands with the memory organ (1g); coverage grounding with
-    // the phase-2 insights coupling. Present as an empty marker so the skill
-    // knows they were considered, not forgotten.
+    // Coverage grounding lands with the phase-2 insights coupling. Present as
+    // an empty marker so the skill knows it was considered, not forgotten.
     coverage: coverage() ?? null,
     // Spend anomaly reading (CHI-324 2i), priced server-side at the theoretical
     // basis from the same burn cells the Overview tile uses. Never throws.

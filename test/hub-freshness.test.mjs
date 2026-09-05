@@ -94,8 +94,8 @@ test('invalidateSlice forces the next read to recompute', () => {
 });
 
 test('writeHubCache/readHubCache roundtrip under CHRONICLE_DATA_DIR', () => {
-  writeHubCache('memory', 'sig-1', { nodes: [1, 2, 3] });
-  const got = readHubCache('memory');
+  writeHubCache('codegraphs', 'sig-1', { nodes: [1, 2, 3] });
+  const got = readHubCache('codegraphs');
   assert.deepEqual(got, { sig: 'sig-1', value: { nodes: [1, 2, 3] } });
   assert.ok(hubCacheDir().startsWith(data), 'hub-cache must live under the data dir');
   assert.equal(readHubCache('never-written'), null);

@@ -48,8 +48,8 @@ export function StatusBand({ rows }: { rows: BandRow[] }): JSX.Element {
     <div className="card status-band">
       <h3>{t('Status')}</h3>
       {/* Column headers complete the schema. Honest names over pretty ones:
-          "now" because Memory counts notes rather than a today reading, and
-          "glance" because that column mixes a sparkline, a count and a clock. */}
+          "now" because not every row has a today reading, and "glance" because
+          that column mixes a sparkline, a count and a clock. */}
       <div className="band-head">
         <span>{t('domain')}</span>
         <span>{t('now')}</span>
@@ -79,10 +79,6 @@ export function StatusBand({ rows }: { rows: BandRow[] }): JSX.Element {
  * A bare trend line. Deliberately not a chart: no axes, no tooltip, no library.
  * It answers "which way, roughly" at a glance and nothing else, which is the
  * only question a 90px-wide glyph can honestly answer.
- *
- * Replaces Varde's 3D graph thumbnail for the Memory row. That thumbnail is
- * what forced the entire node/link payload onto the default route; a growth
- * sparkline reads nearly as well for a fraction of the cost.
  */
 export function Sparkline({ values, label }: { values: number[]; label?: string }): JSX.Element | null {
   const clean = values.filter((v) => Number.isFinite(v));

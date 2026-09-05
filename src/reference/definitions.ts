@@ -25,7 +25,7 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'briefing' | 'memory' | 'safety' | 'jobs' | 'records' | 'modules'
+  | 'briefing' | 'safety' | 'jobs' | 'records' | 'modules'
   | 'ask' | 'settings'
   | 'retired';
 
@@ -47,7 +47,7 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'briefing', 'memory', 'safety', 'jobs', 'records', 'modules',
+  'briefing', 'safety', 'jobs', 'records', 'modules',
   'ask', 'settings', 'retired',
 ];
 
@@ -60,7 +60,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   projects: 'Projects',
   session: 'Session view',
   briefing: 'Briefing',
-  memory: 'Memory',
   safety: 'Safety',
   jobs: 'Jobs',
   records: 'Records',
@@ -312,66 +311,6 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'The briefing run writes briefing.json; acting on a card writes briefing-state.json. Neither ever writes the other’s file, so a run in progress can never clobber a decision you just made.',
   },
   {
-    id: 'memory.living-vs-records',
-    page: 'memory',
-    title: 'Living notes vs records',
-    plain: () => 'Living notes (wiki pages, governance, skills, context, references, registry files) are maintained-in-place knowledge and are what gets measured. Records (decisions, sessions, brainstorms, reports, archives, sources) are dated history: evidence, never rot.',
-  },
-  {
-    id: 'memory.freshness',
-    page: 'memory',
-    title: 'Freshness and stale',
-    plain: (c) => `Age is days since a living note’s last edit; past ${c.vars?.thresholdDays ?? 30} days it counts as stale. Records never rot, so they are not in this count.`,
-  },
-  {
-    id: 'memory.orphan',
-    page: 'memory',
-    title: 'Orphans and unlinked',
-    plain: () => 'An orphan is a living note with zero links in or out AND zero touches in the selected window: unreachable and unused. Unlinked alone is a neutral count; a note your sessions touch daily is not orphaned.',
-  },
-  {
-    id: 'memory.communities',
-    page: 'memory',
-    title: 'Communities',
-    plain: () => 'Notes are colored by a deterministic community assignment computed from the link graph, so the same corpus always produces the same colors. The grouping is structural, not semantic: it reflects what links to what, not what the notes are about.',
-  },
-  {
-    id: 'memory.confidential-pruning',
-    page: 'memory',
-    title: 'What the graph never shows',
-    plain: () => 'Only titles and paths reach the browser, and confidential trees are pruned server-side before the graph is built. Note bodies are never sent.',
-  },
-  {
-    id: 'memory.touches',
-    page: 'memory',
-    title: 'Touches and usage',
-    plain: () => 'A touch is one deterministic use of a note in the window, from three channels: a session transcript that reads it, a wikilink that points at it, and a briefing that cites it. Knowledge nobody reads is storage, not memory.',
-  },
-  {
-    id: 'memory.growth',
-    page: 'memory',
-    title: 'Growth and births',
-    plain: () => 'A birth is a living note created in the window, read from the file birth time; records and machine output never count. The living base is the current total, and deletions accrue once two scans exist to diff.',
-  },
-  {
-    id: 'memory.notes-browser',
-    page: 'memory',
-    title: 'The notes browser',
-    plain: () => 'One searchable list of the notes behind the lanes, filtered by preset (touched, most connected, or orphaned) and by kind. A row opens the same inspect panel as clicking the node on the canvas.',
-  },
-  {
-    id: 'memory.lenses',
-    page: 'memory',
-    title: 'Canvas lenses',
-    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected window and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
-  },
-  {
-    id: 'memory.full-lite',
-    page: 'memory',
-    title: 'Full vs Lite',
-    plain: () => 'Full draws every node and link. Lite caps the draw to the most-connected notes so a very large graph stays at frame rate; nothing is deleted, only fewer are drawn, and the caption says how many.',
-  },
-  {
     id: 'safety.gate',
     page: 'safety',
     title: 'The egress gate',
@@ -470,11 +409,75 @@ export const DEFINITIONS: Definition[] = [
     title: 'Burn tile (retired)',
     plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced in CHI-324 by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers, flagged days, and the proxy-lane note.',
   },
+
+  // ---- Retired: the Memory surface, dropped in the shrink (#219 / spec #215).
+  // The 3D graph, lanes, notes browser and scope flow are gone; the vocabulary
+  // stays findable for anyone who remembers a term. ----
+  {
+    id: 'memory.living-vs-records',
+    page: 'retired',
+    title: 'Memory · Living notes vs records',
+    plain: () => 'Living notes (wiki pages, governance, skills, context, references, registry files) are maintained-in-place knowledge and are what gets measured. Records (decisions, sessions, brainstorms, reports, archives, sources) are dated history: evidence, never rot.',
+  },
+  {
+    id: 'memory.freshness',
+    page: 'retired',
+    title: 'Memory · Freshness and stale',
+    plain: (c) => `Age is days since a living note’s last edit; past ${c.vars?.thresholdDays ?? 30} days it counts as stale. Records never rot, so they are not in this count.`,
+  },
+  {
+    id: 'memory.orphan',
+    page: 'retired',
+    title: 'Memory · Orphans and unlinked',
+    plain: () => 'An orphan is a living note with zero links in or out AND zero touches in the selected window: unreachable and unused. Unlinked alone is a neutral count; a note your sessions touch daily is not orphaned.',
+  },
+  {
+    id: 'memory.communities',
+    page: 'retired',
+    title: 'Memory · Communities',
+    plain: () => 'Notes are colored by a deterministic community assignment computed from the link graph, so the same corpus always produces the same colors. The grouping is structural, not semantic: it reflects what links to what, not what the notes are about.',
+  },
+  {
+    id: 'memory.confidential-pruning',
+    page: 'retired',
+    title: 'Memory · What the graph never shows',
+    plain: () => 'Only titles and paths reach the browser, and confidential trees are pruned server-side before the graph is built. Note bodies are never sent.',
+  },
+  {
+    id: 'memory.touches',
+    page: 'retired',
+    title: 'Memory · Touches and usage',
+    plain: () => 'A touch is one deterministic use of a note in the window, from three channels: a session transcript that reads it, a wikilink that points at it, and a briefing that cites it. Knowledge nobody reads is storage, not memory.',
+  },
+  {
+    id: 'memory.growth',
+    page: 'retired',
+    title: 'Memory · Growth and births',
+    plain: () => 'A birth is a living note created in the window, read from the file birth time; records and machine output never count. The living base is the current total, and deletions accrue once two scans exist to diff.',
+  },
+  {
+    id: 'memory.notes-browser',
+    page: 'retired',
+    title: 'Memory · The notes browser',
+    plain: () => 'One searchable list of the notes behind the lanes, filtered by preset (touched, most connected, or orphaned) and by kind. A row opens the same inspect panel as clicking the node on the canvas.',
+  },
+  {
+    id: 'memory.lenses',
+    page: 'retired',
+    title: 'Memory · Canvas lenses',
+    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected window and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
+  },
+  {
+    id: 'memory.full-lite',
+    page: 'retired',
+    title: 'Memory · Full vs Lite',
+    plain: () => 'Full draws every node and link. Lite caps the draw to the most-connected notes so a very large graph stays at frame rate; nothing is deleted, only fewer are drawn, and the caption says how many.',
+  },
   {
     id: 'retired.nisse-upsell',
     page: 'retired',
     title: 'Nisse coupling',
-    plain: () => 'Not retired: the ops surfaces (Briefing, Memory, Safety, Jobs, Records, Modules) light up when a nisse-format hub is present and are hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
+    plain: () => 'Not retired: the ops surfaces (Briefing, Safety, Jobs, Records, Modules) light up when a nisse-format hub is present and are hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
   },
 ];
 
