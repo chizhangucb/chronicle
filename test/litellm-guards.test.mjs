@@ -1,4 +1,8 @@
-// The four promises litellm/README.md makes about the Python spine (issue #188).
+// The promises litellm/README.md makes about the Python spine (issue #188).
+//
+// There were four. The fourth was the roster refresher, which is not proxy
+// runtime and moved to scripts/ with its guard, into
+// test/refresh-roster.test.mjs (issue #192).
 //
 // Why node rather than a second CI job: the modules are Python, but the suite
 // that gates every PR is `node --test`, and test/litellm-runtime.test.mjs
@@ -197,82 +201,4 @@ print(json.dumps({k: m.build_row({**base, **v}) for k, v in cases.items()}))`);
     assert.equal(row.total_tokens, 12, `${name}: the token-only row lost its tokens`);
   }
   assert.equal(rows.positive.spend, 0.0125, 'a real cost stopped being recorded');
-});
-
-// --- Promise 4: the roster refresher touches volatile columns only ----------
-// "updates only the price and context columns ... never the judgment columns".
-// The judgment columns are hand-curated; a refresher that rewrote them would
-// quietly discard the curation on the next cron run.
-
-test('refresh_roster rewrites price and context only, and adds or drops no row', (t) => {
-  const dir = tmp(t, 'roster-guard-');
-  const md = path.join(dir, 'model-routing.md');
-  const before = [
-    '# Routing',
-    '',
-    'Prose above the table stays put.',
-    '',
-    '| Model | Route | Tier | Trust | Task fit | Lane | Price in/out (auto) | Context (auto) |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |',
-    '| glm | openrouter/z-ai/glm-5.2 | workhorse | no-train | code | C | $0.00 / $0.00 | 0 |',
-    '| kimi | openrouter/moonshot/kimi-k3 | reach | unverified | long-ctx | C | $9.99 / $9.99 | 1 |',
-    '| direct | anthropic/claude-opus-5 | flagship | first-party | judgment | A | $15.00 / $75.00 | 200000 |',
-    '| absent | openrouter/vendor/not-in-catalog | scratch | unknown | none | - | $1.00 / $2.00 | 42 |',
-    '',
-    'Prose below the table stays put too.',
-    '',
-  ].join('\n');
-  fs.writeFileSync(md, `${before}\n`);
-
-  const r = run(t, `import json, pathlib, sys
-sys.path.insert(0, ${JSON.stringify(LITELLM)})
-import refresh_roster as rr
-
-catalog = {
-  'z-ai/glm-5.2': (0.5, 1.5, 131072),
-  'moonshot/kimi-k3': (2.0, 8.0, 262144),
-  # anthropic/claude-opus-5 is deliberately present, to prove the route prefix
-  # rather than the model name is what decides a row is in scope.
-  'anthropic/claude-opus-5': (99.0, 99.0, 1),
-}
-p = pathlib.Path(${JSON.stringify(md)})
-new, changes = rr.update_roster_table(p.read_text(), catalog)
-p.write_text(new)
-print(json.dumps([c[0] for c in changes]))`);
-  if (!r) return;
-
-  const changed = JSON.parse(r.stdout.trim());
-  assert.deepEqual(changed.sort(), ['openrouter/moonshot/kimi-k3', 'openrouter/z-ai/glm-5.2']);
-
-  const after = fs.readFileSync(md, 'utf8');
-  const rowsOf = (text) => text.split('\n').filter((l) => l.trimStart().startsWith('|'));
-  const rowsBefore = rowsOf(before);
-  const rowsAfter = rowsOf(after);
-  assert.equal(rowsAfter.length, rowsBefore.length, 'the refresher added or dropped a row');
-
-  const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
-  const headers = cells(rowsBefore[0]);
-  const VOLATILE = new Set(['Price in/out (auto)', 'Context (auto)']);
-
-  for (let i = 0; i < rowsBefore.length; i += 1) {
-    const b = cells(rowsBefore[i]);
-    const a = cells(rowsAfter[i]);
-    assert.equal(a.length, b.length, `row ${i} changed its column count`);
-    for (let c = 0; c < b.length; c += 1) {
-      if (VOLATILE.has(headers[c])) continue;
-      assert.equal(a[c], b[c], `a judgment column (${headers[c]}) was rewritten on row ${i}`);
-    }
-  }
-
-  // The volatile columns did move, for the in-catalog openrouter rows only.
-  assert.match(after, /\| \$0\.50 \/ \$1\.50 \| 131072 \|/);
-  assert.match(after, /\| \$2\.00 \/ \$8\.00 \| 262144 \|/);
-  // A non-openrouter route is out of scope even when the catalog knows it.
-  assert.match(after, /anthropic\/claude-opus-5 .*\| \$15\.00 \/ \$75\.00 \| 200000 \|/);
-  // A route the catalog does not carry keeps its stale numbers rather than
-  // being blanked.
-  assert.match(after, /not-in-catalog .*\| \$1\.00 \/ \$2\.00 \| 42 \|/);
-  // And the prose around the table is untouched.
-  assert.match(after, /^Prose above the table stays put\.$/m);
-  assert.match(after, /^Prose below the table stays put too\.$/m);
 });
