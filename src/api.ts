@@ -4,10 +4,6 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
-import type {
-  MemoryNode, MemoryLink, MemoryScopeEcho,
-  MemoryRot, MemoryGrowth, MemoryUsage, MemoryConnectivity, MemoryNoteDate,
-} from './components/memory/types.js';
 import { gateToken } from './gate/token.ts';
 
 // Mutating methods carry the per-boot gate token (CHI-323 D2). Every write in
@@ -807,7 +803,7 @@ export interface LogTailView { path: string; exists: boolean; lines: string[]; t
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
 // Briefing (organ 1f)
-export type BriefingDomainView = 'memory' | 'sessions' | 'safety' | 'jobs' | 'coverage';
+export type BriefingDomainView = 'sessions' | 'safety' | 'jobs' | 'coverage';
 export type CardStateView = 'open' | 'done' | 'dismissed' | 'snoozed' | 'resolved';
 export type CardActionView = 'done' | 'dismiss' | 'snooze' | 'reopen';
 export interface ResolvedCardView {
@@ -822,46 +818,6 @@ export interface FollowThroughView {
 export interface BriefingResult { generatedAt: string; cadence: string; cards: ResolvedCardView[]; followThrough: FollowThroughView }
 export interface BriefingRunStatus { running: boolean; startedAt: string | null; lastResult: { ok: boolean; code: number | null; at: string } | null }
 
-// Memory (organ 1g). The node/link shapes mirror src/components/memory/types.ts.
-export interface MemoryStatsView {
-  totalFiles: number; totalWorkspaces: number; stale: number; missing: number; freshness: number;
-  capSuggested: number; totalNotes: number; totalLinks: number; living: number; historical: number;
-}
-/** The home band's memory read (CHI-325 3d). Deliberately tiny: the full
- *  MemorySliceView carries every node and link, which must not travel to the
- *  default route on every load. */
-export interface MemorySummaryView {
-  hubPresent: true;
-  totalNotes: number;
-  totalLinks: number;
-  stale: number;
-  freshness: number;
-  growth: number[];
-}
-
-export interface MemorySliceView {
-  stats: MemoryStatsView;
-  scope: MemoryScopeEcho;
-  nodes: MemoryNode[];
-  links: MemoryLink[];
-  // The rich analytics reads (CHI-385 parity): the Memory lanes read these
-  // directly. They ship from the server slice; the canvas uses stats + scope +
-  // nodes + links. Optional: an older projection may omit any of them.
-  rot?: MemoryRot;
-  growth?: MemoryGrowth;
-  usage?: MemoryUsage;
-  connectivity?: MemoryConnectivity;
-  noteDates?: MemoryNoteDate[];
-  [key: string]: unknown;
-}
-export type HubMemoryResult = MemorySliceView | { hubPresent: false };
-export interface OpenFileResult { ok: boolean; opened?: string; error?: string }
-
-// Memory scope-suggest (CHI-339, the 1g fast-follow): mirrors the briefing
-// run/run-status pair. Nothing writes here; a returned suggestion becomes a
-// gate proposal via the existing gatePropose('memory-scope', ...).
-export interface ScopeSuggestion { living: string[]; historical: string[]; excluded: string[] }
-export interface ScopeSuggestStatus { running: boolean; suggestion: ScopeSuggestion | null; error: string | null }
 
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
@@ -916,20 +872,12 @@ export const api = {
     j('/api/briefing/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId, action }) }),
   briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
-  hubMemory: (): Promise<HubMemoryResult> => j('/api/hub/memory'),
   // /ask (CHI-351)
   askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
   askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),
   postAsk: (question: string, costMode: AskCostMode): Promise<{ turn: AskTurn }> => j('/api/ask', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, costMode }),
   }),
-  openFile: (nodePath: string): Promise<OpenFileResult> => j('/api/open-file', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: nodePath }),
-  }),
-  scopeSuggestStart: (): Promise<{ started: boolean }> => j('/api/memory/scope-suggest', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-  }),
-  scopeSuggestStatus: (): Promise<ScopeSuggestStatus> => j('/api/memory/scope-suggest/status'),
   // Project source ops (were raw fetches in ProjectDetail.tsx; routed through j
   // so they carry the gate token like every other write, CHI-323 review #2).
   associateProject: (id: number | string, path: string): Promise<unknown> => j(`/api/projects/${id}/associate`, {
@@ -969,9 +917,6 @@ export const api = {
   // Demo mode (CHI-325 3c). `available` is false under `npm run dev`, where
   // there is no CLI to restart the process.
   demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),
-  // LIGHT memory read for the home status band (CHI-325 3d): four numbers plus a
-  // growth series, never the whole node/link graph.
-  hubMemorySummary: (): Promise<MemorySummaryView | { hubPresent: false }> => j('/api/hub/memory/summary'),
   demoStart: (): Promise<{ ok: true; restarting: boolean }> =>
     j('/api/demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   demoExit: (): Promise<{ ok: true; restarting: boolean }> =>

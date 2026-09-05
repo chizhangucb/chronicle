@@ -10,7 +10,7 @@
  * Keeping them apart means a run can never clobber a "done", and the UI never
  * writes into a source the run owns.
  *
- * SCOPE: the briefing carries jobs / safety / egress / memory / coverage AND
+ * SCOPE: the briefing carries jobs / safety / egress / coverage AND
  * spend (CHI-324 2i — the phase-1 D7 gap closed once the spend detector moved
  * server-side; the runner assembles a spend slice via server/spendSnapshot.ts).
  */
@@ -26,7 +26,7 @@ function dataDir(env: NodeJS.ProcessEnv = process.env): string {
 
 /** Domains a card can belong to. Spend joined in CHI-324 2i (the D7 gap closed
  * once the spend detector moved server-side; see server/spendSnapshot.ts). */
-export type BriefingDomain = 'memory' | 'sessions' | 'safety' | 'jobs' | 'coverage' | 'spend';
+export type BriefingDomain = 'sessions' | 'safety' | 'jobs' | 'coverage' | 'spend';
 
 export interface BriefingCard {
   id: string;

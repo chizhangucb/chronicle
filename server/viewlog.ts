@@ -70,7 +70,6 @@ const ROUTES = new Set([
   '/safety',
   '/jobs',
   '/briefing',
-  '/memory',
   '/records',
   '/reference',
   '/ask',

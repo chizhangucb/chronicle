@@ -7,7 +7,7 @@
 // independently and phases 2-3 compose without a giant shared object.
 //
 // Slice methods are added to `HubAdapter` as their organ lands (1c Modules,
-// 1d Safety, 1e Jobs, 1f Briefing, 1g Memory). Phase 1a establishes the
+// 1d Safety, 1e Jobs, 1f Briefing). Phase 1a establishes the
 // interface + `status()` + the three implementations + the factory, so every
 // organ just plugs a method into Live/Demo and the route wiring already exists.
 import { resolveHub, type HubMode, type HubHandle } from './resolve.ts';
@@ -20,20 +20,16 @@ import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slic
 import { collectJobs, type JobsSlice } from './slices/jobs.ts';
 import { collectRecords, EMPTY_RECORDS, type RecordsSlice } from './slices/records.ts';
 import { collectAutomations } from './slices/automations.ts';
-import { collectMemoryGraph, type MemorySlice } from './slices/memorygraph.ts';
-import { loadMemoryConfig, memoryScopeConfigPath } from './slices/memoryscope.ts';
-import { collectHubFileTouches, hubTouchSignature } from './slices/fileTouches.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
-import { loadConfidentialSegments, ConfidentialPolicyUnavailable, confidentialSegmentsPath } from './confidential-segments.ts';
-import { freshSliceAsync, treeMaxMtimeMs, pathsMaxMtimeMs, NOISE_DIRS } from './freshness.ts';
-import { dataDir } from '../db.ts';
+import { loadConfidentialSegments, ConfidentialPolicyUnavailable } from './confidential-segments.ts';
+import { freshSliceAsync, treeMaxMtimeMs } from './freshness.ts';
 import { join } from 'node:path';
 import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_GATINGPOLICY, DEMO_JOBS, DEMO_RECORDS, demoMemory, demoCodegraphs, EMPTY_MEMORY } from './demo.ts';
+import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_GATINGPOLICY, DEMO_JOBS, DEMO_RECORDS, demoCodegraphs } from './demo.ts';
 
-// The two HEAVY slices re-check freshness at most this often (a stat-walk over
-// the whole hub markdown corpus / every built graph is not free); inside the
-// window the cached value is served without touching the filesystem.
+// The HEAVY slice re-checks freshness at most this often (a stat-walk over
+// every built graph is not free); inside the window the cached value is served
+// without touching the filesystem.
 const HEAVY_TTL_MS = 30_000;
 
 export type { HubMode, HubHandle } from './resolve.ts';
@@ -67,9 +63,6 @@ export interface HubAdapter {
   /** Append-only hub records (CHI-324): decisions + session ledger, index
    * fields only (never the decision body). LIGHT slice, read fresh. */
   records(): RecordsSlice;
-  /** Memory graph over the hub markdown corpus, titles/paths only (organ 1g).
-   * HEAVY: freshness-cached. */
-  memoryGraph(): Promise<MemorySlice>;
   /** Built code graphs (graphs/index.json + per-graph god-nodes) (organ 1g).
    * HEAVY: freshness-cached. */
   codegraphs(): Promise<DashGraphEntry[]>;
@@ -85,7 +78,7 @@ export class LiveHubAdapter implements HubAdapter {
     return { present: true, mode: 'live', root: this.root };
   }
   // Modules is a LIGHT slice: read fresh per request (a handful of file reads),
-  // no on-disk cache. The heavy slices (memory, codegraphs) use freshness.ts.
+  // no on-disk cache. The heavy slice (codegraphs) uses freshness.ts.
   modules(): ModulesSlice {
     let segs: Set<string>;
     try { segs = loadConfidentialSegments(this.root); }
@@ -118,31 +111,6 @@ export class LiveHubAdapter implements HubAdapter {
   // Records is a LIGHT slice: two small JSONL reads, read fresh per request.
   records(): RecordsSlice {
     return collectRecords(this.root);
-  }
-  memoryGraph(): Promise<MemorySlice> {
-    let confidentialSegments: Set<string>;
-    try { confidentialSegments = loadConfidentialSegments(this.root); }
-    catch (e) {
-      if (e instanceof ConfidentialPolicyUnavailable) return Promise.resolve(EMPTY_MEMORY);
-      throw e;
-    }
-    const memoryPrune = new Set<string>([...confidentialSegments, ...NOISE_DIRS]);
-    const hubRoot = this.root;
-    return freshSliceAsync(
-      'memory',
-      () => `${treeMaxMtimeMs(this.root, (n) => n.endsWith('.md'), memoryPrune)}:${pathsMaxMtimeMs([memoryScopeConfigPath(), confidentialSegmentsPath(this.root)])}:${hubTouchSignature()}`,
-      () => {
-        const { config, source } = loadMemoryConfig();
-        return collectMemoryGraph(this.root, confidentialSegments, {
-          config,
-          configSource: source,
-          fileTouches: collectHubFileTouches(hubRoot),
-          snapshotPath: join(dataDir, 'memory-scope-snapshot.json'),
-          degreeHistoryPath: join(dataDir, 'memory-degree-history.json'),
-        });
-      },
-      { ttlMs: HEAVY_TTL_MS },
-    );
   }
   codegraphs(): Promise<DashGraphEntry[]> {
     return freshSliceAsync('codegraphs', () => String(treeMaxMtimeMs(join(this.root, 'graphs'))), () => collectCodegraphs(this.root), { ttlMs: HEAVY_TTL_MS });
@@ -182,9 +150,6 @@ export class DemoHubAdapter implements HubAdapter {
   records(): RecordsSlice {
     return DEMO_RECORDS;
   }
-  memoryGraph(): Promise<MemorySlice> {
-    return Promise.resolve(demoMemory());
-  }
   codegraphs(): Promise<DashGraphEntry[]> {
     return Promise.resolve(demoCodegraphs());
   }
@@ -223,9 +188,6 @@ export class NullHubAdapter implements HubAdapter {
   }
   records(): RecordsSlice {
     return EMPTY_RECORDS;
-  }
-  memoryGraph(): Promise<MemorySlice> {
-    return Promise.resolve(EMPTY_MEMORY);
   }
   codegraphs(): Promise<DashGraphEntry[]> {
     return Promise.resolve([]);

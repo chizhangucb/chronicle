@@ -7,9 +7,7 @@ import { narrowLaunchd } from './approval.ts';
 // the published package. This is the whole registry.
 //
 // Ported from Varde MINUS its own `aggregator-config` surface (Varde's config
-// file, not a Chronicle surface). The `memory-scope` surface's schema shipped
-// with 1b (validate.ts); the row itself lands with the scope-suggest fast-follow
-// (CHI-339).
+// file, not a Chronicle surface).
 //
 // CHI-329: each row declares an `approval` posture. ABSENT MEANS CONFIRM, so a
 // new row that forgets to think about it gets the card. The four hub-writing
@@ -75,20 +73,6 @@ export const SURFACES: Surface[] = [
     tier: 2,
     secondChannel: 'telegram',
     approval: 'confirm',
-  },
-  {
-    id: 'memory-scope',
-    title: 'Memory scope (living / historical / excluded)',
-    description: "Which hub files count as knowledge, and in what tier, in Chronicle's memory-scope config. Hand edits apply without a card and take effect on the next memory read; a model-suggested scope still shows the diff for review.",
-    target: '${HOME}/.chronicle/memory-scope.json',
-    schema: 'memory-scope',
-    tier: 1,
-    secondChannel: null,
-    // Chronicle's own file. Drives which hub paths /memory counts as knowledge:
-    // a read view, backed up on every write, and now visible in the /safety
-    // audit panel. A scope-suggest payload still cards (core.ts floor 1b): the
-    // card IS the human review of model output, per spec/surface-contract.md.
-    approval: 'auto',
   },
   {
     id: 'launchd-jobs',

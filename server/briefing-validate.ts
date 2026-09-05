@@ -11,7 +11,7 @@
  */
 import type { BriefingCard, BriefingDomain } from './briefing.ts';
 
-export const DOMAINS: BriefingDomain[] = ['memory', 'sessions', 'safety', 'jobs', 'coverage', 'spend'];
+export const DOMAINS: BriefingDomain[] = ['sessions', 'safety', 'jobs', 'coverage', 'spend'];
 export const MAX_CARDS = 12;
 const ID_RE = /^[a-z0-9][a-z0-9._:-]{0,119}$/i;
 

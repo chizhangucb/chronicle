@@ -1,7 +1,7 @@
 // Confidential-segment prune set, read from the connected hub at RUNTIME (CHI-390).
 //
 // Why this exists: Chronicle walks the operator's real hub filesystem to build
-// the memory / freshness / modules views. To never surface a confidential tree
+// the freshness / modules views. To never surface a confidential tree
 // it must prune those trees from the walk. The naive way (hardcoding the tree
 // NAMES in this committed, PUBLIC source) publishes the very names it guards: a
 // hardcoded prune list would leak the confidential tree names it exists to hide.
