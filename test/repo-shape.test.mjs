@@ -31,11 +31,16 @@ const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 // repo-managed harness hooks are gone; none may be tracked again.
 const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 
-// The doc surfaces the restructure owns. litellm/README.md is out of this set
-// because test/litellm-runtime.test.mjs guards it instead, alongside the runtime
-// it documents (issue #186 made both standalone). CHANGELOG.md is out because history
-// is allowed to name what was.
-const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/**/*.md', 'spec/**/*.md'];
+// Every doc surface this repo owns, litellm/ included (issue #189). The runtime
+// pins in test/litellm-runtime.test.mjs still guard litellm/README.md alongside
+// the runtime it documents, but they check a different string set, so the folder
+// is inside this pin too rather than exempt from it. CHANGELOG.md stays out
+// because history is allowed to name what was.
+//
+// `*` in a git pathspec matches `/` too, so `docs/*.md` is the recursive form.
+// `docs/**/*.md` is not -- it requires a directory in between, and silently
+// skipped the two top-level docs/*.md files until #189 widened this list.
+const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md', 'litellm/*.md'];
 const PRIVATE_STRINGS = new RegExp(`${PRIVATE_PATHS.source}|${PRIVATE_FOLDERS.source}`, 'i');
 
 test('no retired folder is tracked at the repo root', () => {
@@ -73,6 +78,22 @@ test('the owned docs name no private-checkout path', () => {
     PRIVATE_STRINGS.test(fs.readFileSync(path.join(REPO, rel), 'utf8')),
   );
   assert.deepEqual(offenders, [], `docs still name a private checkout: ${offenders}`);
+});
+
+test('the doc glob list reaches a top-level doc, not just a nested one', () => {
+  // `docs/**/*.md` looked recursive and was not: it required a directory in
+  // between, so docs/*.md sat unpinned. Without this the list can silently
+  // narrow again and every assertion above it keeps passing.
+  const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
+  const nesting = (rel) => rel.split('/').length;
+  for (const dir of ['docs', 'spec', 'litellm']) {
+    const under = docs.filter((rel) => rel.startsWith(`${dir}/`));
+    assert.ok(under.length, `the doc set reaches nothing under ${dir}/`);
+    assert.ok(
+      under.some((rel) => nesting(rel) === 2),
+      `the doc set skips top-level ${dir}/*.md files`,
+    );
+  }
 });
 
 test('the website build excludes docs/agents and docs/adr from the public site', () => {
