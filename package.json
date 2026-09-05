@@ -1,7 +1,7 @@
 {
   "name": "chronicle-cli",
   "version": "1.4.0",
-  "description": "Local-first session manager + Insights analytics for AI coding sessions: import Claude Code, Codex, Cursor & OpenCode, replay to the exact Git snapshot, redact secrets. npx chronicle-cli, no cloud, no telemetry.",
+  "description": "Local-first session manager + Insights analytics for AI coding sessions: import Claude Code, Codex, Cursor & OpenCode, play back to the exact Git snapshot, redact secrets. npx chronicle-cli, no cloud, no telemetry.",
   "bin": {
     "chronicle": "bin/chronicle.mjs",
     "chronicle-cli": "bin/chronicle.mjs"

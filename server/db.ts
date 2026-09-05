@@ -34,7 +34,7 @@ export interface SessionRow {
   result_count: number | null;
   error_count: number | null;
   // Provenance of `usage`. 'exact' = parsed from a transcript by a
-  // parser that collapses replayed lines on (message_id, request_id).
+  // parser that collapses repeated usage lines on (message_id, request_id).
   // 'rederived' = the source transcript is gone, so the migration
   // rebuilt it structurally from the stored per-message token columns.
   // 'unverified' = neither was possible; the pre-fix (inflated) value stands.
@@ -296,7 +296,10 @@ try {
 // not prose: renaming it would re-run the whole backfill on live databases. It
 // is the one place the retired tracker's vocabulary is allowed to survive, and
 // test/repo-shape.test.mjs exempts this literal by value, not the file.
-const COLLAPSE_REPLAYED_USAGE = 'chi-286-collapse-replayed-usage';
+// The literal is a schema value: it is written into chronicle_migrations on
+// every install that has run this backfill, so renaming it would re-run the
+// backfill on live databases. Its wording is frozen history.
+const COLLAPSE_REPEATED_USAGE = 'chi-286-collapse-replayed-usage';
 
 interface UsageRow {
   id: number;
@@ -309,8 +312,8 @@ interface UsageRow {
   cache_w1h_tokens: number;
 }
 
-function collapseReplayedUsageBackfill(): void {
-  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(COLLAPSE_REPLAYED_USAGE);
+function collapseRepeatedUsageBackfill(): void {
+  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(COLLAPSE_REPEATED_USAGE);
   if (done) return;
   const targets = db.prepare(`SELECT id, file_path, usage FROM sessions
                               WHERE source = 'claude-code' AND usage IS NOT NULL`)
@@ -334,7 +337,7 @@ function collapseReplayedUsageBackfill(): void {
       const total = r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_w5m_tokens + r.cache_w1h_tokens;
       const sig = `${model}|${r.input_tokens}|${r.output_tokens}|${r.cache_read_tokens}|${r.cache_w5m_tokens}|${r.cache_w1h_tokens}`;
       if (r.session_id !== prevSession) { prevSession = r.session_id; prevSig = ''; }
-      // A replay repeats the previous row's cells exactly. `total > 0` is an
+      // A repeated usage row repeats the previous row's cells exactly. `total > 0` is an
       // all-zero guard: the only false positive found across every
       // transcript on disk was a pair of adjacent all-zero `<synthetic>` rows,
       // and collapsing a genuinely-zero row would be a (harmless) guess.
@@ -381,7 +384,7 @@ function collapseReplayedUsageBackfill(): void {
       const relive = db.prepare('UPDATE sessions SET imported_at = NULL WHERE id = ?');
       let reimport = 0;
       for (const s of targets) if (fs.existsSync(s.file_path)) { relive.run(s.id); reimport++; }
-      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
+      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPEATED_USAGE);
       db.exec('COMMIT');
       console.log(`[chronicle] backfill: ${rederived} sessions re-derived, ${unverified} unverified, ` +
                   `${drop.length} duplicate token rows cleared, ${reimport} queued for exact re-import`);
@@ -390,7 +393,7 @@ function collapseReplayedUsageBackfill(): void {
       throw err;
     }
   } else {
-    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
+    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPEATED_USAGE);
   }
 }
 
@@ -399,7 +402,7 @@ function collapseReplayedUsageBackfill(): void {
 // cause; the marker is only written inside the committed transaction, so a
 // failed run leaves nothing half-applied and retries on the next boot.
 try {
-  collapseReplayedUsageBackfill();
+  collapseRepeatedUsageBackfill();
 } catch (err) {
   console.warn('[chronicle] backfill deferred (will retry next start):', (err as Error).message);
 }

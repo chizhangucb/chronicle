@@ -104,16 +104,16 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 ## Enumerables (exact sets — changing any is a contract edit)
 
-- **Home rangebar** (`/` home page `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
+- **Range toggle** (`/` home page `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
   in this order. Default = Today. Today = fractional-days-since-local-midnight; All = no cutoff.
-- **Project rangebar** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
-  `90d` · `All`. Same exact five, same order, same labels as the home rangebar above — ONE
+- **Project range toggle** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
+  `90d` · `All`. Same exact five, same order, same labels as the home range toggle above — ONE
   shared vocabulary, sourced from ONE component (`src/RangeBar.tsx`) both surfaces mount, so the
   option sets/labels cannot drift independently. Default = All. Guard:
-  `test/e2e/window-matrix.spec.ts` — "the rangebar on /project/:id has exactly the same Today /
+  `test/e2e/range-matrix.spec.ts` — "the range toggle on /project/:id has exactly the same Today /
   7d / 30d / 90d / All set as the home page at /".
 - **Home tabs** (`/`): `Overview` · `Explore` · `Content` · `Spend` · `Sessions`. Exactly five;
-  Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared rangebar scopes every
+  Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared range toggle scopes every
   tab. Guard: `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content /
   Spend / Sessions tabs".
 - **Project tabs** (`/project/:id`): `Overview` · `Explore` · `Content` · `Sessions`.
@@ -202,7 +202,7 @@ the project view uses per-project).
 ### `/` Spend tab — reading order top → bottom (`SpendTab.tsx`)
 
 Card titles use the `.card h3` recipe
-(name + range only; explanations live in InfoTips, never caption suffixes). The shared rangebar
+(name + range only; explanations live in InfoTips, never caption suffixes). The shared range toggle
 scopes the tab.
 
 1. **Budget band** — FULL-WIDTH horizontal band (the anomaly is already the Overview tile, so the
@@ -351,7 +351,7 @@ never switches on a characteristic's `key`):
 - **session scope: 6 rows.** The four threshold predicates that always collapse to a meaningless
   0%/100% at N=1 (`eightHourSessions`, `highContextAbs`, `highContextRel`, `autonomousShare`) are
   REPLACED with absolute session facts: `marathonBadge` (real active hours vs the 8h line),
-  `peakContextTokens` (raw tokens + % of the model's window), and `unattendedRatio` (engaged ÷
+  `peakContextTokens` (raw tokens + % of the model's context window), and `unattendedRatio` (engaged ÷
   active, not a binary flag). `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over
   unchanged — real, non-binary percentages even for one session.
 
@@ -382,10 +382,10 @@ when empty and is absent in demo (demo never records).
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
 | Ask runner SELECT-only guard (accept SELECT/WITH, reject writes/DDL/PRAGMA/ATTACH/multi-statement/comment-smuggle) + deduped cost views reconcile | `test/ask.test.mjs` (17 unit tests) |
 | Home tabs = Overview / Explore / Content / Spend / Sessions (exactly five), Overview default | `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |
-| Home rangebar = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
+| Range toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the range toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
 | Overview DOM order KPIs → activity → anomaly tile → charts, no ledger, no top-sessions-by-cost | `test/e2e/home.spec.ts` — "Overview reading order KPIs → activity → anomaly → charts" |
-| Activity block Today-only; anomaly tile persists on 7d | `test/e2e/home.spec.ts` — "window toggle to 7d hides the Activity block, anomaly tile persists" |
+| Activity block Today-only; anomaly tile persists on 7d | `test/e2e/home.spec.ts` — "range toggle to 7d hides the Activity block, anomaly tile persists" |
 | Live dot in the Activity block | `test/e2e/home.spec.ts` — "live session shows a pulsing dot…" |
 | `/projects` chrome-rail rows, no `.projects-grid`, not a card | `test/e2e/projects.spec.ts` — "renders rail-style rows…", "…NOT a bordered card…" |
 | Project gear menu = Sync Update / Rename / Remove, no View Details | `test/e2e/projects.spec.ts` — "gear menu opens with…"; `chrome.spec.ts` T17.6 |
@@ -408,7 +408,7 @@ when empty and is absent in demo (demo never records).
 | Recent-sessions ledger (`/projects` content column) column policy (num-col / ts-col alignment) | `test/e2e/layout.spec.ts` |
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
-| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
+| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards | `test/e2e/range-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
 | Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days lines (keeps the burn-tile anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the pixel reference |
 | Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |

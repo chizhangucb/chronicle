@@ -124,7 +124,7 @@ before(async () => {
 
   // --- P0 regression fixture (feedback-round Task 2 review finding): a session whose
   // started_at predates a window cutoff but whose ended_at (and some messages) fall
-  // INSIDE it — the burn tile's windowSpendTokensByModel must include its in-window
+  // INSIDE it — the burn tile's rangeSpendTokensByModel must include its in-range
   // share, not exclude it entirely (old bug) or count its FULL usage (would defeat the
   // point of scaling). Deliberately anchored at days=10 (started 15d ago, ended 8d ago,
   // messages straddling the 10-day cutoff at ~9.5d ago) — a window strictly BETWEEN the
@@ -175,7 +175,7 @@ test('shape: returns live[], recent[], and a burn object', async () => {
   assert.ok(Array.isArray(r.live));
   assert.ok(Array.isArray(r.recent));
   assert.ok(r.burn && typeof r.burn === 'object');
-  assert.ok(r.burn.windowSpendTokensByModel);
+  assert.ok(r.burn.rangeSpendTokensByModel);
   assert.ok(r.burn.baselineTokensByModel);
   assert.ok('topSessionId' in r.burn);
   assert.ok('topSessionName' in r.burn);
@@ -213,7 +213,7 @@ test('recent respects `since`: a tight since window excludes older sessions', as
 test('burn window spend (Today): sums today\'s window sessions per model', async () => {
   const r = await getActivity({ days: todayDays, since: iso(now - 30 * 60000) });
   // s_live(1000) + s_left(5000) = 6000; daily sessions are before midnight → excluded.
-  assert.equal(tok(r.burn.windowSpendTokensByModel), 6000);
+  assert.equal(tok(r.burn.rangeSpendTokensByModel), 6000);
 });
 
 test('burn baseline (Today): median of the trailing 14 complete days = 5500', async () => {
@@ -230,12 +230,12 @@ test('burn topSession (Today): the highest-token window session', async () => {
 test('burn window spend + baseline: current 7d vs prior 7d', async () => {
   const r = await getActivity({ days: 7, since: iso(now - 30 * 60000) });
   // current 7d = today(6000) + d1..d6 (21000) = 27000
-  assert.equal(tok(r.burn.windowSpendTokensByModel), 27000);
+  assert.equal(tok(r.burn.rangeSpendTokensByModel), 27000);
   // prior 7d = d8..d13 = (8+9+10+11+12+13)*1000 = 63000
   assert.equal(tok(r.burn.baselineTokensByModel), 63000);
 });
 
-test('burn window spend (10d, P0 regression): a session that started before the cutoff but ended inside it contributes its in-window share, not zero and not its full usage', async () => {
+test('burn window spend (10d, P0 regression): a session that started before the cutoff but ended inside it contributes its in-range share, not zero and not its full usage', async () => {
   const r = await getActivity({ days: 10, since: iso(now - 30 * 60000) });
   // The 10d window also picks up the other fixture sessions that overlap it: s_live(1000)
   // + s_left(5000) + d1..d6,d8,d9 (d7/d11-14 fall outside — see the daily-fixture comment
@@ -257,7 +257,7 @@ test('burn window spend (10d, P0 regression): a session that started before the 
   // 12:31 UTC and would read 56000 before ~12:00 UTC, a deterministic — not random —
   // divergence tied to time-of-day, not flakiness in the underlying overlapGate logic).
   //
-  // Fix: mirror the EXACT production comparison (server/windowUsage.ts `overlapGate`:
+  // Fix: mirror the EXACT production comparison (server/rangeUsage.ts `overlapGate`:
   // `COALESCE(ended_at, started_at, '9') >= cutoff`) to decide d10's inclusion dynamically,
   // instead of hardcoding a snapshot that only holds on one side of UTC noon. d10's own
   // session is a tight 22-minute span (see rhythmEvents above), so unlike spanner10d it is
@@ -270,16 +270,16 @@ test('burn window spend (10d, P0 regression): a session that started before the 
   const d10Included = d10EndedAtMs >= cutoff10Ms;
   const baselineExcludingSpanner = 44000 + (d10Included ? 10000 : 0);
   // spanner10d: billed input=4000; 12 messages @10 tokens each (120 total), 6 before the
-  // 10d cutoff and 6 after → in-window ratio 6/12 = 0.5 → windowed cell = 2000 (this split
+  // 10d cutoff and 6 after → in-range ratio 6/12 = 0.5 → ranged cell = 2000 (this split
   // is itself anchored to real `now`, same as the route's cutoff, so it's never ambiguous).
   // PER-BUCKET ROUNDING DRIFT (second time-of-day flake in this assertion, found when
   // it failed 55999 !== 56000 on the v1.3.0 publish run). The route aggregates
-  // `bucketedUsage`, not `windowedUsage`, and bucketedUsage rounds EACH local-day bucket
-  // independently — server/windowUsage.ts says so outright: summing a session-model's
-  // bucketed cells "reproduces windowedUsage's own scaled cell for that session-model (up
+  // `bucketedUsage`, not `rangedUsage`, and bucketedUsage rounds EACH local-day bucket
+  // independently — server/rangeUsage.ts says so outright: summing a session-model's
+  // bucketed cells "reproduces rangedUsage's own scaled cell for that session-model (up
   // to per-bucket rounding drift)".
   //
-  // spanner10d's six in-window messages sit at 9.5/9/8.8/8.6/8.4/8.2 days ago, so they
+  // spanner10d's six in-range messages sit at 9.5/9/8.8/8.6/8.4/8.2 days ago, so they
   // straddle two or three LOCAL calendar days depending on what time of day the suite
   // runs. Split 2+2+2 the rounded parts sum to exactly 2000; split 1+1+2+2 (or similar)
   // they sum to 1999, because round(4000 * 10/120) = 333 loses a third of a token each
@@ -288,17 +288,17 @@ test('burn window spend (10d, P0 regression): a session that started before the 
   // So allow a few tokens of drift instead of demanding an exact total. The tolerance is
   // deliberately tiny relative to what this test actually guards: the P0 regressions below
   // are off by 2000 or 4000 tokens, three orders of magnitude outside this band.
-  const total = tok(r.burn.windowSpendTokensByModel);
+  const total = tok(r.burn.rangeSpendTokensByModel);
   const expected = baselineExcludingSpanner + 2000;
   const ROUNDING_DRIFT = 5; // < 1 token per local-day bucket spanner10d can occupy
   assert.ok(
     Math.abs(total - expected) <= ROUNDING_DRIFT,
     `must equal baseline(${baselineExcludingSpanner}, d10Included=${d10Included}) + spanner10d's `
-    + `scaled in-window share(2000) = ${expected}, within ${ROUNDING_DRIFT} tokens of per-bucket `
+    + `scaled in-range share(2000) = ${expected}, within ${ROUNDING_DRIFT} tokens of per-bucket `
     + `rounding drift — got ${total} (off by ${total - expected})`,
   );
   assert.ok(total > baselineExcludingSpanner, 'spanner10d must not be dropped entirely (the P0 bug: old gate excluded it)');
-  assert.ok(total < baselineExcludingSpanner + 4000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-window share)');
+  assert.ok(total < baselineExcludingSpanner + 4000, 'spanner10d must not be counted at its FULL billed usage (must be scaled to its in-range share)');
 });
 
 test('minor sessions are excluded from the window aggregates', async () => {
@@ -311,7 +311,7 @@ test('minor sessions are excluded from the window aggregates', async () => {
   invalidateCache();
   const r = await getActivity({ days: 7, since: iso(now - 30 * 60000) });
   // d1 (1000) drops out of the current-7d window → 27000 - 1000 = 26000
-  assert.equal(tok(r.burn.windowSpendTokensByModel), 26000);
+  assert.equal(tok(r.burn.rangeSpendTokensByModel), 26000);
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('d1');
   invalidateCache();
 });

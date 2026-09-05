@@ -5,7 +5,7 @@ import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
-import { overlapGate, bucketedUsage, type BucketedUsageCell } from '../windowUsage.ts';
+import { overlapGate, bucketedUsage, type BucketedUsageCell } from '../rangeUsage.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -93,13 +93,13 @@ export function mountProjects(app: Express): void {
       const days = Number(req.query.days) || null;
       const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
       // null (not '') for the windowed-usage primitive — see server/insights.ts's comment
-      // on the same pattern for why (cutoffIso===null is windowedUsage's "All window" signal).
+      // on the same pattern for why (cutoffIso===null is rangedUsage's "All window" signal).
       const cutoffIso = days ? cutoff : null;
       // Minor (noise-gated) sessions are excluded from this main list — they
       // live in the global "minor sessions" bucket (GET /api/sessions/minor)
       // until promoted or ignored.
-      // overlapGate (Task 2, the P0 fix — see server/windowUsage.ts): a session that
-      // started before the window but ran INTO it (e.g. spans midnight into "Today")
+      // overlapGate (Task 2, the P0 fix — see server/rangeUsage.ts): a session that
+      // started before the range but ran INTO it (e.g. spans midnight into "Today")
       // still counts — replaces the old started_at-only gate that dropped it entirely.
       const rawSessions = db.prepare(`SELECT id, source, file_path, started_at, ended_at, message_count, first_prompt, name, summary, context_tokens, usage, agent_active_ms,
           (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
@@ -119,7 +119,7 @@ export function mountProjects(app: Express): void {
       // covering idx_messages_agg index instead of a full table scan — same
       // perf-fix shape as server/insights.ts (see the index comment in db.ts).
       // overlapGate on session inclusion + `m.ts >= ?` restricts message-level
-      // aggregates to messages that actually fall in-window.
+      // aggregates to messages that actually fall in-range.
       const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE s.project_id = ? AND ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL AND m.ts >= ?
@@ -138,8 +138,8 @@ export function mountProjects(app: Express): void {
       // (no messages join), so only the overlap gate applies.
       // KNOWN WINDOWING TRADEOFF (same as server/insights.ts's errorsByProject, see
       // that comment for the full rationale): error_count is a WHOLE-SESSION
-      // precomputed total, not scaled to the in-window share the token magnitudes get
-      // via windowedUsage — overlapGate makes a spanning session correctly visible for
+      // precomputed total, not scaled to the in-range share the token magnitudes get
+      // via rangedUsage — overlapGate makes a spanning session correctly visible for
       // "Today", but its error count is its FULL historical count. There's no
       // per-message error timestamp to cheaply re-slice by without re-running the
       // tool_result/tool_use pairing join per request (the exact cost this precomputed
@@ -149,11 +149,11 @@ export function mountProjects(app: Express): void {
         .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
       // Windowed per-model billed cells: the client prices these for the
       // project KPIs instead of summing raw session.usage, so they agree with the session
-      // list above at every window, including a spanning session's partial in-window share.
+      // list above at every window, including a spanning session's partial in-range share.
       // Day-bucketed so a session whose usage straddles a rate change (e.g.
       // Sonnet 5's intro window) prices each day's share at that day's rate.
-      const windowedTokensByModel: BucketedUsageCell[] = bucketedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso, 'day');
-      return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, windowedTokensByModel }, cutoff };
+      const rangedTokensByModel: BucketedUsageCell[] = bucketedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso, 'day');
+      return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, rangedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
     res.json({ project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),

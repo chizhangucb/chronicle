@@ -14,7 +14,7 @@
  * db, so chronicle.db is never touched): a `pricing` table for the run's cost
  * basis, and two deduped cost views the schema-prompt steers the model to —
  * `session_model_cost` (from sessions.usage, reconciles with the dashboards) and
- * `message_cost` (per-message, replayed rows already nulled).
+ * `message_cost` (per-message, repeated usage rows already nulled).
  *
  * Every successful query APPENDS its (already-capped) result to
  * `<runnerDir>/ask-queries.jsonl`. That capture — produced inside THIS

@@ -3,7 +3,7 @@
 // zero-filled from its first to its last bucket, so equal bar spacing always
 // represents equal time, never a collapsed run of empty buckets reading as
 // one wide bar). Bucket KEYS themselves are produced server-side by
-// server/windowUsage.ts (`bucketKeyExpr`/`localBucketKeyFromIso`) via SQL
+// server/rangeUsage.ts (`bucketKeyExpr`/`localBucketKeyFromIso`) via SQL
 // `strftime(..., 'localtime')` — already local, in one of two formats:
 //   day:  'YYYY-MM-DD'
 //   hour: 'YYYY-MM-DDTHH'

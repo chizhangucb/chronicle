@@ -324,7 +324,7 @@ test('entering session select exits an active project select, and vice versa —
 
 // ── Task 20 review (Important #1) — the project-select -> session-select
 // switch must NOT unmount/remount the shared `.command-bar` (which would
-// replay its `command-bar-in` entrance animation). The reverse direction
+// re-run its `command-bar-in` entrance animation). The reverse direction
 // (session -> project) was already immune: `projSelect.selectMode` flips
 // true in the SAME synchronous commit as `recentSelect.selectMode` flips
 // false, so `showCommandBar`'s OR is satisfied without waiting on
@@ -336,7 +336,7 @@ test('entering session select exits an active project select, and vice versa —
 // not just text polling — a passing text-content assertion alone would not
 // have caught the original bug (the bar's CONTENT was always correct after
 // the fact; only its DOM identity/animation briefly glitched).
-test('switching project-select -> session-select does not unmount the command bar or replay its entrance animation', async ({ page }) => {
+test('switching project-select -> session-select does not unmount the command bar or re-run its entrance animation', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await gotoProjects(page);
 
@@ -345,7 +345,7 @@ test('switching project-select -> session-select does not unmount the command ba
   await expect(bar).toContainText('projects selected');
   // Let the entrance animation (150ms) fully finish before switching, so a
   // "still running from the FIRST mount" false negative can't masquerade as
-  // "never replayed".
+  // "never re-run".
   await page.waitForTimeout(250);
 
   // Mark the live DOM node. A freshly-created replacement node (unmount +
@@ -368,7 +368,7 @@ test('switching project-select -> session-select does not unmount the command ba
   });
   expect(identity.present, 'command bar must still be present').toBe(true);
   expect(identity.sameNode, 'the SAME DOM node must persist across the switch (no unmount/remount)').toBe(true);
-  expect(identity.runningEntrance, 'the entrance animation must not replay').toBe(false);
+  expect(identity.runningEntrance, 'the entrance animation must not re-run').toBe(false);
 });
 
 // ── Task 20 drift-pin: reflow — chrome leaves at <1100px, boxed

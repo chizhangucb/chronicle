@@ -221,7 +221,7 @@ denormalization for cards/Insights), the stored duration metrics `agent_active_m
 see Invisible sync below).
 
 **`messages`** is the normalized event stream, ordered by `seq` within a session. The
-`(session_id, seq)` index is what makes windowed playback cheap. `(session_id, tool_use_id)`
+`(session_id, seq)` index is what makes virtualized playback cheap. `(session_id, tool_use_id)`
 is a second index added specifically for the Insights engine — Explore and Content both
 self-join `tool_use`↔`tool_result` pairs, and without it that join degrades to a per-session
 linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
@@ -313,7 +313,7 @@ per-message rows; those read **low**, by 6.7% and 15.1% in the two sessions audi
 the CLI's own usage report. `unverified` means neither was possible and the pre-fix inflated
 value stands, so it reads high. `NULL` means there was no per-call id to claim `exact` from
 (codex and cursor carry none) or the row predates the column. The message rows follow the
-session: the rederived lane cleared the replayed rows it collapsed, so summing
+session: the rederived lane cleared the repeated usage rows it collapsed, so summing
 `messages`' token columns agrees with `sessions.usage` for `rederived` and disagrees for
 `unverified`.
 
@@ -527,7 +527,7 @@ only matters for aggregates over many sessions).
 
 - **`server/insights.ts`** (`GET /api/insights`) — cross-project aggregation: spend/token/session
   totals, tool and model distributions, error rate, commit counts (via `commitCountSinceAsync`,
-  run concurrently across projects rather than serially), and a fixed-window activity calendar
+  run concurrently across projects rather than serially), and a fixed-range activity calendar
   for the Working Rhythm panel.
 - **`server/explore.ts`** (`GET /api/explore`) — the pivot table: group/subgroup by model,
   project, source, tool, skill, subagent, or hour of day, metric = spend/tokens/requests/

@@ -50,7 +50,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
   const streak = currentStreak(result.dailyActivity, todayStr);
   const longest = longestStreak(result.dailyActivity);
   const peak = peakHour(result.hourlyActivity);
-  // Fixed-window (30d, matches the rest of this card's stats), NOT
+  // Fixed-range (30d, matches the rest of this card's stats), NOT
   // `result.modelDist` — that one tracks the page's `days=` range control,
   // which would otherwise make this stat silently drift while its
   // card-mates (Active days/streaks/Peak hour) stay put.

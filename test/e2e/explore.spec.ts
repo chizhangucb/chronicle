@@ -23,7 +23,7 @@
 // Task 7 update: test/e2e/harness.ts's `seedDataDir` now ALSO seeds two mini
 // sessions timestamped relative to Date.now() AT SEED TIME (`spanningSessionId`/
 // `todayOnlySessionId`), so Today/7d/30d windows ARE genuinely testable now —
-// see window-matrix.spec.ts, which exercises exactly that. This file's own
+// see range-matrix.spec.ts, which exercises exactly that. This file's own
 // tests still pin to "All" deliberately, though: they need the BIG fixture's
 // ~2450-turn density (many distinct hourly buckets, a real brush-drag target,
 // a non-trivial "Other" fold), which the two small relative-time sessions
