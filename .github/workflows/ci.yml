@@ -91,14 +91,27 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      # The LiteLLM guards drive litellm/*.py through python3 (stdlib only).
+      # Pinned rather than leaning on whatever the runner image ships, so a
+      # base-image bump cannot quietly change what those guards run under.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         run: npm ci
 
       - name: Type check
         run: npm run typecheck
 
+      # CHRONICLE_REQUIRE_PYTHON turns the LiteLLM guards' "no python3" skip
+      # into a failure. Locally a machine without python3 still skips them;
+      # here, a silently-skipped guard would mean the runbook's promises about
+      # the Python spine ride on nothing (issue #188).
       - name: Run tests
         run: npm test
+        env:
+          CHRONICLE_REQUIRE_PYTHON: '1'
 
       - name: Build
         run: npm run build
