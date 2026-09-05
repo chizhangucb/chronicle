@@ -1,17 +1,27 @@
 # Chronicle surface contract
 
 > This file is the frozen product shape / IA: routes, surfaces, sidebar/topbar chrome, the
-> enumerable sets, the per-surface content inventory, and the e2e pin table. A sub-contract of
-> `spec/product-contract.md`. It is the IA-conformance target the release walk reads (`npm run walk`),
-> judged alongside `spec/design-qa-rubric.md`: the rubric judges aesthetics/layout, this judges
-> product shape / IA. Every statement is verifiable against `src/`, and each enumerable names the e2e
-> pin that guards it, so the contract self-audits.
+> enumerable sets, the per-surface content inventory, and the e2e pin table. It is the
+> IA-conformance target the release walk reads (`npm run walk`), judged alongside
+> `spec/design-qa-rubric.md`: the rubric judges aesthetics/layout, this judges product shape / IA.
+> Every statement is verifiable against `src/`, and each enumerable names the e2e pin that guards
+> it, so the contract self-audits. Its nouns are `CONTEXT.md`'s; the invariants behind the shape
+> are in `docs/adr/`.
 
-> **Change rule.** This file changes ONLY with Chi's explicit sign-off. A PR that touches product
-> shape (a route, a surface's block/card inventory, the sidebar set, an enumerable below) WITHOUT a
-> matching edit here plus a sign-off note in the PR description is **drift by definition**: the
-> release-walk conformance lens fails it and publish is blocked (IA drift = P0). "Sign-off note" =
-> one line naming Chi's confirmation (brainstorm/message/live call) for the shape change.
+> **Change rule.** Reshaping a surface needs Chi's sign-off. A PR that changes product shape
+> (removing a surface, moving one, renaming one, changing the sidebar set, changing a surface's
+> block or card inventory, changing an enumerable below) needs a matching edit here **and** a
+> sign-off note in the PR description naming where Chi's confirmation came from: a message, a live
+> review, a brainstorm. Without both it is drift by definition: the release-walk conformance lens
+> fails it and publish is blocked (IA drift = P0).
+
+> **The additive exception.** Purely additive changes are the exception to the sign-off half of
+> the rule, not to the contract edit. A new definition in the reference registry, a new column on
+> an existing table, a new optional response field: none of those change the shape a user
+> navigates. Update this file to describe what you added and land it. The test is whether an
+> existing statement here becomes false. If one does, that is a reshape and it needs the sign-off
+> however small the diff looks, and a one-line diff that retires a card is exactly the case the
+> rule was written for.
 
 ## Routes & surfaces
 
@@ -22,8 +32,8 @@
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
-| `/reference` | **The unified reference.** Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for every surface that was dropped — pinned panels, peek drill, the old burn tile, and the whole vocabulary the shrink retired (Memory, Modules, Jobs, Records, Safety and its egress-gate terms, the briefing, the home bands, the "Work on this" launcher, the proxy lane, automation sessions, the routing roster, the write log). This is the ONE place removed surfaces may still be named. | `src/ReferencePage.tsx` |
-| `/ask` | **Ask: gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
+| `/reference` | **The unified reference.** Every metric and term in the app, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for every surface that was dropped — pinned panels, peek drill, the old burn tile, and the whole vocabulary the shrink retired (Memory, Modules, Jobs, Records, Safety and its egress-gate terms, the briefing, the home bands, the "Work on this" launcher, the proxy lane, automation sessions, the routing roster, the write log). This is the ONE place removed surfaces may still be named. | `src/ReferencePage.tsx` |
+| `/ask` | **Ask: gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo app, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. There is no `InsightsPage.tsx`; the Overview body lives inline
@@ -94,16 +104,16 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 ## Enumerables (exact sets — changing any is a contract edit)
 
-- **Window toggle** (`/` home page `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
+- **Range toggle** (`/` home page `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
   in this order. Default = Today. Today = fractional-days-since-local-midnight; All = no cutoff.
-- **Project rangebar** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
-  `90d` · `All`. Same exact five, same order, same labels as the home window toggle above — ONE
+- **Project range toggle** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
+  `90d` · `All`. Same exact five, same order, same labels as the home range toggle above — ONE
   shared vocabulary, sourced from ONE component (`src/RangeBar.tsx`) both surfaces mount, so the
   option sets/labels cannot drift independently. Default = All. Guard:
-  `test/e2e/window-matrix.spec.ts` — "the rangebar on /project/:id has exactly the same Today /
+  `test/e2e/range-matrix.spec.ts` — "the range toggle on /project/:id has exactly the same Today /
   7d / 30d / 90d / All set as the home page at /".
 - **Home tabs** (`/`): `Overview` · `Explore` · `Content` · `Spend` · `Sessions`. Exactly five;
-  Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared rangebar scopes every
+  Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared range toggle scopes every
   tab. Guard: `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content /
   Spend / Sessions tabs".
 - **Project tabs** (`/project/:id`): `Overview` · `Explore` · `Content` · `Sessions`.
@@ -135,7 +145,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `test/removed-routes.test.mjs`, `test/routes-after-contract-views.test.mjs`,
   `test/cli-removed-inputs.test.mjs`, `test/repo-shape.test.mjs`.
 - **The retired vocabulary stays retired.** The words for the private checkout Chronicle was the
-  operator console for, the two sibling repos it named, and the private tracker's ticket ids
+  operator's front end for, the two sibling repos it named, and the private tracker's ticket ids
   appear in NO tracked source, config, spec or doc. The CHANGELOG is excepted (history names what
   was), as are the removal pins themselves (a pin cannot forbid a word without spelling it).
   Guard: `test/repo-shape.test.mjs` — the vocabulary-sweep pins.
@@ -155,17 +165,17 @@ and nothing else.
      priced client-side from the shared price table. No second lane, no merge.
    - **Sessions** is the count of imported sessions in range, with a sub-label naming the number of
      projects touched.
-2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
+2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today range ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
-3. **Anomaly tile** (`.burn-card`, `AnomalyTile` — REPLACES BurnTile in place). Window spend vs a
+3. **Anomaly tile** (`.burn-card`, `AnomalyTile` — REPLACES BurnTile in place). Range spend vs a
    baseline (Today → 14-day daily median; 7d/30d/90d → prior period of the same length; All → NO
    baseline); headline (`.burn-now .v`) = ratio + flag with a `high` TEXT label when hot, warn tint
    when hot; support line (`.burn-now .s`) = the absolute comparison `$current vs $baseline ·
    <baselineLabel>`; comparison bar when a baseline exists; a clickable top-session row (persists on
-   every window; All falls back to absolute spend). ADDS: a **top-movers line** (top 2 dimension
+   every range; All falls back to absolute spend). ADDS: a **top-movers line** (top 2 dimension
    movers, e.g. `◫ chronicle +$9.40 · ▤ claude-fable-5 +$7.10`); a **flagged-days line** on multi-day
-   windows (`1 flagged day · Aug 24 →` linking to the Spend tab).
+   ranges (`1 flagged day · Aug 24 →` linking to the Spend tab).
    No flagged-day markers live on the chart — the tile carries flags.
 4. **Insights charts** (`InsightsCharts`) — **Spend over time** **FULL-WIDTH** (the headline chart,
    no half-width partner; title `SPEND OVER TIME`, no suffix) with a bare segmented **[project |
@@ -182,7 +192,7 @@ and nothing else.
 5. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip` in `src/home/ProvenanceStrip.tsx`) —
    **LAST**, the Overview tab ends here. One quiet line closing the page: session count per source
    tool, last sync, and the active cost basis. The topbar sync pill says WHEN data last landed; this
-   says WHAT is behind the figures, which on a console merging four tools is the
+   says WHAT is behind the figures, which in an app merging four tools is the
    credibility question. Sources are derived from `insights.sessions`, the same derivation the Spend
    tab's Sources card uses.
 
@@ -192,7 +202,7 @@ the project view uses per-project).
 ### `/` Spend tab — reading order top → bottom (`SpendTab.tsx`)
 
 Card titles use the `.card h3` recipe
-(name + window only; explanations live in InfoTips, never caption suffixes). The shared rangebar
+(name + range only; explanations live in InfoTips, never caption suffixes). The shared range toggle
 scopes the tab.
 
 1. **Budget band** — FULL-WIDTH horizontal band (the anomaly is already the Overview tile, so the
@@ -341,7 +351,7 @@ never switches on a characteristic's `key`):
 - **session scope: 6 rows.** The four threshold predicates that always collapse to a meaningless
   0%/100% at N=1 (`eightHourSessions`, `highContextAbs`, `highContextRel`, `autonomousShare`) are
   REPLACED with absolute session facts: `marathonBadge` (real active hours vs the 8h line),
-  `peakContextTokens` (raw tokens + % of the model's window), and `unattendedRatio` (engaged ÷
+  `peakContextTokens` (raw tokens + % of the model's context window), and `unattendedRatio` (engaged ÷
   active, not a binary flag). `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over
   unchanged — real, non-binary percentages even for one session.
 
@@ -372,10 +382,10 @@ when empty and is absent in demo (demo never records).
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
 | Ask runner SELECT-only guard (accept SELECT/WITH, reject writes/DDL/PRAGMA/ATTACH/multi-statement/comment-smuggle) + deduped cost views reconcile | `test/ask.test.mjs` (17 unit tests) |
 | Home tabs = Overview / Explore / Content / Spend / Sessions (exactly five), Overview default | `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |
-| Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
+| Range toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the range toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
 | Overview DOM order KPIs → activity → anomaly tile → charts, no ledger, no top-sessions-by-cost | `test/e2e/home.spec.ts` — "Overview reading order KPIs → activity → anomaly → charts" |
-| Activity block Today-only; anomaly tile persists on 7d | `test/e2e/home.spec.ts` — "window toggle to 7d hides the Activity block, anomaly tile persists" |
+| Activity block Today-only; anomaly tile persists on 7d | `test/e2e/home.spec.ts` — "range toggle to 7d hides the Activity block, anomaly tile persists" |
 | Live dot in the Activity block | `test/e2e/home.spec.ts` — "live session shows a pulsing dot…" |
 | `/projects` chrome-rail rows, no `.projects-grid`, not a card | `test/e2e/projects.spec.ts` — "renders rail-style rows…", "…NOT a bordered card…" |
 | Project gear menu = Sync Update / Rename / Remove, no View Details | `test/e2e/projects.spec.ts` — "gear menu opens with…"; `chrome.spec.ts` T17.6 |
@@ -398,7 +408,7 @@ when empty and is absent in demo (demo never records).
 | Recent-sessions ledger (`/projects` content column) column policy (num-col / ts-col alignment) | `test/e2e/layout.spec.ts` |
 | Subagents card = run count (120) on the big fixture | `test/e2e/smoke.spec.ts` — "…Subagents card shows the run count (120)" |
 | Subagents card two-level drill-in (type → run list → per-run transcript filtered by agent_id) | `test/e2e/smoke.spec.ts` — "Subagents card drill-in opens a run list with more than one distinct run" |
-| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards | `test/e2e/window-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
+| Content composition rows sort DESC by tokens; Tool results/Skills/Subagents split into three independently-scoped cards | `test/e2e/range-matrix.spec.ts` (comment-level; no dedicated shape assertion beyond `assertContentNonEmpty` — visual conformance judged at the design-QA walk) |
 | Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days lines (keeps the burn-tile anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the pixel reference |
 | Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |

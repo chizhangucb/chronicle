@@ -247,7 +247,7 @@ async function gotoProjectExploreDaily7d(page: Page, projectId: number): Promise
   // NOT `.kpis` — that only renders on the Overview subview (ProjectDetail.tsx
   // `{tab === 'overview' && <><div className="kpis">…`), so navigating
   // straight to /explore never renders it and this wait would time out.
-  // `.rangebar` is rendered above the sub-tabs, before the tab-specific
+  // The range toggle is rendered above the sub-tabs, before the tab-specific
   // branch, so it's present on every project subview.
   await expect(page.locator('.project-detail .rangebar').first()).toBeVisible();
   await page.locator('.project-detail .rangebar button', { hasText: /^7d$/ }).click();

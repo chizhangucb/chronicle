@@ -150,7 +150,7 @@ export function askSchemaDoc(costMode: AskCostMode): string {
     '- message_cost(session_id, seq, ts, day, model, kind, tool_name, mcp_server, skill, is_sidechain,',
     '    agent_type, agent_id, workflow_id, project_path, source, input_tokens, output_tokens,',
     '    cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens, cost_usd, priced)',
-    '    Per-message, deduped (replayed rows were nulled). USE THIS for finer breakdowns:',
+    '    Per-message, deduped (repeated usage rows were nulled). USE THIS for finer breakdowns:',
     '    subagents (is_sidechain=1, group by agent_type), tools (tool_name / mcp_server), skills, by day.',
     '    Reconciles for exact/rederived sessions; may differ slightly for legacy usage_source=\'unverified\'.',
     '- pricing(model, day, input, output, cw5m, cw1h, cache_read): per-MTok rates used above, per',

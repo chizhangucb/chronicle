@@ -68,14 +68,14 @@ export const DEFINITIONS: Definition[] = [
     id: 'overview.spend',
     page: 'overview',
     title: 'Spend',
-    plain: () => 'Priced locally from billed token counts, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share. Toggle List price vs Billed in the topbar.',
+    plain: () => 'Priced locally from billed token counts, never billed data; sessions that started before the range but ran into it are pro-rated by their in-range token share. Toggle List price vs Billed in the topbar.',
     tech: () => 'session_model_cost, priced client-side from src/models.ts',
   },
   {
     id: 'overview.sessions',
     page: 'overview',
     title: 'Sessions',
-    plain: () => 'Sessions imported from your coding tools that started or ran inside the selected window.',
+    plain: () => 'Sessions imported from your coding tools that started or ran inside the selected range.',
   },
   {
     id: 'overview.tokens',
@@ -112,13 +112,13 @@ export const DEFINITIONS: Definition[] = [
     id: 'overview.commits',
     page: 'overview',
     title: 'Commits',
-    plain: () => 'Git commits within this window (a raw git log count), not filtered to only commits a tracked session caused.',
+    plain: () => 'Git commits within this range (a raw git log count), not filtered to only commits a tracked session caused.',
   },
   {
     id: 'overview.anomaly',
     page: 'overview',
     title: 'Spend anomaly',
-    plain: () => 'Your spend in this window versus a baseline (Today uses the median of the last 14 complete days; longer windows use the prior period of equal length). Over 2x the baseline is flagged. The movers are the top project and model by spend in this window.',
+    plain: () => 'Your spend in this range versus a baseline (Today uses the median of the last 14 complete days; longer ranges use the prior period of equal length). Over 2x the baseline is flagged. The movers are the top project and model by spend in this range.',
     tech: () => 'src/insights/anomalyMath.ts, the one comparison method used console-wide',
   },
   {
@@ -154,7 +154,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'spend.budget',
     page: 'spend',
     title: 'Monthly budget',
-    plain: () => 'The budget is always the current calendar month, independent of the window toggle above. Month-to-date, projection, and the pace / peak-day / per-active-day stats are all for this month.',
+    plain: () => 'The budget is always the current calendar month, independent of the range toggle above. Month-to-date, projection, and the pace / peak-day / per-active-day stats are all for this month.',
     tech: () => '~/.chronicle/config.json monthlyBudget, server-side so every surface that shows it reads the same number',
   },
   {
@@ -214,7 +214,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'explore.rollup',
     page: 'explore',
     title: 'Rollup',
-    plain: () => 'The time bucket the series is grouped into. When the requested rollup would produce too few or too many buckets for the window, Chronicle picks a workable one and says so.',
+    plain: () => 'The time bucket the series is grouped into. When the requested rollup would produce too few or too many buckets for the range, Chronicle picks a workable one and says so.',
   },
   {
     id: 'content.characteristics',
@@ -229,7 +229,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'projects.cost',
     page: 'projects',
     title: 'Project cost',
-    plain: () => 'Priced locally from billed token counts at list price, never billed data; sessions that started before the window but ran into it are pro-rated by their in-window token share.',
+    plain: () => 'Priced locally from billed token counts at list price, never billed data; sessions that started before the range but ran into it are pro-rated by their in-range token share.',
   },
 
   // ---- Session view ----
@@ -294,7 +294,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'retired.burn-tile',
     page: 'retired',
     title: 'Burn tile (retired)',
-    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers and flagged days.',
+    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced by the Anomaly tile, which keeps the same anatomy and range rules but adds dimension movers and flagged days.',
   },
   {
     id: 'retired.proxy-lane',
@@ -328,7 +328,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'memory.orphan',
     page: 'retired',
     title: 'Memory · Orphans and unlinked',
-    plain: () => 'An orphan is a living note with zero links in or out AND zero touches in the selected window: unreachable and unused. Unlinked alone is a neutral count; a note your sessions touch daily is not orphaned.',
+    plain: () => 'An orphan is a living note with zero links in or out AND zero touches in the selected range: unreachable and unused. Unlinked alone is a neutral count; a note your sessions touch daily is not orphaned.',
   },
   {
     id: 'memory.communities',
@@ -346,13 +346,13 @@ export const DEFINITIONS: Definition[] = [
     id: 'memory.touches',
     page: 'retired',
     title: 'Memory · Touches and usage',
-    plain: () => 'A touch is one deterministic use of a note in the window, from three channels: a session transcript that reads it, a wikilink that points at it, and a briefing that cites it. Knowledge nobody reads is storage, not memory.',
+    plain: () => 'A touch is one deterministic use of a note in the range, from three channels: a session transcript that reads it, a wikilink that points at it, and a briefing that cites it. Knowledge nobody reads is storage, not memory.',
   },
   {
     id: 'memory.growth',
     page: 'retired',
     title: 'Memory · Growth and births',
-    plain: () => 'A birth is a living note created in the window, read from the file birth time; records and machine output never count. The living base is the current total, and deletions accrue once two scans exist to diff.',
+    plain: () => 'A birth is a living note created in the range, read from the file birth time; records and machine output never count. The living base is the current total, and deletions accrue once two scans exist to diff.',
   },
   {
     id: 'memory.notes-browser',
@@ -364,7 +364,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'memory.lenses',
     page: 'retired',
     title: 'Memory · Canvas lenses',
-    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected window and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
+    plain: () => 'A lens recolors the graph to answer one question. Usage heat brightens the notes your sessions touched in the selected range and dims the rest; Orphans lights up living notes with no links and no touches. With no lens, color is the community grouping.',
   },
   {
     id: 'memory.full-lite',
@@ -451,7 +451,7 @@ export const DEFINITIONS: Definition[] = [
     id: 'retired.safety-roster',
     page: 'retired',
     title: 'Routing roster (retired)',
-    plain: () => 'A hand-curated list of allowed model families, read from an external governance file, against which the Spend tab graded a window’s models as on- or off-roster. Removed: the file lived in another project’s folder, which Chronicle no longer reads.',
+    plain: () => 'A hand-curated list of allowed model families, read from an external governance file, against which the Spend tab graded a range’s models as on- or off-roster. Removed: the file lived in another project’s folder, which Chronicle no longer reads.',
   },
 ];
 

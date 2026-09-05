@@ -52,7 +52,7 @@ function jsonLine(obj) {
  * @param {string} [opts.endISO] - UTC ISO instant the LAST message should land on. When given, the
  *   per-message gap is derived (`(endTs - startTs) / (turns * 2 - 1)`) instead of using `gapSec`, so a
  *   caller can pin both ends of a session (e.g. "started 26h ago, still going 5 minutes ago") without
- *   hand-computing a gap. Used by the window-matrix fixture (Task 7, D-series) for sessions whose
+ *   hand-computing a gap. Used by the range-matrix fixture (Task 7, D-series) for sessions whose
  *   absolute timestamps are relative to Date.now() AT SEED TIME rather than a fixed calendar date.
  * @returns {{sessionId: string, file: string}}
  */
@@ -80,7 +80,7 @@ export function writeMiniSession(destDir, opts) {
   // per-gap spacing, so the last message landed one gapSec short of `endISO`
   // — for the spanning-session fixture (turns=30, ~26h span) that was ~26
   // minutes early, silently violating the "ends ~5 min before now" guarantee
-  // window-matrix.spec.ts's isolation assertions depend on.
+  // range-matrix.spec.ts's isolation assertions depend on.
   const gapSec = endISO
     ? Math.max(1, Math.round((Date.parse(endISO) - baseTs) / 1000 / Math.max(1, turns * 2 - 1)))
     : (opts.gapSec ?? 50);

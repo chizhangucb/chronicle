@@ -148,13 +148,13 @@ export interface ProjectDetail {
     // Was missing from this type despite the server always returning it
     // (server/routes/projects.ts) -- found while scoping the day-bucketed
     // pricing fix, which touches this exact field. Day-bucketed (BucketedUsageCell, not
-    // WindowedUsageCell) so a session straddling a rate change prices
+    // RangeUsageCell) so a session straddling a rate change prices
     // correctly. src/ProjectDetail.tsx's actual fetch uses its own local
     // ProjectDetailData/ProjectAnalytics types, not this one (this type's
     // only other reader, SessionView.tsx, only reads `.sessions`) -- kept in
     // sync here for accuracy, not unified into one type (out of scope for
     // a pricing fix).
-    windowedTokensByModel: BucketedUsageCell[];
+    rangedTokensByModel: BucketedUsageCell[];
   };
 }
 
@@ -428,21 +428,21 @@ export interface InsightsSessionRow {
   usage: string | null;
 }
 
-// Windowed billed cells (feedback-round Task 2/3): per-session, per-model,
-// in-window-scaled token cells — mirrors server/windowUsage.ts's
-// WindowedUsageCell/BucketedUsageCell VERBATIM (same field names; the server
+// Ranged billed cells (feedback-round Task 2/3): per-session, per-model,
+// in-range-scaled token cells — mirrors server/rangeUsage.ts's
+// RangeUsageCell/BucketedUsageCell VERBATIM (same field names; the server
 // returns these as plain JSON, no adapter needed). The client prices these via
-// src/models.ts costOf (src/windowedUsage.ts's aggregation helpers) instead of
+// src/models.ts costOf (src/rangedUsage.ts's aggregation helpers) instead of
 // summing raw `sessions.usage`, so a session that started before the active
-// window but ran INTO it contributes only its in-window share.
-export interface WindowedUsageCell {
+// window but ran INTO it contributes only its in-range share.
+export interface RangeUsageCell {
   sessionId: string;
   projectId: number;
   model: string;
   source: string;
   cells: { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number };
 }
-export interface BucketedUsageCell extends WindowedUsageCell {
+export interface BucketedUsageCell extends RangeUsageCell {
   bucket: string;
 }
 
@@ -453,7 +453,7 @@ export interface InsightsResult {
   modelDist: { model: string; count: number }[];
   // Fixed 30-day-trailing model distribution (mirrors server/insights.ts) —
   // Working Rhythm's "Favorite model" reads this, not `modelDist`, so it
-  // stays in step with its fixed-window card-mates.
+  // stays in step with its fixed-range card-mates.
   modelDistFixed: { model: string; count: number }[];
   errors: number;
   errorsByProject: { project_id: number; head_count: number; error_count: number }[];
@@ -461,12 +461,12 @@ export interface InsightsResult {
   dailyActivity: DayCount[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
-  // See the WindowedUsageCell/BucketedUsageCell comment above. Day-bucketed
-  // (was WindowedUsageCell[]) so the client can price a range that
+  // See the RangeUsageCell/BucketedUsageCell comment above. Day-bucketed
+  // (was RangeUsageCell[]) so the client can price a range that
   // straddles a rate change (e.g. Sonnet 5's intro window) correctly per day.
-  windowedTokensByModel: BucketedUsageCell[];
+  rangedTokensByModel: BucketedUsageCell[];
   dailySpend: BucketedUsageCell[];
-  // Only computed server-side (non-null) for a short window (days<=2) — the
+  // Only computed server-side (non-null) for a short range (days<=2) — the
   // client falls back to dailySpend otherwise (see server/insights.ts).
   hourlySpend: BucketedUsageCell[] | null;
 }
@@ -482,11 +482,11 @@ export interface ActivitySessionLite {
   tokensByModel: ActivityTokensByModel; errorCount: number;
 }
 export interface ActivityBurn {
-  windowSpendTokensByModel: ActivityTokensByModel;
-  // Day-bucketed breakdown of windowSpendTokensByModel — see
+  rangeSpendTokensByModel: ActivityTokensByModel;
+  // Day-bucketed breakdown of rangeSpendTokensByModel — see
   // server/activity.ts's ActivityBurn comment for why only this field (not
   // baseline/topSession) is day-bucketed.
-  windowSpendTokensByModelByDay: Record<string, ActivityTokensByModel>;
+  rangeSpendTokensByModelByDay: Record<string, ActivityTokensByModel>;
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;

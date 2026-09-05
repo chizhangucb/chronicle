@@ -1,8 +1,8 @@
-// Client-side aggregation over the windowed usage cells server/windowUsage.ts
+// Client-side aggregation over the ranged usage cells server/rangeUsage.ts
 // computes and `/api/insights` + `/api/projects/:id` now return
-// — `windowedTokensByModel` / `dailySpend` / `hourlySpend`. These
+// — `rangedTokensByModel` / `dailySpend` / `hourlySpend`. These
 // replace summing raw `sessions.usage` per session, so a session that started
-// before the active window but ran INTO it contributes only its in-window
+// before the active range but ran INTO it contributes only its in-range
 // share everywhere (KPI strip, spend-by-model, token table, top sessions,
 // spend-over-time chart), instead of either vanishing or being counted at its
 // full historical total.
@@ -22,7 +22,7 @@ export interface UsageCell {
   cacheWrite1h: number;
 }
 
-export interface WindowedCell {
+export interface RangeCell {
   sessionId: string;
   projectId: number;
   model: string;
@@ -30,7 +30,7 @@ export interface WindowedCell {
   cells: UsageCell;
 }
 
-export interface BucketedCell extends WindowedCell {
+export interface BucketedCell extends RangeCell {
   bucket: string;
 }
 
@@ -50,7 +50,7 @@ function addCell(a: UsageCell, b: UsageCell): UsageCell {
 // Sums cells into ONE UsageCell per model, ignoring every other dimension
 // (session/project/source/bucket) — used wherever the model IS the group
 // (Spend by model, the Token usage by model table).
-export function sumByModel<T extends WindowedCell>(cells: T[]): Map<string, UsageCell> {
+export function sumByModel<T extends RangeCell>(cells: T[]): Map<string, UsageCell> {
   const out = new Map<string, UsageCell>();
   for (const c of cells) out.set(c.model, addCell(out.get(c.model) ?? emptyCell(), c.cells));
   return out;
@@ -60,7 +60,7 @@ export function sumByModel<T extends WindowedCell>(cells: T[]): Map<string, Usag
 // session, bucket, …) — kept two-level (key → model → cell) so a group
 // spanning multiple models can still be priced correctly per model before
 // summing (see the header comment: never flatten across models pre-price).
-export function sumByKeyModel<T extends WindowedCell>(cells: T[], keyOf: (c: T) => string): Map<string, Map<string, UsageCell>> {
+export function sumByKeyModel<T extends RangeCell>(cells: T[], keyOf: (c: T) => string): Map<string, Map<string, UsageCell>> {
   const out = new Map<string, Map<string, UsageCell>>();
   for (const c of cells) {
     let byModel = out.get(keyOf(c));
@@ -97,7 +97,7 @@ export function costOfCells(byModel: Map<string, UsageCell> | undefined, day?: s
 
 // Splits a cell list into one raw list per arbitrary key (project id, session
 // id, …) — generalizes groupByBucket to any grouping, not just bucket.
-export function groupByKey<T extends WindowedCell>(cells: T[], keyOf: (c: T) => string): Map<string, T[]> {
+export function groupByKey<T extends RangeCell>(cells: T[], keyOf: (c: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const c of cells) {
     const arr = out.get(keyOf(c));

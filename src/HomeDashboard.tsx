@@ -22,19 +22,19 @@ import SessionsTab from './SessionsTab.tsx';
 import SortCaret from './SortCaret.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
-import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields } from './windowedUsage.ts';
+import { sumByModel, groupByKey, costOfBucketedCells, tokensOfCells, sumFields } from './rangedUsage.ts';
 import { useCostMode } from './costMode.tsx';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
-import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
+import { MOVER_GLYPH, rangeAnomaly } from './insights/anomalyMath.ts';
 
 // The ONE Insights home at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
 // page are merged into a single tabbed surface — Overview / Explore / Content
 // — so there is exactly one KPI strip and one `/api/insights` fetch, never two
 // pages showing the same aggregates. Overview reading order, top→bottom: KPI
-// strip (with the window toggle) → Activity block (live + since-you-left,
+// strip (with the range toggle) → Activity block (live + since-you-left,
 // Today only) → Burn tile → the Insights Overview charts. The recent-sessions
 // ledger no longer mounts here — it moved to `/projects` as the main column
 // next to the projects rail (D1: the moving list is what people want to see
@@ -43,12 +43,10 @@ import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
 type Tab = 'overview' | 'explore' | 'content' | 'spend' | 'sessions';
 
-// Window toggle: all five options live on this ONE surface (spec §2.2a). Today =
+// Range toggle: all five options live on this ONE surface (spec §2.2a). Today =
 // fractional-days-since-local-midnight; All = no cutoff (days omitted). The
 // option set + labels + `days` resolution are shared with ProjectDetail via
 // RangeBar.tsx (D10, Task 17) so the two vocabularies cannot drift again.
-type WindowKey = RangeKey;
-const windowDays = rangeDays;
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -79,7 +77,7 @@ function priceCells(byModel: ActivityTokensByModel, mode: CostMode = 'theoretica
   return total;
 }
 // Same as priceCells, but prices EACH day's cells at that day's own rate
-// before summing — for burn.windowSpendTokensByModelByDay, the
+// before summing — for burn.rangeSpendTokensByModelByDay, the
 // figure that overstates Sonnet-5-heavy spend under a single flat rate.
 function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>, mode: CostMode = 'theoretical'): number {
   let total = 0;
@@ -105,7 +103,7 @@ const LAST_VISIT_KEY = 'chronicle.lastVisit';
 
 export default function HomeDashboard({ projects, onOpenSession, onImport, onRefresh }: HomeDashboardProps): JSX.Element {
   const [, navigate] = useLocation();
-  const [win, setWin] = useState<WindowKey>('today');
+  const [range, setRange] = useState<RangeKey>('today');
 
   // Deep-linkable tabs via a `?tab=` query param (simplest faithful option —
   // the old InsightsPage used pure local state, but `/insights?tab=explore`
@@ -128,8 +126,8 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     return Math.max((now.getTime() - midnight) / 86400000, 1 / 1440); // ≥1 min, never 0
   }, []);
-  const days = windowDays(win, daysToday);
-  const isToday = win === 'today';
+  const days = rangeDays(range, daysToday);
+  const isToday = range === 'today';
 
   // Read the previous visit time once (before the unload writer overwrites it).
   const sinceRef = useRef<string | null>(null);
@@ -182,11 +180,11 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
               {t('Sessions')}
             </button>
           </div>
-          <RangeBar value={win} onChange={setWin} />
+          <RangeBar value={range} onChange={setRange} />
         </div>
       </div>
 
-      {/* `.insights-page` scope styles the charts' `.hbar` rows; the rangebar
+      {/* `.insights-page` scope styles the charts' `.hbar` rows; the range toggle
           lives OUTSIDE it (in .dash-head) so the two `.rangebar` scopes never
           collide. No `.rangebar` is ever rendered inside this wrapper. */}
       <div className="insights-page">
@@ -198,7 +196,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 
             {isToday && <ActivityBlock activity={activity} onOpenSession={onOpenSession} />}
 
-            <AnomalyTile activity={activity} insights={insights} win={win} days={days} onOpenSession={onOpenSession} />
+            <AnomalyTile activity={activity} insights={insights} range={range} days={days} onOpenSession={onOpenSession} />
 
             {insights && (
               <div className={insightsStale ? 'range-refreshing' : undefined}>
@@ -215,7 +213,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
         )}
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
         {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
-        {tab === 'spend' && <SpendTab insights={insights} activity={activity} win={win} days={days} />}
+        {tab === 'spend' && <SpendTab insights={insights} activity={activity} range={range} days={days} />}
         {tab === 'sessions' && <SessionsTab insights={insights} />}
       </div>
     </div>
@@ -234,16 +232,16 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
       engagedMs += s.engaged_ms || 0;
       projectsTouched.add(s.project_id);
     }
-    // Windowed cells (Task 2/3): a session that started before the window but
-    // ran INTO it contributes only its in-window share here, instead of
+    // Ranged cells (Task 2/3): a session that started before the window but
+    // ran INTO it contributes only its in-range share here, instead of
     // vanishing (old gate) or counting its full historical usage.
-    const byModel = sumByModel(result.windowedTokensByModel);
+    const byModel = sumByModel(result.rangedTokensByModel);
     const tokens = tokensOfCells(byModel);
     const { input, cacheRead } = sumFields(byModel);
     // One spend figure, estimated from the sessions and priced client-side from
-    // the shared price table. Day-bucketed pricing so a window that
+    // the shared price table. Day-bucketed pricing so a range that
     // straddles a rate change prices each day's share at that day's rate.
-    const cost = costOfBucketedCells(result.windowedTokensByModel, mode);
+    const cost = costOfBucketedCells(result.rangedTokensByModel, mode);
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
     const topTool = result.toolDist[0]?.name ?? null;
     const totalHeads = result.errorsByProject.reduce((n, r) => n + r.head_count, 0);
@@ -350,26 +348,26 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
   );
 }
 
-// ---- Burn tile: current window spend vs a baseline (Today → 14-day daily
+// ---- Burn tile: current range spend vs a baseline (Today → 14-day daily
 // median; Nd → prior-Nd; All → NO baseline, since none honestly exists over an
-// unbounded window). Warn tint (--warn) when spend runs >2× the baseline. ----
-function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activity: ActivityResult | null; insights: InsightsResult | null; win: WindowKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
+// unbounded range). Warn tint (--warn) when spend runs >2× the baseline. ----
+function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activity: ActivityResult | null; insights: InsightsResult | null; range: RangeKey; days: number | null; onOpenSession?: (id: string, projectId: number) => void }) {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
   // Hooks run unconditionally (rules-of-hooks) — the null-activity guard reads
   // the memoized value but never skips the hook.
   const burn = activity?.burn ?? null;
-  // ONE shared window-scoped anomaly view (identical to the Spend-tab card).
-  const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
+  // ONE shared range-scoped anomaly view (identical to the Spend-tab card).
+  const anom = useMemo(() => (burn ? rangeAnomaly(burn, mode, days) : null), [burn, mode, days]);
   // Top session ranked by COST in this window (review — the old server
-  // pick ranked by TOKENS but showed cost, so a wider window's top could show a
-  // SMALLER figure than a narrower one). The insights windowed cells give the
-  // in-window per-session share, so the max-cost pick is monotonic across widening
-  // windows and respects the List/Billed toggle. Same math the retired
+  // pick ranked by TOKENS but showed cost, so a wider range's top could show a
+  // SMALLER figure than a narrower one). The insights ranged cells give the
+  // in-range per-session share, so the max-cost pick is monotonic across widening
+  // ranges and respects the List/Billed toggle. Same math the retired
   // Top-sessions-by-cost table used.
   const topSession = useMemo(() => {
     if (!insights) return null;
-    const bySession = groupByKey(insights.windowedTokensByModel, (c) => c.sessionId);
+    const bySession = groupByKey(insights.rangedTokensByModel, (c) => c.sessionId);
     let best: { row: InsightsResult['sessions'][number]; cost: number } | null = null;
     for (const s of insights.sessions) {
       const cost = costOfBucketedCells(bySession.get(s.id) ?? [], mode);
@@ -381,18 +379,18 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
   if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
 
   const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays } = anom;
-  const baselineLabel = win === 'today' ? t('typical day (14-day median)')
-    : win === '7d' ? t('prior 7 days')
-    : win === '30d' ? t('prior 30 days')
-    : win === '90d' ? t('prior 90 days')
+  const baselineLabel = range === 'today' ? t('typical day (14-day median)')
+    : range === '7d' ? t('prior 7 days')
+    : range === '30d' ? t('prior 30 days')
+    : range === '90d' ? t('prior 90 days')
     : '';
-  // Window span for the no-baseline support line, so a bounded window that just
+  // Range span for the no-baseline support line, so a bounded range that just
   // lacks a full PRIOR period (not enough history yet) never mislabels as "all
   // time" (review — 90d had no prior-90d in range).
-  const winSpanLabel = win === '7d' ? t('last 7 days')
-    : win === '30d' ? t('last 30 days')
-    : win === '90d' ? t('last 90 days')
-    : win === 'today' ? t('today')
+  const rangeSpanLabel = range === '7d' ? t('last 7 days')
+    : range === '30d' ? t('last 30 days')
+    : range === '90d' ? t('last 90 days')
+    : range === 'today' ? t('today')
     : t('all time');
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
@@ -402,8 +400,8 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     else navigate(`/session/${encodeURIComponent(topSession.row.id)}`);
   };
 
-  // Multi-day windows carry the flagged-days line (single-day Today has none).
-  const showFlaggedDays = win !== 'today' && flaggedDays.length > 0;
+  // Multi-day ranges carry the flagged-days line (single-day Today has none).
+  const showFlaggedDays = range !== 'today' && flaggedDays.length > 0;
 
   return (
     <div className={`card burn-card ${hot ? 'warn' : ''}`}>
@@ -418,7 +416,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
             : <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>}
           {hasBaseline
             ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} {t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
-            : <div className="s muted">{win === 'all' ? t('all time · no baseline') : `${winSpanLabel} · ${t('no prior period to compare yet')}`}</div>}
+            : <div className="s muted">{range === 'all' ? t('all time · no baseline') : `${rangeSpanLabel} · ${t('no prior period to compare yet')}`}</div>}
         </div>
       </div>
       {hasBaseline && (
@@ -428,7 +426,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
         </div>
       )}
 
-      {/* Movers: top project + top model by spend in this window (moves with the
+      {/* Movers: top project + top model by spend in this range (moves with the
           window). Each lens is one glyph + label + name + window spend. */}
       {(topProject || topModel) && (
         <div className="anom-mover">
@@ -449,8 +447,8 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
           )}
         </div>
       )}
-      {/* Flagged-days line (multi-day windows) → deep-links to the Spend tab. The
-          date shows only for a lone flag; a longer window only adds OLDER flags,
+      {/* Flagged-days line (multi-day ranges) → deep-links to the Spend tab. The
+          date shows only for a lone flag; a longer range only adds OLDER flags,
           so a single latest date would look "stuck" as the count grows. */}
       {showFlaggedDays && (
         <div className="anom-flagged" onClick={() => navigate('/?tab=spend')} role="button" tabIndex={0}
@@ -481,7 +479,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
   // Same fix as ExploreTab.tsx's rangeLabel: days<1 (fractional
-  // days-since-local-midnight, the Today window) reads "Today", not "0d" —
+  // days-since-local-midnight, the Today range) reads "Today", not "0d" —
   // Math.round alone would silently round Today down to zero days.
   const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
 
@@ -510,10 +508,10 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
 
   // ---- Token usage by model table ----
   const tokenTable = useMemo(() => {
-    const byModel = sumByModel(result.windowedTokensByModel);
+    const byModel = sumByModel(result.rangedTokensByModel);
     // Day-bucketed pricing for the $ column, same reasoning as
     // spendByModel above.
-    const byModelCells = groupByKey(result.windowedTokensByModel, (c) => c.model);
+    const byModelCells = groupByKey(result.rangedTokensByModel, (c) => c.model);
     const msgsByModel = new Map(result.modelDist.map((r) => [r.model, r.count]));
     return [...byModel.entries()].map(([model, cell]) => ({
       model,

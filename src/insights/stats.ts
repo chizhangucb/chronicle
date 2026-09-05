@@ -38,18 +38,18 @@ export function longestStreak(days: DayCount[]): number {
   return longest;
 }
 
-// Count of active days in the trailing `windowDays`-day window ending at (and
+// Count of active days in the trailing `spanDays`-day span ending at (and
 // including) `asOf`. The window is INCLUSIVE of both ends, so the cutoff is
-// asOf − (windowDays − 1): a 30-day window is asOf and the 29 days before it.
-// Active-day count: the old `asOf − windowDays` cutoff spanned 31 calendar days, so a
+// asOf − (spanDays − 1): a 30-day span is asOf and the 29 days before it.
+// Active-day count: the old `asOf − spanDays` cutoff spanned 31 calendar days, so a
 // fully-active month reported "31/30". The boundary fix is the real correction;
 // the upper `<= asOf` bound drops any stray future-dated row, and the final
 // Math.min is a belt-and-suspenders clamp so the numerator can never exceed the
 // denominator even if the day set is malformed.
-export function activeDaysCount(days: DayCount[], windowDays: number, asOf: string): number {
-  const cutoff = new Date(new Date(asOf).getTime() - (windowDays - 1) * 86400000).toISOString().slice(0, 10);
+export function activeDaysCount(days: DayCount[], spanDays: number, asOf: string): number {
+  const cutoff = new Date(new Date(asOf).getTime() - (spanDays - 1) * 86400000).toISOString().slice(0, 10);
   const count = days.filter((d) => d.day >= cutoff && d.day <= asOf && d.count > 0).length;
-  return Math.min(count, windowDays);
+  return Math.min(count, spanDays);
 }
 
 export function peakHour(hourly: { dow: number; hour: number; count: number }[]): number | null {

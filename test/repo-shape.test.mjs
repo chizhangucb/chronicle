@@ -16,6 +16,7 @@ import {
   PRIVATE_PATHS,
   PRIVATE_FOLDERS,
   RETIRED_WORDS,
+  RETIRED_PHRASES,
   RETIRED_ROUTE_PREFIXES,
   RETIRED_MODULE_PATHS,
 } from './helpers/retired-vocabulary.mjs';
@@ -259,6 +260,25 @@ for (const { word, re } of RETIRED_WORDS) {
       ),
     );
     assert.deepEqual(offenders, [], `"${word}" is back:\n  ${offenders.join('\n  ')}`);
+  });
+}
+
+// The glossary's `_Avoid_:` lines are the one place a retired word is supposed
+// to appear: CONTEXT.md cannot say which word lost without naming it. Same
+// principle as VOCAB_EXEMPT above, scoped to the line rather than the file, so
+// every other line of the glossary is swept normally.
+const stripAvoidLine = (line) => (/^_Avoid_:/.test(line.trim()) ? '' : line);
+
+for (const { phrase, re } of RETIRED_PHRASES) {
+  test(`no tracked file outside the CHANGELOG says "${phrase}"`, () => {
+    const offenders = sweep((rel, src) =>
+      src.split('\n').flatMap((line, i) =>
+        re.test(stripAvoidLine(stripSchemaLiterals(line)))
+          ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
+          : [],
+      ),
+    );
+    assert.deepEqual(offenders, [], `"${phrase}" is back:\n  ${offenders.join('\n  ')}`);
   });
 }
 

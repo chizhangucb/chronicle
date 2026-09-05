@@ -63,9 +63,9 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
   // Mirrors ExploreTab.tsx's rangeLabel: `days` can be a FRACTIONAL
   // days-since-local-midnight value for "Today" (ProjectDetail.tsx/
   // HomeDashboard.tsx), so `${days}d` alone leaked a raw float like
-  // "0.224…d" here — the same bug class the window/float-day-leak fix
+  // "0.224…d" here — the same bug class the range/float-day-leak fix
   // already covered in ExploreTab's card title, just missed in this file's
-  // composition footer (caught live by test/e2e/window-matrix.spec.ts).
+  // composition footer (caught live by test/e2e/range-matrix.spec.ts).
   const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
 
   // Composition bar widths are the share OF THE COMPOSITION LIST ITSELF (sums

@@ -2,7 +2,7 @@ import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import type { InsightsResult, InsightsSessionRow } from './api.js';
 import { useCostMode } from './costMode.tsx';
-import { groupByKey, costOfBucketedCells, tokensOfCells, sumByKeyModel } from './windowedUsage.ts';
+import { groupByKey, costOfBucketedCells, tokensOfCells, sumByKeyModel } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
 import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
@@ -17,7 +17,7 @@ import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 // (the /projects ledger is the MANAGE half). Header count → two-up aggregates
 // (busiest days · busiest projects) → ONE flat sessions table (chips
 // cost|duration|recent, cost default), click-to-extend. All spend is priced
-// client-side from the windowed cells.
+// client-side from the ranged cells.
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
@@ -40,18 +40,18 @@ export default function SessionsTab({ insights }: { insights: InsightsResult | n
   const [sort, setSort] = useState<Sort>('cost');
   const [shown, setShown] = useState(PAGE);
 
-  // Per-session cost + tokens from the windowed cells (in-window share).
+  // Per-session cost + tokens from the ranged cells (in-range share).
   const costBySession = useMemo(() => {
     const m = new Map<string, number>();
     if (!insights) return m;
-    const by = groupByKey(insights.windowedTokensByModel, (c) => c.sessionId);
+    const by = groupByKey(insights.rangedTokensByModel, (c) => c.sessionId);
     for (const [id, cells] of by) m.set(id, costOfBucketedCells(cells, mode));
     return m;
   }, [insights, mode]);
   const tokBySession = useMemo(() => {
     const m = new Map<string, number>();
     if (!insights) return m;
-    const by = sumByKeyModel(insights.windowedTokensByModel, (c) => c.sessionId);
+    const by = sumByKeyModel(insights.rangedTokensByModel, (c) => c.sessionId);
     for (const [id, cell] of by) m.set(id, tokensOfCells(cell));
     return m;
   }, [insights]);

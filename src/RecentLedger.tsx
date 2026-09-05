@@ -239,7 +239,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   // closure, expose a stable wrapper that always calls through it.
   //
   // Task 20 review, traced + fixed: switching project-select -> session-select
-  // used to unmount and remount the shared `.command-bar` (replaying its
+  // used to unmount and remount the shared `.command-bar` (re-running its
   // entrance animation), because `showCommandBar` in ProjectsPage
   // (`sessionSelectActive || projSelect.selectMode`) briefly computed FALSE
   // mid-switch. `projSelect.selectMode` flips false SYNCHRONOUSLY (inside

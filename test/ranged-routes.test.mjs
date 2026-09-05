@@ -3,13 +3,13 @@
 // started BEFORE the requested window but ran INTO it (e.g. a session spanning
 // midnight into "Today") — the old `COALESCE(s.started_at,'9') >= cutoff` gate dropped
 // such a session entirely, which could zero out an entire project's "Today" view. This
-// test seeds exactly that fixture (one spanning session + one fully-in-window session)
+// test seeds exactly that fixture (one spanning session + one fully-in-range session)
 // and asserts every route returns non-zero windowed results AND that the windowed
 // token totals reconcile EXACTLY across insights/projects/explore/content — they all
-// read the same server/windowUsage.ts primitive, so a real implementation can't disagree.
+// read the same server/rangeUsage.ts primitive, so a real implementation can't disagree.
 //
 // The window is a fixed `days=1` (trailing 24h from "now"), not "since local
-// midnight": the P0 code path (overlapGate / windowedUsage) only cares about the
+// midnight": the P0 code path (overlapGate / rangedUsage) only cares about the
 // numeric cutoff, not whether it happens to land on a calendar-midnight boundary, and
 // anchoring to `now` (with wide hour-scale margins around the cutoff) keeps this test
 // deterministic regardless of what time of day it runs — no local-midnight edge case.
@@ -62,7 +62,7 @@ before(async () => {
   // be excluded from the window entirely — the P0 this task fixes.
   // 6 messages land 25-28h ago (clearly BEFORE the ~24h cutoff, out of window), 6 land
   // 4-20h ago (clearly AFTER the cutoff, in window) — 10 tokens/msg, so the billed
-  // cell's in-window ratio is exactly 6/12 = 0.5. Both halves sit hours clear of the
+  // cell's in-range ratio is exactly 6/12 = 0.5. Both halves sit hours clear of the
   // cutoff boundary, tolerating any realistic clock drift between this file's `now`
   // and the server's own `Date.now()` call inside computeInsights/etc.
   const beforeOffsets = [-28 * HOUR, -27 * HOUR, -26.5 * HOUR, -26 * HOUR, -25.5 * HOUR, -25 * HOUR];
@@ -79,7 +79,7 @@ before(async () => {
   );
 
   // today: fully within the window (started 3h ago, ended recently) — a plain
-  // control fixture, all 12 messages/tokens in-window, ratio 1.
+  // control fixture, all 12 messages/tokens in-range, ratio 1.
   const todayOffsets = [-3 * HOUR, -2.5 * HOUR, -2 * HOUR, -1.5 * HOUR, -HOUR, -45 * 60000, -30 * 60000, -20 * 60000, -15 * 60000, -12 * 60000, -9 * 60000, -6 * 60000];
   replaceSession(
     {
@@ -92,7 +92,7 @@ before(async () => {
 
   // minor: a genuinely minor session — short on BOTH axes (agent_active_ms < 5min
   // AND < 10 messages; the gate is AND, not OR — server/noiseGate.ts) with
-  // non-zero usage in-window, to verify the windowed KPI call correctly excludes
+  // non-zero usage in-range, to verify the ranged KPI call correctly excludes
   // minor sessions. Two messages 1 min apart => ~1min active. replaceSession
   // recomputes `minor` at insert, so the fixture must actually clear the gate.
   const minorOffsets = [-60 * 60000, -59 * 60000];
@@ -118,16 +118,16 @@ after(async () => {
   teardown?.();
 });
 
-function sumWindowedCells(cells) {
+function sumRangeCells(cells) {
   return cells.reduce((n, c) => n + c.cells.input + c.cells.output, 0);
 }
 
 test('computeInsights: includes the spanning session (P0 fix) and returns non-zero windowed totals', async () => {
   const r = await insightsModule.computeInsights(WINDOW_DAYS);
-  assert.equal(r.sessions.length, 2, 'both the spanning session and the fully-in-window session must be in the windowed session list');
+  assert.equal(r.sessions.length, 2, 'both the spanning session and the fully-in-range session must be in the ranged session list');
   assert.ok(r.sessions.some((s) => s.id === 'spanner'), 'the spanning session must not vanish from the window (the P0 bug)');
-  assert.ok(r.windowedTokensByModel.length > 0);
-  assert.ok(sumWindowedCells(r.windowedTokensByModel) > 0, 'windowed token total must be non-zero');
+  assert.ok(r.rangedTokensByModel.length > 0);
+  assert.ok(sumRangeCells(r.rangedTokensByModel) > 0, 'windowed token total must be non-zero');
   assert.ok(r.dailySpend.length > 0, 'dailySpend must be non-empty');
   assert.ok(r.hourlySpend != null, 'hourlySpend must be computed (not null) when days<=2');
   assert.ok(r.hourlySpend.length > 0, 'hourlySpend must be non-empty');
@@ -139,8 +139,8 @@ test('GET /projects/:id?days=1: includes the spanning session and returns non-ze
   const body = await res.json();
   assert.equal(body.sessions.length, 2, 'the project session list must include both sessions');
   assert.ok(body.sessions.some((s) => s.id === 'spanner'));
-  assert.ok(Array.isArray(body.analytics.windowedTokensByModel));
-  assert.ok(sumWindowedCells(body.analytics.windowedTokensByModel) > 0);
+  assert.ok(Array.isArray(body.analytics.rangedTokensByModel));
+  assert.ok(sumRangeCells(body.analytics.rangedTokensByModel) > 0);
 });
 
 test('computeExplore(group=model, metric=tokens): non-zero, session-inclusive', () => {
@@ -160,10 +160,10 @@ test('computeContent(scope=all): non-zero calibrated total', () => {
 });
 
 test('windowed token totals reconcile EXACTLY across insights/projects/explore/content', async () => {
-  const insightsTotal = sumWindowedCells((await insightsModule.computeInsights(WINDOW_DAYS)).windowedTokensByModel);
+  const insightsTotal = sumRangeCells((await insightsModule.computeInsights(WINDOW_DAYS)).rangedTokensByModel);
 
   const res = await fetch(`${baseUrl}/projects/${projectId}?days=${WINDOW_DAYS}`);
-  const projectsTotal = sumWindowedCells((await res.json()).analytics.windowedTokensByModel);
+  const projectsTotal = sumRangeCells((await res.json()).analytics.rangedTokensByModel);
 
   const exploreResult = exploreModule.computeExplore({
     scope: { type: 'all' }, days: WINDOW_DAYS, metric: 'tokens', group: 'model', rollup: 'total', topN: 10,
@@ -175,10 +175,10 @@ test('windowed token totals reconcile EXACTLY across insights/projects/explore/c
   const contentTotal = contentModule.computeContent({ type: 'all' }, WINDOW_DAYS).calibratedTotalTokens;
 
   assert.equal(insightsTotal, projectsTotal, 'insights (global) and projects (scoped to the one project both sessions live in) must agree exactly');
-  assert.equal(insightsTotal, exploreTotal, 'insights and explore must agree exactly (both source windowedUsage)');
-  assert.equal(insightsTotal, contentTotal, 'insights and content must agree exactly (both source windowedUsage input+output)');
+  assert.equal(insightsTotal, exploreTotal, 'insights and explore must agree exactly (both source rangedUsage)');
+  assert.equal(insightsTotal, contentTotal, 'insights and content must agree exactly (both source rangedUsage input+output)');
 
-  // Full precision: spanner contributes exactly half its billed 1000 (6/12 in-window
+  // Full precision: spanner contributes exactly half its billed 1000 (6/12 in-range
   // messages) + today contributes its full billed 200 = 700. Minor session is excluded.
   assert.equal(insightsTotal, 700);
 });
@@ -186,13 +186,13 @@ test('windowed token totals reconcile EXACTLY across insights/projects/explore/c
 test('minor sessions are excluded from windowed KPI queries', async () => {
   // The insights result excludes minor sessions — this is the baseline.
   const insightsResult = await insightsModule.computeInsights(WINDOW_DAYS);
-  const insightsTotal = sumWindowedCells(insightsResult.windowedTokensByModel);
+  const insightsTotal = sumRangeCells(insightsResult.rangedTokensByModel);
 
   // The projects/:id windowed query must also exclude minor sessions and
   // reconcile exactly with insights.
   const res = await fetch(`${baseUrl}/projects/${projectId}?days=${WINDOW_DAYS}`);
   const projectsResult = await res.json();
-  const projectsTotal = sumWindowedCells(projectsResult.analytics.windowedTokensByModel);
+  const projectsTotal = sumRangeCells(projectsResult.analytics.rangedTokensByModel);
 
   // Totals must match: both exclude the minor session (500 tokens).
   assert.equal(projectsTotal, insightsTotal, 'projects windowed KPI must exclude minor sessions and reconcile with insights');

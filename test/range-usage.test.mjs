@@ -1,8 +1,8 @@
-// Unit tests for server/windowUsage.ts (feedback-round Task 1): the windowed-usage
+// Unit tests for server/rangeUsage.ts (feedback-round Task 1): the windowed-usage
 // primitive that replaces the old `started_at >= cutoff` session gate (which drops a
-// session that started before the window but ran into it) with an activity-span
+// session that started before the range but ran into it) with an activity-span
 // OVERLAP gate, plus per-session/per-model calibration of billed `sessions.usage` cells
-// to the in-window share of per-message tokens.
+// to the in-range share of per-message tokens.
 //
 // Same shared-temp-db-for-the-whole-file pattern as test/insights.test.mjs (see
 // test/helpers.mjs): one DB, one `before` hook seeding every fixture session, each test
@@ -12,16 +12,16 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
 
-let dbModule, teardown, windowUsageModule;
+let dbModule, teardown, rangeUsageModule;
 
 before(async () => {
   const temp = await withTempDb();
   dbModule = temp.dbModule;
   teardown = temp.teardown;
-  windowUsageModule = await import('../server/windowUsage.ts');
+  rangeUsageModule = await import('../server/rangeUsage.ts');
 
   const { upsertProject, replaceSession } = dbModule;
-  const proj = upsertProject('/tmp/window-usage-proj');
+  const proj = upsertProject('/tmp/range-usage-proj');
 
   // --- overlap-gating fixtures ---
   // Spans the window: started well before the cutoff, ended well after it. No
@@ -45,8 +45,8 @@ before(async () => {
   // --- scaling-math fixture ---
   // Overlaps the window (started before cutoff, ended after). 4 messages for
   // 'model-a': 2 with ts BEFORE the cutoff (input_tokens=10 each, whole-session
-  // contribution) and 2 AT/AFTER the cutoff (input_tokens=10 each, in-window
-  // contribution) — whole=40, in-window=20, ratio=0.5.
+  // contribution) and 2 AT/AFTER the cutoff (input_tokens=10 each, in-range
+  // contribution) — whole=40, in-range=20, ratio=0.5.
   replaceSession(
     { id: 'scale1', project_id: proj.id, source: 'claude-code', file_path: '/tmp/scale1.jsonl',
       started_at: '2026-02-01T00:00:00.000Z', ended_at: '2026-02-03T00:00:00.000Z',
@@ -111,20 +111,20 @@ after(() => teardown());
 // ---------------------------------------------------------------------------
 
 test('overlapGate: SQL fragment compares COALESCE(ended_at, started_at, "9") against a bind', () => {
-  const { overlapGate } = windowUsageModule;
+  const { overlapGate } = rangeUsageModule;
   assert.equal(overlapGate('s'), `COALESCE(s.ended_at, s.started_at, '9') >= ?`);
   assert.equal(overlapGate('sessions'), `COALESCE(sessions.ended_at, sessions.started_at, '9') >= ?`);
 });
 
 // ---------------------------------------------------------------------------
-// windowedUsage: overlap gating
+// rangedUsage: overlap gating
 // ---------------------------------------------------------------------------
 
-test('windowedUsage: a session spanning the cutoff is included; one fully before it is excluded', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: a session spanning the cutoff is included; one fully before it is excluded', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-01-02T00:00:00.000Z';
-  const cells = windowedUsage(db, 'AND s.id IN (?, ?)', ['sp1', 'past1'], cutoff);
+  const cells = rangedUsage(db, 'AND s.id IN (?, ?)', ['sp1', 'past1'], cutoff);
   const sessionIds = new Set(cells.map((c) => c.sessionId));
   assert.ok(sessionIds.has('sp1'), 'spanning session (ended_at >= cutoff) must be included');
   assert.ok(!sessionIds.has('past1'), 'session fully before the cutoff (ended_at < cutoff) must be excluded');
@@ -137,40 +137,40 @@ test('windowedUsage: a session spanning the cutoff is included; one fully before
 });
 
 // ---------------------------------------------------------------------------
-// windowedUsage: scaling math
+// rangedUsage: scaling math
 // ---------------------------------------------------------------------------
 
-test('windowedUsage: half the message tokens in-window scales the billed cell by half', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: half the message tokens in-range scales the billed cell by half', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
-  // Cutoff sits between the two "before" messages (Feb 1) and the two "in-window"
-  // messages (Feb 2): whole-session sum = 40, in-window sum = 20 → ratio 0.5.
+  // Cutoff sits between the two "before" messages (Feb 1) and the two "in-range"
+  // messages (Feb 2): whole-session sum = 40, in-range sum = 20 → ratio 0.5.
   const cutoff = '2026-02-02T00:00:00.000Z';
-  const cells = windowedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
+  const cells = rangedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
   assert.equal(cells.length, 1);
   assert.equal(cells[0].model, 'model-a');
   assert.equal(cells[0].cells.input, 50, 'billed input 100 * ratio 0.5 = 50');
   assert.equal(cells[0].cells.output, 0);
 });
 
-test('windowedUsage: a cutoff after all messages scales the cell down to (near) zero', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: a cutoff after all messages scales the cell down to (near) zero', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-02-03T00:00:00.000Z'; // after every fixture message, still inside the session span
-  const cells = windowedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
+  const cells = rangedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
   assert.equal(cells.length, 1);
-  assert.equal(cells[0].cells.input, 0, 'no messages fall in-window (0/40 ratio) so the scaled cell is 0');
+  assert.equal(cells[0].cells.input, 0, 'no messages fall in-range (0/40 ratio) so the scaled cell is 0');
 });
 
 // ---------------------------------------------------------------------------
-// windowedUsage: zero-message-row fallback
+// rangedUsage: zero-message-row fallback
 // ---------------------------------------------------------------------------
 
-test('windowedUsage: a model with zero per-message rows falls back to its full billed cell', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: a model with zero per-message rows falls back to its full billed cell', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-03-02T00:00:00.000Z'; // inside fb1's span
-  const cells = windowedUsage(db, 'AND s.id = ?', ['fb1'], cutoff);
+  const cells = rangedUsage(db, 'AND s.id = ?', ['fb1'], cutoff);
   // fb1's only messages are tagged 'model-other', not the billed 'model-a' — so
   // 'model-a' has zero per-message rows and must fall back to the full billed cell.
   const modelA = cells.find((c) => c.model === 'model-a');
@@ -181,21 +181,21 @@ test('windowedUsage: a model with zero per-message rows falls back to its full b
 });
 
 // ---------------------------------------------------------------------------
-// windowedUsage: All-window exactness
+// rangedUsage: All-window exactness
 // ---------------------------------------------------------------------------
 
-test('windowedUsage: cutoff===null (All) returns the raw billed cell, ignoring message distribution', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: cutoff===null (All) returns the raw billed cell, ignoring message distribution', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
-  const cells = windowedUsage(db, 'AND s.id = ?', ['all1'], null);
+  const cells = rangedUsage(db, 'AND s.id = ?', ['all1'], null);
   assert.equal(cells.length, 1);
   assert.deepEqual(cells[0].cells, { input: 123, output: 45, cacheRead: 6, cacheWrite5m: 7, cacheWrite1h: 8 });
 });
 
-test('windowedUsage: All-window also includes sessions with no messages at all (past1)', () => {
-  const { windowedUsage } = windowUsageModule;
+test('rangedUsage: All-window also includes sessions with no messages at all (past1)', () => {
+  const { rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
-  const cells = windowedUsage(db, 'AND s.id = ?', ['past1'], null);
+  const cells = rangedUsage(db, 'AND s.id = ?', ['past1'], null);
   assert.equal(cells.length, 1);
   assert.deepEqual(cells[0].cells, { input: 999, output: 999, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
 });
@@ -205,7 +205,7 @@ test('windowedUsage: All-window also includes sessions with no messages at all (
 // ---------------------------------------------------------------------------
 
 test('bucketedUsage: day buckets use LOCAL calendar dates derived from message ts', () => {
-  const { bucketedUsage } = windowUsageModule;
+  const { bucketedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-05-01T00:00:00.000Z'; // before both messages, inside the session span
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'day');
@@ -228,7 +228,7 @@ test('bucketedUsage: day buckets use LOCAL calendar dates derived from message t
 });
 
 test('bucketedUsage: hour buckets use LOCAL hour-of-day format YYYY-MM-DDTHH', () => {
-  const { bucketedUsage } = windowUsageModule;
+  const { bucketedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-05-01T00:00:00.000Z';
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'hour');
@@ -238,7 +238,7 @@ test('bucketedUsage: hour buckets use LOCAL hour-of-day format YYYY-MM-DDTHH', (
 });
 
 test('bucketedUsage: a zero-message-row model lands its full billed cell on the started_at-derived local bucket', () => {
-  const { bucketedUsage } = windowUsageModule;
+  const { bucketedUsage } = rangeUsageModule;
   const { db } = dbModule;
   const cutoff = '2026-05-01T00:00:00.000Z';
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'day');

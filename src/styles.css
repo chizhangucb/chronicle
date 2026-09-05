@@ -1704,7 +1704,7 @@ h4 { margin: 6px 0; }
    container, so the dashboard zone stays compact and the ledger flows below. */
 .home-dashboard .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-4); margin-bottom: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .dash-head .page-title { margin: 0; }
-/* Tabs + window toggle live together on the right of the home head. */
+/* Tabs + range toggle live together on the right of the home head. */
 .home-dashboard .home-ctl { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .home-dashboard .rangebar button { border: 0; background: none; color: var(--ink-3); font: 12px var(--mono); padding: 3px 10px; border-radius: 6px; cursor: pointer; min-height: 24px; }
@@ -1729,7 +1729,7 @@ h4 { margin: 6px 0; }
 .ar-when { flex: none; }
 .ar-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
 
-/* Burn tile: current window spend vs baseline, with a comparison bar. */
+/* Burn tile: current range spend vs baseline, with a comparison bar. */
 .burn-card { margin-top: 10px; }
 .burn-head { display: flex; align-items: center; gap: var(--gap-2); margin-bottom: var(--gap-2); }
 .burn-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-4); }

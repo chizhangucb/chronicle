@@ -1,7 +1,7 @@
 {
   "name": "chronicle-cli",
   "version": "1.4.0",
-  "description": "Local-first session manager + Insights analytics for AI coding sessions: import Claude Code, Codex, Cursor & OpenCode, replay to the exact Git snapshot, redact secrets. npx chronicle-cli, no cloud, no telemetry.",
+  "description": "Local-first session manager + Insights analytics for AI coding sessions: import Claude Code, Codex, Cursor & OpenCode, play back to the exact Git snapshot, redact secrets. npx chronicle-cli, no cloud, no telemetry.",
   "bin": {
     "chronicle": "bin/chronicle.mjs",
     "chronicle-cli": "bin/chronicle.mjs"
@@ -18,7 +18,8 @@
     "dist-server",
     "scripts",
     "!scripts/install-jobs.mjs",
-    "!scripts/walk-seed.mjs"
+    "!scripts/walk-seed.mjs",
+    "!scripts/refresh_roster.py"
   ],
   "scripts": {
     "dev": "vite",
@@ -29,6 +30,7 @@
     "test:e2e": "playwright test",
     "walk": "node test/e2e/walk.mjs",
     "walk:seeded": "node scripts/walk-seed.mjs",
+    "refresh-roster": "python3 scripts/refresh_roster.py",
     "typecheck": "tsc -b",
     "prepack": "rm -rf dist-server && npm run build && tsc -p tsconfig.publish.json",
     "prepublishOnly": "npm run typecheck && npm test"

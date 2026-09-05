@@ -12,7 +12,7 @@
 // price-free proxy) and returns with its cells so the client can price it.
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
-import { overlapGate, bucketedUsage } from './windowUsage.ts';
+import { overlapGate, bucketedUsage } from './rangeUsage.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
 
 const DAY = 86400000;
@@ -45,14 +45,14 @@ export interface ActivitySessionLite {
 }
 
 export interface ActivityBurn {
-  windowSpendTokensByModel: TokensByModel;
-  // Day-bucketed (LOCAL calendar day) breakdown of windowSpendTokensByModel —
+  rangeSpendTokensByModel: TokensByModel;
+  // Day-bucketed (LOCAL calendar day) breakdown of rangeSpendTokensByModel —
   // lets the client price the Burn tile's current-window spend per day at that day's
   // rate (e.g. Sonnet 5's intro window) instead of one flat rate for the whole window.
   // This is the figure the audit found overstated ~50% during the intro window, so
   // it's the one burn.* field worth day-bucketing; baselineTokensByModel/
   // topSessionTokensByModel stay flat (see their own comments below for why).
-  windowSpendTokensByModelByDay: Record<string, TokensByModel>;
+  rangeSpendTokensByModelByDay: Record<string, TokensByModel>;
   // Today → 14-day daily median (a statistical "typical day" construct with no single
   // real date to price at); Nd → prior-Nd totals (a comparison anchor, not the live spend
   // figure this fix targets — deliberately left flat, see server/activity.ts note).
@@ -169,7 +169,7 @@ function median(nums: number[]): number {
 
 // Sum per-session usage over a started_at window [from, to) (either bound may
 // be null = unbounded), respecting the minor gate.
-function sumWindow(from: string | null, to: string | null): TokensByModel {
+function sumRange(from: string | null, to: string | null): TokensByModel {
   const where = ['COALESCE(s.minor,0)=0'];
   const params: string[] = [];
   if (from != null) { where.push('s.started_at >= ?'); params.push(from); }
@@ -269,48 +269,48 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   }
 
   // ---- Burn ----
-  const windowMs = days != null ? days * DAY : null;
-  const windowCutoff = windowMs != null ? new Date(now - windowMs).toISOString() : null;
-  // windowSpendTokensByModel (Task 2, the P0 fix): windowed billed cells from
-  // bucketedUsage (day-bucketed, not windowedUsage), NOT sumWindow's raw
-  // `s.started_at >= cutoff` sum — a session that started before the window but ran INTO
+  const rangeMs = days != null ? days * DAY : null;
+  const rangeCutoff = rangeMs != null ? new Date(now - rangeMs).toISOString() : null;
+  // rangeSpendTokensByModel (Task 2, the P0 fix): ranged billed cells from
+  // bucketedUsage (day-bucketed, not rangedUsage), NOT sumRange's raw
+  // `s.started_at >= cutoff` sum — a session that started before the range but ran INTO
   // it (e.g. spans midnight into "Today") used to vanish from this sum entirely;
-  // bucketedUsage instead attributes its in-window share, split by LOCAL day so the client
+  // bucketedUsage instead attributes its in-range share, split by LOCAL day so the client
   // can price a window straddling a rate change (e.g. Sonnet 5's intro window) correctly.
-  // windowCutoff is already null for "All" (extends-to-now semantics match bucketedUsage's
+  // rangeCutoff is already null for "All" (extends-to-now semantics match bucketedUsage's
   // cutoffIso===null "All window" signal exactly), so no extra mapping is needed.
-  const bucketedCells = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], windowCutoff, 'day');
-  const windowSpendTokensByModel: TokensByModel = {};
-  const windowSpendTokensByModelByDay: Record<string, TokensByModel> = {};
+  const bucketedCells = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], rangeCutoff, 'day');
+  const rangeSpendTokensByModel: TokensByModel = {};
+  const rangeSpendTokensByModelByDay: Record<string, TokensByModel> = {};
   for (const c of bucketedCells) {
-    addUsage(windowSpendTokensByModel, { [c.model]: c.cells });
-    const dayAcc = windowSpendTokensByModelByDay[c.bucket] ?? (windowSpendTokensByModelByDay[c.bucket] = {});
+    addUsage(rangeSpendTokensByModel, { [c.model]: c.cells });
+    const dayAcc = rangeSpendTokensByModelByDay[c.bucket] ?? (rangeSpendTokensByModelByDay[c.bucket] = {});
     addUsage(dayAcc, { [c.model]: c.cells });
   }
 
   let baselineTokensByModel: TokensByModel;
   if (days != null && days <= 1) {
     baselineTokensByModel = medianBaseline(now);                       // Today → 14-day daily median
-  } else if (windowMs != null) {
-    const priorFrom = new Date(now - 2 * windowMs).toISOString();
-    const priorTo = new Date(now - windowMs).toISOString();
-    baselineTokensByModel = sumWindow(priorFrom, priorTo);             // Nd → prior-Nd totals
+  } else if (rangeMs != null) {
+    const priorFrom = new Date(now - 2 * rangeMs).toISOString();
+    const priorTo = new Date(now - rangeMs).toISOString();
+    baselineTokensByModel = sumRange(priorFrom, priorTo);             // Nd → prior-Nd totals
   } else {
     baselineTokensByModel = {};                                        // no window (All) → no baseline
   }
 
   // Top session in the window by total tokens (price-free proxy — see header).
   // overlapGate: a session that overlaps the window is a valid top-session
-  // candidate even if it started before the cutoff (same P0 fix as windowSpendTokensByModel
+  // candidate even if it started before the cutoff (same P0 fix as rangeSpendTokensByModel
   // above) — ranking still uses the session's full raw usage as the magnitude proxy (not
-  // scaled to its in-window share), matching this block's pre-existing "price-free proxy"
+  // scaled to its in-range share), matching this block's pre-existing "price-free proxy"
   // approximation.
   const winRows = db.prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count
      FROM sessions s JOIN projects p ON p.id = s.project_id
-     WHERE COALESCE(s.minor,0)=0${windowCutoff != null ? ` AND ${overlapGate('s')}` : ''}`,
-  ).all(...(windowCutoff != null ? [windowCutoff] : [])) as unknown as SessionRowLite[];
+     WHERE COALESCE(s.minor,0)=0${rangeCutoff != null ? ` AND ${overlapGate('s')}` : ''}`,
+  ).all(...(rangeCutoff != null ? [rangeCutoff] : [])) as unknown as SessionRowLite[];
   let top: { row: SessionRowLite; cells: TokensByModel; tokens: number } | null = null;
   for (const r of winRows) {
     const cells = parseUsage(r.usage);
@@ -319,7 +319,7 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   }
 
   // ---- Anomaly cells ----
-  // Cover the FULL window PLUS MEDIAN_DAYS of prior history, so (a) per-day flags
+  // Cover the FULL range PLUS MEDIAN_DAYS of prior history, so (a) per-day flags
   // near the window start still have a trailing median and (b) the window SUM is
   // complete for every window. The old `Math.min(days ?? 30, 90)` cap made "All"
   // reach back only 44 days while 90d reached 104 — so the window total and
@@ -346,8 +346,8 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
     live,
     recent,
     burn: {
-      windowSpendTokensByModel,
-      windowSpendTokensByModelByDay,
+      rangeSpendTokensByModel,
+      rangeSpendTokensByModelByDay,
       baselineTokensByModel,
       topSessionId: top?.row.id ?? null,
       topSessionName: top ? displayName(top.row) : null,

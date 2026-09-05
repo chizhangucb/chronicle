@@ -1,7 +1,7 @@
 // Global cross-project aggregation for the Insights home (Task 5d-4). Mirrors
 // the per-project analytics shapes in server/routes/projects.ts, but scoped
 // across ALL projects instead of one — same query patterns (COALESCE(minor,0)
-// = 0 gate, overlapGate session-inclusion — see server/windowUsage.ts). Error
+// = 0 gate, overlapGate session-inclusion — see server/rangeUsage.ts). Error
 // counts read the per-session result_count/error_count columns precomputed at
 // import with the shared server/errors.ts heuristic (client twin:
 // src/SessionView.tsx's isErrorResult).
@@ -12,7 +12,7 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
-import { overlapGate, bucketedUsage, type BucketedUsageCell } from './windowUsage.ts';
+import { overlapGate, bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -49,16 +49,16 @@ export interface InsightsResult {
   dailyActivity: { day: string; count: number }[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
-  // Windowed billed cells (Task 2, feedback-round P0 fix): per-session,
-  // per-model, per-LOCAL-day, in-window-scaled — the client (Task 3, with
+  // Ranged billed cells (Task 2, feedback-round P0 fix): per-session,
+  // per-model, per-LOCAL-day, in-range-scaled — the client (Task 3, with
   // day-aware pricing) prices these for the KPI strip / spend-by-model /
   // sources / top-sessions instead of summing raw `sessions.usage`, so a
-  // session that started before the window but ran INTO it (the root defect
-  // — see server/windowUsage.ts) contributes its in-window share instead of
+  // session that started before the range but ran INTO it (the root defect
+  // — see server/rangeUsage.ts) contributes its in-range share instead of
   // vanishing (old gate) or over-counting (naive overlap-only gate). Day-
   // bucketed so a session whose usage straddles a rate change (e.g.
   // Sonnet 5's intro window) prices each day's share at that day's rate.
-  windowedTokensByModel: BucketedUsageCell[];
+  rangedTokensByModel: BucketedUsageCell[];
   // Same cells, additionally bucketed by LOCAL calendar day — feeds the
   // Today/7d/30d spend-over-time chart without a UTC/local double-shift.
   dailySpend: BucketedUsageCell[];
@@ -107,7 +107,7 @@ let fixedCache: { key: string; value: Pick<InsightsResult, 'dailyActivity' | 'ho
 export async function computeInsights(days: number | null): Promise<InsightsResult> {
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
   // null (not '') for the windowed-usage primitives — cutoffIso===null is their explicit
-  // "All window, no scaling" signal (server/windowUsage.ts), distinct from the SQL '' sentinel
+  // "All window, no scaling" signal (server/rangeUsage.ts), distinct from the SQL '' sentinel
   // the raw queries below use for "no days= filter" (COALESCE(...) >= '' is always true).
   const cutoffIso = days ? cutoff : null;
   const nowMinute = Math.floor(Date.now() / 60000) * 60000;
@@ -116,8 +116,8 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
 
   // overlapGate replaces the old `COALESCE(s.started_at,'9') >= ?` gate: a session whose
   // activity ran INTO the window now counts, not just one that STARTED in it (the P0 fix —
-  // see server/windowUsage.ts). `m.ts >= ?` on the message-level aggregates below
-  // additionally restricts to messages that actually fall in-window (not every message of a
+  // see server/rangeUsage.ts). `m.ts >= ?` on the message-level aggregates below
+  // additionally restricts to messages that actually fall in-range (not every message of a
   // session that merely overlaps it).
   const sessions = db.prepare(`
     SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
@@ -162,8 +162,8 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // DB) into JS and regexed each one on every request — 0.8-17s per click.
   // Session-level (no messages join), so only the overlap gate applies here —
   // there's no per-message ts to additionally restrict by.
-  // KNOWN WINDOWING TRADEOFF (unlike the token magnitudes above, which windowedUsage
-  // scales to an in-window share): error_count/result_count are WHOLE-SESSION
+  // KNOWN WINDOWING TRADEOFF (unlike the token magnitudes above, which rangedUsage
+  // scales to an in-range share): error_count/result_count are WHOLE-SESSION
   // precomputed totals (server/errors.ts heuristic, backfilled once at import — see the
   // comment above). overlapGate makes a spanning session correctly VISIBLE for "Today",
   // but its error count here is its FULL historical count, not just today's errors —
@@ -184,12 +184,12 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   `).all(cutoff) as unknown as { project_id: number; head_count: number; error_count: number }[];
   const errors = errorsByProject.reduce((n, r) => n + r.error_count, 0);
 
-  // Windowed billed cells (Task 2) — see the InsightsResult field comments.
+  // Ranged billed cells (Task 2) — see the InsightsResult field comments.
   // scopeWhere mirrors the same `COALESCE(s.minor,0)=0` gate every aggregate
-  // above uses; windowedUsage/bucketedUsage apply overlapGate internally.
-  // Day-bucketed (not the plain windowedUsage()) so the client can
+  // above uses; rangedUsage/bucketedUsage apply overlapGate internally.
+  // Day-bucketed (not the plain rangedUsage()) so the client can
   // price each day's share at that day's rate — see InsightsResult's comment.
-  const windowedTokensByModel = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
+  const rangedTokensByModel = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
   const dailySpend = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
   const hourlySpend = days != null && days <= 2
     ? bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'hour')
@@ -248,6 +248,6 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   return {
     sessions, toolDist, kindDist, modelDist, modelDistFixed, errors, errorsByProject, commits,
     dailyActivity, hourlyActivity, projects,
-    windowedTokensByModel, dailySpend, hourlySpend,
+    rangedTokensByModel, dailySpend, hourlySpend,
   };
 }

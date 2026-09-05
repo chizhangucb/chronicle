@@ -267,7 +267,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     const dir = makeTmpDir();
     const file = path.join(dir, 'unkeyed-session.jsonl');
     // Two identical-usage lines with no ids at all. They cannot be PROVEN
-    // replays, so each is billed on its own — the fix must not silently
+    // repeats, so each is billed on its own — the fix must not silently
     // swallow real spend.
     const l = (uuid, ts) => ({ type: 'assistant', sessionId: 's', cwd: '/tmp/x', uuid, timestamp: ts,
       message: { model: 'm', content: [{ type: 'text', text: 'x' }], usage: { input_tokens: 7, output_tokens: 3 } } });
@@ -294,7 +294,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     // Every billed token sits on exactly ONE message row. Before the
     // two sides disagreed by 25.2% system-wide: an assistant line whose only
     // content was an empty `thinking` block reached the session total but
-    // produced no event to hang its tokens on, while replayed lines that DID
+    // produced no event to hang its tokens on, while repeated usage lines that DID
     // produce events were counted repeatedly.
     //
     // Equality holds whenever every call produced at least one event, which is

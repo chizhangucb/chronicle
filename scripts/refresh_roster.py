@@ -11,8 +11,14 @@ Match key = the roster's Route column with the `openrouter/` prefix stripped, lo
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
 future direct-Anthropic route) are left untouched.
 
-This script does not belong in litellm/ (it maintains an operator document; the
-proxy never reads it). Moving it to scripts/ is issue #192.
+This lives in scripts/, not litellm/, because it maintains an operator document
+rather than proxy runtime: the proxy never reads the roster and the roster never
+configures the proxy (issue #192). What does read the roster is server/routing.ts,
+behind the Spend tab's ROUTING COMPLIANCE section.
+
+The filename stays snake_case against the repo's kebab-case script convention
+because test/refresh-roster.test.mjs imports these functions as a module, and
+`import refresh-roster` is not a thing.
 
 The roster file is a personal document, not a repo one, so its location is
 resolved rather than baked in (issue #186), in this order:
@@ -24,9 +30,9 @@ With neither set the script runs and explains what to point it at; it
 never guesses a machine-specific path.
 
 Usage:
-    python litellm/refresh_roster.py           # fetch live, update the file
-    python litellm/refresh_roster.py --dry-run # print the diff, write nothing
-    python litellm/refresh_roster.py --roster path/to/model-routing.md
+    python scripts/refresh_roster.py           # fetch live, update the file
+    python scripts/refresh_roster.py --dry-run # print the diff, write nothing
+    python scripts/refresh_roster.py --roster path/to/model-routing.md
 
 Pure stdlib. Network only in main(); the parsing/rewriting functions are offline and
 tested.

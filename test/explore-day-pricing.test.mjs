@@ -54,7 +54,7 @@ test('computeExplore(group=model, rollup=total): tokensByModelByDay splits the r
 
   // Reconciliation invariant: summing tokensByModelByDay across every day must
   // reproduce the flat tokensByModel total exactly (mirrors the reconciliation
-  // pattern test/windowed-routes.test.mjs already enforces server-wide).
+  // pattern test/ranged-routes.test.mjs already enforces server-wide).
   const byDaySum = Object.values(sonnet.tokensByModelByDay)
     .reduce((n, byModel) => n + Object.values(byModel).reduce((m, c) => m + c.input + c.output, 0), 0);
   const flatTotal = Object.values(sonnet.tokensByModel).reduce((n, c) => n + c.input + c.output, 0);

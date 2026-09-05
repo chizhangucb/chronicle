@@ -9,7 +9,7 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, windowedUsage } from './windowUsage.ts';
+import { overlapGate, rangedUsage } from './rangeUsage.ts';
 // Context-window table is a model CONSTANT (max tokens), not a price, so it's
 // shared between server and client via `shared/contextWindows.ts` (the price
 // table stays client-only in src/models.ts — see that file's comment). This
@@ -103,26 +103,26 @@ export interface ContentResult {
 export function computeContent(scope: Scope, days: number | null): ContentResult {
   const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
   // null (not '') for the windowed-usage primitives — see server/insights.ts's comment on
-  // the same pattern for why (cutoffIso===null is windowedUsage's "All window" signal).
+  // the same pattern for why (cutoffIso===null is rangedUsage's "All window" signal).
   const cutoffIso = days ? cutoff : null;
   const sc = scopeClause(scope);
-  // overlapGate (Task 2, the P0 fix — see server/windowUsage.ts): a session whose activity
+  // overlapGate (Task 2, the P0 fix — see server/rangeUsage.ts): a session whose activity
   // ran INTO the window now counts, not just one that STARTED in it. `m.ts >= ?` additionally
-  // restricts message-joined queries below to messages that actually fall in-window.
+  // restricts message-joined queries below to messages that actually fall in-range.
   const base = `JOIN sessions s ON s.id = m.session_id
     WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
   const bind = () => [cutoff, ...sc.params, cutoff];
 
   // Calibration base = Σ in-scope sessions.usage (input+output), windowed: each
-  // session's billed cell scaled to its in-window share of per-message tokens, via
-  // windowedUsage — the authoritative billed total (= Overview / Insights Tokens KPI, which
+  // session's billed cell scaled to its in-range share of per-message tokens, via
+  // rangedUsage — the authoritative billed total (= Overview / Insights Tokens KPI, which
   // is input+output per the 5d decision), NOT the per-message assistant sum (which
   // undercounts vs Overview) and NOT a raw unscaled sessions.usage sum (which would
   // over-count a session spanning the window boundary). calibratedTotalTokens is this same
   // value, so the composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
-  const windowedCells = windowedUsage(db, `${minorGate(scope)} ${sc.sql}`, sc.params, cutoffIso);
+  const rangedCells = rangedUsage(db, `${minorGate(scope)} ${sc.sql}`, sc.params, cutoffIso);
   let billed = 0;
-  for (const c of windowedCells) billed += c.cells.input + c.cells.output;
+  for (const c of rangedCells) billed += c.cells.input + c.cells.output;
 
   // Composition by kind (calibrated).
   const kindChars = db.prepare(`SELECT m.kind AS k, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
@@ -210,7 +210,7 @@ interface SingleSessionFacts {
   ctx: number | null;
   active: number | null;
   engaged: number | null;
-  win: number;        // this session's model's context window (max over its models, 200k fallback)
+  ctxWindow: number;        // this session's model's context window (max over its models, 200k fallback)
   cacheRead: number;
   cacheInput: number;
   totalTokens: number;
@@ -230,7 +230,7 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
   const bind = () => [cutoff, ...sc.params];
   // Session-level (no messages join) — overlapGate is the whole fix here: a
   // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
-  // session, not an in-window fraction, so there's no per-message `m.ts >= cutoff` to add —
+  // session, not an in-range fraction, so there's no per-message `m.ts >= cutoff` to add —
   // just the same overlap-vs-drop inclusion fix every other gate in this file gets.
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
        s.agent_active_ms AS active, s.engaged_ms AS engaged
@@ -271,13 +271,13 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
     // — exclude from both highAbs and highRel entirely, rather than treating
     // it as ctx=0 (which would just never qualify but still dilute the
     // denominator).
-    const win = models.map((m) => contextWindowFor(m) ?? 0).reduce((a, b) => Math.max(a, b), 0) || 200000;
+    const ctxWindow = models.map((m) => contextWindowFor(m) ?? 0).reduce((a, b) => Math.max(a, b), 0) || 200000;
     if (s.ctx != null) {
       const ctx = s.ctx;
       stats.highAbs.denom += tok;
       if (ctx > HIGH_CONTEXT_ABS_TOKENS) { stats.highAbs.tokens += tok; stats.highAbs.count++; }
       stats.highRel.denom += tok;
-      if (ctx > HIGH_CONTEXT_REL_RATIO * win) { stats.highRel.tokens += tok; stats.highRel.count++; }
+      if (ctx > HIGH_CONTEXT_REL_RATIO * ctxWindow) { stats.highRel.tokens += tok; stats.highRel.count++; }
     }
 
     let sessCacheRead = 0;
@@ -290,7 +290,7 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
     // `single`: the raw facts for THIS session, overwritten each iteration —
     // only meaningful (and only read) when the caller is session-scoped, in
     // which case `sessions` has exactly one row.
-    stats.single = { ctx: s.ctx, active: s.active, engaged: s.engaged, win, cacheRead: sessCacheRead, cacheInput: sessCacheInput, totalTokens: tok };
+    stats.single = { ctx: s.ctx, active: s.active, engaged: s.engaged, ctxWindow, cacheRead: sessCacheRead, cacheInput: sessCacheInput, totalTokens: tok };
   }
   return stats;
 }
@@ -427,7 +427,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
 function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: number }, sub: { turns: number; tokens: number }): Characteristic[] {
   const single = stats.single;
   if (!single) return [];
-  const { ctx, active, engaged, win, cacheRead, cacheInput, totalTokens } = single;
+  const { ctx, active, engaged, ctxWindow, cacheRead, cacheInput, totalTokens } = single;
   const share = (tok: number) => (totalTokens ? Math.round((tok / totalTokens) * 100) : 0);
   const facts: Characteristic[] = [];
 
@@ -443,9 +443,9 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
   }
 
   if (ctx != null) {
-    const pctWin = win ? Math.round((ctx / win) * 100) : 0;
+    const pctCtxWindow = ctxWindow ? Math.round((ctx / ctxWindow) * 100) : 0;
     facts.push({
-      key: 'peakContextTokens', format: 'tokens', value: ctx, value2: pctWin, exact: true, warn: pctWin >= 70,
+      key: 'peakContextTokens', format: 'tokens', value: ctx, value2: pctCtxWindow, exact: true, warn: pctCtxWindow >= 70,
       label: 'peak context tokens reached',
       why: "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.",
       info: "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.",
