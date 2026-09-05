@@ -1,4 +1,4 @@
-// CHI-366: /settings is the server-visible home for the monthly budget. Pins the
+// /settings is the server-visible home for the monthly budget. Pins the
 // PATCH/GET round-trip + normalization (positive number stored; 0 / negative /
 // non-number cleared to null) over the real mountSettings route on a bare
 // express app. CHRONICLE_DATA_DIR is a temp dir BEFORE import so writeConfig

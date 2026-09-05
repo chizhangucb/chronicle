@@ -107,7 +107,7 @@ export async function parseCodexSession(file: string): Promise<ParseResult> {
     if (t === 'message' && p.role === 'user') {
       const text = itemText(p.content);
       // Push every user row (active-time needs them); only the display-name
-      // fallback skips synthetic wrappers (CHI-368).
+      // fallback skips synthetic wrappers.
       if (text) { events.push({ ts, kind: 'user', text }); if (!firstPrompt && !isSyntheticUserText(text)) firstPrompt = text.slice(0, 200); }
     } else if (t === 'message' && p.role === 'assistant') {
       const text = itemText(p.content);

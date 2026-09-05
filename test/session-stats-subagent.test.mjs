@@ -73,7 +73,7 @@ test('subagentRunCount: no sidechains at all → 0', () => {
   assert.equal(subagentRunCount([{ kind: 'assistant', is_sidechain: 0 }]), 0);
 });
 
-// D3 (Task 11): per-type run count — the row label is "<type> · N runs",
+// D3: per-type run count — the row label is "<type> · N runs",
 // distinct from `turns` (assistant message count) and from the header's
 // whole-session run count (subagentRunCount).
 test('subagentRuns: runCount is the distinct agent_id count per type, not turns', () => {

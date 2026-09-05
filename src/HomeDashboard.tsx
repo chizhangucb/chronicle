@@ -18,7 +18,7 @@ import { useSyncStatus } from './useSyncStatus.ts';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import SpendTab from './SpendTab.tsx';
-import SessionsHubTab from './SessionsHubTab.tsx';
+import SessionsTab from './SessionsTab.tsx';
 import SortCaret from './SortCaret.tsx';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 import { fmtDayLabel } from './charts/timeBuckets.ts';
@@ -29,7 +29,7 @@ import ContentTab from './ContentTab.tsx';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 import { MOVER_GLYPH, windowAnomaly } from './insights/anomalyMath.ts';
 
-// The ONE Insights hub at `/` (product-IA fix, 2026-08-13; renamed sidebar
+// The ONE Insights home at `/` (product-IA fix, 2026-08-13; renamed sidebar
 // item + page title Home → Insights, Task 9). Home and the old `/insights`
 // page are merged into a single tabbed surface — Overview / Explore / Content
 // — so there is exactly one KPI strip and one `/api/insights` fetch, never two
@@ -72,14 +72,14 @@ function fmtActive(ms: number): string {
 }
 // Price a bag of per-model token cells client-side (the price table lives ONLY
 // in src/models.ts — hard constraint; the server returns tokens, never $).
-// `mode` (CHI-233 Part C) defaults to theoretical/list price.
+// `mode` defaults to theoretical/list price.
 function priceCells(byModel: ActivityTokensByModel, mode: CostMode = 'theoretical'): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, undefined, mode) ?? 0;
   return total;
 }
 // Same as priceCells, but prices EACH day's cells at that day's own rate
-// before summing (CHI-228) — for burn.windowSpendTokensByModelByDay, the
+// before summing — for burn.windowSpendTokensByModelByDay, the
 // figure that overstates Sonnet-5-heavy spend under a single flat rate.
 function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>, mode: CostMode = 'theoretical'): number {
   let total = 0;
@@ -164,7 +164,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
     <div className="page home-dashboard">
       <div className="dash-head">
         <h1 className="page-title">{t('Insights')}</h1>
-        <div className="hub-ctl">
+        <div className="home-ctl">
           <div className="tabs">
             <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>
               {t('Overview')}
@@ -216,14 +216,14 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
         {tab === 'explore' && <ExploreTab scope={{ type: 'all' }} days={days} />}
         {tab === 'content' && <ContentTab scope={{ type: 'all' }} days={days} />}
         {tab === 'spend' && <SpendTab insights={insights} activity={activity} win={win} days={days} />}
-        {tab === 'sessions' && <SessionsHubTab insights={insights} />}
+        {tab === 'sessions' && <SessionsTab insights={insights} />}
       </div>
     </div>
   );
 }
 
 // ---- KPI strip: headline aggregates from an InsightsResult, rendered as the
-// `.kpis` tile row. The single source of the Home hub's headline numbers. ----
+// `.kpis` tile row. The single source of the Insights home's headline numbers. ----
 export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   const { mode } = useCostMode();
   const kpis = useMemo(() => {
@@ -241,7 +241,7 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
     const tokens = tokensOfCells(byModel);
     const { input, cacheRead } = sumFields(byModel);
     // One spend figure, estimated from the sessions and priced client-side from
-    // the shared price table. Day-bucketed pricing (CHI-228) so a window that
+    // the shared price table. Day-bucketed pricing so a window that
     // straddles a rate change prices each day's share at that day's rate.
     const cost = costOfBucketedCells(result.windowedTokensByModel, mode);
     const toolCalls = result.toolDist.reduce((n, r) => n + r.count, 0);
@@ -361,7 +361,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
   const burn = activity?.burn ?? null;
   // ONE shared window-scoped anomaly view (identical to the Spend-tab card).
   const anom = useMemo(() => (burn ? windowAnomaly(burn, mode, days) : null), [burn, mode, days]);
-  // Top session ranked by COST in this window (CHI-324 review — the old server
+  // Top session ranked by COST in this window (review — the old server
   // pick ranked by TOKENS but showed cost, so a wider window's top could show a
   // SMALLER figure than a narrower one). The insights windowed cells give the
   // in-window per-session share, so the max-cost pick is monotonic across widening
@@ -388,7 +388,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
     : '';
   // Window span for the no-baseline support line, so a bounded window that just
   // lacks a full PRIOR period (not enough history yet) never mislabels as "all
-  // time" (CHI-324 review — 90d had no prior-90d in range).
+  // time" (review — 90d had no prior-90d in range).
   const winSpanLabel = win === '7d' ? t('last 7 days')
     : win === '30d' ? t('last 30 days')
     : win === '90d' ? t('last 90 days')
@@ -476,7 +476,7 @@ function AnomalyTile({ activity, insights, win, days, onOpenSession }: { activit
 // ---- Insights Overview charts (everything the old InsightsPage Overview showed
 // AFTER the KPI strip): spend-over-time stacked chart, spend-by-model/sources,
 // Working Rhythm, tool mix / error rate, token-by-model table, top sessions.
-// The KPI strip is rendered by the hub above this, so it is NOT repeated here. ----
+// The KPI strip is rendered by the home page above this, so it is NOT repeated here. ----
 function InsightsCharts({ result, days }: { result: InsightsResult; days: number | null }): JSX.Element {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
@@ -488,9 +488,9 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
 
-  // Spend by model retired from Overview (CHI-324 review #4) — see the render.
+  // Spend by model retired from Overview — see the render.
 
-  // Sources moved to the Spend tab (CHI-324 review) — paired with Spend by model.
+  // Sources moved to the Spend tab — paired with Spend by model.
 
   // ---- Global tool mix (top 5 + Other) ----
   const toolMix = useMemo(() => {
@@ -511,7 +511,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   // ---- Token usage by model table ----
   const tokenTable = useMemo(() => {
     const byModel = sumByModel(result.windowedTokensByModel);
-    // Day-bucketed pricing (CHI-228) for the $ column, same reasoning as
+    // Day-bucketed pricing for the $ column, same reasoning as
     // spendByModel above.
     const byModelCells = groupByKey(result.windowedTokensByModel, (c) => c.model);
     const msgsByModel = new Map(result.modelDist.map((r) => [r.model, r.count]));
@@ -531,13 +531,13 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const tokenTotalsHitRate = (tokenTotals.cacheRead + tokenTotals.input)
     ? (tokenTotals.cacheRead / (tokenTotals.cacheRead + tokenTotals.input)) * 100 : 0;
 
-  // Top sessions by cost is RETIRED from Overview (CHI-324) — absorbed by the
+  // Top sessions by cost is RETIRED from Overview — absorbed by the
   // Sessions tab's cost sort. The product ends with exactly two session lists:
   // the /projects ledger and the Sessions tab.
 
   return (
     <>
-      {/* Spend-over-time is FULL-WIDTH on Overview (CHI-324 review): it's the
+      {/* Spend-over-time is FULL-WIDTH on Overview: it's the
           headline chart, and Spend by model + Sources both moved to the Spend
           tab (de-duped, and pairing the tall chart with a 2-row Sources card
           left an ugly empty half). */}

@@ -153,7 +153,7 @@ test.describe('T17.4 — labeled Rename affordance', () => {
     await expect(renameBtn).toBeVisible();
     const tip = page.locator('.ov-name-row button.info-tip');
     await expect(tip).toBeVisible();
-    // Asserted against the REGISTRY, not a copied string (CHI-325 3b): a tip's
+    // Asserted against the REGISTRY, not a copied string: a tip's
     // wording now has exactly one home, and a test that hardcoded it would be
     // the second copy this migration exists to remove.
     await expect(tip).toHaveAttribute('aria-label', new RegExp(escapeRe(defText('session.rename'))));

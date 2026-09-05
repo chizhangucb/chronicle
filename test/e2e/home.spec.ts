@@ -1,5 +1,5 @@
-// E2E for the merged Home/Insights hub at `/` (product-IA fix, 2026-08-13).
-// The old separate `/insights` dashboard is gone: `/` IS the Insights hub, with
+// E2E for the Insights home at `/` (product-IA fix, 2026-08-13).
+// The old separate `/insights` dashboard is gone: `/` IS the Insights home, with
 // Overview / Explore / Content tabs and a five-option window toggle. This suite
 // also carries the DRIFT-PIN tests that would have caught the two-surface
 // regression (sidebar entries, tabs, window options, /insights redirect,
@@ -38,9 +38,9 @@ test('sidebar top nav has exactly Insights and Projects, no Home entry', async (
 });
 
 // ── Drift-pin (a2): the sidebar is UNCONDITIONAL (#221) ──────────────────────
-// Before the shrink the ops nav rendered only when a hub adapter reported
-// present, so demo and stock installs had different sidebars. Nothing is
-// hub-conditional any more: a demo install must show the same two top items and
+// Before the shrink the ops nav rendered only when an external-checkout adapter
+// reported present, so demo and stock installs had different sidebars. Nothing
+// is install-conditional any more: a demo install must show the same two top items and
 // no Safety entry. Runs against its own demo server, since the seeded harness
 // is a stock install by construction.
 test.describe('demo install: the sidebar matches a stock install', () => {
@@ -63,8 +63,8 @@ test.describe('demo install: the sidebar matches a stock install', () => {
   });
 });
 
-// ── Drift-pin (b): `/` shows exactly the five CHI-324 hub tabs ────────────────
-test('the hub at / shows exactly Overview / Explore / Content / Spend / Sessions tabs', async ({ page }) => {
+// ── Drift-pin (b): `/` shows exactly the five home tabs ────────────────
+test('the home page at / shows exactly Overview / Explore / Content / Spend / Sessions tabs', async ({ page }) => {
   await gotoHome(page);
   const tabs = page.locator('.home-dashboard .tabs .tab');
   await expect(tabs).toHaveCount(5);
@@ -82,7 +82,7 @@ test('the window toggle on / has exactly Today / 7d / 30d / 90d / All', async ({
 });
 
 // ── Drift-pin (d): /insights redirects to / (preserving a tab deep-link) ──────
-test('/insights redirects to the merged hub at /', async ({ page }) => {
+test('/insights redirects to the Insights home at /', async ({ page }) => {
   await page.goto(state.baseURL + '/insights');
   await expect(page).toHaveURL(new RegExp(`${state.baseURL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/$`));
   await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
@@ -97,19 +97,19 @@ test('/insights?tab=explore redirects to /?tab=explore with the Explore tab acti
 
 // ── Drift-pin (e): Overview DOM order KPIs → activity → anomaly tile → charts,
 // the recent-sessions ledger no longer mounts here (moved to /projects, D1),
-// and Top-sessions-by-cost is retired from Overview (CHI-324) ─────────────────
+// and Top-sessions-by-cost is retired from Overview ─────────────────
 test('Overview reading order: KPIs → activity → anomaly → charts → provenance, no band above the KPIs, no ledger or top-sessions', async ({ page }) => {
   await gotoHome(page); // default window is Today, so the Activity block is present
   await expect(page.locator('.home-dashboard .activity-card')).toBeVisible();
-  // The ledger moved to /projects (D1) — it must not mount on this page at all.
+  // The ledger moved to /projects — it must not mount on this page at all.
   await expect(page.locator('.home-dashboard .recent-ledger')).toHaveCount(0);
-  // Top-sessions-by-cost is retired from Overview (CHI-324 — absorbed by the
+  // Top-sessions-by-cost is retired from Overview (— absorbed by the
   // Sessions tab's cost sort); its heading must not appear.
   await expect(page.getByRole('heading', { name: /Top sessions by cost/i })).toHaveCount(0);
   const order = await page.evaluate(() => {
     const root = document.querySelector('.home-dashboard')!;
     // `.burn-card` is the anomaly tile's stable class (kept in place per D6);
-    // `.sot-card` is the full-width spend-over-time chart (CHI-324 review — it
+    // `.sot-card` is the full-width spend-over-time chart (review — it
     // replaced the old `.grid2` [chart | spend-by-model] row on Overview).
     // This check is relative-order only, so a new band would slip past it
     // silently while its name and this comment went false: a pin that still
@@ -145,7 +145,7 @@ test('nothing renders above the KPI strip', async ({ page }) => {
 
 // ── Existing behaviors, retargeted to the merged surface ─────────────────────
 
-test('no horizontal overflow on the hub at 1366', async ({ page }) => {
+test('no horizontal overflow on the home page at 1366', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await gotoHome(page);
   const ok = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -179,7 +179,7 @@ test('live session shows a pulsing dot in the Activity block', async ({ page }) 
     return list.some((w) => w.sessionId === state.sessionId);
   }).toBe(true);
 
-  // Remount the hub via in-app nav (keeps the EventSource open).
+  // Remount the home page via in-app nav (keeps the EventSource open).
   await page.locator('button.sb-item[title="Projects"]').click();
   await expect(page.locator('.projects-page, .empty-state').first()).toBeVisible();
   await page.locator('button.sb-item[title="Insights"]').click();

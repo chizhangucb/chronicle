@@ -1,4 +1,4 @@
-// CHI-286: billed usage must be collapsed on Anthropic's per-API-call key.
+// billed usage must be collapsed on Anthropic's per-API-call key.
 //
 // Claude Code splits ONE API response's content blocks across several transcript
 // lines (an empty `thinking` block, then text, then tool_use), and every one of
@@ -39,7 +39,7 @@ function session(db, id, usage, filePath) {
 }
 
 before(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-chi286-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-usage-dedup-'));
   // A transcript that still exists on disk, so Lane 1 can target it.
   livePath = path.join(dir, 'live-session.jsonl');
   fs.writeFileSync(livePath, '');
@@ -55,7 +55,7 @@ before(async () => {
                            tool_use_id TEXT, model TEXT, input_tokens INTEGER, output_tokens INTEGER,
                            cache_read_tokens INTEGER, cache_w5m_tokens INTEGER, cache_w1h_tokens INTEGER);
     INSERT INTO projects (id, path, name) VALUES (1, '/tmp/p', 'p');
-    -- CHI-223: a database written by an older Chronicle carries the retired
+    -- Legacy shape: a database written by an older Chronicle carries the retired
     -- contract views and the version pragma that gated them. Seed both so the
     -- test below proves opening it clears them.
     CREATE VIEW contract_sessions AS SELECT id FROM sessions;
@@ -107,7 +107,7 @@ after(() => {
 
 const row = (id) => dbModule.db.prepare('SELECT usage, usage_source, imported_at FROM sessions WHERE id = ?').get(id);
 
-describe('CHI-286 backfill', () => {
+describe('backfill', () => {
   test('collapses an adjacent replayed row and rebuilds sessions.usage from the survivors', () => {
     const r = row('dup');
     assert.equal(r.usage_source, 'rederived');
@@ -167,9 +167,9 @@ describe('CHI-286 backfill', () => {
   });
 });
 
-// CHI-223: the contract views are retired. The base tables are the only read
+// Retired: the contract views are gone. The base tables are the only read
 // seam, and an older database that still holds the views loses them on open.
-describe('CHI-223 contract views', () => {
+describe('contract views', () => {
   test('opening an existing database leaves no contract_* view behind', () => {
     const views = dbModule.db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'view'").all().map((r) => r.name);

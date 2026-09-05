@@ -40,7 +40,7 @@ export interface ExploreRow {
   key: string; label: string;
   tokensByModel: Record<string, ModelUsageCell>;
   // Day-bucketed (LOCAL calendar day, YYYY-MM-DD) breakdown of tokensByModel —
-  // CHI-228: lets the client price Spend per day-bucket at that day's rate
+  // Day bucket: lets the client price Spend per day-bucket at that day's rate
   // (e.g. Sonnet 5's intro window) instead of one flat rate for the whole
   // range. Only set for EXACT_USAGE_GROUPS (model/project/source/session),
   // where token magnitude is sourced from sessions.usage; sums across every
@@ -128,7 +128,7 @@ export function pickRollup(
   return 'monthly';
 }
 
-// CHI-324 D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
+// D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
 // tool_name shape) is calibrated exactly like
 // tool/skill: an MCP call is a tool_use row, so its token magnitude is
 // estimated from its text share of the bucket's billed total. A turn can hit
@@ -214,7 +214,7 @@ function addCell(target: Record<string, ModelUsageCell>, model: string, cell: Mo
 // `.` alias so it works against the joined query.
 const mcpServerExpr = (alias: string): string =>
   `substr(${alias}.tool_name, 6, instr(substr(${alias}.tool_name, 6), '__') - 1)`;
-// Model VENDOR (CHI-324 D6) — NOT `source` (that is the TOOL vendor
+// Model VENDOR — NOT `source` (that is the TOOL vendor
 // claude-code/codex/…). Prefix-mapped from the model id; the new stack/pivot
 // axis for spend.
 const providerExpr = (alias: string): string =>
@@ -394,7 +394,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
 
   let usageRows: SessionUsageParsed[] = [];
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
-    // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; CHI-228 day-
+    // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; day-
     // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
     // in-window share of per-message tokens — not loadSessionUsage's raw `sessions.usage`
     // parse, which (even after its own overlapGate fix above) would over-count a spanning
@@ -495,7 +495,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
       FROM messages m ${base} ${g.where} GROUP BY gk
     `).all(...bind()) as unknown as { gk: string|number; chars: number }[];
-    // Calibration base + per-model split come from windowedUsage (Task 2) — the
+    // Calibration base + per-model split come from windowedUsage — the
     // authoritative sessions.usage (input+output = the Insights Tokens KPI, per the 5d
     // "narrow Insights Tokens to input+output" decision) SCALED to the in-window share,
     // NOT per-message assistant sums and not the raw unscaled billed cell — so calibrated
@@ -637,7 +637,7 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   const bs = bucketExpr(effective, 's.started_at');
   // Session scan (used by usage-sourced token magnitude + calibrated billed),
   // bucketed by started_at — a session lands wholly in one bucket. overlapGate
-  // (Task 2) fixes the P0 vanishing bug for rollup token/spend charts too — a
+  // fixes the P0 vanishing bug for rollup token/spend charts too — a
   // spanning session is no longer dropped — but bucket PLACEMENT stays at
   // started_at (unscaled) rather than routing through bucketedUsage: that
   // primitive only supports hour/day granularity, not the weekly/monthly

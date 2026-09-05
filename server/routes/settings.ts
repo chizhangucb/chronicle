@@ -32,7 +32,7 @@ export function mountSettings(app: Express): void {
     if (typeof req.body?.minorActiveMsThreshold === 'number') patch.minorActiveMsThreshold = req.body.minorActiveMsThreshold;
     if (typeof req.body?.minorMessageCountThreshold === 'number') patch.minorMessageCountThreshold = req.body.minorMessageCountThreshold;
     if (typeof req.body?.planWindows === 'boolean') patch.planWindows = req.body.planWindows;
-    // Monthly budget (CHI-366): a positive number sets it; null / 0 / a
+    // Monthly budget: a positive number sets it; null / 0 / a
     // non-finite value clears it back to "no budget set".
     if ('monthlyBudget' in (req.body ?? {})) {
       const raw = req.body.monthlyBudget;

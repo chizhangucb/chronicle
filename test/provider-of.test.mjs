@@ -1,5 +1,5 @@
 // Pins the client provider (model-vendor) mapping to the server SQL cases in
-// server/explore.ts providerExpr (CHI-324 D6). If the SQL prefix rules change,
+// server/explore.ts providerExpr. If the SQL prefix rules change,
 // this must change with them — the two sides MUST agree, else the Explore
 // `provider` dimension and the spend chart's provider stack would disagree.
 import { test } from 'node:test';

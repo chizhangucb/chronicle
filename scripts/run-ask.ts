@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * /ask runner (CHI-351): one operator-initiated question -> one answered turn.
+ * /ask runner: one operator-initiated question -> one answered turn.
  * Rides the headless-runner seam
  * (findClaudeBin, a dedicated runner cwd, extractJson), but the model gets EXACTLY
  * one tool — the read-only SELECT-only query server (scripts/ask-db-mcp.ts) —
- * via the confined invocation verified in the CHI-351 spikes:
+ * via the confined invocation verified in the spikes:
  *
  *   claude -p <prompt> --tools "" --mcp-config <cfg> \
  *          --allowedTools "mcp__chronicledb__query" --strict-mcp-config

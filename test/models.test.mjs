@@ -1,6 +1,6 @@
-// Unit tests for src/models.ts's date-aware pricing (CHI-228): PRICING entries
+// Unit tests for src/models.ts's date-aware pricing: PRICING entries
 // generalize to {to, rates} windows so a model whose list price changed on a
-// known date (Sonnet 5's CHI-110 intro window, $2/$10 through 2026-08-31, then
+// known date (Sonnet 5's intro window, $2/$10 through 2026-08-31, then
 // $3/$15) prices correctly per-day instead of one flat rate for all time.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +53,7 @@ test('costBreakdownOf: cache rates scale with the same window as input/output (5
   assert.ok(Math.abs(post.cacheRead - 3 * 0.1) < 1e-9);
 });
 
-// ---- Real / theoretical cost toggle (CHI-233 Part C) ----
+// ---- Real / theoretical cost toggle ----
 
 test('costOf: mode defaults to theoretical (list price) — no regression for existing callers', () => {
   const usage = { input: 1_000_000, output: 1_000_000 };

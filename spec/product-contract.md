@@ -49,7 +49,7 @@ CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 ## Change triggers
 Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route.
-- **Shrink shipped** (spec #215). Chronicle is a session-analysis tool and nothing else. The ops surfaces (Modules, Safety, Jobs, Briefing, Memory, Records), the hub adapter, the tiered write gate, the Terminal launcher, the proxy spend lane, the machine-sessions manifest, the contract database views and the `hub` CLI subcommand are removed. Chronicle is independent: it reads only its own data folder, the source tools' logs and the operator's git repos.
+- **Shrink shipped** (spec #215). Chronicle is a session-analysis tool and nothing else. The ops surfaces (Modules, Safety, Jobs, Briefing, Memory, Records), the external-checkout adapter, the tiered write gate, the Terminal launcher, the proxy spend lane, the machine-sessions manifest, the contract database views and the retired CLI subcommand are removed. Chronicle is independent: it reads only its own data folder, the source tools' logs and the operator's git repos.
 - **Signed invariant architecture**: hard floors = no telemetry ever + never mutate source transcripts; mutating routes carry the per-boot write token; no-model-in-analysis-path, outbound scope and loopback are posture, not invariants.
 - **Cloud-scale moment.** If Chronicle reaches online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 

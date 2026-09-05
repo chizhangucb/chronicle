@@ -1,4 +1,4 @@
-// E2E for the local-only view log (CHI-325 3a).
+// E2E for the local-only view log.
 //
 // This spec is unusual and deliberately so: the Playwright harness IS an agent,
 // so "does the actor tagging work" is answerable by asking whether THIS run
@@ -58,7 +58,7 @@ test.describe('seeded: navigation is recorded and tagged agent', () => {
     expect(s.routes.map((r: { route: string }) => r.route)).toContain('/');
   });
 
-  test('the hub tab is recorded, so "lives in Spend" is distinguishable from "opened /"', async ({ page }) => {
+  test('the home tab is recorded, so "lives in Spend" is distinguishable from "opened /"', async ({ page }) => {
     await clearLog(page, state.baseURL);
     await page.goto(state.baseURL + '/');
     await expect(page.locator('.home-dashboard .kpis')).toBeVisible();

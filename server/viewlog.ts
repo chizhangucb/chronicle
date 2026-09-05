@@ -1,5 +1,5 @@
 // server/viewlog.ts
-// The local-only view log (CHI-325 3a). Why it exists: the CHI-307 merge
+// The local-only view log. Why it exists: the merge
 // decision had to be made on file mtimes, and they were wrong: the one
 // "human" interaction that day was an automated agent.
 // So Chronicle records its own usage, actor-tagged, and the next question of
@@ -29,12 +29,12 @@ import { db } from './db.ts';
 export type Actor = 'human' | 'agent';
 export type ViewEvent = 'visit' | 'tab' | 'action';
 
-/** A single dwell is capped here (D6). An abandoned tab must read as "15 min",
+/** A single dwell is capped here. An abandoned tab must read as "15 min",
  *  never as the eight hours between closing the laptop and opening it again;
  *  an uncapped dwell would swamp every real reading in the same average. */
 export const DWELL_CEILING_MS = 15 * 60 * 1000;
 
-/** Rolling retention (D8). Pruned on boot, not on write: pruning per row would
+/** Rolling retention. Pruned on boot, not on write: pruning per row would
  *  put a DELETE scan in the navigation path for no benefit. */
 export const RETENTION_DAYS = 180;
 
@@ -42,7 +42,7 @@ export const RETENTION_DAYS = 180;
  *  stale client cannot widen the schema's vocabulary by sending new strings. */
 const EVENTS = new Set<ViewEvent>(['visit', 'tab', 'action']);
 
-/** Key interactions worth recording (D6). An allowlist, not "every click":
+/** Key interactions worth recording. An allowlist, not "every click":
  *  the log is meant to answer which surfaces earn their space, and an
  *  open-ended action stream would turn it into behavioral logging of a kind
  *  nobody asked for. Anything not named here is dropped at write time. */
@@ -108,7 +108,7 @@ export interface ViewLogRow {
 }
 
 /**
- * The read-time collapse (D5). Either verdict saying "agent" makes the row an
+ * The read-time collapse. Either verdict saying "agent" makes the row an
  * agent row: a false "human" is the failure that started all this, so the tie
  * breaks toward agent. Kept as one exported function so the Settings readout,
  * the tests, and any future /ask query cannot each invent their own rule.
@@ -140,7 +140,7 @@ export function serverActor(ua: string | null | undefined, env: NodeJS.ProcessEn
   return AUTOMATION_UA.some((frag) => s.includes(frag)) ? 'agent' : 'human';
 }
 
-/** Demo usage is not usage (D6). Checked at write time so no demo row is ever
+/** Demo usage is not usage. Checked at write time so no demo row is ever
  *  stored, rather than filtered at read time where a later query could forget. */
 function isDemo(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.CHRONICLE_DEMO === '1';
@@ -233,7 +233,7 @@ function median(values: number[]): number | null {
 }
 
 /**
- * The Settings readout (D7). Collapses at read time via collapseActor, and
+ * The Settings readout. Collapses at read time via collapseActor, and
  * reports the MEDIAN human dwell rather than the mean: one forgotten tab
  * sitting at the 15-minute ceiling would drag a mean somewhere dishonest,
  * while a median describes the typical visit.
@@ -272,7 +272,7 @@ export function viewLogSummary(): ViewLogSummary {
   };
 }
 
-/** Operator's Clear button (D7). Everything, no filter: a partial clear would
+/** Operator's Clear button. Everything, no filter: a partial clear would
  *  leave the operator unsure what remains, which defeats the point. */
 export function clearViewLog(): number {
   const before = (db.prepare('SELECT COUNT(*) AS c FROM view_log').get() as unknown as { c: number }).c;
@@ -281,7 +281,7 @@ export function clearViewLog(): number {
 }
 
 /**
- * Rolling retention (D8), run once at boot. Failure must not kill startup: a
+ * Rolling retention, run once at boot. Failure must not kill startup: a
  * stale second process holding a write lock at this exact moment just means
  * the old rows survive until the next boot retries.
  */

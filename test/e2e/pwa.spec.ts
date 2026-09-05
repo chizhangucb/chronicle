@@ -1,7 +1,7 @@
-// PWA bridge pins (CHI-325 3e, decision D10).
+// PWA bridge pins.
 //
 // The manifest is what makes Chrome/Edge offer Install, so Chronicle gets a
-// dock icon and its own window without a native shell (CHI-327 is the real
+// dock icon and its own window without a native shell (is the real
 // one). The NO-service-worker assertion is the load-bearing half: a cached app
 // shell could serve a stale UI after `npx chronicle-cli` pulled a new version,
 // and there is nothing to gain offline from a server on localhost.

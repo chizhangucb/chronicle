@@ -1,4 +1,4 @@
-// CHI-324 2e: computeWaste — cache churn (write>read), right-sizing candidates
+// computeWaste — cache churn (write>read), right-sizing candidates
 // (small premium-model turns), and repeated file reads. Server ships token
 // cells + counts; the client prices. These assert the DETECTION, not dollars.
 import { test, before, after } from 'node:test';

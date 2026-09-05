@@ -1,4 +1,4 @@
-// Global real/theoretical cost toggle (CHI-233 Part C). ONE UI state, provided
+// Global real/theoretical cost toggle. ONE UI state, provided
 // at the app root and read by every surface that prices tokens — because all
 // pricing funnels through src/models.ts costOf, a component only needs the mode
 // value + a memo dependency on it, then passes it into its cost calls.
@@ -52,7 +52,7 @@ export function CostModeToggle(): JSX.Element {
   const { mode, setMode } = useCostMode();
   return (
     <div className="cost-mode-toggle" role="group" aria-label={t('Cost basis')}>
-      {/* CHI-324 cross-cutting: the COST prefix label is removed — the control
+      {/* The COST prefix label is removed — the control
           reads just "List price | Billed". The aria-label carries the meaning. */}
       <button type="button" className={`cm-opt ${mode === 'theoretical' ? 'on' : ''}`}
         aria-pressed={mode === 'theoretical'} onClick={() => setMode('theoretical')}>

@@ -21,7 +21,7 @@ function characteristicRows(page: import('@playwright/test').Page) {
   return page.locator('.card', { has: page.getByRole('heading', { name: 'What your usage says' }) }).locator('.callout');
 }
 
-test('Home hub Content tab (scope=all) renders exactly 7 usage-characteristic rows', async ({ page }) => {
+test('Insights home Content tab (scope=all) renders exactly 7 usage-characteristic rows', async ({ page }) => {
   await page.goto(`${state.baseURL}/`);
   await expect(page.locator('.kpis').first()).toBeVisible();
   // The fixture is pinned to fixed early-August dates; the default Today window

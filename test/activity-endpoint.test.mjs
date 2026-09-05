@@ -11,7 +11,7 @@
 // exactly what the burn/live math sees.
 //
 // `now` is a FIXED noon-UTC instant, injected into the route (mountActivity({now})),
-// NOT the real Date.now() (CHI-389). Anchoring to real time made the "Today"
+// NOT the real Date.now(). Anchoring to real time made the "Today"
 // window only minutes wide just after UTC midnight, where s_left's `ended_at`
 // (now - 9min) crossed to the previous UTC day and inverted against its clamped
 // `started_at` — dropping it from the window and turning main red on CI (UTC) for
@@ -227,7 +227,7 @@ test('burn topSession (Today): the highest-token window session', async () => {
   assert.ok(r.burn.topSessionName);
 });
 
-test('burn window spend + baseline (7d): current 7d vs prior 7d', async () => {
+test('burn window spend + baseline: current 7d vs prior 7d', async () => {
   const r = await getActivity({ days: 7, since: iso(now - 30 * 60000) });
   // current 7d = today(6000) + d1..d6 (21000) = 27000
   assert.equal(tok(r.burn.windowSpendTokensByModel), 27000);

@@ -8,7 +8,7 @@
 // bordered card-grid, which was an unagreed redesign — that guard against the
 // invented `.projects-grid` card treatment still applies below.
 //
-// D1 (Task 9) reshaped the page again: the recent-sessions ledger — "the list
+// D1 reshaped the page again: the recent-sessions ledger — "the list
 // that's always moving is what people actually want to see" (Chi) — moved
 // here from `/` as the MAIN (left) column.
 //
@@ -182,7 +182,7 @@ test('scroll containers keep classic scrollbars: ::-webkit-scrollbar is styled a
   expect(r.scrollbarWidth === 'thin', 'scroll containers must not set scrollbar-width:thin in Chromium (it disables the ::-webkit-scrollbar styling)').toBe(false);
 });
 
-// ── Task 20 (D14) drift-pin: chrome sidebar — same tone as the left app
+// ── Task 20 drift-pin: chrome sidebar — same tone as the left app
 // sidebar, full height, flush to the window's right edge at >=1100px ─────────
 test('right rail renders as chrome: same background tone as the left app sidebar, flush to the viewport right edge', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -236,7 +236,7 @@ test('right rail shows an eyebrow "PROJECTS · N" label and a small Select affor
   await expect(page.locator('.projects-page .right-rail th')).toHaveCount(0);
 });
 
-// ── Task 20 (D14) drift-pin: filter toolbar lives in the content column only,
+// ── Task 20 drift-pin: filter toolbar lives in the content column only,
 // no page h1 ─────────────────────────────────────────────────────────────────
 test('filter toolbar sits in the content column (not spanning under the chrome rail), and there is no page h1', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -259,7 +259,7 @@ test('filter toolbar sits in the content column (not spanning under the chrome r
   await expect(page.locator('.projects-page h1')).toHaveCount(0);
 });
 
-// ── Task 20 (D14) drift-pin: ONE shared command bar for BOTH select flows,
+// ── Task 20 drift-pin: ONE shared command bar for BOTH select flows,
 // mutually exclusive, replacing the old boxed toolbars ────────────────────────
 test('project multi-select: Select enters select mode via the shared command bar, row click toggles instead of navigating, bulk actions are exactly Sync (N) / Remove (N)', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -371,7 +371,7 @@ test('switching project-select -> session-select does not unmount the command ba
   expect(identity.runningEntrance, 'the entrance animation must not replay').toBe(false);
 });
 
-// ── Task 20 (D14) drift-pin: reflow — chrome leaves at <1100px, boxed
+// ── Task 20 drift-pin: reflow — chrome leaves at <1100px, boxed
 // "Projects" section BELOW the ledger (ledger stays first, D1/D13) ───────────
 test('projects layout stacks the ledger above a BOXED "Projects" section below 1100px', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });

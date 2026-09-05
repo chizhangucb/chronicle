@@ -10,7 +10,7 @@ import { readSource } from './helpers/read-source.mjs';
 const FILES = [
   '../src/ProjectDetail.tsx',
   // Home's ledger + project multi-select/rename were split out of the old
-  // HomePage into these files (Task 13); the inline-affordance guard follows.
+  // HomePage into these files; the inline-affordance guard follows.
   '../src/RecentLedger.tsx',
   '../src/ProjectsPage.tsx',
   '../src/HomeDashboard.tsx',

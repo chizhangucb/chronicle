@@ -421,13 +421,13 @@ function writeFixtures(fixtureDir: string): Omit<SeededData, 'dataDir' | 'fixtur
   });
   // todayOnlySessionId: entirely inside the last 40 minutes — the naive-gate
   // control case alongside the spanning session above for window-matrix.spec.ts's
-  // overlap-gate and probes.spec.ts's dense-time-axis (D12) assertions.
+  // overlap-gate and probes.spec.ts's dense-time-axis assertions.
   //
   // These two sessions are seeded relative to seed-`now` (not local midnight),
   // so run in the first ~35 min after local midnight and their activity lands
   // just BEFORE midnight, outside a genuine `[midnight, now]` Today window —
   // this WAS an "accepted low-probability risk" that hit CI twice on PR #143.
-  // CHI-376 neutralizes it: window-matrix.spec.ts freezes its browser clock to
+  // neutralizes it: window-matrix.spec.ts freezes its browser clock to
   // local noon (`page.clock.setFixedTime`), so the Today window is a fixed 12h
   // ending at ~now and always contains both sessions regardless of wall clock.
   // Any spec asserting Today-window DATA against these two must apply the same
@@ -469,7 +469,7 @@ async function importFixtures(
     return f;
   });
 
-  // Writes carry the per-boot write token (CHI-222). The browser client
+  // Writes carry the per-boot write token. The browser client
   // attaches it automatically; this Node-side seed fetch must fetch it first.
   const writeToken = ((await (await fetch(`${baseURL}/api/write-token`)).json()) as { token: string }).token;
   const importRes = await fetch(`${baseURL}/api/import`, {

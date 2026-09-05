@@ -6,7 +6,7 @@
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
 import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
 
-// Mutating methods carry the per-boot write token (CHI-222). Every write in
+// Mutating methods carry the per-boot write token. Every write in
 // the app funnels through j(), so attaching the token here is the whole client
 // half of "token on all writes" — no per-call plumbing.
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -146,8 +146,8 @@ export interface ProjectDetail {
     errors: number;
     commits: number;
     // Was missing from this type despite the server always returning it
-    // (server/routes/projects.ts) -- found while scoping CHI-228, whose fix
-    // touches this exact field. Day-bucketed (BucketedUsageCell, not
+    // (server/routes/projects.ts) -- found while scoping the day-bucketed
+    // pricing fix, which touches this exact field. Day-bucketed (BucketedUsageCell, not
     // WindowedUsageCell) so a session straddling a rate change prices
     // correctly. src/ProjectDetail.tsx's actual fetch uses its own local
     // ProjectDetailData/ProjectAnalytics types, not this one (this type's
@@ -313,7 +313,7 @@ export interface SearchResponse {
 
 // ---- Settings ----
 
-// ---- View log (CHI-325 3a) ----
+// ---- View log ----
 // Mirrors server/viewlog.ts. Local-only: these shapes never travel anywhere but
 // between this client and the localhost server that owns chronicle.db.
 export type ViewLogActor = 'human' | 'agent';
@@ -361,19 +361,19 @@ export interface Settings {
   minorActiveMsThreshold: number;
   minorMessageCountThreshold: number;
   planWindows: boolean;
-  // Monthly spend budget in USD, or null when unset (CHI-366). Server-visible so
+  // Monthly spend budget in USD, or null when unset. Server-visible so
   // the Spend tab reads the same value wherever it is shown.
   monthlyBudget: number | null;
 }
 
-// Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
+// Subscription plan windows — mirrors server/planWindows.ts. One
 // card per ACCOUNT. Codex is local (always); Claude is OUTBOUND + opt-in-off.
 export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
 export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
 export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
 export function planWindowsUrl(): string { return '/api/plan-windows'; }
 
-// ---- /ask (CHI-351): local claude-CLI-backed metric chat over chronicle.db ----
+// ---- /ask: local claude-CLI-backed metric chat over chronicle.db ----
 export interface AskStatus {
   enabled: boolean;      // toggleOn && claudePresent && !demo
   toggleOn: boolean;
@@ -462,7 +462,7 @@ export interface InsightsResult {
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
   // See the WindowedUsageCell/BucketedUsageCell comment above. Day-bucketed
-  // (CHI-228, was WindowedUsageCell[]) so the client can price a range that
+  // (was WindowedUsageCell[]) so the client can price a range that
   // straddles a rate change (e.g. Sonnet 5's intro window) correctly per day.
   windowedTokensByModel: BucketedUsageCell[];
   dailySpend: BucketedUsageCell[];
@@ -471,7 +471,7 @@ export interface InsightsResult {
   hourlySpend: BucketedUsageCell[] | null;
 }
 
-// ---- Home dashboard activity feed (Task 13) — mirrors server/activity.ts ----
+// ---- Home dashboard activity feed — mirrors server/activity.ts ----
 // Every token figure is a per-model CELL; the client prices it via
 // models.ts costOf (the price table stays client-side — hard constraint).
 export interface ActivityTokenCell { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number; }
@@ -483,14 +483,14 @@ export interface ActivitySessionLite {
 }
 export interface ActivityBurn {
   windowSpendTokensByModel: ActivityTokensByModel;
-  // Day-bucketed (CHI-228) breakdown of windowSpendTokensByModel — see
+  // Day-bucketed breakdown of windowSpendTokensByModel — see
   // server/activity.ts's ActivityBurn comment for why only this field (not
   // baseline/topSession) is day-bucketed.
   windowSpendTokensByModelByDay: Record<string, ActivityTokensByModel>;
   baselineTokensByModel: ActivityTokensByModel;
   topSessionId: string | null; topSessionName: string | null;
   topSessionTokensByModel: ActivityTokensByModel;
-  // CHI-324 2c: per-day per-dimension cells for the anomaly tile (client prices
+  // 2c: per-day per-dimension cells for the anomaly tile (client prices
   // → CostedDay[] → shared computeAnomaly), and the local today.
   anomalyDays: AnomalyDayCells[];
   today: string;
@@ -514,7 +514,7 @@ export interface ModelUsageCell { input: number; output: number; cacheRead: numb
 export interface ExploreRow {
   key: string; label: string;
   tokensByModel: Record<string, ModelUsageCell>;
-  // Day-bucketed (CHI-228) breakdown of tokensByModel, for EXACT_USAGE_GROUPS
+  // Day-bucketed breakdown of tokensByModel, for EXACT_USAGE_GROUPS
   // rows (model/project/source/session) only — see server/explore.ts's
   // ExploreRow comment.
   tokensByModelByDay?: Record<string, Record<string, ModelUsageCell>>;
@@ -595,7 +595,7 @@ export type GitFileResult =
   | { content: string | null; previous: string | null; prevCommit: string | null; changedInCommit: boolean }
   | { noRepo: true };
 
-// ---- Pure URL builders (Task 5) ----
+// ---- Pure URL builders ----
 // Kept separate from the fetching `api.*` functions below so `useCachedFetch`
 // (which takes a URL string, not a promise-returning call) can build the
 // exact same query string each surface already builds, then let the hook own
@@ -624,7 +624,7 @@ export function activityUrl(since?: string | null, days?: number | null): string
   const qs = p.toString();
   return '/api/activity' + (qs ? `?${qs}` : '');
 }
-// Efficiency detector counts (CHI-324 2e) — mirrors server/detectors.ts. The
+// Efficiency detector counts — mirrors server/detectors.ts. The
 // client derives + grades the rates (cache hit, jumbo, long context) with the
 // shared thresholds; error rate is derived from /api/insights.
 export interface DetectorCounts {
@@ -641,7 +641,7 @@ export function detectorsUrl(days?: number | null): string {
   return '/api/detectors' + (qs ? `?${qs}` : '');
 }
 
-// Efficiency WASTE signals (CHI-324 2e) — mirrors server/waste.ts. Ships token
+// Efficiency WASTE signals — mirrors server/waste.ts. Ships token
 // cells + counts; the client prices the premium / savings / wasted-$.
 export interface WasteChurnSession { session: string; project: string; writeTokens: number; readTokens: number; byModel: Record<string, { cw5m: number; cw1h: number }>; }
 export interface WasteRightSizingModel { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
@@ -703,7 +703,7 @@ export const api = {
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
-  // /ask (CHI-351)
+  // /ask
   askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
   askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),
   postAsk: (question: string, costMode: AskCostMode): Promise<{ turn: AskTurn }> => j('/api/ask', {
@@ -739,13 +739,13 @@ export const api = {
   explore: (q: ExploreQueryParams): Promise<ExploreResult> => j(exploreUrl(q)),
   content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
-  // View log (CHI-325 3a). The POST is batched (a navigation closes the previous
+  // View log. The POST is batched (a navigation closes the previous
   // dwell and opens the next), and it rides j() so the write token is attached —
   // server/api.ts 403s every non-GET without it.
   viewLog: (events: ViewLogEventInput[], closes: ViewLogClose[] = []): Promise<{ ids: (number | null)[]; recorded: number; closed: number; enabled: boolean }> =>
     j('/api/view-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events, closes }) }),
   viewLogSummary: (): Promise<ViewLogSummary> => j('/api/view-log/summary'),
-  // Demo mode (CHI-325 3c). `available` is false under `npm run dev`, where
+  // Demo mode. `available` is false under `npm run dev`, where
   // there is no CLI to restart the process.
   demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),
   demoStart: (): Promise<{ ok: true; restarting: boolean }> =>

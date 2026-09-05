@@ -4,7 +4,7 @@ import { cached } from '../cache.ts';
 
 // `opts.now` pins the wall clock the burn/window math reads; omitted in
 // production (real Date.now()), a test passes a fixed instant so it is not
-// coupled to the real time of day (CHI-389).
+// coupled to the real time of day.
 export function mountActivity(app: Express, opts: { now?: number } = {}): void {
   // Home dashboard feed (live + since-you-left rows, burn tile). Cached by full
   // request URL (encodes `since`+`days`); the generation-keyed cache (cache.ts)

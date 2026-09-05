@@ -1,5 +1,5 @@
-// Unit tests for the ported shared spend math (CHI-324 2a): anomaly detection
-// (shared/spend/anomaly.ts, ported from Varde computeAnomaly) and budget
+// Unit tests for the shared spend math: anomaly detection
+// (shared/spend/anomaly.ts) and budget
 // posture (shared/spend/budget.ts). Both are pure over already-costed day
 // series; these assert the algorithm, not pricing.
 import { test } from 'node:test';

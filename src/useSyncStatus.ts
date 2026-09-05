@@ -10,7 +10,7 @@ export interface SyncStatusText {
   running: boolean;
   failed: boolean;
   // Manual trigger: POSTs /api/autosync/run then immediately re-polls status.
-  // Rendered in the topbar (Task 17) so "synced Xm ago" is clickable from
+  // Rendered in the topbar so "synced Xm ago" is clickable from
   // every page, in addition to the existing invisible background sync.
   runNow: () => void;
 }

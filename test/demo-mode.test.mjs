@@ -1,4 +1,4 @@
-// Pins for full-product demo mode (CHI-325 3c, decision D9/D13).
+// Pins for full-product demo mode.
 //
 // The properties that matter, in order:
 //   1. Demo makes NO outbound call. Plan windows are the only outbound path in
@@ -49,7 +49,7 @@ test('the demo data dir is under the OS temp dir, never ~/.chronicle', () => {
 test('the demo data dir is keyed by DAY, so a cached demo cannot go stale', () => {
   // A cache with no date in the key would keep serving a database whose newest
   // session ages out of the Today window, which is the exact failure that made
-  // committing dated transcripts the wrong call (D13).
+  // committing dated transcripts the wrong call.
   const today = demoDataDir(new Date('2026-08-27T12:00:00'));
   const tomorrow = demoDataDir(new Date('2026-08-28T12:00:00'));
   assert.notEqual(today, tomorrow);

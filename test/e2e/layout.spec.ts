@@ -259,13 +259,13 @@ test.describe('(c) Refine by-type chips', () => {
 });
 
 // ── (d) Sessions tab table: no horizontal cutoff at any width ──────────────
-// The Overview "Top sessions by cost" table was RETIRED (CHI-324); its
+// The Overview "Top sessions by cost" table was RETIRED; its
 // successor is the Sessions tab's ONE flat sessions table. Overflow guards
 // retargeted there.
 
 async function gotoSessionsTab(page: Page): Promise<void> {
   await page.goto(`${state.baseURL}/?tab=sessions`);
-  await expect(page.locator('.sessions-hub .sh-sessions-table')).toBeVisible();
+  await expect(page.locator('.sessions-tab .sh-sessions-table')).toBeVisible();
 }
 
 for (const width of WIDTHS) {
@@ -285,7 +285,7 @@ for (const width of WIDTHS) {
 test('(d) the Sessions table sits inside a .pane so it scrolls internally, not the page', async ({ page }) => {
   await gotoSessionsTab(page);
   const wrapped = await page.evaluate(() => {
-    const table = document.querySelector('.sessions-hub .sh-sessions-table');
+    const table = document.querySelector('.sessions-tab .sh-sessions-table');
     const pane = table?.closest('.pane');
     if (!pane) return false;
     const cs = getComputedStyle(pane);

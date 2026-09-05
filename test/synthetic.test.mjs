@@ -1,5 +1,5 @@
 // Unit tests for shared/synthetic.ts — the ONE "not a human turn" predicate
-// (CHI-368). Pins that the exact leaked wrappers seen on the real-data walk are
+//. Pins that the exact leaked wrappers seen on the real-data walk are
 // classified synthetic, and that a genuine prompt merely quoting a tag is NOT.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { isSyntheticUserText, SYNTHETIC_USER_RE } from '../shared/synthetic.ts';
 
 test('isSyntheticUserText: true for every synthetic / IPC wrapper', () => {
   const synthetic = [
-    // the two forms that leaked as session names on the CHI-324 phase-2 walk
+    // the two forms that leaked as session names on the phase-2 walk
     'Another Claude session sent a message:\n<cross-session-message from="uds:/tmp/cc-socks/86448.sock" from-name="chronicle-3f">hi</cross-session-message>',
     '<cross-session-message from="x">hi</cross-session-message>',
     '<command-message>grill-me</command-message> <command-name>/grill-me</command-name>',
