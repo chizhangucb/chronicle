@@ -5,18 +5,16 @@
 // "the page rendered": a tip's "full definition" link must land on the entry
 // whose text matches what the tip said.
 //
-// NOT hub-conditional (D4), so everything here runs on the seeded server with
-// no hub, which is also the stock public-install shape.
+// Everything here runs on the seeded server, which is the stock
+// public-install shape.
 import { test, expect } from '@playwright/test';
 import { readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 
 test.describe('/reference', () => {
-  test('is reachable with no hub, from the sb-bottom util group', async ({ page }) => {
+  test('is reachable from the sb-bottom util group', async ({ page }) => {
     await page.goto(state.baseURL + '/');
-    // Stock install: no hub, so the ops nav is absent but Reference is present.
-    await expect(page.locator('.sidebar .sb-item[title="Safety"]')).toHaveCount(0);
     const ref = page.locator('.sidebar .sb-bottom .sb-item[title="Reference"]');
     await expect(ref).toHaveCount(1);
     await ref.click();

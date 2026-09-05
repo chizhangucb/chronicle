@@ -9,10 +9,8 @@ import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
-import SafetyPage from './SafetyPage.tsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
-import { useHubStatus } from './useHubStatus.ts';
 import { useAskStatus } from './useAskStatus.ts';
 import { useViewLog } from './useViewLog.ts';
 import Modal from './Modal.tsx';
@@ -66,17 +64,11 @@ export default function App() {
   const [atProjContent, pcParams] = useRoute('/project/:id/content');
   const [atSession, sessionParams] = useRoute('/session/:id');
   // `/insights` is the OLD Insights URL (may be bookmarked). It now redirects to
-  // `/` (the merged Home/Insights hub), preserving a `?tab=` deep-link if present.
+  // `/` (the merged Home/Insights view), preserving a `?tab=` deep-link if present.
   const [atInsights] = useRoute('/insights');
-  // Ops routes (CHI-323) are hub-conditional: rendered only when the hub adapter
-  // reports present (live or demo). Hidden + unreachable when absent.
-  const [atSafety] = useRoute('/safety');
   const [atAsk] = useRoute('/ask');
-  // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
-  // stock public install with no hub still has it.
+  // Reference (CHI-325 3b, D4): product vocabulary, always present.
   const [atReference] = useRoute('/reference');
-  const hub = useHubStatus();
-  const hubPresent = hub?.present ?? false;
   const { status: askStatus, refresh: refreshAsk } = useAskStatus();
   const askEnabled = askStatus?.enabled ?? false;
   const search = useSearch();
@@ -90,7 +82,7 @@ export default function App() {
   // Local-only view log (CHI-325 3a). Mounted ONCE here so every route change in
   // the app funnels through one recorder. The tab argument is what lets the log
   // distinguish "opened /" from "lives in the Spend tab" — the actual question
-  // when deciding whether a tab earns its space. Hub tabs are a `?tab=` param;
+  // when deciding whether a tab earns its space. Home tabs are a `?tab=` param;
   // the project view's Explore/Content are their own routes, so they are read
   // off the path instead.
   const viewTab = atHome || atInsights
@@ -123,7 +115,7 @@ export default function App() {
   }, []);
   useEffect(() => { if (atHome || atProjects) refresh(); }, [atHome, atProjects, refresh]);
 
-  // Redirect the old `/insights` URL to the merged hub at `/`, preserving a
+  // Redirect the old `/insights` URL to the merged home at `/`, preserving a
   // `?tab=` deep-link (`/insights?tab=explore` → `/?tab=explore`). `replace`
   // keeps it out of history so Back doesn't bounce between the two.
   useEffect(() => {
@@ -200,14 +192,6 @@ export default function App() {
             onClick={() => navigate('/projects')}>
             <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
           </button>
-          {/* Ops nav (CHI-323): hub-conditional. Rendered only when the hub is
-              present (live or demo); hidden when absent. Enumerable: spec/surface-contract.md */}
-          {hubPresent && (
-            <button className={`sb-item ${atSafety && !rail ? 'on' : ''}`} title={t('Safety')}
-              onClick={() => navigate('/safety')}>
-              <span className="sb-icon">⊘</span><span className="sb-label">{t('Safety')}</span>
-            </button>
-          )}
           {rail && (
             <>
               <div className="sb-sep" />
@@ -230,8 +214,8 @@ export default function App() {
           {/* Ask (CHI-351): its OWN one-item group at the top of sb-bottom,
               fenced by a separator above AND below, signalling a cross-cutting
               capability (not nav, not chrome). Renders ONLY when enabled
-              server-side (Settings toggle + claude CLI + non-demo). Not
-              hub-conditional. Enumerable: spec/surface-contract.md */}
+              server-side (Settings toggle + claude CLI + non-demo).
+              Enumerable: spec/surface-contract.md */}
           {askEnabled && (
             <>
               <div className="sb-sep" />
@@ -310,7 +294,6 @@ export default function App() {
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
-        {atSafety && <SafetyPage />}
         {atReference && <ReferencePage />}
         {atAsk && (askEnabled
           ? <AskPage />

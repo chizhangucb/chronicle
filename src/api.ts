@@ -408,7 +408,7 @@ export interface AutosyncStatus {
   lastResult: { ok: true; imported: number; checked: number; ms: number } | { ok: true; skipped: string } | { ok: false; error: string } | null;
 }
 
-// ---- Insights (global cross-project hub, Task 5d-4) ----
+// ---- Insights (global cross-project rollup, Task 5d-4) ----
 
 // Mirrors server/insights.ts InsightsSessionRow/InsightsResult.
 export interface InsightsSessionRow {
@@ -658,79 +658,12 @@ export function wasteUrl(days?: number | null): string {
   return '/api/waste' + (qs ? `?${qs}` : '');
 }
 
-// Routing-compliance roster (CHI-324 2e) — mirrors server/routing.ts. Just the
-// curated model families; the client classifies the window's models on/off
-// roster and prices from /api/insights. Hub-conditional.
-export interface RosterResult { present: boolean; families: string[]; }
-export function routingUrl(): string { return '/api/routing'; }
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
   if (id != null) p.set('id', String(id));
   if (days) p.set('days', String(days));
   return '/api/content?' + p.toString();
 }
-
-// ---- Hub adapter (CHI-323) ----
-export type HubMode = 'live' | 'demo' | 'absent';
-export interface HubStatus {
-  present: boolean;
-  mode: HubMode;
-  root?: string | null;
-  reason?: string;
-}
-
-// Safety (organ 1d)
-export interface SafetyNetView {
-  found: boolean;
-  gateConfig: { enabled: boolean; spend_per_tx_cap: number | null; spend_per_session_cap: number | null; unclassified_deny_daily_cap: number | null } | null;
-  classification: { tools: { name: string; class: string }[] } | null;
-  markers: { categories: { category: string; count: number }[] };
-  proxyServers: { names: string[] } | null;
-}
-export interface GapView {
-  id: string; kind: 'actionable' | 'watch'; title: string; exposure: string; acceptedWhy: string;
-  acceptedDate: string; blastRadius: string; closingEdit?: { surface: string; label: string };
-  revisitTrigger?: string; links: string[];
-}
-export interface SafetyGapsView {
-  header: string; actionable: GapView[]; watch: GapView[];
-  posture: { classificationRules: number; markerCategories: { category: string; count: number }[]; spendCaps: Record<string, number | null>; egressEnabled: boolean };
-}
-export interface PushPinView {
-  repo: string;
-  visibility: 'public' | 'private' | null;
-  remoteUrls: string[];
-  branches: string[];
-  anyBranch: boolean;
-  confidentialOk: boolean;
-  featurePushOk: boolean;
-  prProtectedBranches: string[];
-  leakScrub: boolean;
-  scrubWhitelistCount: number;
-}
-export interface PushPinDefaultsView {
-  ownerUrlPattern: string;
-  visibility: 'public' | 'private' | null;
-  branches: string[];
-  featurePushOk: boolean;
-  prProtectedBranches: string[];
-  leakScrub: boolean;
-  scrubWhitelistCount: number;
-}
-export interface GatingPolicyView {
-  found: boolean;
-  pushPins: PushPinView[];
-  pushPinDefaults: PushPinDefaultsView | null;
-}
-export interface SafetyResult {
-  safetyNet: SafetyNetView;
-  gaps: SafetyGapsView;
-  egress: { enabled: boolean; gateConfigFound: boolean };
-  gatingPolicy: GatingPolicyView;
-}
-export type HubSafetyResult = SafetyResult | { hubPresent: false };
-
-
 
 export const api = {
   scan: (params?: ScanParams): Promise<ScanResult> =>
@@ -770,9 +703,6 @@ export const api = {
   }),
   autosyncStatus: (): Promise<AutosyncStatus> => j('/api/autosync/status'),
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
-  // Hub adapter (CHI-323): ops surfaces read these. status gates all ops nav.
-  hubStatus: (): Promise<HubStatus> => j('/api/hub/status'),
-  hubSafety: (): Promise<HubSafetyResult> => j('/api/hub/safety'),
   // /ask (CHI-351)
   askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
   askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),

@@ -208,13 +208,12 @@ export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }
 
   const proc = spawn(process.execPath, [path.join(REPO_ROOT, 'server', 'standalone.ts')], {
     cwd: REPO_ROOT,
-    // Force the seeded harness hub-ABSENT (CHI-323): clear any hub env the dev's
-    // shell might carry, so the ops nav is deterministically hidden and the
-    // "sidebar = exactly Insights + Projects" pin holds. Demo/live coverage runs
-    // in its own launcher (launchDemo) + the 1h demo walk.
+    // A stock install: demo mode explicitly off, so the seeded harness is the
+    // shape a stranger gets. Demo coverage runs in its own launcher
+    // (launchDemo) + the 1h demo walk.
     env: {
       ...process.env, CHRONICLE_DATA_DIR: dataDir, CHRONICLE_E2E: '1', PORT: String(port),
-      AIOS_HUB: '', CHRONICLE_HUB: '', CHRONICLE_DEMO: '',
+      CHRONICLE_DEMO: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -273,10 +272,9 @@ export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDi
 
 export interface DemoServer { baseURL: string; proc: ChildProcess; dataDir: string; }
 
-/** Launch a standalone server in DEMO mode (CHRONICLE_DEMO=1): the hub adapter
- * serves synthetic ops slices, so ops routes render against generic-fictional
- * data with no real hub. Used by ops-surface specs to exercise the pages a
- * hub-absent seeded run keeps hidden (CHI-323). Caller stops it in afterAll. */
+/** Launch a standalone server in DEMO mode (CHRONICLE_DEMO=1): synthetic
+ * sessions and projects, so a zero-data console still renders a populated
+ * product. Caller stops it in afterAll. */
 export async function launchDemo(): Promise<DemoServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-demo-'));
   const port = await findFreePort();
@@ -290,7 +288,7 @@ export async function launchDemo(): Promise<DemoServer> {
   proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
   proc.stderr?.on('data', (d: Buffer) => { out += d.toString(); });
   proc.on('exit', (code) => { if (code !== null && code !== 0) console.error(`demo server exited (${code}):\n${out}`); });
-  await waitForServer(`${baseURL}/api/hub/status`, 30_000);
+  await waitForServer(`${baseURL}/api/settings`, 30_000);
   return { baseURL, proc, dataDir };
 }
 

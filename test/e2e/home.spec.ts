@@ -14,7 +14,7 @@
 // Flake discipline: every wait is on a visible DOM condition (auto-retrying
 // `expect`), never a bare sleep.
 import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
 
 const state = readSeedState();
 
@@ -35,6 +35,32 @@ test('sidebar top nav has exactly Insights and Projects, no Home entry', async (
   await expect(page.locator('.sidebar .sb-item[title="Home"]')).toHaveCount(0);
   // The old ⌂ Home glyph is gone from the chrome.
   await expect(page.locator('.sidebar')).not.toContainText('⌂');
+});
+
+// ── Drift-pin (a2): the sidebar is UNCONDITIONAL (#221) ──────────────────────
+// Before the shrink the ops nav rendered only when a hub adapter reported
+// present, so demo and stock installs had different sidebars. Nothing is
+// hub-conditional any more: a demo install must show the same two top items and
+// no Safety entry. Runs against its own demo server, since the seeded harness
+// is a stock install by construction.
+test.describe('demo install: the sidebar matches a stock install', () => {
+  let demo: DemoServer;
+  test.beforeAll(async () => { demo = await launchDemo(); });
+  test.afterAll(() => { if (demo) stopDemo(demo); });
+
+  test('sb-top is exactly Insights + Projects, with no Safety entry', async ({ page }) => {
+    await page.goto(demo.baseURL + '/');
+    const items = page.locator('.sidebar .sb-top .sb-item');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toHaveAttribute('title', 'Insights');
+    await expect(items.nth(1)).toHaveAttribute('title', 'Projects');
+    await expect(page.locator('.sidebar .sb-item[title="Safety"]')).toHaveCount(0);
+  });
+
+  test('/safety is unrouted and shows the not-found page', async ({ page }) => {
+    await page.goto(demo.baseURL + '/safety');
+    await expect(page.locator('.safety-page')).toHaveCount(0);
+  });
 });
 
 // ── Drift-pin (b): `/` shows exactly the five CHI-324 hub tabs ────────────────

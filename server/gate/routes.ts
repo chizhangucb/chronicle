@@ -1,15 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Express, Request, Response, NextFunction, RequestHandler } from 'express';
-import { Gate, GateError, type HubApply, type Proposal } from './core.ts';
+import { Gate, GateError, type Proposal } from './core.ts';
 import { SURFACES } from './surfaces.ts';
 import { sqliteAuditStore } from './audit-store.ts';
 import { launchdAction, listJobs } from './launchd.ts';
 import { viewOf } from './validate.ts';
-import { resolveHub } from '../hub/resolve.ts';
 
 /**
  * Gate transport (ported from Varde, CHI-323 part 2): express routes on the
@@ -31,35 +29,6 @@ function dataDir(): string {
   return process.env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
 }
 
-/**
- * Hub-script runner: shells out to the hub's apply_edit.py (the satellite never
- * opens a hub file for write). Undefined without a live hub (port fix (a): the
- * script is resolved under the ADAPTER's root, not Varde's env fallback), which
- * renders the hub surfaces disabled with the reason.
- */
-function makeHubApply(): HubApply | undefined {
-  const hub = resolveHub();
-  if (hub.mode !== 'live' || !hub.root) return undefined;
-  const script = join(hub.root, 'scripts', 'egress_gate', 'apply_edit.py');
-  if (!existsSync(script)) return undefined;
-  return (payload) => {
-    const r = spawnSync('python3', [script], {
-      input: JSON.stringify(payload),
-      encoding: 'utf-8',
-      timeout: 30_000,
-    });
-    try {
-      return JSON.parse(r.stdout || '{}');
-    } catch {
-      return {
-        ok: false,
-        error: `apply_edit.py produced no parseable result (exit ${r.status}): ${(r.stderr || r.stdout || '').trim()}`,
-        fix: 'run the script by hand to see the failure',
-      };
-    }
-  };
-}
-
 /** Tier 2 second channel: hermes send to Telegram. A failed send is a loud
  * propose error in core.ts, never a silent no-op. */
 function hermesSend(message: string): { ok: boolean; reason?: string } {
@@ -77,21 +46,17 @@ function hermesSend(message: string): { ok: boolean; reason?: string } {
 }
 
 /** The console's gate: the shipped surface registry, audit in the gate_audit
- * table, backups in the app home, hub root fed from the adapter, launchd action
- * on macOS only. */
+ * table, backups in the app home, launchd action on macOS only. */
 export function makeConsoleGate(): Gate {
-  const hub = resolveHub();
   return new Gate({
     repoRoot: fileURLToPath(new URL('../..', import.meta.url)),
     audit: sqliteAuditStore(),
     backupDir: join(dataDir(), 'gate-backups'),
     surfaces: SURFACES,
-    demo: hub.mode === 'demo', // inert for writes in demo (never touches real machine state)
-    hubRoot: hub.mode === 'live' && hub.root ? hub.root : undefined,
+    demo: process.env.CHRONICLE_DEMO === '1', // inert for writes in demo (never touches real machine state)
     // launchd is macOS-only; elsewhere the surface renders disabled with the
     // reason (graceful degradation, never a hidden failure).
     actions: process.platform === 'darwin' ? { 'launchd-jobs': launchdAction } : {},
-    hubApply: makeHubApply(),
     secondChannelSend: hermesSend,
   });
 }

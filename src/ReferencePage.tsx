@@ -8,8 +8,7 @@ import { t } from './i18n.js';
 // page can never drift from what the surfaces say. That is the whole reason it
 // exists as a registry rather than an authored document.
 //
-// NOT hub-conditional (D4): this is product vocabulary, not hub data, so a
-// stock public install with no hub still has it.
+// Product vocabulary, not per-install data, so every install has it.
 //
 // The `retired` group is deliberate. The Chronicle/Varde merge (CHI-322)
 // dropped some surfaces; the decision was that the vocabulary survives even

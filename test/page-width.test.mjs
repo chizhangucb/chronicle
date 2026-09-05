@@ -21,7 +21,6 @@ const css = readSource(
 
 /** Every non-dashboard surface. Dashboards are full bleed and carry no cap. */
 const FRAMED = [
-  '.safety-page',
   '.reference-page',
 ];
 

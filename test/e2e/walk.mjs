@@ -61,22 +61,7 @@ function parseCliArgs() {
 // buildRoutes below), so a fresh/empty Chronicle instance still produces a
 // complete (if mostly-errored) report rather than crashing.
 async function discoverContext(base) {
-  const ctx = { projectId: null, sessionId: null, hubPresent: false, hubMode: 'absent', notes: [] };
-  // Hub adapter status (CHI-323): the /safety ops route renders only when the
-  // hub is present (live or demo). A walk against a stock no-hub instance simply
-  // omits it; run the walk against a CHRONICLE_DEMO=1 (or live-hub) server to
-  // cover it.
-  try {
-    const res = await fetch(`${base}/api/hub/status`);
-    if (res.ok) {
-      const s = await res.json();
-      ctx.hubPresent = s.present === true;
-      ctx.hubMode = s.mode ?? 'absent';
-      if (!ctx.hubPresent) ctx.notes.push('hub absent -> the /safety ops route skipped; run against CHRONICLE_DEMO=1 to cover it');
-    }
-  } catch (err) {
-    ctx.notes.push(`hub status probe failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const ctx = { projectId: null, sessionId: null, notes: [] };
   try {
     const res = await fetch(`${base}/api/projects`);
     if (!res.ok) throw new Error(`GET /api/projects -> ${res.status}`);
@@ -255,20 +240,6 @@ function buildRoutes(base, ctx) {
       await page.waitForSelector('.search-modal', { timeout: NAV_TIMEOUT_MS });
     },
   });
-
-  // ---- Hub-conditional ops routes (CHI-323). Only reachable when the hub is
-  // present (live or demo); a no-hub walk omits them entirely (they are not
-  // errors — the nav item does not render). Run the walk against CHRONICLE_DEMO=1
-  // to cover them.
-  if (ctx.hubPresent) {
-    routes.push({
-      slug: 'safety',
-      async setup(page) {
-        await page.goto(`${base}/safety`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('.safety-page, .page.center', { timeout: NAV_TIMEOUT_MS });
-      },
-    });
-  }
 
   routes.push({
     slug: 'select-mode',
