@@ -21,3 +21,11 @@ export const LEGACY_LAYOUT = /scripts\/litellm|scripts\/tests\/test_(litellm|lan
 
 /** `hub `scripts/...`` style location headers. */
 export const HUB_LOCATION = /\bhub\s+`/i;
+
+/** Ticket ids from the private tracker. A reader who is not Chi cannot open
+ *  one, so prose citing them is prose that dead-ends (issue #187). */
+export const PRIVATE_TICKET = /\bCHI-\d+/;
+
+/** A sibling repo named as a consumer of this repo's data. Nobody outside can
+ *  follow the reference, and the coupling it implies is not ours to document. */
+export const FOREIGN_CONSUMER = /\bvarde\b|aggregator\/sources/i;

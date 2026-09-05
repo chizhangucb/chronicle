@@ -11,7 +11,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION } from './helpers/hub-strings.mjs';
+import {
+  HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION, PRIVATE_TICKET, FOREIGN_CONSUMER,
+} from './helpers/hub-strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
@@ -30,7 +32,6 @@ const RUNTIME_FILES = [
   'litellm/refresh_roster.py',
   'litellm/.env.example',
   'litellm/README.md',
-  'litellm/product-contract.md',
   'launchd/com.chronicle.litellm.plist.template',
 ];
 
@@ -413,4 +414,49 @@ print(len(changes))`], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRIT
   assert.match(out, /\$0\.50 \/ \$1\.50/);
   assert.match(out, /\| 131072 \|/);
   assert.match(out, /workhorse/, 'a judgment column was rewritten');
+});
+
+// --- The runbook reads for a stranger (issue #187) -------------------------
+// A contributor who is not Chi has no Linear, no sibling repo and no hub. Every
+// reference in litellm/ has to resolve from this repository alone.
+
+const litellmFiles = () =>
+  execFileSync('git', ['ls-files', '--', 'litellm'], { cwd: REPO, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
+
+test('nothing in litellm/ cites a ticket id a stranger cannot open', () => {
+  const offenders = litellmFiles().filter((rel) => PRIVATE_TICKET.test(read(rel)));
+  assert.deepEqual(offenders, [], `private ticket ids are back in: ${offenders}`);
+});
+
+test('nothing in litellm/ names another repo as the reader of the spend log', () => {
+  const offenders = litellmFiles().filter((rel) => FOREIGN_CONSUMER.test(read(rel)));
+  assert.deepEqual(offenders, [], `an out-of-repo consumer is back in: ${offenders}`);
+});
+
+test('the runbook is the single file: no second product contract beside it', () => {
+  const files = litellmFiles();
+  assert.ok(files.includes('litellm/README.md'), 'the runbook is not tracked');
+  const contracts = files.filter((rel) => /product-contract/.test(rel));
+  assert.deepEqual(contracts, [], `a second contract is tracked again: ${contracts}`);
+  // Folded in, not dropped: the shape the contract carried still has to be read
+  // out of the runbook.
+  const runbook = read('litellm/README.md');
+  for (const heading of ['Surfaces', 'Owned data', 'Invariants', 'Non-goals']) {
+    assert.match(runbook, new RegExp(`^#+ .*${heading}`, 'mi'), `runbook lost: ${heading}`);
+  }
+});
+
+test('the runbook cites only guard tests that exist and only names in this repo', () => {
+  const runbook = read('litellm/README.md');
+  for (const [, cited] of runbook.matchAll(/`(test\/[^`]+\.mjs)`/g)) {
+    assert.ok(fs.existsSync(path.join(REPO, cited)), `runbook cites a missing test: ${cited}`);
+  }
+  // The runbook tells you to CREATE these; they are gitignored, so absence is correct.
+  const created = new Set(['litellm/.env']);
+  for (const [, cited] of runbook.matchAll(/`((?:server|src|shared|scripts|launchd|litellm)\/[^`$*<\s\[]+)`/g)) {
+    if (created.has(cited)) continue;
+    assert.ok(fs.existsSync(path.join(REPO, cited)), `runbook cites a missing path: ${cited}`);
+  }
 });
