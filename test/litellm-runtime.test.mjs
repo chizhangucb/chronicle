@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import {
   HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION, PRIVATE_TICKET, FOREIGN_CONSUMER,
 } from './helpers/hub-strings.mjs';
+import { skipWithoutPython } from './helpers/python.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
@@ -248,7 +249,7 @@ const py = (code, env) =>
 
 test('the spend logger defaults into Chronicle data dir, honours LANE_C_SPEND_LOG', async (t) => {
   const probe = py('import lane_c_spend_logger as m; print(m.default_spend_path())', {});
-  if (probe.error) return t.skip('no python3');
+  if (skipWithoutPython(t, probe)) return;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanec-py-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -283,7 +284,7 @@ log.log_success_event({'standard_logging_object': {
   'response': {'provider': 'Fireworks', 'choices': [{'message': {'content': 'SECRET'}}]},
 }}, None, None, None)
 print(log.path)`, { CHRONICLE_DATA_DIR: dir, LANE_C_SPEND_LOG: '' });
-  if (r.error) return t.skip('no python3');
+  if (skipWithoutPython(t, r)) return;
   assert.equal(r.status, 0, r.stderr);
 
   const written = r.stdout.trim();
@@ -381,7 +382,7 @@ test('refresh_roster runs from a fresh clone and says what to configure', (t) =>
       CHRONICLE_HUB: '', CHRONICLE_ROSTER_MD: '',
     },
   });
-  if (r.error) return t.skip('no python3');
+  if (skipWithoutPython(t, r)) return;
   assert.equal(r.status, 2, `expected a clean config exit, got ${r.status}: ${r.stderr}`);
   assert.match(r.stderr, /no roster file configured/);
   assert.match(r.stderr, /CHRONICLE_ROSTER_MD/);
@@ -408,7 +409,7 @@ p = pathlib.Path(${JSON.stringify(md)})
 new, changes = rr.update_roster_table(p.read_text(), catalog)
 p.write_text(new)
 print(len(changes))`], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
-  if (r.error) return t.skip('no python3');
+  if (skipWithoutPython(t, r)) return;
   assert.equal(r.status, 0, r.stderr);
   const out = fs.readFileSync(md, 'utf8');
   assert.match(out, /\$0\.50 \/ \$1\.50/);

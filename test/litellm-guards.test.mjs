@@ -10,7 +10,8 @@
 // python3 is not optional here: on a machine without it these would silently
 // skip, and "the promise is guarded" would be a claim nothing checks. CI sets
 // CHRONICLE_REQUIRE_PYTHON=1, which turns a missing interpreter into a failure
-// instead of a skip. Locally, absence still skips.
+// instead of a skip; test/helpers/python.mjs holds that rule for both suites.
+// Locally, absence still skips.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -18,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipWithoutPython } from './helpers/python.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LITELLM = path.join(REPO, 'litellm');
@@ -39,16 +41,12 @@ function py(code, env = {}) {
   });
 }
 
-// Returns the completed run, or skips (locally) / fails (in CI) with no python3.
+// Returns the completed run, or null when there is no python3 to run it. The
+// skip-or-fail rule is shared with test/litellm-runtime.test.mjs so it cannot
+// hold in one suite and lapse in the other.
 function run(t, code, env) {
   const r = py(code, env);
-  if (r.error) {
-    if (process.env.CHRONICLE_REQUIRE_PYTHON) {
-      assert.fail(`python3 is required here but did not run: ${r.error.message}`);
-    }
-    t.skip('no python3');
-    return null;
-  }
+  if (skipWithoutPython(t, r)) return null;
   assert.equal(r.status, 0, `python3 exited ${r.status}: ${r.stderr}`);
   return r;
 }
