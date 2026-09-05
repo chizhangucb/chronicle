@@ -1828,82 +1828,6 @@ h4 { margin: 6px 0; }
    if they were direct `.command-bar` children. */
 .command-bar-slot { display: contents; }
 
-/* ---- Modules ops surface (CHI-323 3a) ---- */
-.modules-page { max-width: var(--page-max); }
-.modules-lede { margin: 4px 0 16px; }
-/* The two-column split exists ONLY when a module is selected and there is a
-   detail panel to split with. Unconditionally reserving the right column left
-   the table at 58% of the page with dead space beside it, so Modules read as
-   narrower than Jobs and Records at the identical tier (Chi, 2026-08-28). */
-.modules-layout { display: grid; grid-template-columns: 1fr; gap: var(--gap-4); }
-@media (min-width: 960px) {
-  .modules-layout.split { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
-}
-.modules-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.modules-table th {
-  text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px;
-  text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border);
-}
-.modules-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-.modules-row { cursor: pointer; transition: background 0.12s; }
-.modules-row:hover { background: var(--bg1); }
-.modules-row.on { background: var(--bg2); }
-.modules-name { font-weight: 600; color: var(--ink); }
-/* No hard clamp: at full width the column should use the room it has. */
-.modules-purpose { color: var(--ink-2); max-width: 62ch; }
-.modules-badge {
-  display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
-  border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); white-space: nowrap;
-}
-.modules-badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
-.modules-badge.pending { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
-.modules-badge.off { color: var(--ink-3); }
-.modules-detail {
-  border: 1px solid var(--border); border-radius: 8px; background: var(--bg1);
-  padding: 14px 16px; position: sticky; top: 12px;
-}
-.modules-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.modules-contract {
-  font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink-2);
-  white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 60vh; overflow-y: auto;
-}
-
-/* ---- Records ops surface (CHI-324 2h) ---- */
-.records-page { max-width: var(--page-max); }
-.records-switcher { margin: 10px 0 16px; }
-.records-toolbar { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; margin-bottom: 14px; }
-.records-filter {
-  flex: 1 1 260px; min-width: 200px; max-width: 420px; padding: 7px 11px; font-size: 13px;
-  border: 1px solid var(--border); border-radius: 7px; background: var(--bg1); color: var(--ink);
-}
-.records-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.records-count { margin-left: auto; white-space: nowrap; }
-.records-empty { margin: 20px 2px; }
-.records-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.records-table th {
-  text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; white-space: nowrap;
-  text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border);
-}
-.records-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-.records-table .records-date { white-space: nowrap; color: var(--ink-3); width: 1%; }
-.records-table .records-id { white-space: nowrap; width: 1%; }
-.records-idcopy {
-  display: inline-flex; align-items: baseline; gap: 8px; padding: 2px 6px; margin: -2px -6px;
-  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--brass-text);
-  font: inherit; cursor: pointer; text-align: left;
-}
-.records-idcopy:hover { border-color: var(--border); background: var(--bg1); }
-.records-idcopy.copied { color: var(--ok, #2e7d52); }
-.records-copyhint {
-  font: 600 10px var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--ink-3); opacity: 0; transition: opacity 0.12s;
-}
-.records-idcopy:hover .records-copyhint, .records-idcopy.copied .records-copyhint { opacity: 1; }
-.records-idcopy.copied .records-copyhint { color: var(--ok, #2e7d52); }
-.records-focus { color: var(--ink-2); }
-.records-more { margin-top: 14px; }
-.records-more-sentinel { padding: 14px 0 22px; text-align: center; }
-
 /* ---- Safety ops surface (CHI-323 3d) ---- */
 .safety-page { max-width: var(--page-max); }
 .safety-lede { margin: 4px 0 18px; }
@@ -1984,24 +1908,6 @@ h4 { margin: 6px 0; }
 .writelog-badge.failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .writelog-badge.denied, .writelog-badge.expired { color: var(--ink-3); }
 @media (max-width: 900px) { .writelog-diff { max-width: none; } }
-
-/* ---- Jobs ops surface (CHI-323 3c) ---- */
-.jobs-page { max-width: var(--page-max); }
-.jobs-lede { margin: 4px 0 16px; }
-.jobs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.jobs-table th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-.jobs-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-.jobs-name { font-weight: 600; color: var(--ink); }
-.jobs-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; white-space: nowrap; }
-.job-badge { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg1); text-transform: lowercase; }
-.job-badge.success, .job-badge.running { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
-.job-badge.failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-.job-badge.stale, .job-badge.paused { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
-.job-badge.not-installed, .job-badge.disabled, .job-badge.pending { color: var(--ink-3); }
-.jobs-log-modal { max-width: 720px; }
-.jobs-log { margin-top: 10px; }
-.jobs-log-body { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-2); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; }
-
 
 /* ===== /ask (CHI-351): metric chat over chronicle.db ===================== */
 /* One conversation column: day dividers, right-aligned questions, answer cards

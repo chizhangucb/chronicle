@@ -26,7 +26,7 @@ export function routePattern(path: string): string | null {
   if (path === '/insights') return '/';        // redirect-only route, same surface
   if (/^\/project\/[^/]+/.test(path)) return '/project/:id';
   if (/^\/session\/[^/]+/.test(path)) return '/session/:id';
-  const flat = ['/projects', '/modules', '/safety', '/jobs', '/records', '/reference', '/ask'];
+  const flat = ['/projects', '/safety', '/reference', '/ask'];
   return flat.includes(path) ? path : null;
 }
 

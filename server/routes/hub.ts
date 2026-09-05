@@ -4,27 +4,18 @@ import { spawnSync } from 'node:child_process';
 import { getHubAdapter } from '../hub/adapter.ts';
 import { resolveHub, isNisseHub, expandTilde } from '../hub/resolve.ts';
 import { confidentialMarkersEnabled } from '../hub/slices/confidential.ts';
-import { jobLogView } from '../job-logs.ts';
 import { readConfig, writeConfig } from '../autosync.ts';
 
 // Hub adapter HTTP surface (CHI-323 part 1.5). Mounted under /api.
 //   GET  /api/hub/status  -> { present, mode, root, reason? }  (client gates ops nav on this)
 //   POST /api/hub/config  -> setup affordance: point Chronicle at a nisse hub
-// Per-organ slice routes (GET /api/hub/{modules,safety,jobs,codegraphs}) land
+// Per-organ slice routes (GET /api/hub/{safety,codegraphs}) land
 // with their organs (1c-1g).
 
 
 export function mountHub(app: Express): void {
   app.get('/hub/status', (_req: Request, res: Response) => {
     res.json(getHubAdapter().status());
-  });
-
-  // Modules slice (organ 1c). Absent hub -> a sentinel the client uses to hide
-  // ops nav + show the Nisse upsell, never a half-answer.
-  app.get('/hub/modules', (_req: Request, res: Response) => {
-    const adapter = getHubAdapter();
-    if (!adapter.status().present) return res.json({ hubPresent: false });
-    res.json(adapter.modules());
   });
 
   // Safety posture (organ 1d): egress-gate config (emit-allowlisted, markers as
@@ -34,34 +25,6 @@ export function mountHub(app: Express): void {
     const adapter = getHubAdapter();
     if (!adapter.status().present) return res.json({ hubPresent: false });
     res.json({ safetyNet: adapter.safetyNet(), gaps: adapter.safetyGaps(), egress: adapter.egress(), gatingPolicy: adapter.gatingPolicy() });
-  });
-
-  // Jobs slice (organ 1e): launchd + cron + hub registry + repo templates, with
-  // live state. Absent hub -> sentinel (page hidden).
-  app.get('/hub/jobs', (_req: Request, res: Response) => {
-    const adapter = getHubAdapter();
-    if (!adapter.status().present) return res.json({ hubPresent: false });
-    res.json(adapter.jobs());
-  });
-
-  // Records (CHI-324 2h): the append-only hub records (decisions + session
-  // ledger), index fields only. Absent-gated like every ops slice.
-  app.get('/hub/records', (_req: Request, res: Response) => {
-    const adapter = getHubAdapter();
-    if (!adapter.status().present) return res.json({ hubPresent: false });
-    res.json(adapter.records());
-  });
-
-  // Job log tail (organ 1e): the browser sends a job ID, never a path. Only the
-  // log paths the jobs slice itself declares for that job are opened (last 100
-  // lines, tail-capped).
-  app.get('/jobs/log', (req: Request, res: Response) => {
-    const adapter = getHubAdapter();
-    if (!adapter.status().present) return res.json({ hubPresent: false });
-    const id = String(req.query.id ?? '');
-    const view = jobLogView(adapter.jobs().jobs, id);
-    if (!view) return res.status(404).json({ error: `unknown job "${id}"`, fix: 'reload the Jobs page' });
-    res.json(view);
   });
 
   // Built code graphs (organ 1g): graphs/index.json + per-graph god-nodes.
