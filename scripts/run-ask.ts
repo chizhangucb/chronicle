@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * /ask runner (CHI-351): one operator-initiated question -> one answered turn.
- * Rides the same headless-runner seam as run-briefing.ts / run-scope-suggest.ts
- * (findClaude, a dedicated runner cwd, extractJson), but the model gets EXACTLY
+ * Rides the headless-runner seam
+ * (findClaudeBin, a dedicated runner cwd, extractJson), but the model gets EXACTLY
  * one tool — the read-only SELECT-only query server (scripts/ask-db-mcp.ts) —
  * via the confined invocation verified in the CHI-351 spikes:
  *
@@ -25,8 +25,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findClaude } from './run-briefing.ts';
-import { extractJson } from '../server/briefing-validate.ts';
+import { findClaudeBin, extractJson } from '../server/ask.ts';
 import {
   askSchemaDoc, validateAskEnvelope, normalizeAskCostMode, toCostMode,
   pickCapture, askClaudeArgs, type AskCapture, type AskCostMode, type AskTurn,
@@ -42,7 +41,7 @@ function flag(argv: string[], name: string): string | undefined {
 }
 
 /** Resolve the MCP server entry: compiled JS in the published package, else the
- * TS source in dev (Node 24 type-strips it). Mirrors routes/briefing.ts. */
+ * TS source in dev (Node 24 type-strips it). */
 function mcpEntry(): string | null {
   const candidates = [
     new URL('./ask-db-mcp.js', import.meta.url),
@@ -88,7 +87,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   const dryRun = argv.includes('--dry-run');
   if (!question) { process.stdout.write(JSON.stringify(emptyTurn('', costMode, 'no question provided', 'empty question')) + '\n'); return 2; }
 
-  const claude = findClaude();
+  const claude = findClaudeBin();
   const entry = mcpEntry();
   const runnerDir = join(DATA_DIR, 'runner');
   mkdirSync(runnerDir, { recursive: true });

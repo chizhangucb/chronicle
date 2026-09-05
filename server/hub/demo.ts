@@ -126,11 +126,11 @@ export const DEMO_JOBS: JobsSlice = {
   sources: { launchd: 2, cron: 1, registry: 1, 'repo-template': 1 },
   jobs: [
     {
-      id: 'com.chronicle.briefing', name: 'com.chronicle.briefing', source: 'launchd',
-      schedule: 'daily 09:00', scheduleKind: 'calendar', nextRun: null, lastRun: '2h ago', lastRunAt: null,
-      status: 'success', lastExit: 0, runner: 'node', model: null, agent: 'claude', project: 'chronicle',
-      projectPath: null, command: 'node scripts/run-briefing.ts', logPath: 'data/demo-logs/briefing.log',
-      description: 'Daily briefing run',
+      id: 'com.chronicle.daily-digest', name: 'com.chronicle.daily-digest', source: 'launchd',
+      schedule: 'daily 07:00', scheduleKind: 'calendar', nextRun: null, lastRun: '2h ago', lastRunAt: null,
+      status: 'success', lastExit: 0, runner: 'node', model: null, agent: null, project: 'chronicle',
+      projectPath: null, command: 'node scripts/emit-daily-digest.ts', logPath: 'data/demo-logs/daily-digest.log',
+      description: 'Daily digest emit',
     },
     {
       id: 'com.demo.weekly-report', name: 'com.demo.weekly-report', source: 'launchd',
@@ -172,7 +172,7 @@ const DEMO_LEDGER_ROWS = [
   { date: '2026-08-25 1610', sessionId: 'e5f6a7b8-2c1d-4e3f-9a8b-7c6d5e4f3a2b', focus: 'Consolidate spend views into the analytics hub', repo: 'chronicle' },
   { date: '2026-08-25 1105', sessionId: 'c9d0e1f2-6b5a-4c3d-8e7f-1a2b3c4d5e6f', focus: 'Onboarding sweep + registry hygiene', repo: 'hub' },
   { date: '2026-08-24 1440', sessionId: 'b3c4d5e6-7a89-4b0c-9d1e-2f3a4b5c6d7e', focus: 'Budget meter + gated editor spike', repo: 'chronicle' },
-  { date: '2026-08-24 0905', sessionId: 'f7a8b9c0-1d2e-4f3a-8b9c-0d1e2f3a4b5c', focus: 'Nightly briefing cadence tuning', repo: 'hub' },
+  { date: '2026-08-24 0905', sessionId: 'f7a8b9c0-1d2e-4f3a-8b9c-0d1e2f3a4b5c', focus: 'Nightly digest cadence tuning', repo: 'hub' },
 ];
 export const DEMO_RECORDS: RecordsSlice = {
   found: true,

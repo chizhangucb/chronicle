@@ -85,7 +85,7 @@ export default function SafetyPage() {
 
       <WriteLog reloadKey={logKey} onProposal={(p) => { setDestructive(false); setProposal(p); }} setError={setError} />
 
-      <Gaps gaps={data.gaps} onReload={load} setError={setError} />
+      <Gaps gaps={data.gaps} />
 
       <GateConfirmDialog proposal={proposal} destructive={destructive}
         onSettled={(confirmed) => { setProposal(null); if (confirmed) { load(); setLogKey((k) => k + 1); } }} />
@@ -336,18 +336,7 @@ function JsonSurface({ surface, onPropose }: { surface?: GateSurfaceStatus; onPr
   );
 }
 
-function Gaps({ gaps, onReload, setError }: { gaps: SafetyResult['gaps']; onReload: () => void; setError: (s: string | null) => void }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  const launch = async (gap: GapView) => {
-    setError(null);
-    try {
-      const r = await api.launchGap(gap.id);
-      if (!r.launched && r.copyPrompt) {
-        try { await navigator.clipboard.writeText(r.copyPrompt); setCopied(gap.id); setTimeout(() => setCopied(null), 2000); } catch { setError(r.reason ?? 'launch unavailable'); }
-      }
-      onReload();
-    } catch (e) { setError(String((e as Error).message)); }
-  };
+function Gaps({ gaps }: { gaps: SafetyResult['gaps'] }) {
   const card = (gap: GapView) => (
     <div key={gap.id} className={`gap-card ${gap.kind}`}>
       <div className="gap-head"><span className={`gap-kind ${gap.kind}`}>{gap.kind}</span><span className="gap-title">{gap.title}</span></div>
@@ -357,10 +346,11 @@ function Gaps({ gaps, onReload, setError }: { gaps: SafetyResult['gaps']; onRelo
         {gap.acceptedWhy && <span>{t('Accepted')} {gap.acceptedDate || ''}: {gap.acceptedWhy}</span>}
         {gap.revisitTrigger && <span>{t('Revisit when')}: {gap.revisitTrigger}</span>}
       </div>
-      <div className="gap-actions">
-        {gap.closingEdit && <span className="muted small">{t('Closing edit')}: {gap.closingEdit.label}</span>}
-        <button type="button" className="btn tiny" onClick={() => launch(gap)}>{copied === gap.id ? t('Copied') : t('Work on this')}</button>
-      </div>
+      {gap.closingEdit && (
+        <div className="gap-actions">
+          <span className="muted small">{t('Closing edit')}: {gap.closingEdit.label}</span>
+        </div>
+      )}
     </div>
   );
   if (!gaps.actionable.length && !gaps.watch.length) return null;

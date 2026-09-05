@@ -72,7 +72,7 @@ test('/insights?tab=explore redirects to /?tab=explore with the Explore tab acti
 // ── Drift-pin (e): Overview DOM order KPIs → activity → anomaly tile → charts,
 // the recent-sessions ledger no longer mounts here (moved to /projects, D1),
 // and Top-sessions-by-cost is retired from Overview (CHI-324) ─────────────────
-test('Overview reading order: status band → KPIs → activity → anomaly → charts → provenance, no ledger or top-sessions', async ({ page }) => {
+test('Overview reading order: KPIs → activity → anomaly → charts → provenance, no band above the KPIs, no ledger or top-sessions', async ({ page }) => {
   await gotoHome(page); // default window is Today, so the Activity block is present
   await expect(page.locator('.home-dashboard .activity-card')).toBeVisible();
   // The ledger moved to /projects (D1) — it must not mount on this page at all.
@@ -85,13 +85,11 @@ test('Overview reading order: status band → KPIs → activity → anomaly → 
     // `.burn-card` is the anomaly tile's stable class (kept in place per D6);
     // `.sot-card` is the full-width spend-over-time chart (CHI-324 review — it
     // replaced the old `.grid2` [chart | spend-by-model] row on Overview).
-    // EXTENDED for CHI-325 3d. This check is relative-order only, so the new
-    // bands would have slipped past it silently while its name and this comment
-    // went false: a pin that still passes but no longer describes the surface is
-    // worse than no pin. `.status-band` and `.provenance-strip` are the phase-3
-    // additions; the briefing band is hub-conditional so it is pinned separately
-    // in home-bands.spec.ts rather than here (this server has no hub).
-    const sel = ['.kpis', '.status-band', '.activity-card', '.burn-card', '.sot-card', '.provenance-strip'];
+    // This check is relative-order only, so a new band would slip past it
+    // silently while its name and this comment went false: a pin that still
+    // passes but no longer describes the surface is worse than no pin. The
+    // "nothing above the KPI strip" half is pinned separately below (#220).
+    const sel = ['.kpis', '.activity-card', '.burn-card', '.sot-card', '.provenance-strip'];
     const els = sel.map((s) => root.querySelector(s));
     if (els.some((e) => !e)) return 'missing';
     // Confirm each element strictly precedes the next in document order.
@@ -103,6 +101,20 @@ test('Overview reading order: status band → KPIs → activity → anomaly → 
     return 'ok';
   });
   expect(order).toBe('ok');
+});
+
+// #220: the Overview opens straight on the KPI strip. The briefing band and the
+// five-domain status band are gone, and nothing may take their place: the KPI
+// strip must be the FIRST element inside the tab body.
+test('nothing renders above the KPI strip', async ({ page }) => {
+  await gotoHome(page);
+  await expect(page.locator('.home-dashboard .home-briefing')).toHaveCount(0);
+  await expect(page.locator('.home-dashboard .status-band')).toHaveCount(0);
+  const first = await page.evaluate(() => {
+    const body = document.querySelector('.home-dashboard .insights-page');
+    return body?.firstElementChild?.className ?? 'none';
+  });
+  expect(first).toContain('kpis');
 });
 
 // ── Existing behaviors, retargeted to the merged surface ─────────────────────

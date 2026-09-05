@@ -29,14 +29,14 @@ test.describe('demo hub: /jobs lists jobs + tails a log', () => {
 
   test('the log drill-in tails the declared log', async ({ page }) => {
     await page.goto(demo.baseURL + '/jobs');
-    await page.locator('.jobs-row', { hasText: 'com.chronicle.briefing' }).getByRole('button', { name: 'Log' }).click();
+    await page.locator('.jobs-row', { hasText: 'com.chronicle.daily-digest' }).getByRole('button', { name: 'Log' }).click();
     await expect(page.locator('.jobs-log-body')).toBeVisible();
-    await expect(page.locator('.jobs-log-body')).toContainText('briefing run');
+    await expect(page.locator('.jobs-log-body')).toContainText('daily-digest run');
   });
 
   test('pause is refused in demo (gate inert) — a 409 surfaces, nothing pauses', async ({ page }) => {
     await page.goto(demo.baseURL + '/jobs');
-    await page.locator('.jobs-row', { hasText: 'com.chronicle.briefing' }).getByRole('button', { name: 'Pause' }).click();
+    await page.locator('.jobs-row', { hasText: 'com.chronicle.daily-digest' }).getByRole('button', { name: 'Pause' }).click();
     // demo gate refuses the propose; the page shows the error, no confirm card opens.
     await expect(page.locator('.jobs-page .gate-error')).toBeVisible();
     await expect(page.locator('.gate-dialog')).toHaveCount(0);

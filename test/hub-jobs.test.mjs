@@ -142,8 +142,8 @@ test('GET /hub/jobs: absent sentinel; demo returns synthetic', async () => {
 test('GET /jobs/log in demo tails the declared demo log', async () => {
   process.env.CHRONICLE_DEMO = '1';
   try {
-    const body = await (await fetch(`${baseUrl}/jobs/log?id=com.chronicle.briefing`)).json();
+    const body = await (await fetch(`${baseUrl}/jobs/log?id=com.chronicle.daily-digest`)).json();
     assert.ok(body.stdout.exists);
-    assert.ok(body.stdout.lines.some((l) => l.includes('briefing run')));
+    assert.ok(body.stdout.lines.some((l) => l.includes('daily-digest run')));
   } finally { delete process.env.CHRONICLE_DEMO; }
 });

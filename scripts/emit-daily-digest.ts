@@ -14,7 +14,7 @@
  * Every signal here is cheap, local-only (no network, no auth, no secrets)
  * and degrades gracefully: a failing signal is skipped, never thrown, so a
  * bad git state or a missing DB can never sink the daily job this is folded
- * into (scripts/run-briefing.ts).
+ * into.
  */
 import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';

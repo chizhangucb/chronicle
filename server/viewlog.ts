@@ -1,7 +1,7 @@
 // server/viewlog.ts
 // The local-only view log (CHI-325 3a). Why it exists: the CHI-307 merge
 // decision had to be made on file mtimes, and they were wrong: the one
-// "human" Varde interaction that day was an agent resolving a briefing card.
+// "human" interaction that day was an automated agent.
 // So Chronicle records its own usage, actor-tagged, and the next question of
 // that shape ("which surfaces earn their space?") gets answered with data.
 //
@@ -49,7 +49,6 @@ const EVENTS = new Set<ViewEvent>(['visit', 'tab', 'action']);
 const ACTIONS = new Set([
   'sync-now',
   'cost-basis-flip',
-  'briefing-action',
   'import-open',
   'search-open',
   'ask-send',
@@ -69,7 +68,6 @@ const ROUTES = new Set([
   '/modules',
   '/safety',
   '/jobs',
-  '/briefing',
   '/records',
   '/reference',
   '/ask',

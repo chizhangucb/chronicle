@@ -1,6 +1,0 @@
-[2026-08-26 09:00:01] briefing run started (demo)
-[2026-08-26 09:00:01] loading adapter slices: jobs, safety, egress, memory, coverage
-[2026-08-26 09:00:03] 4 jobs healthy, 1 stale (health-sweep)
-[2026-08-26 09:00:03] egress gate ENABLED; spend caps $5 / $50
-[2026-08-26 09:00:04] assembled 3 cards (jobs, safety, coverage)
-[2026-08-26 09:00:04] briefing run finished, exit 0

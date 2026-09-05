@@ -12,7 +12,6 @@ import ProjectsPage from './ProjectsPage.jsx';
 import ModulesPage from './ModulesPage.tsx';
 import SafetyPage from './SafetyPage.tsx';
 import JobsPage from './JobsPage.tsx';
-import BriefingPage from './BriefingPage.tsx';
 import RecordsPage from './RecordsPage.tsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
@@ -77,7 +76,6 @@ export default function App() {
   const [atModules] = useRoute('/modules');
   const [atSafety] = useRoute('/safety');
   const [atJobs] = useRoute('/jobs');
-  const [atBriefing] = useRoute('/briefing');
   const [atRecords] = useRoute('/records');
   const [atAsk] = useRoute('/ask');
   // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
@@ -229,12 +227,6 @@ export default function App() {
             </button>
           )}
           {hubPresent && (
-            <button className={`sb-item ${atBriefing && !rail ? 'on' : ''}`} title={t('Briefing')}
-              onClick={() => navigate('/briefing')}>
-              <span className="sb-icon">▣</span><span className="sb-label">{t('Briefing')}</span>
-            </button>
-          )}
-          {hubPresent && (
             <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
               onClick={() => navigate('/records')}>
               <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
@@ -345,7 +337,6 @@ export default function App() {
         {atModules && <ModulesPage />}
         {atSafety && <SafetyPage />}
         {atJobs && <JobsPage />}
-        {atBriefing && <BriefingPage />}
         {atRecords && <RecordsPage />}
         {atReference && <ReferencePage />}
         {atAsk && (askEnabled
@@ -403,11 +394,11 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
   useEffect(() => {
     api.settings().then(setSettings).catch(() => setSettings({
       autoSync: true, autoSyncPaused: false, ask: false,
-      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true, homeBands: true,
+      minorActiveMsThreshold: 5 * 60 * 1000, minorMessageCountThreshold: 10, planWindows: true,
       monthlyBudget: null,
     }));
   }, []);
-  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask' | 'planWindows' | 'homeBands') {
+  async function toggle(key: 'autoSync' | 'autoSyncPaused' | 'ask' | 'planWindows') {
     if (!settings) return;
     const next: Settings = { ...settings, [key]: !settings[key] };
     setSettings(next);
@@ -438,11 +429,6 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
               <input type="checkbox" checked={settings.planWindows !== false} onChange={() => toggle('planWindows')} />
               <span>{t('Claude plan windows (quota)')}</span>
               <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.')}</span>
-            </label>
-            <label className="settings-row">
-              <input type="checkbox" checked={settings.homeBands !== false} onChange={() => toggle('homeBands')} />
-              <span>{t('Home bands')}</span>
-              <span className="muted small">{t('Show the daily briefing cards and the 5-domain status band at the top of Insights. Turn this off for just the numbers: the charts, KPIs and tables are unchanged either way.')}</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />

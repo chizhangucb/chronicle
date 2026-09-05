@@ -93,7 +93,7 @@ async function gatePost<T>(path: string, body: unknown): Promise<T> {
  *
  * `source: 'suggestion'` marks machine-generated content, which always cards.
  * Not a security boundary (see core.ts) but it keeps the app's own
- * scope-suggest flow honest about showing its diff for review.
+ * model-suggested writes honest about showing their diff for review.
  */
 export async function gateSubmit(
   surface: string,

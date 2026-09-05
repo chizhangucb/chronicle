@@ -21,7 +21,7 @@ const css = readSource(
 
 /** Every non-dashboard surface. Dashboards are full bleed and carry no cap. */
 const FRAMED = [
-  '.briefing-page', '.safety-page',
+  '.safety-page',
   '.modules-page', '.jobs-page', '.records-page', '.reference-page',
 ];
 
@@ -44,6 +44,6 @@ test('every framed page uses the token, never a raw pixel width', () => {
 test('prose blocks keep their own measure cap', () => {
   // A wide frame must never mean a 200-character line: readability is solved on
   // the TEXT, which is what lets the frame stay constant.
-  assert.match(css, /\.bc-summary \{[^}]*max-width:\s*\d+ch/);
-  assert.match(css, /\.bc-anatomy \{[^}]*max-width:\s*\d+ch/);
+  assert.match(css, /\.modules-purpose \{[^}]*max-width:\s*\d+ch/);
+  assert.match(css, /\.reference-page \.ref-intro \{[^}]*max-width:\s*\d+ch/);
 });

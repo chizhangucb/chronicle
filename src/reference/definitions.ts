@@ -25,7 +25,7 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'briefing' | 'safety' | 'jobs' | 'records' | 'modules'
+  | 'safety' | 'jobs' | 'records' | 'modules'
   | 'ask' | 'settings'
   | 'retired';
 
@@ -47,7 +47,7 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'briefing', 'safety', 'jobs', 'records', 'modules',
+  'safety', 'jobs', 'records', 'modules',
   'ask', 'settings', 'retired',
 ];
 
@@ -59,7 +59,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   content: 'Insights · Content',
   projects: 'Projects',
   session: 'Session view',
-  briefing: 'Briefing',
   safety: 'Safety',
   jobs: 'Jobs',
   records: 'Records',
@@ -144,16 +143,10 @@ export const DEFINITIONS: Definition[] = [
   },
 
   {
-    id: 'overview.status-band',
-    page: 'overview',
-    title: 'Status band',
-    plain: () => 'A second read of the same five domains the ops nav covers: the trend, the explicit baseline number, and the state word. It never raises an alarm of its own. Its accent is only ever an echo of an open needs-you briefing card above it, so exactly one place on this page can tell you something new.',
-  },
-  {
     id: 'overview.provenance',
     page: 'overview',
     title: 'Sources strip',
-    plain: () => 'Where the numbers above came from: how many sessions each tool contributed, whether a hub is connected, when the last sync landed, and which cost basis is showing. The topbar sync pill says WHEN data last landed; this says WHAT is behind the figures.',
+    plain: () => 'Where the numbers above came from: how many sessions each tool contributed, when the last sync landed, and which cost basis is showing. The topbar sync pill says WHEN data last landed; this says WHAT is behind the figures.',
   },
 
   // ---- Insights / Spend ----
@@ -169,7 +162,7 @@ export const DEFINITIONS: Definition[] = [
     page: 'spend',
     title: 'Monthly budget',
     plain: () => 'The budget is always the current calendar month, independent of the window toggle above. Month-to-date, projection, and the pace / peak-day / per-active-day stats are all for this month.',
-    tech: () => '~/.chronicle/config.json monthlyBudget, server-side since CHI-366 so the briefing runner reads the same number',
+    tech: () => '~/.chronicle/config.json monthlyBudget, server-side so every surface that shows it reads the same number',
   },
   {
     id: 'spend.waste',
@@ -292,24 +285,6 @@ export const DEFINITIONS: Definition[] = [
   },
 
   // ---- Ops surfaces (ported from Varde, CHI-323/324) ----
-  {
-    id: 'briefing.needs-you',
-    page: 'briefing',
-    title: 'Needs you vs FYI',
-    plain: () => 'Needs-you cards are action or decision items and carry the attention accent. FYI cards are worth knowing; nothing is owed.',
-  },
-  {
-    id: 'briefing.run',
-    page: 'briefing',
-    title: 'Run briefing',
-    plain: () => 'Runs a real headless model session that reads the projection and writes the day’s cards. It costs a model call, and the confirm card says so before it fires.',
-  },
-  {
-    id: 'briefing.two-file-split',
-    page: 'briefing',
-    title: 'Why the run and your actions are separate files',
-    plain: () => 'The briefing run writes briefing.json; acting on a card writes briefing-state.json. Neither ever writes the other’s file, so a run in progress can never clobber a decision you just made.',
-  },
   {
     id: 'safety.gate',
     page: 'safety',
@@ -474,10 +449,28 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'Full draws every node and link. Lite caps the draw to the most-connected notes so a very large graph stays at frame rate; nothing is deleted, only fewer are drawn, and the caption says how many.',
   },
   {
+    id: 'retired.briefing',
+    page: 'retired',
+    title: 'Daily briefing (retired)',
+    plain: () => 'A daily headless model run that wrote action cards about jobs, safety, coverage and spend, shown on their own page and as a band above the home numbers. Removed: the console it reported on is gone, and the spend half of it now lives on the Spend tab as the budget line and the flagged-day anomaly.',
+  },
+  {
+    id: 'retired.home-bands',
+    page: 'retired',
+    title: 'Home bands (retired)',
+    plain: () => 'Two rows that sat above the KPI strip on Insights: the briefing cards, and a five-domain status band echoing them. Removed with the briefing; the Overview now opens straight on the numbers.',
+  },
+  {
+    id: 'retired.work-on-this',
+    page: 'retired',
+    title: '"Work on this" launcher (retired)',
+    plain: () => 'A button on Safety that opened a Terminal with a review prompt typed but unsubmitted. Removed: Chronicle no longer launches other programs.',
+  },
+  {
     id: 'retired.nisse-upsell',
     page: 'retired',
     title: 'Nisse coupling',
-    plain: () => 'Not retired: the ops surfaces (Briefing, Safety, Jobs, Records, Modules) light up when a nisse-format hub is present and are hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
+    plain: () => 'Not retired: the ops surfaces (Safety, Jobs, Records, Modules) light up when a nisse-format hub is present and are hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
   },
 ];
 

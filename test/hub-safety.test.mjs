@@ -1,4 +1,4 @@
-// Pins the Safety slices + adapter + routes + launcher (CHI-323 3d). Emphasis on
+// Pins the Safety slices + adapter + routes (CHI-323 3d). Emphasis on
 // the confidentiality hardening: emit-allowlist (not denylist), value creds
 // scan, markers as COUNTS, and the D8 hard gate on the confidential drill-down.
 import { test, before, after } from 'node:test';
@@ -38,7 +38,6 @@ const { collectSafetyNet } = await import('../server/hub/slices/safetynet.ts');
 const { collectEgress } = await import('../server/hub/slices/egress.ts');
 const { collectSafetyGaps } = await import('../server/hub/slices/gaps.ts');
 const { readConfidentialMarkers, confidentialMarkersEnabled } = await import('../server/hub/slices/confidential.ts');
-const { shellQuote, buildLaunchCommand, gapReviewPrompt } = await import('../server/launch.ts');
 const { getHubAdapter } = await import('../server/hub/adapter.ts');
 const { mountHub } = await import('../server/routes/hub.ts');
 const { safetyGapsRegisterPath } = await import('../server/hub/paths.ts');
@@ -89,16 +88,6 @@ test('confidential markers: phrases readable directly, but hard-gated by policy 
   assert.equal(confidentialMarkersEnabled('live', { CHRONICLE_CONFIDENTIAL_MARKERS: '1' }, undefined), true); // env opt-in
 });
 
-test('launcher builders: shell-quote + print -z buffer, gap prompt is server-built', () => {
-  assert.equal(shellQuote("a'b"), "'a'\\''b'");
-  const cmd = buildLaunchCommand('review this gap', '/tmp/hub');
-  assert.match(cmd.buffer, /^cd '\/tmp\/hub' && claude 'review this gap'$/);
-  assert.equal(cmd.osascriptArgs[0], '-e');
-  assert.match(cmd.osascriptArgs[1], /print -z/);
-  const p = gapReviewPrompt({ title: 'X', exposure: 'Y' }, false);
-  assert.match(p, /actionable safety gap "X"/);
-});
-
 test('adapter: demo safety synthetic (no real hub data); absent empty; live reads hub', () => {
   const demo = getHubAdapter({ CHRONICLE_DEMO: '1' });
   assert.ok(demo.safetyNet().classification.tools.length > 0);
@@ -134,12 +123,4 @@ test('GET /hub/safety/confidential is 403 by default (public build never serves 
     assert.equal(res.status, 403);
     assert.match((await res.json()).error, /not enabled/);
   } finally { delete process.env.CHRONICLE_HUB; }
-});
-
-test('POST /launch/gap refuses demo with 409', async () => {
-  process.env.CHRONICLE_DEMO = '1';
-  try {
-    const res = await fetch(`${baseUrl}/launch/gap`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'spend-caps-unset' }) });
-    assert.equal(res.status, 409);
-  } finally { delete process.env.CHRONICLE_DEMO; }
 });

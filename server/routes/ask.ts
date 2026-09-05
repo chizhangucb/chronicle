@@ -35,7 +35,7 @@ function isDemo(): boolean {
 }
 
 /** Runner entry: compiled JS in the published package, else the TS source in dev
- * (Node 24 type-strips it). Mirrors routes/briefing.ts. */
+ * (Node 24 type-strips it). */
 function runnerEntry(): string | null {
   const candidates = [
     new URL('../../scripts/run-ask.js', import.meta.url),

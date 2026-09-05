@@ -5,6 +5,16 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
+- **The daily briefing, the home bands, the Terminal launcher and the scope suggester are
+  gone.** Chronicle is a session-analysis tool; these were console features for a hub it no
+  longer talks to. Insights now opens straight on the KPI strip, with no briefing cards and
+  no five-domain status band above the numbers, and `/briefing` is no longer a route. The
+  briefing runner and its two state files, the Run-now, the "Work on this" button that
+  opened a Terminal on Safety, and the AI "Suggest scope" flow on Memory are all removed:
+  Chronicle no longer spawns a model run or another program on its own. The monthly budget
+  and the flagged-day spend anomaly stay exactly where you use them, on the Spend tab. The
+  Settings "Home bands" toggle is removed with the bands it hid.
+
 - **Chronicle now records its own writes, not just the gate's.** Changing a setting,
   deleting a session, editing a redaction rule: all of it happened with no trace. The
   write log now covers every route that changes something, with what it was and whether
