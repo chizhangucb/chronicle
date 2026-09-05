@@ -25,11 +25,16 @@ const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 // repo-managed harness hooks are gone; none may be tracked again.
 const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 
-// The doc surfaces the restructure owns. litellm/README.md is out of this set
-// because test/litellm-runtime.test.mjs guards it instead, alongside the runtime
-// it documents (issue #186 de-hubbed both). CHANGELOG.md is out because history
-// is allowed to name what was.
-const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/**/*.md', 'spec/**/*.md'];
+// Every doc surface this repo owns, litellm/ included (issue #189). The runtime
+// pins in test/litellm-runtime.test.mjs still guard litellm/README.md alongside
+// the runtime it documents, but they check a different string set, so the folder
+// is inside this pin too rather than exempt from it. CHANGELOG.md stays out
+// because history is allowed to name what was.
+//
+// `*` in a git pathspec matches `/` too, so `docs/*.md` is the recursive form.
+// `docs/**/*.md` is not -- it requires a directory in between, and silently
+// skipped the two top-level docs/*.md files until #189 widened this list.
+const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md', 'litellm/*.md'];
 const HUB_STRINGS = new RegExp(`${HUB_PATHS.source}|${HUB_FOLDERS.source}`, 'i');
 
 test('no retired folder is tracked at the repo root', () => {
@@ -67,6 +72,15 @@ test('the owned docs name no hub path', () => {
     HUB_STRINGS.test(fs.readFileSync(path.join(REPO, rel), 'utf8')),
   );
   assert.deepEqual(offenders, [], `docs still name the hub: ${offenders}`);
+});
+
+test('the hub-string set still catches a bare hub folder, knob prefix or not', () => {
+  // The one exemption is the documented `$CHRONICLE_HUB` knob. Without this pin
+  // a widened lookbehind could quietly excuse every `governance/` mention and
+  // the doc pin above would keep passing on a doc that had gone bad.
+  assert.equal(HUB_STRINGS.test('see `governance/model-routing.md`'), true);
+  assert.equal(HUB_STRINGS.test('see `$CHRONICLE_HUB/governance/model-routing.md`'), false);
+  assert.equal(HUB_STRINGS.test('see `~/chizhang-2/governance/x.md`'), true);
 });
 
 test('the website build excludes docs/agents and docs/adr from the public site', () => {

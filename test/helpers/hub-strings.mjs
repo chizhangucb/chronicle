@@ -11,8 +11,12 @@
 /** Hub checkout paths and the machine-only dirs the runtime used to reach. */
 export const HUB_PATHS = /chizhang-2|AIOS_HUB|\.aios\/|\.secrets\//i;
 
-/** The hub's own folders, named as a path a reader could follow. */
-export const HUB_FOLDERS = /governance\//i;
+/** The hub's own folders, named as a path a reader could follow. The one
+ *  allowed form is `$CHRONICLE_HUB/governance/...`: that is a documented env
+ *  knob the reader sets to their own directory, not a path into Chi's checkout,
+ *  and litellm/README.md has to name it to explain roster resolution. Bare
+ *  `governance/` is still a dead end and still trips (issue #189). */
+export const HUB_FOLDERS = /(?<!\$CHRONICLE_HUB\/)\bgovernance\//i;
 
 /** Where these files used to live inside the hub, plus test paths that moved
  *  with them. A doc still citing `scripts/litellm/config.yaml` is pointing at
