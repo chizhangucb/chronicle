@@ -1,4 +1,4 @@
-// server/detectors.ts (CHI-324 2e) — the Efficiency DETECTOR counts, windowed.
+// server/detectors.ts — the Efficiency DETECTOR counts, windowed.
 // Ships COUNTS (not graded words or dollars): the client computes the four
 // detector rates and grades them with the shared thresholds/state-words so a
 // number and the word next to it can never disagree. Cache-hit and error-rate

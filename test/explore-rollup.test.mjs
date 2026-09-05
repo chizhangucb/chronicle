@@ -106,7 +106,7 @@ before(async () => {
     ],
   );
 
-  // ---- group=session fixture (Task 16) ----
+  // ---- group=session fixture ----
   // Three sessions with token cost DESCENDING sA > sB > sC, and each
   // exercising a different rung of the sessionDisplayName precedence (name →
   // summary → first_prompt), so "ranked by token cost with names" is

@@ -1,6 +1,6 @@
 // Client-side aggregation over the windowed usage cells server/windowUsage.ts
-// computes (Task 2) and `/api/insights` + `/api/projects/:id` now return
-// (Task 3) — `windowedTokensByModel` / `dailySpend` / `hourlySpend`. These
+// computes and `/api/insights` + `/api/projects/:id` now return
+// — `windowedTokensByModel` / `dailySpend` / `hourlySpend`. These
 // replace summing raw `sessions.usage` per session, so a session that started
 // before the active window but ran INTO it contributes only its in-window
 // share everywhere (KPI strip, spend-by-model, token table, top sessions,
@@ -85,7 +85,7 @@ export function groupByBucket<T extends BucketedCell>(cells: T[]): Map<string, T
 // Prices a per-model cell map: each model's cell is priced at ITS OWN rate
 // (never summed across models first — see header comment) via costOf, then
 // totalled. Unpriced models (costOf returns null) contribute 0. `day`
-// (YYYY-MM-DD) resolves a date-dependent rate (e.g. Sonnet 5's CHI-228 intro
+// (YYYY-MM-DD) resolves a date-dependent rate (e.g. Sonnet 5's intro
 // window) for callers that already know every cell in this map shares one
 // day; omit it for the latest/current rate.
 export function costOfCells(byModel: Map<string, UsageCell> | undefined, day?: string | null, mode: CostMode = 'theoretical'): number {
@@ -107,7 +107,7 @@ export function groupByKey<T extends WindowedCell>(cells: T[], keyOf: (c: T) => 
 }
 
 // Total $ across a day-bucketed cell list, pricing EACH bucket at its own
-// day (never the whole list at one flat rate) — the fix for CHI-228: a
+// day (never the whole list at one flat rate) — the fix: a
 // session's usage that straddles a rate change (e.g. Sonnet 5's intro window)
 // must be split and priced per bucket, then summed, not collapsed first. Compose
 // with groupByKey for a per-key total that still prices correctly per day

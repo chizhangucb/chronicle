@@ -67,7 +67,7 @@ export default function App() {
   // `/` (the merged Home/Insights view), preserving a `?tab=` deep-link if present.
   const [atInsights] = useRoute('/insights');
   const [atAsk] = useRoute('/ask');
-  // Reference (CHI-325 3b, D4): product vocabulary, always present.
+  // Reference (3b, D4): product vocabulary, always present.
   const [atReference] = useRoute('/reference');
   const { status: askStatus, refresh: refreshAsk } = useAskStatus();
   const askEnabled = askStatus?.enabled ?? false;
@@ -79,7 +79,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Local-only view log (CHI-325 3a). Mounted ONCE here so every route change in
+  // Local-only view log. Mounted ONCE here so every route change in
   // the app funnels through one recorder. The tab argument is what lets the log
   // distinguish "opened /" from "lives in the Spend tab" — the actual question
   // when deciding whether a tab earns its space. Home tabs are a `?tab=` param;
@@ -107,7 +107,7 @@ export default function App() {
   // wins there, so a persisted width never fights the collapse state.
   const sidebar = useResizable({ storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right' });
   // Passive sync indicator + click-to-sync-now, rendered in the topbar so it's
-  // visible on EVERY page (Task 17) — previously only shown on /projects.
+  // visible on EVERY page — previously only shown on /projects.
   const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
@@ -148,7 +148,7 @@ export default function App() {
         e.preventDefault();
         setSearchOpen((o) => !o);
       }
-      // Cmd-J routes to /ask from anywhere and focuses the input (CHI-351).
+      // Cmd-J routes to /ask from anywhere and focuses the input.
       // Only when Ask is enabled (toggle + CLI + non-demo) so the shortcut never
       // lands on a soft-failed route.
       if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && askEnabled) {
@@ -211,7 +211,7 @@ export default function App() {
         </nav>
 
         <nav className="sb-bottom">
-          {/* Ask (CHI-351): its OWN one-item group at the top of sb-bottom,
+          {/* Ask: its OWN one-item group at the top of sb-bottom,
               fenced by a separator above AND below, signalling a cross-cutting
               capability (not nav, not chrome). Renders ONLY when enabled
               server-side (Settings toggle + claude CLI + non-demo).
@@ -414,7 +414,7 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
   );
 }
 
-// The view-log readout (CHI-325 3a / D7). A recorder of the operator's own
+// The view-log readout. A recorder of the operator's own
 // behavior gets a visible switch, an honest count, and a Clear button — being
 // invisible machinery would be the wrong posture even for something that never
 // leaves the machine.

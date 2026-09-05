@@ -2,7 +2,7 @@
 // The ONE price table + cost math, shared by the client (src/models.ts
 // re-exports it) AND the server (the
 // shared spend math need dollars server-side). Relocated here from
-// src/models.ts (CHI-324 D1) — NOT duplicated: there is still exactly one
+// src/models.ts — NOT duplicated: there is still exactly one
 // price table, now importable on both sides. The rule "pricing is never
 // duplicated server-side" is preserved in intent (one source), and the
 // server STILL ships only token cells to the UI (the client re-prices on the
@@ -10,7 +10,7 @@
 // to the UI: src/models.ts re-exports every symbol below via a relative path,
 // so no client importer changes.
 //
-// IMPORTANT (CHI-323 review B3): every importer of this VALUE module MUST use a
+// IMPORTANT (review B3): every importer of this VALUE module MUST use a
 // relative path, NEVER the `@shared` alias. `@shared` is wired only in
 // vite.config.js + tsconfig `paths`, and only ever exercised by `import type`
 // elsewhere; a VALUE `from '@shared/pricing'` throws ERR_MODULE_NOT_FOUND under
@@ -35,8 +35,7 @@ const P = (input: number, output: number, cw5m: number, cw1h: number, cacheRead:
 
 // A model's price can change on a known date (e.g. intro pricing that steps up
 // after a launch window). `windows` is ordered earliest-to-latest; a window
-// applies while `day <= to` (inclusive, matching Varde's `spend.ts`
-// `priceForModel`, CHI-110). The last window's `to` is always null (applies
+// applies while `day <= to` (inclusive). The last window's `to` is always null (applies
 // indefinitely) — that's also what a caller with no `day` resolves to, so
 // day-less callers keep today's flat-rate behavior with no regression.
 export interface PriceWindow {
@@ -50,7 +49,7 @@ function resolveRates(windows: PriceWindow[], day: string | null | undefined): P
   return windows[windows.length - 1].rates;
 }
 
-// Cost mode (CHI-233 Part C). "theoretical" = list price, what a metered API
+// Cost mode. "theoretical" = list price, what a metered API
 // caller would pay; the historical default, so every pre-existing caller keeps
 // its behavior. "real" = what Chi actually pays: models covered by a flat-rate
 // subscription (Claude tiers, the gpt-5.6 family / Codex) bill effectively $0
@@ -64,13 +63,13 @@ export type CostMode = 'theoretical' | 'real';
 const gpt56 = (input: number, output: number): Price =>
   P(input, output, input * 1.25, input * 1.25, input * 0.1);
 
-// Sonnet 5's Chi-approved (CHI-110) intro-pricing window: $2/$10 per MTok
-// through 2026-08-31, then $3/$15 — mirrors Varde's SONNET5_INTRO_END exactly.
+// Sonnet 5's intro-pricing window: $2/$10 per MTok through 2026-08-31, then
+// $3/$15.
 const SONNET5_INTRO_END = '2026-08-31';
 
 // [prefix, windows, subscriptionCovered]. `subscriptionCovered` marks a tier
 // as billed under Chi's flat subscription: its theoretical (list) cost is real
-// math, but its "real" cost is 0 (CHI-233 Part C). All Claude tiers and the
+// math, but its "real" cost is 0. All Claude tiers and the
 // whole gpt-5.6 family (Codex is gpt-5.6-terra) are covered; raw gpt-5/gpt-4/
 // gemini metered access is not.
 const PRICING: [string, PriceWindow[], boolean][] = [
@@ -213,7 +212,7 @@ export function costOf(model: string | null | undefined, u: ModelUsageInput | nu
 // A price function bound to a cost mode, the currency the shared spend math
 // (shared/spend/*) runs on. The client passes `(m,u,day) => costOf(m,u,day,mode)`
 // at the toggled mode; the server passes it at the fixed
-// theoretical basis (matching Varde's anomaly/budget math). ONE implementation,
+// theoretical basis the anomaly and budget math runs on. ONE implementation,
 // no second pricing path.
 export type PriceFn = (model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null) => number | null;
 

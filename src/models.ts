@@ -1,5 +1,5 @@
 // Cost-math module for the client. The PRICE TABLE and cost functions now live
-// in `shared/pricing.ts` (CHI-324 D1) so the server side (the
+// in `shared/pricing.ts` so the server side (the
 // the shared spend math) can price too — still ONE table, not duplicated. This
 // file re-exports every pricing symbol so existing client importers
 // (ExploreTab, costMode, windowedUsage, session/stats, session/OverviewMode, …)

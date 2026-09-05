@@ -3,15 +3,15 @@ import { useSearch } from 'wouter';
 import { DEFINITIONS, DEF_PAGE_ORDER, DEF_PAGE_LABEL, type DefPage } from './reference/definitions.js';
 import { t } from './i18n.js';
 
-// The unified reference (CHI-325 3b, decision D3/D4). Every metric and term on
+// The unified reference. Every metric and term on
 // the console, rendered from the SAME registry the small "ⓘ" tips read, so this
 // page can never drift from what the surfaces say. That is the whole reason it
 // exists as a registry rather than an authored document.
 //
 // Product vocabulary, not per-install data, so every install has it.
 //
-// The `retired` group is deliberate. The Chronicle/Varde merge (CHI-322)
-// dropped some surfaces; the decision was that the vocabulary survives even
+// The `retired` group is deliberate. Past releases dropped some surfaces; the
+// decision was that the vocabulary survives even
 // where the page did not, so a term someone remembers can still be looked up.
 
 function useHashLanding(): string | null {

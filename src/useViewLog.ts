@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { api, type ViewLogActor } from './api.js';
 
-// The client half of the local-only view log (CHI-325 3a). It answers one
+// The client half of the local-only view log. It answers one
 // question over time: which surfaces actually earn their space. See
 // server/viewlog.ts for why it exists and what it may never become.
 //
@@ -31,7 +31,7 @@ export function routePattern(path: string): string | null {
 }
 
 /**
- * The browser's own verdict (D5). `navigator.webdriver` is set by Playwright,
+ * The browser's own verdict. `navigator.webdriver` is set by Playwright,
  * Puppeteer and Selenium in BOTH headed and headless modes, which makes it the
  * one signal that catches a CDP-driven real browser.
  *
@@ -63,7 +63,7 @@ interface Open {
 }
 
 /**
- * Mount ONCE, at the app root. `tab` is the active hub/project tab when the
+ * Mount ONCE, at the app root. `tab` is the active home/project tab when the
  * current surface has tabs, so the log can tell "opened /" from "lives in the
  * Spend tab", which is the actual question when deciding whether a tab earns
  * its space.
@@ -102,7 +102,7 @@ export function useViewLog(tab?: string | null): void {
 
     // ARRIVING at a route is a 'visit'; changing tab WITHIN the route we are
     // already on is a 'tab'. Keyed on the route rather than on whether a tab
-    // exists, because the hub at / always has one ('overview' by default) and
+    // exists, because the home page at / always has one ('overview' by default) and
     // a naive "tab ? tab : visit" would mean / never recorded a visit at all
     // and vanished from the surface ranking entirely.
     const event: 'visit' | 'tab' = prev && prev.route === route ? 'tab' : 'visit';
@@ -144,7 +144,7 @@ export function useViewLog(tab?: string | null): void {
 }
 
 /**
- * Record one allowlisted key interaction (D6). Fire-and-forget; the server
+ * Record one allowlisted key interaction. Fire-and-forget; the server
  * drops anything not on its ACTIONS allowlist, so adding a call here without
  * adding the id there is a silent no-op by design rather than a schema change.
  */

@@ -34,7 +34,7 @@ test('projects renders at least one session row from the fixture', async ({ page
   expect(rowCount).toBeGreaterThanOrEqual(1);
 });
 
-// Permanent data-scale guard (Task 2): the fixture has exactly
+// Permanent data-scale guard: the fixture has exactly
 // FIXTURE_SUBAGENT_COUNT=120 subagent runs, and the Overview Subagents card
 // header must show the RUN count, not the (5) distinct agent_type count.
 test('fixture session Overview Subagents card shows the run count (120)', async ({ page }) => {
@@ -44,7 +44,7 @@ test('fixture session Overview Subagents card shows the run count (120)', async 
   await expect(heading).toContainText('120');
 });
 
-// D3 (Task 11): the Subagents card's two-level drill-in. Clicking a type row
+// D3: the Subagents card's two-level drill-in. Clicking a type row
 // opens a RUN LIST (one row per agent_id) — the fixture's 120 runs spread
 // across only 5 agent_types, so any type row's run list must show more than
 // one distinct run (guards against the drill-in regressing back to showing
@@ -98,7 +98,7 @@ for (const width of WIDTHS) {
 
 // Perf budget FLOOR (tighten later, per the brief — this only guards against
 // gross regressions): warm /api/insights must respond well under 500ms. The
-// server result cache (Task 3) makes this generous once warm; hit it once
+// server result cache makes this generous once warm; hit it once
 // to populate the cache, then time the second request.
 test('warm /api/insights responds under 500ms', async ({ request }) => {
   const first = await request.get(`${state.baseURL}/api/insights`);

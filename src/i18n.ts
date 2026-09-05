@@ -4,7 +4,7 @@
 const zh = {
   'AI Session Time Machine': 'AI 会话时光机',
   'Projects': '项目',
-  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  // Home dashboard; sidebar item + page title renamed Home → Insights
   'Insights': '洞察',
   'Live now': '正在进行',
   'Since you left': '离开以来',
@@ -21,7 +21,6 @@ const zh = {
   'all time · no baseline': '全部时间 · 无基线',
   'high': '偏高',
   'Top session': '花费最高的会话',
-  'MCP Hub': 'MCP 中心',
   'Skills': '技能',
   '+ Import Sessions': '+ 导入会话',
   'Welcome to Chronicle': '欢迎使用 Chronicle',
@@ -355,7 +354,7 @@ const zh = {
   'Toggle whole message types in or out': '整类消息一键保留或删除',
   'Delete all of this type': '删除该类型全部',
   'Keep all of this type': '保留该类型全部',
-  // Insights hub (merged into the Home hub at `/`)
+  // Insights home (merged into the Insights home at `/`)
   'Spend': '支出',
   'Agent active': '智能体活跃',
   'Your engaged': '你的参与时长',
@@ -605,7 +604,7 @@ const zh = {
 const ja = {
   'AI Session Time Machine': 'AI セッションタイムマシン',
   'Projects': 'プロジェクト',
-  // Home dashboard (Task 13); sidebar item + page title renamed Home → Insights (Task 9)
+  // Home dashboard; sidebar item + page title renamed Home → Insights
   'Insights': 'インサイト',
   'Live now': '進行中',
   'Since you left': '前回からの更新',
@@ -622,7 +621,6 @@ const ja = {
   'all time · no baseline': '全期間 · ベースラインなし',
   'high': '高い',
   'Top session': '最も高額なセッション',
-  'MCP Hub': 'MCP ハブ',
   'Skills': 'スキル',
   '+ Import Sessions': '+ セッションをインポート',
   'Welcome to Chronicle': 'Chronicle へようこそ',
@@ -961,7 +959,7 @@ const ja = {
   'Toggle whole message types in or out': 'メッセージタイプ単位で保持／削除',
   'Delete all of this type': 'このタイプをすべて削除',
   'Keep all of this type': 'このタイプをすべて保持',
-  // Insights hub (merged into the Home hub at `/`)
+  // Insights home (merged into the Insights home at `/`)
   'Spend': '支出',
   'Agent active': 'エージェント稼働',
   'Your engaged': 'あなたの関与時間',

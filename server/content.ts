@@ -76,7 +76,7 @@ export interface ContentResult {
   toolResultsByTool: { key: string; tokens: number }[];       // calibrated
   skills: { key: string; count: number; tokens: number }[];   // count exact, tokens calibrated
   subagents: { key: string; runs: number; tokens: number }[]; // both exact
-  // Scope-tagged per-scope set (D4): at 'all'/'project' scope, the 7 token-share
+  // Scope-tagged per-scope set: at 'all'/'project' scope, the 7 token-share
   // characteristics (spec §2.5) — NOT a breakdown of one another (they can
   // overlap: a session can be both an eightHourSessions AND a highContextRel
   // session). At 'session' scope, the four threshold predicates that collapse
@@ -113,7 +113,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
     WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
   const bind = () => [cutoff, ...sc.params, cutoff];
 
-  // Calibration base = Σ in-scope sessions.usage (input+output), windowed (Task 2): each
+  // Calibration base = Σ in-scope sessions.usage (input+output), windowed: each
   // session's billed cell scaled to its in-window share of per-message tokens, via
   // windowedUsage — the authoritative billed total (= Overview / Insights Tokens KPI, which
   // is input+output per the 5d decision), NOT the per-message assistant sum (which
@@ -228,7 +228,7 @@ interface SessionCharStats {
 }
 function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }): SessionCharStats {
   const bind = () => [cutoff, ...sc.params];
-  // Session-level (no messages join) — overlapGate (Task 2) is the whole fix here: a
+  // Session-level (no messages join) — overlapGate is the whole fix here: a
   // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
   // session, not an in-window fraction, so there's no per-message `m.ts >= cutoff` to add —
   // just the same overlap-vs-drop inclusion fix every other gate in this file gets.
@@ -413,7 +413,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
   ];
 }
 
-// ---- session scope (D4): absolute session facts, not threshold predicates ----
+// ---- session scope: absolute session facts, not threshold predicates ----
 // eightHourSessions/highContextAbs/highContextRel/autonomousShare all divide a
 // bucket by ITSELF at N=1 (this one session either has the qualifying property
 // or doesn't), so they always read exactly 0% or 100% — not useful. Replaced

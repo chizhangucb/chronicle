@@ -1,4 +1,4 @@
-// CHI-324 2c: computeActivity emits per-day per-dimension token CELLS
+// computeActivity emits per-day per-dimension token CELLS
 // (burn.anomalyDays) so the client can price → CostedDay[] → the shared
 // computeAnomaly. Server ships cells, not dollars. Also asserts burn.today and
 // the anomaly day cells are present.
@@ -42,7 +42,7 @@ before(async () => {
     rhythm(base + 600000, 'gpt-5.6-terra'),
   );
   // Older sessions at ~10 / 50 / 120 days ago so widening the window reaches
-  // strictly further back — the CHI-324 monotonicity guard below (a bounded
+  // strictly further back — the monotonicity guard below (a bounded
   // window reaches `days + MEDIAN_DAYS` = days + 14; All spans everything).
   const DAY = 86400000;
   for (const [id, ago] of [['s10', 10], ['s50', 50], ['s120', 120]]) {
@@ -81,7 +81,7 @@ test("today's anomaly day cells split by project / model / source", () => {
   assert.ok(day.byModel['claude-sonnet-5'].input > 0);
 });
 
-test('anomalyDays coverage is monotonic: All ≥ 90d ≥ 30d (CHI-324 review, no 90d>All)', () => {
+test('anomalyDays coverage is monotonic: All ≥ 90d ≥ 30d (review, no 90d>All)', () => {
   const d30 = anomalyTokenSum(activity.computeActivity(null, 30));
   const d90 = anomalyTokenSum(activity.computeActivity(null, 90));
   const dAll = anomalyTokenSum(activity.computeActivity(null, null));

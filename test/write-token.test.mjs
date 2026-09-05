@@ -1,4 +1,4 @@
-// The one test the write-token guard keeps (CHI-222). It runs the real
+// The one test the write-token guard keeps. It runs the real
 // writeTokenGuard + mountWriteToken over HTTP on a bare express app (not the
 // full API), so it pins the posture without dragging in the database.
 import { test, before, after } from 'node:test';

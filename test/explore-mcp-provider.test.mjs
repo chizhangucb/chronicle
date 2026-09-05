@@ -1,4 +1,4 @@
-// CHI-324 2a / D6: the new Explore dimensions `mcp` (per-MCP-server, finishing
+// the new Explore dimensions `mcp` (per-MCP-server, finishing
 // the mcp__server__tool name shape) and `provider`
 // (model vendor, distinct from `source`'s tool vendor).
 import { test, before, after } from 'node:test';

@@ -1,11 +1,11 @@
-// Regression pin for CHI-310: test/e2e/walk.mjs's popoverClip probe used to
+// Regression pin: test/e2e/walk.mjs's popoverClip probe used to
 // pick `.info-tip` by DOM order alone, so any route that opens an overlay
 // (search modal, the session-security check modal) while an unrelated
 // `.info-tip` from the underlying page stays mounted behind the backdrop
 // would report a FAIL — "not hoverable right now" — even though there was
 // no popover-clip defect: the tip was correctly unreachable, same as it
 // would be for a real user. That's a harness coverage gap, not a UI bug, and
-// it must never come back reported as a plain `fail` again (see CHI-310).
+// it must never come back reported as a plain `fail` again (see the note above).
 import { type Page } from '@playwright/test';
 import { test, expect, readSeedState } from './helpers.ts';
 import { probePopoverClip } from './walk.mjs';

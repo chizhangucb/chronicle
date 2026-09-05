@@ -1,6 +1,6 @@
-// server/planWindows.ts (CHI-324 2f) — the subscription rate windows the plans
-// meter, one card per ACCOUNT. Two sources, ported from Varde:
-//  - Claude (subscription.ts): OUTBOUND, OPT-IN-OFF (D7). Reads Claude Code's
+// server/planWindows.ts — the subscription rate windows the plans
+// meter, one card per ACCOUNT. Two sources:
+//  - Claude (subscription.ts): OUTBOUND, OPT-IN-OFF. Reads Claude Code's
 //    OAuth token (Keychain / ~/.claude/.credentials.json) and calls
 //    api.anthropic.com/api/oauth/usage — the token's own issuer, exactly as
 //    Claude Code does — for the 5h / 7d / top-tier windows. Runs ONLY when the
@@ -135,7 +135,7 @@ function readCodexAccount(): PlanAccount | null {
 }
 
 /**
- * Synthetic plan windows for demo mode (CHI-325 3c).
+ * Synthetic plan windows for demo mode.
  *
  * HARD REQUIREMENT, not a nicety: this is the only outbound call Chronicle
  * makes, and a demo console must make none. Demo is what a stranger runs to

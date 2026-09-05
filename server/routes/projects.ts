@@ -42,7 +42,7 @@ export function mountProjects(app: Express): void {
              GROUP_CONCAT(DISTINCT s.source) AS sources
       FROM projects p LEFT JOIN sessions s ON s.project_id = p.id AND COALESCE(s.minor, 0) = 0
       GROUP BY p.id ORDER BY last_active DESC`).all() as unknown as ProjectListRow[];
-    // Cheap "any session live" flag per project (Task 17), no per-project
+    // Cheap "any session live" flag per project, no per-project
     // queries: one indexed scan for recently-ended sessions, plus a lookup for
     // any project owning a currently-open SSE watcher (usually 0-1 rows).
     const cutoff = new Date(Date.now() - LIVE_WINDOW_MS).toISOString();
@@ -56,7 +56,7 @@ export function mountProjects(app: Express): void {
       const rows = db.prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
       for (const r of rows) liveProjectIds.add(r.project_id);
     }
-    // Source-log freshness (Task 16): an active CLI session that nobody has
+    // Source-log freshness: an active CLI session that nobody has
     // open in Chronicle has neither an open live watcher nor a recent
     // ended_at (that only updates on import), so the two checks above miss
     // it entirely. A running session keeps writing its source log though —
@@ -119,7 +119,7 @@ export function mountProjects(app: Express): void {
       // covering idx_messages_agg index instead of a full table scan — same
       // perf-fix shape as server/insights.ts (see the index comment in db.ts).
       // overlapGate on session inclusion + `m.ts >= ?` restricts message-level
-      // aggregates to messages that actually fall in-window (Task 2).
+      // aggregates to messages that actually fall in-window.
       const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE s.project_id = ? AND ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL AND m.ts >= ?
@@ -147,10 +147,10 @@ export function mountProjects(app: Express): void {
       const errors = ((db.prepare(`SELECT SUM(COALESCE(error_count, 0)) AS ec FROM sessions
         WHERE project_id = ? AND ${overlapGate('sessions')} AND COALESCE(minor, 0) = 0`)
         .get(project.id, cutoff) as unknown as { ec: number | null }).ec) ?? 0;
-      // Windowed per-model billed cells (Task 2): the client (Task 3) prices these for the
+      // Windowed per-model billed cells: the client prices these for the
       // project KPIs instead of summing raw session.usage, so they agree with the session
       // list above at every window, including a spanning session's partial in-window share.
-      // Day-bucketed (CHI-228) so a session whose usage straddles a rate change (e.g.
+      // Day-bucketed so a session whose usage straddles a rate change (e.g.
       // Sonnet 5's intro window) prices each day's share at that day's rate.
       const windowedTokensByModel: BucketedUsageCell[] = bucketedUsage(db, 'AND s.project_id = ? AND COALESCE(s.minor,0)=0', [project.id], cutoffIso, 'day');
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, windowedTokensByModel }, cutoff };

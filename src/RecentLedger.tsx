@@ -14,7 +14,7 @@ import { fmtMoney, pluralize } from './format.js';
 import type { SearchResultItem } from './api.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 
-// The recent-sessions ledger, extracted from the old HomePage (Task 13) so it
+// The recent-sessions ledger, extracted from the old HomePage so it
 // can be reused verbatim as the LAST section of the new `/` dashboard while
 // staying the body of `/projects` too — same search box, day-grouping, lazy
 // infinite scroll, and multi-select delete. Nothing here forked: the previous
@@ -27,7 +27,7 @@ const RECENT_PAGE = 50;
 
 // ---- Ledger row helpers (local, trivial — not shared/tested) ----
 
-// Prices at the session's own ts day (CHI-228) when known — same documented
+// Prices at the session's own ts day when known — same documented
 // single-day-per-session boundary as ProjectDetail.tsx's sessionCost.
 function rowCost(s: SearchResultItem, mode: CostMode = 'theoretical'): number | null {
   if (!s.usage) return null;
@@ -117,7 +117,7 @@ export interface RecentLedgerProps {
   // `/` HomeDashboard mount was already gone before this task), so `query`
   // is unconditionally controlled — no uncontrolled fallback branch needed.
   query: string;
-  // PR-2c chrome-sidebar redesign (Task 20): the old in-ledger boxed
+  // PR-2c chrome-sidebar redesign: the old in-ledger boxed
   // `.select-toolbar` is gone — session select-mode CONTROLS portal into a
   // DOM node ProjectsPage owns (the shared full-width command bar, directly
   // under the filter toolbar), so both the session and project select flows
@@ -353,7 +353,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   );
 }
 
-// PR-2c (Task 20): session select-mode CONTROLS, portaled into ProjectsPage's
+// PR-2c: session select-mode CONTROLS, portaled into ProjectsPage's
 // shared `.command-bar` slot instead of RecentLedger's own boxed toolbar —
 // "<N> sessions selected · Select all · Cancel · [minor chip, sessions-only]
 // · ⌫ Remove (N)", with the SAME two-step inline confirm + undo-toast flow

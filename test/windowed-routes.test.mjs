@@ -1,4 +1,4 @@
-// Regression pin for the feedback-round P0 (Task 2): every windowed engine route
+// Regression pin for the feedback-round P0: every windowed engine route
 // (insights, per-project analytics, explore, content) must include a session that
 // started BEFORE the requested window but ran INTO it (e.g. a session spanning
 // midnight into "Today") — the old `COALESCE(s.started_at,'9') >= cutoff` gate dropped

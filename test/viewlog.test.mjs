@@ -1,10 +1,10 @@
-// Pins for the local-only view log (server/viewlog.ts, CHI-325 3a).
+// Pins for the local-only view log (server/viewlog.ts, 3a).
 //
 // The load-bearing properties, in order of how badly a regression would hurt:
 //   1. Route PATTERNS only. A stored session id would turn this table into a
 //      second copy of the history, which is the one thing it must never be.
-//   2. Actor collapse happens at READ time (D5). Collapsing on write is the
-//      CHI-307 error made permanent.
+//   2. Actor collapse happens at READ time. Collapsing on write is the
+//      error made permanent.
 //   3. Demo usage is never recorded. Demo is not usage.
 //   4. Dwell is capped, so an abandoned tab cannot swamp the readings.
 //   5. Writing a row must NOT bump the analytics cache generation. Navigation

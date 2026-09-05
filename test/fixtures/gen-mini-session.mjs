@@ -45,7 +45,7 @@ function jsonLine(obj) {
  * @param {string} [opts.model] - assistant model id (defaults to 'claude-fable-5', byte-identical
  *   to every pre-existing caller). Set it to seed vendor variety: the model VENDOR (shared/provider.ts
  *   providerOf) keys off this string's prefix, so 'gpt-5' -> openai, 'gemini-2.5-pro' -> google,
- *   'mistral-large-2' -> other (off-roster/unpriced). Used by scripts/walk-seed.mjs (CHI-324 2i).
+ *   'mistral-large-2' -> other (off-roster/unpriced). Used by scripts/walk-seed.mjs.
  * @param {{input_tokens:number,output_tokens:number,cache_read_input_tokens?:number}} [opts.usage] -
  *   per-assistant-message token usage (defaults to a small fixed bag). Vary it per vendor so the
  *   Spend median dash + routing table show a real spread.

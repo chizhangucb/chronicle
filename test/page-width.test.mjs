@@ -1,4 +1,4 @@
-// One page width (CHI-325 review, contract "Page width").
+// One page width (review, contract "Page width").
 //
 // Seven ad-hoc per-organ max-widths came first; a two-tier prose-vs-table split
 // came second and still read as inconsistent when navigating, because the thing
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { readSource } from './helpers/read-source.mjs';
 
 // styles.css is ~140KB; a read under 1000 bytes is a mid-write truncation, never
-// the real file, so re-read it (CHI-382). The floor sits far below the real size
+// the real file, so re-read it. The floor sits far below the real size
 // and far above any truncation fragment.
 const css = readSource(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles.css'),

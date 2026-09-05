@@ -88,7 +88,7 @@ describe('parseClaudeSession — fixture-session.jsonl', () => {
     assert.equal(session.skipped, 0);
   });
 
-  test('first_prompt skips a leading cross-session / command-echo message (CHI-368)', async () => {
+  test('first_prompt skips a leading cross-session / command-echo message', async () => {
     const dir = makeTmpDir();
     const file = path.join(dir, 'ipc-first.jsonl');
     const lines = [
@@ -193,13 +193,13 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     assert.equal(session.summary, 'Second rename (final)');
   });
 
-  // ── CHI-286 regression pins ────────────────────────────────────────────────
+  // ── regression pins ────────────────────────────────────────────────
   // Claude Code splits ONE API response's content blocks across several
   // transcript lines, each repeating the FULL `message.usage` and the same
   // `message.id`/`requestId`. Summing per line billed one call 2-3 times (the
   // Insights Spend tile ran 2.2-2.4x hot). These pin the collapse.
 
-  test('CHI-286: one API call split across empty-thinking / text / tool_use lines is billed ONCE', async () => {
+  test('one API call split across empty-thinking / text / tool_use lines is billed ONCE', async () => {
     const dir = makeTmpDir();
     const file = path.join(dir, 'split-call-session.jsonl');
     const usage = (out) => ({
@@ -241,7 +241,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     }
   });
 
-  test('CHI-286: the call key is stamped on every assistant event, usage-bearing or not', async () => {
+  test('the call key is stamped on every assistant event, usage-bearing or not', async () => {
     const dir = makeTmpDir();
     const file = path.join(dir, 'key-stamp-session.jsonl');
     const lines = [
@@ -263,12 +263,12 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     assert.equal(events.find((e) => e.kind === 'user').message_id ?? null, null);
   });
 
-  test('CHI-286: a line carrying neither message.id nor requestId is never collapsed', async () => {
+  test('a line carrying neither message.id nor requestId is never collapsed', async () => {
     const dir = makeTmpDir();
     const file = path.join(dir, 'unkeyed-session.jsonl');
     // Two identical-usage lines with no ids at all. They cannot be PROVEN
-    // replays, so each is billed on its own (matches Varde's `if (msgId ||
-    // reqId)` guard) — the fix must not silently swallow real spend.
+    // replays, so each is billed on its own — the fix must not silently
+    // swallow real spend.
     const l = (uuid, ts) => ({ type: 'assistant', sessionId: 's', cwd: '/tmp/x', uuid, timestamp: ts,
       message: { model: 'm', content: [{ type: 'text', text: 'x' }], usage: { input_tokens: 7, output_tokens: 3 } } });
     fs.writeFileSync(file, [JSON.stringify(l('a1', '2026-08-01T00:00:01.000Z')), JSON.stringify(l('a2', '2026-08-01T00:00:02.000Z'))].join('\n') + '\n');
@@ -278,7 +278,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     });
   });
 
-  test('CHI-286 invariant: SUM(event token cells) === sessions.usage', async () => {
+  test('SUM(event token cells) === sessions.usage', async () => {
     const { session, events } = await parseClaudeSession(FIXTURE_SESSION);
     const sum = {};
     for (const e of events) {
@@ -291,7 +291,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
       sum[m].cacheWrite1h += e.cache_w1h_tokens;
       sum[m].cacheRead += e.cache_read_tokens;
     }
-    // Every billed token sits on exactly ONE message row. Before CHI-286 the
+    // Every billed token sits on exactly ONE message row. Before the
     // two sides disagreed by 25.2% system-wide: an assistant line whose only
     // content was an empty `thinking` block reached the session total but
     // produced no event to hang its tokens on, while replayed lines that DID

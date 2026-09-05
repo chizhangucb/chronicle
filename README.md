@@ -88,14 +88,6 @@ The server executes TypeScript directly (Node 24 strips types at load); there is
 build step for dev. See [AGENTS.md](AGENTS.md) and
 [getchronicle.dev/docs](https://getchronicle.dev/docs) for architecture.
 
-## Family
-
-Chronicle is one of three local-first tools that work on their own and know about each other:
-
-- **Chronicle** answers what happened in a session, in depth.
-- **[nisse](https://github.com/chizhangucb/nisse)** is the repo your assistant lives in: taxonomy, governance, records.
-- **[Varde](https://github.com/chizhangucb/varde)** is an operator console over your whole AI stack: spend, permissions, and what needs your eyes today. It detects Chronicle and links out to it for session depth rather than reimplementing it.
-
 ## License
 
 [Apache-2.0](LICENSE). Third-party notices: [NOTICE](NOTICE).

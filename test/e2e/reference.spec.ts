@@ -1,4 +1,4 @@
-// E2E for the unified reference (CHI-325 3b).
+// E2E for the unified reference.
 //
 // The page's reason to exist is that it reads the SAME registry the ⓘ tips do,
 // so the assertions below check that relationship end to end rather than just
@@ -26,7 +26,7 @@ test.describe('/reference', () => {
     const headings = await page.locator('.reference-page .ref-group h3').allTextContents();
     expect(headings).toContain('Insights · Overview');
     expect(headings).toContain('Insights · Spend');
-    // CHI-322's "nothing valuable silently dropped": the surfaces went, the
+    // the "nothing valuable silently dropped": the surfaces went, the
     // words stayed.
     expect(headings).toContain('Retired (kept for the vocabulary)');
     await expect(page.locator('[data-anchor="def-retired.pinned-panels"]')).toHaveCount(1);

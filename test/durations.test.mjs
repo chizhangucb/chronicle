@@ -28,7 +28,7 @@ test('isHumanPrompt: false for each synthetic user-role prefix', () => {
     '<command-message>running</command-message>',
     '<local-command-stdout>ok</local-command-stdout>',
     '[Request interrupted by user]',
-    // CHI-368: cross-session (agent-to-agent IPC) messages are synthetic too — a
+    // Synthetic turns: cross-session (agent-to-agent IPC) messages are synthetic too — a
     // gap into one is now counted as active, not subtracted as human-think time.
     'Another Claude session sent a message:\n<cross-session-message from="x">hi</cross-session-message>',
     '<cross-session-message from="x">hi</cross-session-message>',

@@ -1,7 +1,7 @@
-// CHI-228: server/explore.ts's default (rollup='total') EXACT_USAGE_GROUPS rows
+// server/explore.ts's default (rollup='total') EXACT_USAGE_GROUPS rows
 // (model/project/source/session) must carry a day-bucketed breakdown of
 // tokensByModel so the client can price a range that straddles a rate change
-// (e.g. Sonnet 5's CHI-110 intro window, cutover 2026-08-31) correctly per day
+// (e.g. Sonnet 5's intro window, cutover 2026-08-31) correctly per day
 // instead of one flat rate for the whole range. Isolated fixture (own temp DB,
 // own project) rather than the shared test/explore.test.mjs `before()` fixture,
 // which already has interlocking hardcoded sonnet-5 token totals a new

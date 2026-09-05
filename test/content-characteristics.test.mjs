@@ -70,7 +70,7 @@ before(async () => {
   //   row1 (assistant, gap 10s from row0's user)      -> active += 10s
   //   row2 (tool_use,  gap 10s from row1)              -> active += 10s
   //   row3 (tool_result, gap 9h from row2, MATCHED)    -> active += 9h (full)
-  //   => agent_active_ms = 9h + 20s >= EIGHT_HOUR_ACTIVE_MS (8h). ✓
+  //   => agent_active_ms = 9h + 20s >= EIGHT_HOUR_ACTIVE_MS. ✓
   // engagedMs has no human/matched exemption — every gap is capped at 90min:
   //   10s + 10s + min(9h, 90min) = 90min20s
   //   => engaged_ms (~5420s) is well under 25% of active_ms (~32420s;

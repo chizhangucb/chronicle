@@ -128,7 +128,7 @@ async function probeLegend(page: Page): Promise<string[]> {
   });
 }
 
-// ── (d) TIME-AXIS probe (D12): consecutive x-axis buckets are exactly ──────
+// ── (d) TIME-AXIS probe: consecutive x-axis buckets are exactly ──────
 // one unit apart. Two label shapes appear in this codebase for a "daily"
 // series (see shared/bucketLabel.ts / src/charts/timeBuckets.ts):
 //   named-month "Aug 9"      — Home's spend-over-time chart, Explore's daily rollup
@@ -186,7 +186,7 @@ function assertConsecutiveDaily(
 // click re-renders recharts in place — the prior window's bars and ticks linger
 // for a frame or two while the new data animates in — so a one-shot read can
 // catch the OLD window's decimated, every-other-day ticks. That is exactly how
-// the /project/:id Overview probe flaked (CHI-324 tail): its default window is
+// the /project/:id Overview probe flaked: its default window is
 // wide (Aug 1 -> Aug 27, ticks decimated to every 2nd day), and the goto helper
 // waits only for a `.recharts-bar-rectangle` to be visible — which the lingering
 // wide-window bars satisfy immediately — so the label read fired before the 7d
@@ -219,7 +219,7 @@ async function gotoHomeOverview7d(page: Page): Promise<void> {
   await expect(page.locator('.home-dashboard .kpis')).toBeVisible();
   await page.locator('.home-dashboard .rangebar button', { hasText: /^7d$/ }).click();
   // Spend-over-time is FULL-WIDTH now (`.sot-card`), no longer in a `.grid2` row
-  // (CHI-324 review).
+  //.
   await expect(page.locator('.sot-card .recharts-bar-rectangle').first()).toBeVisible();
 }
 
@@ -294,7 +294,7 @@ test.describe('probes @ 1366px', () => {
     await runGenericProbes(page, '/projects');
   });
 
-  test('/project/:id Overview (7d)', async ({ page }) => {
+  test('/project/:id Overview', async ({ page }) => {
     const projectId = await fixtureProjectId();
     await gotoProjectOverview7d(page, projectId);
     await runGenericProbes(page, '/project/:id Overview');
