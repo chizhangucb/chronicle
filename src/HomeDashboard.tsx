@@ -262,12 +262,12 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
       <div className="kpi">
         <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
-        <div className="s">{t('estimated from sessions')}</div>
+        <div className="s" title={t('estimated from sessions')}>{t('estimated from sessions')}</div>
       </div>
       <div className="kpi">
         <div className="l">{t('Sessions')} <InfoTip def="overview.sessions" /></div>
         <div className="v">{kpis.sessionCount}</div>
-        <div className="s">{kpis.projectCount} {t('projects')}</div>
+        <div className="s" title={`${kpis.projectCount} ${t('projects')}`}>{kpis.projectCount} {t('projects')}</div>
       </div>
       <div className="kpi">
         <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
