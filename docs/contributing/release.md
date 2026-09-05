@@ -80,7 +80,11 @@ GitHub Actions, with organization `chizhangucb`, repository `chronicle`, workflo
 - **`check`** runs typecheck, the test suite, and the client build on Node 24, with Python 3.12
   pinned for the guards that shell out to it. `CHRONICLE_REQUIRE_PYTHON=1` turns a
   "no python3" skip into a failure, so a silently skipped guard cannot pass CI.
-- **`e2e`** runs the Playwright smoke suite against a seeded large fixture in real Chromium.
+- **`e2e-shard`** runs the Playwright smoke suite against a seeded large fixture in real
+  Chromium, as a 3-way matrix. Each shard is a full runner with its own install, browser, build
+  and seed, and runs the suite parallel on two workers.
+- **`e2e`** is the roll-up: it depends on the shards and goes red unless every one succeeded.
+  Branch protection requires this name, not the matrix's, so keep the job id stable.
 
 Branches-up-to-date is enforced natively by branch protection's
 `required_status_checks.strict`, not by a workflow job.
