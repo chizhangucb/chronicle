@@ -15,6 +15,8 @@ This directory is agent-only. It is excluded from the published docs build.
 | [0005](0005-server-ships-tokens-client-prices.md) | The server ships token cells; the client prices them |
 | [0006](0006-token-calibration-by-text-share.md) | Per-bucket tokens are calibrated from text share |
 | [0007](0007-ask-read-only-handle-is-the-boundary.md) | `/ask`: a read-only SQLite handle is the security boundary |
+| [0008](0008-chronicle-reads-only-its-own-folder.md) | Chronicle reads only its own folder, the source transcripts and the operator's repos |
+| [0009](0009-write-token-is-the-whole-mutation-guard.md) | The per-boot write token is the whole mutation guard |
 
 ## Writing one
 
