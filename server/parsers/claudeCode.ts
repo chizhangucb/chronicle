@@ -66,7 +66,7 @@ interface ClaudeLine {
   // hex id in a subagent file's own name, agent-<hex>.jsonl, when that agent
   // was ALSO written to its own file).
   agentId?: string;
-  // Anthropic's per-API-request id (`req_...`), the second half of the CHI-286
+  // Anthropic's per-API-request id (`req_...`), the second half of the call
   // dedup key. Absent on a handful of lines (3 of ~10k audited), which is why
   // the key tolerates either half being missing.
   requestId?: string;
@@ -299,7 +299,7 @@ export function parseClaudeLine(o: ClaudeLine): Event[] {
       }
     }
     // Anthropic's per-call identity on EVERY event of the line, usage-bearing
-    // or not (CHI-286) — `uuid` is per-line, so this pair is the only thing a
+    // or not — `uuid` is per-line, so this pair is the only thing a
     // later pass over `messages` can dedup on.
     for (const e of events) {
       e.message_id = o.message.id ?? null;
@@ -331,7 +331,7 @@ function usageCells(u: ClaudeUsage): ModelUsage {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-API-call registry (CHI-286)
+// Per-API-call registry
 //
 // Claude Code splits ONE API response's content blocks across several
 // transcript lines (an empty `thinking` block, then text, then tool_use), and
@@ -339,8 +339,8 @@ function usageCells(u: ClaudeUsage): ModelUsage {
 // billed one call two or three times — measured 2.20-2.44x against transcript
 // truth, and 1.67-2.04x against Anthropic's own reported usage.
 // `uuid` is per-LINE and cannot collapse them.
-// The only stable per-CALL key is `(message.id, requestId)`, which is also the
-// exact key shape Varde's parseSpendLines uses, so the two tools reconcile.
+// The only stable per-CALL key is `(message.id, requestId)`: the only pair the
+// transcript repeats verbatim across a replay.
 //
 // ATTRIBUTION, and this is the dominant path rather than an edge case: 58.8% of
 // calls OPEN with a `{"type":"thinking","thinking":""}` line that
@@ -393,8 +393,8 @@ function clearEventUsage(e: Event): void {
 function recordCall(reg: CallRegistry, o: ClaudeLine, u: ClaudeUsage): string {
   const msgId = o.message?.id;
   // A line carrying NEITHER id can never be PROVEN a replay, so it gets a
-  // private key and is billed on its own — the same guard Varde applies with
-  // `if (msgId || reqId)` (aggregator/sources/spend.ts).
+  // private key and is billed on its own, rather than collapsed into whatever
+  // unkeyed line came before it.
   const key = (msgId || o.requestId) ? `${msgId ?? ''}:${o.requestId ?? ''}` : `\u0000anon:${reg.anon++}`;
   const cells = usageCells(u);
   const slot = reg.slots.get(key);
@@ -403,10 +403,10 @@ function recordCall(reg: CallRegistry, o: ClaudeLine, u: ClaudeUsage): string {
     return key;
   }
   // Keep-max PER CELL: a replayed line can be truncated, so the largest value
-  // seen for each cell is the real one. Varde swaps the whole record when its
-  // total is larger; across all 3,132 duplicate keys on disk the two rules
-  // agree exactly (cell-wise max never once exceeded record max), so this stays
-  // reconcilable while additionally surviving a partial replay.
+  // seen for each cell is the real one. Swapping the whole record when its
+  // total is larger agrees exactly across all 3,132 duplicate keys on disk
+  // (cell-wise max never once exceeded record max), so this stays reconcilable
+  // while additionally surviving a partial replay.
   slot.cells = {
     input: Math.max(slot.cells.input, cells.input),
     output: Math.max(slot.cells.output, cells.output),
@@ -561,7 +561,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
       }
       // One API call = one set of numbers, on the first event this call
       // produces anywhere in the session (others NULL). A line that repeats an
-      // already-claimed call attaches nothing — that is the CHI-286 fix.
+      // already-claimed call attaches nothing — that is the fix.
       if (callKey && !claimed) {
         claimCall(calls, callKey, e);
         claimed = true;
@@ -571,7 +571,7 @@ export async function parseClaudeSession(file: string): Promise<ParseResult> {
         pendingCommandSkill = null;
       }
       events.push(e);
-      // first_prompt is the session's DISPLAY-NAME fallback (CHI-368): skip
+      // first_prompt is the session's DISPLAY-NAME fallback: skip
       // synthetic user rows (command echoes, system reminders, cross-session IPC)
       // so the name is a real human prompt, never a raw `<…>` wrapper.
       if (e.kind === 'user' && !e.is_sidechain && !firstPrompt && !isSyntheticUserText(e.text)) firstPrompt = (e.text ?? '').slice(0, 200);

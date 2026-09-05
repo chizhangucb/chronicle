@@ -1,4 +1,4 @@
-// E2E for /ask (CHI-351): the guard is server-side, so these pins hold on CI
+// E2E for /ask: the guard is server-side, so these pins hold on CI
 // (no claude binary) as strongly as locally. Default seeded harness: Ask is OFF
 // (toggle default off) so there is NO `∴ Ask` entry and the route fails soft.
 // Demo: POST /api/ask is refused with 409 like every runner. The gating FORMULA

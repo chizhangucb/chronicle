@@ -4,7 +4,7 @@ import { useCostMode } from './costMode.js';
 import { t } from './i18n.js';
 import InfoTip from './InfoTip.js';
 
-// /ask (CHI-351): one conversation column answered from chronicle.db via the
+// /ask: one conversation column answered from chronicle.db via the
 // local claude runner. Day dividers, durable history, prose + full-width table +
 // SQL expander + cost-basis label per answer. Judged against the approved D3 mock.
 

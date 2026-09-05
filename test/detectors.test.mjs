@@ -1,4 +1,4 @@
-// CHI-324 2e: computeDetectors counts the per-message inputs the Efficiency
+// computeDetectors counts the per-message inputs the Efficiency
 // detectors grade (jumbo outputs > 3k, long context input+cacheRead > 150k, and
 // the cache-hit token sums), windowed by message ts. Server ships COUNTS; the
 // client derives + grades the rates.

@@ -1,4 +1,4 @@
-// Demo seeding (CHI-325 3c, decision D9/D13).
+// Demo seeding.
 //
 // `chronicle --demo` shows the WHOLE product on synthetic data, not just the
 // synthetic slices CHRONICLE_DEMO already provided. The sessions go in

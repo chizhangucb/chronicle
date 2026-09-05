@@ -1,4 +1,4 @@
-// CHI-351 /ask core: the SELECT-only guard, result caps, the answer envelope,
+// the SELECT-only guard, result caps, the answer envelope,
 // bounded history, and the deduped cost views (session_model_cost /
 // message_cost) that must reconcile with the dashboards. No claude binary or
 // real db needed — the guard is exercised directly and the views over a
@@ -217,7 +217,7 @@ function synthDb() {
       skill TEXT, is_sidechain INTEGER, agent_type TEXT, agent_id TEXT, workflow_id TEXT,
       input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER,
       cache_w5m_tokens INTEGER, cache_w1h_tokens INTEGER);
-    INSERT INTO projects VALUES (1, '/p/varde', 'varde');
+    INSERT INTO projects VALUES (1, '/p/atlas', 'atlas');
     INSERT INTO sessions VALUES ('s1', 1, 'claude-code', '2026-07-10T00:00:00Z', '2026-07-10T01:00:00Z',
       '{"claude-opus-4-8":{"input":1000000,"output":200000,"cacheRead":100000}}', 'exact');
     INSERT INTO messages VALUES ('s1', 0, '2026-07-10T00:00:00Z', 'assistant', 'claude-opus-4-8', NULL, NULL,
@@ -235,7 +235,7 @@ test('buildCostSurface: session_model_cost prices the deduped sessions.usage (li
   // opus-4-8 list: input $5, output $25, cacheRead $0.5 per MTok.
   // 1M*5 + 0.2M*25 + 0.1M*0.5 = 5 + 5 + 0.05 = 10.05
   const row = d.prepare(`SELECT project_path, model, ROUND(cost_usd,2) AS c FROM session_model_cost`).get();
-  assert.equal(row.project_path, '/p/varde');
+  assert.equal(row.project_path, '/p/atlas');
   assert.equal(row.model, 'claude-opus-4-8');
   assert.equal(row.c, 10.05);
 });

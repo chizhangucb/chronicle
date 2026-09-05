@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * /ask (CHI-351) — the ONE tool the headless `claude -p` runner is allowed.
+ * /ask — the ONE tool the headless `claude -p` runner is allowed.
  * A minimal stdio JSON-RPC MCP server (no SDK dependency, matching Chronicle's
  * lean-deps posture) exposing a single tool `query({sql})` over a READ-ONLY
  * chronicle.db handle.
  *
  * The read-only handle is the HARD server-side SELECT-only guarantee (verified
- * in the CHI-351 spikes: writes / ATTACH / load_extension all fail at the SQLite
+ * in the spikes: writes / ATTACH / load_extension all fail at the SQLite
  * layer, and readfile/writefile aren't compiled into node:sqlite, so there is no
  * fs escape). sanitizeAskSql is defense-in-depth + clean errors, not the wall.
  *
@@ -14,7 +14,7 @@
  * db, so chronicle.db is never touched): a `pricing` table for the run's cost
  * basis, and two deduped cost views the schema-prompt steers the model to —
  * `session_model_cost` (from sessions.usage, reconciles with the dashboards) and
- * `message_cost` (per-message, replayed rows already nulled by CHI-286).
+ * `message_cost` (per-message, replayed rows already nulled).
  *
  * Every successful query APPENDS its (already-capped) result to
  * `<runnerDir>/ask-queries.jsonl`. That capture — produced inside THIS

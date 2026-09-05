@@ -1,6 +1,6 @@
 // shared/provider.ts
 // Model VENDOR ("provider") mapping — anthropic / openai / google / other — the
-// CHI-324 D6 spend stack/pivot axis. This is the model VENDOR, NOT `source`
+// D6 spend stack/pivot axis. This is the model VENDOR, NOT `source`
 // (that is the TOOL vendor claude-code/codex/…, already the Sources chart). The
 // client twin of server/explore.ts `providerExpr`; the two MUST agree, so the
 // prefix rules here mirror that CASE expression exactly (test/provider-of.test.mjs

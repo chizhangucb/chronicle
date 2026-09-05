@@ -36,9 +36,8 @@ Third-party notices
    Chronicle never bundles, transmits, or commits the operator's machine data. It
    writes its imported-session database and app state to the app data directory
    (~/.chronicle by default, CHRONICLE_DATA_DIR override), which is gitignored,
-   and reads source tool logs read-only. When connected to a nisse-format hub it
-   reads the hub read-only and emits titles/paths/counts only, never note or
-   record body text, and never confidential content. Only sanitized templates
+   and reads source tool logs read-only. It reads no other tool's files. Only
+   sanitized templates
    ship with the project: the example seeds (data/*.example.json) and wholly
    synthetic demo fixtures (data/*.demo.json, data/demo-logs/) whose every
    number, project and note name is invented.

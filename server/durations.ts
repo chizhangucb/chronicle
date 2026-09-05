@@ -6,8 +6,8 @@ import type { Event } from '../shared/types.ts';
 import { SYNTHETIC_USER_RE, isSyntheticUserText } from '../shared/synthetic.ts';
 
 // SYNTHETIC_USER_RE now lives in shared/synthetic.ts (one definition shared with
-// the client session stats + the parsers' first-prompt derivation). CHI-368
-// folded cross-session (agent-to-agent IPC) messages into it: a gap INTO one is
+// the client session stats + the parsers' first-prompt derivation). It now
+// folds cross-session (agent-to-agent IPC) messages into it: a gap INTO one is
 // no longer subtracted as human-think time — an injected IPC message isn't a
 // human typing — so it counts as active (capped) like any other synthetic turn.
 export { SYNTHETIC_USER_RE };

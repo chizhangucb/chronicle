@@ -97,7 +97,7 @@ test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/com
   const r = await insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (14d ago) stays
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
-  // dailyActivity/hourlyActivity use their own fixed windows (182d/30d) — both
+  // dailyActivity/hourlyActivity use their own fixed windows — both
   // sessions may or may not appear depending on real "now", but the function
   // must not throw and must return arrays regardless of the days= param.
   assert.ok(Array.isArray(r.dailyActivity));
@@ -125,7 +125,7 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
   assert.equal(r.commits, 0);
 });
 
-// CHI-233 Part C: the machine-session manifest surfaces in the payload. The
+// Part C: the machine-session manifest surfaces in the payload. The
 // real manifest may or may not exist on the test machine, so assert only the
 // contract shape (ids + sessions arrays), not specific values.
 // Perf fix: error stats are no longer regexed out of every tool_result head

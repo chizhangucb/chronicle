@@ -58,7 +58,7 @@ export default function Timeline({ messages, commits, currentTs, currentCommit, 
   // The playhead's rendered position while/after a click or drag ON THIS
   // TRACK — a fraction 0..1, independent of which message ends up selected.
   //
-  // Root cause this fixes (Task 7): `onSeek` always resolves to the NEAREST
+  // Root cause this fixes: `onSeek` always resolves to the NEAREST
   // available message in time (seekTs in SessionView.tsx), which is
   // unavoidable — you can't select a message that doesn't exist. But real
   // sessions routinely have multi-hour gaps in activity (confirmed on

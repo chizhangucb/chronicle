@@ -30,8 +30,8 @@ if (Number.isNaN(major) || major < 24) {
 
 // --- Args: usage, then --port <n>, --no-open, --demo, --app ---
 // The launcher takes flags only; it has no subcommands. A bare word in the
-// first position is a typo or a retired subcommand (`chronicle hub`, removed in
-// #224), so it is rejected loudly rather than silently launching the app.
+// first position is a typo or a subcommand retired by the shrink (#224), so it
+// is rejected loudly rather than silently launching the app.
 const USAGE = [
   'Usage: chronicle [options]',
   '',
@@ -58,10 +58,10 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 const noOpen = argv.includes('--no-open');
-// --demo (CHI-325 D9): the whole product on synthetic data, for a zero-data
+// --demo: the whole product on synthetic data, for a zero-data
 // user. CHRONICLE_DEMO=1 keeps working; the flag is the discoverable form.
 const demo = argv.includes('--demo') || process.env.CHRONICLE_DEMO === '1';
-// --app (CHI-325 D10): a dedicated browser window (no tab strip, no address
+// --app: a dedicated browser window (no tab strip, no address
 // bar) rather than a tab. The defer-with-bridge half of the desktop-shell
 // decision; the real shell is its own ticket.
 const appWindow = argv.includes('--app');
@@ -99,7 +99,7 @@ function openBrowser(url) {
   try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); } catch { /* ignore */ }
 }
 
-// --- `--app`: a dedicated window via Chromium's --app= (CHI-325 D10). ---
+// --- `--app`: a dedicated window via Chromium's --app=. ---
 // Falls back to a normal tab with a one-line note rather than failing: the
 // dedicated window is a nicety, and not opening the app at all would not be.
 const APP_BROWSERS = {
@@ -139,7 +139,7 @@ function openAppWindow(url) {
 const pkgRoot = new URL('../', import.meta.url);
 const distDir = fileURLToPath(new URL('dist/', pkgRoot));
 
-// --- Demo mode (CHI-325 3c): point the data dir at a throwaway demo DB and
+// --- Demo mode: point the data dir at a throwaway demo DB and
 // --- seed it, BEFORE importing the server (server/db.ts binds its handle to
 // --- CHRONICLE_DATA_DIR at import time, so the order is load-bearing).
 // --- ~/.chronicle is never opened, migrated, or written in demo.
@@ -161,7 +161,7 @@ let port, server;
 try {
   port = await firstFreePort(requestedPort);
   const { startServer } = await import(new URL('../dist-server/server/standalone.js', import.meta.url));
-  // Relaunch capability (CHI-325 3c). Published on globalThis rather than
+  // Relaunch capability. Published on globalThis rather than
   // passed into startServer, because `api` is a module-level singleton whose
   // routes are mounted at import time: by the time startServer runs there is
   // nothing left to inject into. Same idiom as __chronicleGate/__chronicleCache.

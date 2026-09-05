@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scripts/walk-seed.mjs — a vendor-varied release walk on a THROWAWAY DB (CHI-324 2i).
+// scripts/walk-seed.mjs — a vendor-varied release walk on a THROWAWAY DB.
 //
 // The normal `npm run walk` runs against the maintainer's real ~/.chronicle DB,
 // which is nearly all `claude-*` — so the Spend tab's [project|provider] toggle,

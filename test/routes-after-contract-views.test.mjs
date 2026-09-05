@@ -1,4 +1,4 @@
-// CHI-223 acceptance: with the contract_* views removed, every read route that
+// with the contract_* views removed, every read route that
 // used to sit alongside them still answers from the base tables.
 //
 // The views were never in a route's query path, so this is a pin rather than a

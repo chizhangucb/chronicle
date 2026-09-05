@@ -1,6 +1,6 @@
-// Vendor-varied synthetic sessions for the seeded release walk (CHI-324 2i).
+// Vendor-varied synthetic sessions for the seeded release walk.
 //
-// The real DB (and the demo hub slices) are nearly all `claude-*`, so the Spend
+// The real DB (and the demo slices) are nearly all `claude-*`, so the Spend
 // tab's [project|provider] toggle, the median-session dash, and the routing
 // table all collapse to ~one vendor on a normal walk. This fixture set spans
 // four model VENDORS (shared/provider.ts providerOf keys off the model-id

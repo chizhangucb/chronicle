@@ -1,4 +1,4 @@
-// Anti-drift pins for the definitions registry (CHI-325 3b, decision D3).
+// Anti-drift pins for the definitions registry.
 //
 // The reference page's entire value is that it CANNOT diverge from what the
 // surfaces say. That only holds while both read the same registry, so these
@@ -114,7 +114,7 @@ test('a definition that takes vars still uses them', () => {
 });
 
 test('the retired group keeps the vocabulary of dropped surfaces', () => {
-  // CHI-322's binding rule: nothing valuable is silently dropped. The surfaces
+  // the binding rule: nothing valuable is silently dropped. The surfaces
   // are gone; the terms must still be findable.
   const retired = DEFINITIONS.filter((d) => d.page === 'retired').map((d) => d.id);
   for (const id of ['retired.pinned-panels', 'retired.peek-drill', 'retired.burn-tile']) {

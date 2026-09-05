@@ -1,5 +1,5 @@
 // Client stale-while-revalidate fetch layer (spec §2.8 — perceived-<300ms nav):
-// with server responses now cache-warm (Task 3), the client's job is to never
+// with server responses now cache-warm, the client's job is to never
 // blank a previously-rendered pane on tab/page switches OR on a param change
 // (day-range, pivot, etc.) that lands on a URL this session hasn't seen yet.
 // A module-level cache keyed by URL means any component that has ever fetched
@@ -73,7 +73,7 @@ let generation = 0;
 //  3. `cache.clear()` + notify `listeners` — the actual refetch.
 //
 // Clearing the whole map (rather than per-URL bookkeeping) is deliberately
-// simple/blunt — the server's own result cache (Task 3) makes any resulting
+// simple/blunt — the server's own result cache makes any resulting
 // refill cheap.
 export function invalidateClientCache(): void {
   generation++;

@@ -1,4 +1,4 @@
-// Writes the demo corpus out as real Claude Code transcripts (CHI-325 3c).
+// Writes the demo corpus out as real Claude Code transcripts.
 //
 // A shipped twin of test/fixtures/gen-mini-session.mjs. It is a separate file
 // rather than an import because `test/` is not in package.json `files`, so the

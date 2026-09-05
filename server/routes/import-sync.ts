@@ -53,7 +53,7 @@ interface ImportResult {
   projectId: number | null;
 }
 
-// Lifted to module scope (CHI-325 3c) so the demo seeder can drive the SAME
+// Lifted to module scope so the demo seeder can drive the SAME
 // parse+import path the HTTP route uses, instead of writing rows into the DB
 // directly. They only ever closed over module imports, so this is a pure move.
 // Gather parsed {session, events} pairs per source. files/sessionIds restrict

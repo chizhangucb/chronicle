@@ -1,8 +1,8 @@
 // Client-side anomaly helpers shared by the Overview AnomalyTile and the Spend
-// tab's Anomaly card (CHI-324 2c/2b), so the two anomaly views compute
+// tab's Anomaly card, so the two anomaly views compute
 // identically. Pricing happens here (the price table is client-only); the pure
 // algorithm lives in shared/spend/anomaly.ts. Prices every day at its own rate
-// (CHI-228) and honors the List/Billed toggle.
+// and honors the List/Billed toggle.
 import { costOf, type CostMode } from '../models.js';
 import type { ActivityResult, ActivityTokensByModel } from '../api.js';
 import type { CostedDay, AnomalyDimension, FlaggedDay } from '../../shared/spend/anomaly.ts';
@@ -16,7 +16,7 @@ export const MOVER_GLYPH: Record<AnomalyDimension, string> = {
   project: '◫', model: '▤', source: '◇', skill: '✎', agent: '⛭', mcp: '⧉',
 };
 
-// Price a bag of per-model token cells at a SPECIFIC day's rate (CHI-228).
+// Price a bag of per-model token cells at a SPECIFIC day's rate.
 export function priceCellsAtDay(byModel: ActivityTokensByModel, day: string, mode: CostMode): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
@@ -47,7 +47,7 @@ export function windowStartDay(today: string, days: number | null): string | nul
 }
 
 // The ONE window-scoped anomaly view, shared verbatim by the Overview tile and
-// the Spend-tab card so the two surfaces can NEVER disagree (CHI-324 review —
+// the Spend-tab card so the two surfaces can NEVER disagree (review —
 // they showed different All totals, and 90d > All, because they read different,
 // differently-bounded sources). Everything here derives from burn.anomalyDays,
 // which the server now sizes to cover the FULL window + a 14-day baseline for

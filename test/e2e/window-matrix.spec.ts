@@ -12,18 +12,18 @@
 // and ends 5 minutes before seed time (always today, local); `todayOnlySessionId`
 // is entirely inside the last 40 minutes. Both are non-minor (>=10 messages)
 // and live in the SAME project as the big fixture, so every window below has
-// guaranteed in-window data at both the `/` hub (scope=all) and the fixture
+// guaranteed in-window data at both the home page at `/` (scope=all) and the fixture
 // project's `/project/:id` (scope=project) — regardless of what real date
 // this suite happens to run on.
 //
-// DETERMINISTIC "Today" (CHI-376): the Today window's WIDTH is set entirely
+// DETERMINISTIC "Today": the Today window's WIDTH is set entirely
 // client-side. The rangebar sends `days = daysToday` = fractional days since
 // LOCAL midnight (src/HomeDashboard.tsx / src/ProjectDetail.tsx), and the
 // server computes the cutoff as `now - days*day` (server/insights.ts etc.), so
 // window width == daysToday*day. Run in the first ~35 min after local midnight
 // and that width collapses to minutes: the two relative fixtures (seeded 5-40
 // min before seed-`now`) fall outside `[midnight, now]`, `overlapGate` drops
-// both, and the Sessions KPI reads 0 (this is the flake CHI-376 fixes — the
+// both, and the Sessions KPI reads 0 (this is the flake fixes — the
 // old fixture comment called it an "accepted low-probability risk"; it hit CI
 // twice in a row on PR #143). Fix: freeze this file's browser clock to local
 // NOON via `page.clock`, so `daysToday` is deterministically 0.5 and the Today
@@ -135,7 +135,7 @@ async function assertContentNoFloatDayLeak(page: Page, label: string): Promise<v
 // overlap "Today" regardless of what real date this suite runs on.
 async function assertTodaySessionCountIsTwo(page: Page, label: string): Promise<void> {
   // Match "Sessions" at the label start, word-bounded: the Home Overview tile now
-  // carries an interactive-only InfoTip (CHI-233) so its .l text is "Sessions ⓘ",
+  // carries an interactive-only InfoTip so its .l text is "Sessions ⓘ",
   // while the Project-detail tile stays exactly "Sessions" — both must resolve here.
   const kpi = page.locator('.kpis .kpi').filter({ has: page.locator('.l', { hasText: /^Sessions\b/ }) }).first();
   await expect(kpi, `${label}: no Sessions KPI tile rendered`).toBeVisible();
@@ -155,7 +155,7 @@ async function assertTodaySessionCountIsTwo(page: Page, label: string): Promise<
     `A count of 1 means the overlap-gate P0 regressed and dropped the midnight-spanning ` +
     `session (its started_at predates Today's cutoff). A count of 0 means the whole Today ` +
     `window came back empty — the browser-clock freeze at the top of this file did not take ` +
-    `effect (daysToday should be a fixed 0.5), not an overlap-gate regression (CHI-376).`,
+    `effect (daysToday should be a fixed 0.5), not an overlap-gate regression.`,
   ).toHaveText('2');
 }
 
@@ -167,10 +167,10 @@ async function fixtureProjectId(): Promise<number> {
 
 const TABS = ['Overview', 'Explore', 'Content'] as const;
 
-// ---- Home hub (/) — rangebar buttons are exactly Today/7d/30d/90d/All (home.spec.ts) ----
+// ---- Insights home (/) — rangebar buttons are exactly Today/7d/30d/90d/All (home.spec.ts) ----
 const HOME_WINDOWS = ['Today', '7d', '30d'] as const;
 
-test.describe('window-matrix: Home hub (/) — Today/7d/30d × Overview/Explore/Content', () => {
+test.describe('window-matrix: Insights home (/) — Today/7d/30d × Overview/Explore/Content', () => {
   for (const win of HOME_WINDOWS) {
     for (const tabName of TABS) {
       test(`${win} × ${tabName}: renders non-empty${tabName === 'Explore' || tabName === 'Content' ? ', no float-day leak' : ''}`, async ({ page }) => {
@@ -199,25 +199,25 @@ test.describe('window-matrix: Home hub (/) — Today/7d/30d × Overview/Explore/
 });
 
 // ---- Project detail (/project/:id) — rangebar buttons are Today/7d/30d/90d/All
-// (unified with the hub's vocabulary via the shared RangeBar.tsx, D10, Task 17) ----
+// (unified with the home page's vocabulary via the shared RangeBar.tsx, D10, Task 17) ----
 
-// Drift-pin: the project rangebar's option set + labels must equal the hub's
+// Drift-pin: the project rangebar's option set + labels must equal the home page's
 // exactly (same 5 options, same order) — this is the regression the D10
 // unification (shared RangeBar.tsx) exists to prevent. Before Task 17 this
 // rendered Today/7 Days/30 Days/1 Year/All time, a fully independent
-// vocabulary from the hub's Today/7d/30d/90d/All.
-test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the / hub', async ({ page }) => {
+// vocabulary from the home page's Today/7d/30d/90d/All.
+test('the rangebar on /project/:id has exactly the same Today / 7d / 30d / 90d / All set as the home page at /', async ({ page }) => {
   const projectId = await fixtureProjectId();
   await page.goto(`${state.baseURL}/`);
-  const hubOpts = page.locator('.home-dashboard .rangebar button');
-  await expect(hubOpts).toHaveCount(5);
-  const hubLabels = await hubOpts.allTextContents();
+  const homeOpts = page.locator('.home-dashboard .rangebar button');
+  await expect(homeOpts).toHaveCount(5);
+  const homeLabels = await homeOpts.allTextContents();
 
   await page.goto(`${state.baseURL}/project/${projectId}`);
   const projectOpts = page.locator('.project-detail .rangebar button');
   await expect(projectOpts).toHaveCount(5);
   await expect(projectOpts).toHaveText(['Today', '7d', '30d', '90d', 'All']);
-  expect(await projectOpts.allTextContents()).toEqual(hubLabels);
+  expect(await projectOpts.allTextContents()).toEqual(homeLabels);
 });
 
 const PROJECT_WINDOWS: { click: string; label: string }[] = [

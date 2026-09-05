@@ -17,7 +17,7 @@
 
 | Route | Surface | Component |
 |---|---|---|
-| `/` | The ONE Insights hub, sidebar item **`∑ Insights`** — tabs Overview / Explore / Content / Spend / Sessions | `src/HomeDashboard.tsx` |
+| `/` | The ONE Insights home, sidebar item **`∑ Insights`** — tabs Overview / Explore / Content / Spend / Sessions | `src/HomeDashboard.tsx` |
 | `/projects` | Chrome-sidebar layout, no h1: a CENTER content column (filter toolbar, shared select command bar, "Recent sessions" ledger — stacks first below 1100px) + a RIGHT chrome sidebar (same tone as the left app sidebar, full height, flush to the window edge >=1100px; eyebrow `PROJECTS · N`, borderless nav rows, gear visible at rest) | `src/ProjectsPage.tsx` |
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
@@ -40,10 +40,10 @@ drag-resizable when expanded. Contents, top to bottom:
 - **Brand** — `◷` Chronicle (click → `/`).
 - **`sb-top` nav — exactly two items, always on:** Insights (`∑`) and Projects (`◫`). There is
   no third `sb-top` entry on any install, in any mode: `sb-top` is Insights + Projects, full stop.
-  NO Home entry, no `⌂` glyph in the sidebar — the hub at `/` is labeled **Insights** everywhere (sidebar item
+  NO Home entry, no `⌂` glyph in the sidebar — the home page at `/` is labeled **Insights** everywhere (sidebar item
   title, `/` page title), never "Home". `⌂` does not appear anywhere in `src/`. Projects highlights
   across every project-scoped route (`/projects`, `/project/:id[/explore|/content]`, `/session/:id`)
-  but NOT on the Insights hub.
+  but NOT on the Insights home.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
   `SessionView` via `onRailChange`: Overview (`⬚`, ⌘1) · Playback (`▶`, ⌘2) · Refine (`✂`, ⌘3) ·
   Security Check (`◈`). The Subagents drill-in is reached only via the Overview Subagents card,
@@ -94,17 +94,17 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 ## Enumerables (exact sets — changing any is a contract edit)
 
-- **Window toggle** (`/` hub `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
+- **Window toggle** (`/` home page `.rangebar`): `Today` · `7d` · `30d` · `90d` · `All`. Exactly five,
   in this order. Default = Today. Today = fractional-days-since-local-midnight; All = no cutoff.
 - **Project rangebar** (`/project/:id` `.project-detail .rangebar`): `Today` · `7d` · `30d` ·
-  `90d` · `All`. Same exact five, same order, same labels as the hub window toggle above — ONE
+  `90d` · `All`. Same exact five, same order, same labels as the home window toggle above — ONE
   shared vocabulary, sourced from ONE component (`src/RangeBar.tsx`) both surfaces mount, so the
   option sets/labels cannot drift independently. Default = All. Guard:
   `test/e2e/window-matrix.spec.ts` — "the rangebar on /project/:id has exactly the same Today /
-  7d / 30d / 90d / All set as the / hub".
-- **Hub tabs** (`/`): `Overview` · `Explore` · `Content` · `Spend` · `Sessions`. Exactly five;
+  7d / 30d / 90d / All set as the home page at /".
+- **Home tabs** (`/`): `Overview` · `Explore` · `Content` · `Spend` · `Sessions`. Exactly five;
   Overview default. Text tabs in the existing boxed `.tabs` chrome; the shared rangebar scopes every
-  tab. Guard: `test/e2e/home.spec.ts` — "the hub at / shows exactly Overview / Explore / Content /
+  tab. Guard: `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content /
   Spend / Sessions tabs".
 - **Project tabs** (`/project/:id`): `Overview` · `Explore` · `Content` · `Sessions`.
 - **Session modes rail**: `Overview` · `Playback` · `Refine` + `Security Check` (four rail items).
@@ -119,7 +119,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
   `∴`=ask `※`=reference. `⌂`=Home and `⊘`=safety are
-  retired from chrome and appear nowhere in `src/`. Per-surface: `/` hub tabs are text;
+  retired from chrome and appear nowhere in `src/`. Per-surface: `/` home page tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use` to
     colored emoji (👤/💭/🔧) in Playback rows — adjudicated at the walk, per the rubric.
@@ -127,13 +127,18 @@ constant; readability is solved on the TEXT, not by moving the frame.
   Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST element inside
   the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the KPI strip".
 - **The removed surfaces stay removed.** The shrink (spec #215) deleted the Modules, Jobs,
-  Records, Memory, Briefing and Safety surfaces, the hub adapter, the write gate, the Terminal
-  launcher, the proxy spend lane, the machine-sessions manifest, the contract database views and
-  the `hub` CLI subcommand. Their routes are unmounted (404), their nav items are gone, and no
+  Records, Memory, Briefing and Safety surfaces, the external-checkout adapter, the write gate,
+  the Terminal launcher, the proxy spend lane, the machine-sessions manifest, the contract
+  database views and the retired CLI subcommand. Their routes are unmounted (404), their nav items are gone, and no
   Settings row, env knob or config key reads them. Nothing on this page describes them; they are
   named only in the Reference `Retired` group and in the CHANGELOG. Guards:
   `test/removed-routes.test.mjs`, `test/routes-after-contract-views.test.mjs`,
-  `test/cli-hub-removed.test.mjs`, `test/repo-shape.test.mjs`.
+  `test/cli-removed-inputs.test.mjs`, `test/repo-shape.test.mjs`.
+- **The retired vocabulary stays retired.** The words for the private checkout Chronicle was the
+  operator console for, the two sibling repos it named, and the private tracker's ticket ids
+  appear in NO tracked source, config, spec or doc. The CHANGELOG is excepted (history names what
+  was), as are the removal pins themselves (a pin cannot forbid a word without spelling it).
+  Guard: `test/repo-shape.test.mjs` — the vocabulary-sweep pins.
 
 ## Per-surface content inventory (what each surface MUST show)
 
@@ -219,7 +224,7 @@ scopes the tab.
 - **Billed flip** everywhere (`Billed` cost basis): covered models re-rank ~$0 with a `COVERED` tag;
   no-model-split rows gray as `theoretical · no model split`.
 
-### `/` Sessions tab — reading order top → bottom (`SessionsHubTab.tsx`)
+### `/` Sessions tab — reading order top → bottom (`SessionsTab.tsx`)
 
 1. **Header row**: a muted count line at left (`N sessions`, matching the KPI Sessions count). No
    toggle — there is one session set.
@@ -355,17 +360,18 @@ when empty and is absent in demo (demo never records).
 | Enumerable / shape fact | Guarding test |
 |---|---|
 | Sidebar `sb-top` = exactly Insights + Projects, no Home entry, no `⌂`, on every install and in every mode | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
-| Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, hub, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
+| Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
-| The CLI has no `hub` subcommand and reads no hub path input | `test/cli-hub-removed.test.mjs` |
+| The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No launchd or cron template ships in the published tarball | `test/repo-shape.test.mjs` — "the published package ships no job template" |
+| The retired vocabulary appears in no tracked source, config, spec or doc (CHANGELOG and the removal pins excepted); no retired route prefix or deleted module returns | `test/repo-shape.test.mjs` — the vocabulary-sweep pins |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
 | Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
 | Ask runner SELECT-only guard (accept SELECT/WITH, reject writes/DDL/PRAGMA/ATTACH/multi-statement/comment-smuggle) + deduped cost views reconcile | `test/ask.test.mjs` (17 unit tests) |
-| Hub tabs = Overview / Explore / Content / Spend / Sessions (exactly five), Overview default | `test/e2e/home.spec.ts` — "the hub at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |
+| Home tabs = Overview / Explore / Content / Spend / Sessions (exactly five), Overview default | `test/e2e/home.spec.ts` — "the home page at / shows exactly Overview / Explore / Content / Spend / Sessions tabs" |
 | Window toggle = Today / 7d / 30d / 90d / All (exactly five) | `test/e2e/home.spec.ts` — "the window toggle on / has exactly…" |
 | `/insights` (and `?tab=`) redirects to `/` | `test/e2e/home.spec.ts` — "/insights redirects…" + "…?tab=explore…" |
 | Overview DOM order KPIs → activity → anomaly tile → charts, no ledger, no top-sessions-by-cost | `test/e2e/home.spec.ts` — "Overview reading order KPIs → activity → anomaly → charts" |

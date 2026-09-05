@@ -223,7 +223,7 @@ describe('parseClaudeSession — per-run agent_id (Overview Subagents card heade
     assert.equal(subagentRunCount(events), 120);
   });
 
-  // Task 11 (D3): the sidecar's `description` field, previously read then
+  // Task 11: the sidecar's `description` field, previously read then
   // discarded (see the old AgentMeta comment), now flows onto every event of
   // the run as agent_desc — the source for the run list's Description column.
   test('agent_desc: every file-based subagent event carries its meta.json description', async () => {

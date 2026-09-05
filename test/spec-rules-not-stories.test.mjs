@@ -1,12 +1,12 @@
-// Re-bloat guard for the spec/ contracts (CHI-388).
+// Re-bloat guard for the spec/ contracts.
 //
 // surface-contract.md, design-qa-rubric.md and product-contract.md are normative
 // contracts a reviewer judges against, so they read as rules, not stories. They
-// had drifted into narrative: 112 CHI-nnn refs, dated sign-off paragraphs, spec-§
-// pointers, incident history. Chronicle is PUBLIC and its decision log lives
-// OFF-repo in the hub, so a ticket/decision ref in a spec is a dead pointer to an
-// external reader and an off-repo one to a fresh clone; the trace lives in git
-// blame + the hub log by surface name. This pin keeps the prose ref-free so it
+// had drifted into narrative: private ticket refs, dated sign-off paragraphs,
+// spec-§ pointers, incident history. Chronicle is PUBLIC and its decision log
+// lives off-repo, so a ticket/decision ref in a spec is a dead pointer for an
+// external reader and an off-repo one for a fresh clone; the trace lives in git
+// blame and the off-repo log, by surface name. This pin keeps the prose ref-free so it
 // cannot silently drift back.
 //
 // It scans PROSE only: fenced code blocks and inline `code spans` are stripped
@@ -51,7 +51,7 @@ for (const file of FILES) {
     }
     assert.deepEqual(
       hits, [],
-      `spec/${file} carries story/refs that belong in the hub decision log, not the contract:\n  ${hits.join('\n  ')}`,
+      `spec/${file} carries story/refs that belong in the off-repo decision log, not the contract:\n  ${hits.join('\n  ')}`,
     );
   });
 }

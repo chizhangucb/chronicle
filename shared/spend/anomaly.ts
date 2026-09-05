@@ -1,6 +1,5 @@
 // shared/spend/anomaly.ts
-// Spend anomaly detection, ported from Varde aggregator/sources/spend.ts
-// computeAnomaly (CHI-324 2a / D4). Pure over ALREADY-COSTED day series, so it
+// Spend anomaly detection. Pure over ALREADY-COSTED day series, so it
 // is pricing-agnostic: the caller prices token cells with its own PriceFn (the
 // client at the toggled mode, the server at the theoretical basis)
 // and hands this dollars. ONE algorithm, no second pricing path.
@@ -15,7 +14,7 @@ import type { AnomalyThresholds, SpendThresholds } from './thresholds.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from './thresholds.ts';
 
 // Anomaly mover dimensions, named in Chronicle's vocabulary (source = tool
-// vendor claude-code/codex/…, the faithful port of Varde's byClient; mcp from
+// vendor claude-code/codex/…; mcp from
 // the dormant mcp_server column; agent = agent_type).
 export type AnomalyDimension = 'model' | 'project' | 'source' | 'skill' | 'agent' | 'mcp';
 export const ANOMALY_DIMENSIONS: AnomalyDimension[] = ['model', 'project', 'source', 'skill', 'agent', 'mcp'];
@@ -61,7 +60,7 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 // One prior day in the current window that was itself a spend spike (its own
 // cost > multiplier x the median of the active days strictly before it). Feeds
-// the anomaly tile's "N flagged days" line on multi-day windows (CHI-324 2c).
+// the anomaly tile's "N flagged days" line on multi-day windows.
 export interface FlaggedDay {
   day: string;
   cost: number;

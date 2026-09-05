@@ -8,7 +8,7 @@ import {
   type AskTurn,
 } from '../ask.ts';
 
-// /ask routes (CHI-351). The `∴ Ask` metric chat: a local claude-CLI-backed
+// /ask routes. The `∴ Ask` metric chat: a local claude-CLI-backed
 // runner with exactly one read-only SELECT-only tool over chronicle.db. Gated,
 // server-side, on THREE conditions (never the hidden sidebar entry alone): the
 // Settings toggle is on, the claude CLI is present, and the console is not a

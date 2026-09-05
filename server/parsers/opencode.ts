@@ -133,7 +133,7 @@ export function parseOpencodeSessions(dbPath: string, directory: string | undefi
         if (part.type === 'text' && part.text?.trim()) {
           const kind = msg.role === 'user' ? 'user' : 'assistant';
           events.push({ ts, kind, text: part.text, model });
-          if (kind === 'user' && !firstPrompt && !isSyntheticUserText(part.text)) firstPrompt = part.text.slice(0, 200); // CHI-368: skip synthetic wrappers in the display-name fallback
+          if (kind === 'user' && !firstPrompt && !isSyntheticUserText(part.text)) firstPrompt = part.text.slice(0, 200); // display name: skip synthetic wrappers in the display-name fallback
         } else if (part.type === 'reasoning' && part.text?.trim()) {
           events.push({ ts, kind: 'thinking', text: part.text, model });
         } else if (part.type === 'tool') {

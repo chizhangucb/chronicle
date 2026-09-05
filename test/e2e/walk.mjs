@@ -101,7 +101,7 @@ function buildRoutes(base, ctx) {
   routes.push({
     slug: 'home',
     async setup(page) {
-      // `/` is the Insights hub (Overview/Explore/Content). The recent-sessions
+      // `/` is the Insights home (Overview/Explore/Content). The recent-sessions
       // ledger moved OFF Home to /projects in the D1/D2 IA reshape (#98); wait
       // on the Overview body marker, not the ledger. See spec/surface-contract.md.
       await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
@@ -170,7 +170,7 @@ function buildRoutes(base, ctx) {
   }
 
   const gotoInsights = async (page) => {
-    // The Insights hub is now the Home hub at `/` (Overview/Explore/Content tabs).
+    // The Insights home is now the Insights home at `/` (Overview/Explore/Content tabs).
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.tabs .tab', { timeout: NAV_TIMEOUT_MS });
   };
@@ -198,7 +198,7 @@ function buildRoutes(base, ctx) {
       await page.locator('.tabs .tab', { hasText: 'Spend' }).click();
       // Spend fetches detectors/waste/plan-windows async — give them a beat.
       await page.waitForSelector('.spend-tab .budget-band', { timeout: NAV_TIMEOUT_MS });
-      // CHI-369: the budget band flashes "$0 month to date" until the SEPARATE
+      // Flake note: the budget band flashes "$0 month to date" until the SEPARATE
       // month-insights fetch resolves; wait for the month-to-date figure to
       // settle (non-$0) so the capture shows the real budget, not the pre-fetch
       // $0. fmtMoney(x,0) prints "$0" / "$9,421" (no decimals), so `^\$0` only
@@ -227,7 +227,7 @@ function buildRoutes(base, ctx) {
     async setup(page) {
       await gotoInsights(page);
       await page.locator('.tabs .tab', { hasText: 'Sessions' }).click();
-      await page.waitForSelector('.sessions-hub .sh-sessions-table', { timeout: NAV_TIMEOUT_MS });
+      await page.waitForSelector('.sessions-tab .sh-sessions-table', { timeout: NAV_TIMEOUT_MS });
       await page.waitForTimeout(300);
     },
   });
@@ -354,7 +354,7 @@ async function probePopoverClip(page, width) {
     // re-render and remount the Popover between that confirmation and this
     // read, detaching the locator mid-check. Previously this call had no
     // try/catch at all, so that race threw uncaught and crashed the whole
-    // page's render (CHI-310's "1 render error", reproduced ~1/4 of the time
+    // page's render (the "1 render error", reproduced ~1/4 of the time
     // against an actively-streaming session, 0/8 against a completed one —
     // see the ticket for the repro). That is the harness losing a timing
     // race with live data, not a clipping defect, so it gets the same

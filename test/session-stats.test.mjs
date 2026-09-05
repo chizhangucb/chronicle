@@ -30,7 +30,7 @@ test('cumulativeCostSeries: running total grows monotonically with each priced a
   for (let i = 1; i < series.length; i++) assert.ok(series[i].cumCost >= series[i - 1].cumCost);
 });
 
-test('cumulativeCostSeries (CHI-228): a session straddling the Sonnet 5 intro cutover prices each day\'s turns at that day\'s rate, not one flat rate', () => {
+test('cumulativeCostSeries: a session straddling the Sonnet 5 intro cutover prices each day\'s turns at that day\'s rate, not one flat rate', () => {
   const messages = [
     { kind: 'assistant', ts: '2026-08-15T00:00:00Z', model: 'claude-sonnet-5' }, // intro window: $2/1M input
     { kind: 'assistant', ts: '2026-08-15T00:05:00Z', model: 'claude-sonnet-5' },

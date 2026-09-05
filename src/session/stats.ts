@@ -97,7 +97,7 @@ function toolMixSorted(messages: StatMessage[]): { name: string; count: number }
 // trend shape the chart is showing. `usageByModel` is the parsed
 // `session.usage` JSON (Record<model, ModelUsageInput>).
 //
-// CHI-228: a session that straddles a rate change (e.g. Sonnet 5's intro
+// Day-bucketed pricing: a session that straddles a rate change (e.g. Sonnet 5's intro
 // window) must price each day's share of turns at that day's rate before
 // summing — first split each model's turns into day buckets (by turn.ts's
 // local date), distribute the model's total proportionally by each bucket's

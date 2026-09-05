@@ -548,7 +548,7 @@ function makeSession(
       cwd: folder,
       started_at,
       ended_at,
-      // CHI-368: skip synthetic user rows (command echoes / IPC wrappers) so the
+      // Display name: skip synthetic user rows (command echoes / IPC wrappers) so the
       // display-name fallback is a real human prompt, not a raw `<…>` wrapper.
       first_prompt: (events.find((e) => e.kind === 'user' && !isSyntheticUserText(e.text))?.text || title || '').slice(0, 200),
       skipped: 0,

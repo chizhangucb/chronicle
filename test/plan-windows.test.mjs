@@ -1,4 +1,4 @@
-// CHI-324 2f: the Claude plan-windows payload parser (pure — no outbound). Reads
+// the Claude plan-windows payload parser (pure — no outbound). Reads
 // Anthropic's `limits` array (the clean labeled source: session / weekly_all /
 // weekly_scoped-with-model-display_name). Pins the shape so a contract change
 // fails loudly, and that the top-tier label follows the API's display_name

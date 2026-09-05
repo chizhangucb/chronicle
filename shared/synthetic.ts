@@ -10,7 +10,7 @@
 // IPC) messages all log with role=user. Their preceding gap counts as ACTIVE
 // (the agent/app was busy, or another agent messaged in) — only a genuinely
 // typed prompt subtracts time — and none of them should ever surface as a
-// session's display name (CHI-368).
+// session's display name.
 //
 // Anchored at the start ON PURPOSE: a real human prompt that merely quotes or
 // discusses one of these tags mid-sentence must NOT be misread as synthetic.

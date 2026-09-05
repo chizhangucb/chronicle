@@ -23,7 +23,7 @@ import { pruneViewLog }    from './viewlog.ts';
 export const api = express();
 api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH
 
-// Per-boot write token on EVERY mutating route (CHI-222): import, sync,
+// Per-boot write token on EVERY mutating route: import, sync,
 // project/session ops, settings, security rules — one consistent posture, no
 // split. Same-origin guard, not auth; see server/writeToken.ts.
 api.use(writeTokenGuard());
@@ -47,7 +47,7 @@ mountAsk(api);
 mountViewLog(api);
 mountDemo(api);
 
-// Rolling 180-day retention on the view log (CHI-325 D8), once per boot.
+// Rolling 180-day retention on the view log, once per boot.
 // Pruning here rather than per write keeps a DELETE scan out of the
 // navigation path; pruneViewLog swallows its own failure so a locked DB at
 // this exact moment costs stale rows, never startup.

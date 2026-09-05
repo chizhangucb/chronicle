@@ -129,7 +129,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const [savingName, setSavingName] = useState(false);
   const [nameErr, setNameErr] = useState<string | null>(null);
   function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
-  // Honest, simple live signal (Task 17): this tab's own SSE connection
+  // Honest, simple live signal: this tab's own SSE connection
   // (liveStatus — the same status the source-file zone below already uses),
   // OR'd with an open live watcher for this session from ANY source (another
   // tab, or a live stream this view hasn't auto-opened yet), polled from the
@@ -218,7 +218,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const usageByModel = useMemo<Record<string, ModelUsage>>(() => {
     try { return session.usage ? JSON.parse(session.usage) : {}; } catch { return {}; }
   }, [session.usage]);
-  // Prices at the session's own start day (CHI-228) when known — same
+  // Prices at the session's own start day when known — same
   // documented single-day-per-session boundary as ProjectDetail.tsx's
   // sessionCost (this aggregate has no sub-session date to split further
   // than that; cumulativeCostSeries below DOES split per turn's own day).
@@ -285,7 +285,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   }, [messages]);
 
   const errorPct = stats.toolResultCount > 0 ? Math.round((stats.errors / stats.toolResultCount) * 100) : 0;
-  // Visible cost-mode label so the number never silently changes meaning (CHI-233 Part C).
+  // Visible cost-mode label so the number never silently changes meaning.
   const modeNote = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
 
   const compSegments = [

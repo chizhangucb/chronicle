@@ -76,7 +76,7 @@ export interface Event {
   // column.
   agent_desc?: string | null;
   skill?: string | null;
-  // Anthropic's own per-API-call identity (CHI-286). Claude Code splits ONE API
+  // Anthropic's own per-API-call identity. Claude Code splits ONE API
   // response's content blocks across several transcript lines (an empty
   // `thinking` block, then text, then tool_use), and every one of those lines
   // repeats the SAME `message.usage`. `uuid` is per-LINE, so it cannot collapse

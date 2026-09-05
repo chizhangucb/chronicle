@@ -1,4 +1,4 @@
-// The LiteLLM spine runtime is de-hubbed (issue #186): a stranger who clones
+// The LiteLLM spine runtime is standalone (issue #186): a stranger who clones
 // Chronicle can start the proxy and get a spend log on a documented path.
 //
 // These pin the behaviour, not the prose: every path resolves from the repo or
@@ -13,8 +13,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  HUB_PATHS, LEGACY_LAYOUT, HUB_LOCATION, PRIVATE_TICKET, FOREIGN_CONSUMER,
-} from './helpers/hub-strings.mjs';
+  PRIVATE_PATHS, LEGACY_LAYOUT, PRIVATE_LOCATION, PRIVATE_TICKET, FOREIGN_CONSUMER,
+} from './helpers/retired-vocabulary.mjs';
 import { skipWithoutPython } from './helpers/python.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,7 +24,7 @@ const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 // `scripts/tests/test_litellm_roster.py` points at files that are not there.
 // Shared with test/repo-shape.test.mjs so the two cannot drift.
 const BANNED = new RegExp(
-  `${HUB_PATHS.source}|${LEGACY_LAYOUT.source}|${HUB_LOCATION.source}`, 'i',
+  `${PRIVATE_PATHS.source}|${LEGACY_LAYOUT.source}|${PRIVATE_LOCATION.source}`, 'i',
 );
 
 const RUNTIME_FILES = [
@@ -37,19 +37,17 @@ const RUNTIME_FILES = [
   'launchd/com.chronicle.litellm.plist.template',
 ];
 
-test('no runtime file names a hub checkout, ~/.aios, ~/.secrets or the old layout', () => {
+test('no runtime file names a private checkout, a machine-only dir or the old layout', () => {
   const offenders = RUNTIME_FILES.filter((rel) => BANNED.test(read(rel)));
-  assert.deepEqual(offenders, [], `hub paths are back in: ${offenders}`);
+  assert.deepEqual(offenders, [], `private checkout paths are back in: ${offenders}`);
 });
 
-test('no runtime file reads AIOS_HUB', () => {
-  const offenders = RUNTIME_FILES.filter((rel) => /AIOS_HUB/.test(read(rel)));
-  assert.deepEqual(offenders, [], `AIOS_HUB is back in: ${offenders}`);
-  // refresh_roster.py reads a hub DOCUMENT, so it takes the CHRONICLE_ hub knob
-  // instead, and never defaults to a path.
-  const roster = read('litellm/refresh_roster.py');
-  assert.match(roster, /CHRONICLE_ROSTER_MD/);
-  assert.match(roster, /CHRONICLE_HUB/);
+test('no runtime file reads a retired checkout env var', () => {
+  const offenders = RUNTIME_FILES.filter((rel) => /AIOS_HUB|CHRONICLE_HUB/.test(read(rel)));
+  assert.deepEqual(offenders, [], `a retired checkout env var is back in: ${offenders}`);
+  // refresh_roster.py points at a document outside the repo, so it takes one
+  // explicit knob and never defaults to a path.
+  assert.match(read('litellm/refresh_roster.py'), /CHRONICLE_ROSTER_MD/);
 });
 
 test('run.sh binds loopback with no host knob to override it', () => {
@@ -341,7 +339,8 @@ print(len(changes))`], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRIT
 });
 
 // --- The runbook reads for a stranger (issue #187) -------------------------
-// A contributor who is not Chi has no Linear, no sibling repo and no hub. Every
+// A contributor who is not the author has no tracker, no sibling repo and no
+// private checkout. Every
 // reference in litellm/ has to resolve from this repository alone.
 
 const litellmFiles = () =>

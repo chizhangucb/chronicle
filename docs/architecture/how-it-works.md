@@ -308,7 +308,7 @@ Two columns are worth calling out because they carry provenance rather than data
 `sessions.usage_source` is the provenance of a session's token magnitudes, so a reader can
 **label** rebuilt numbers instead of presenting them as measured. `exact` means the transcript
 was re-parsed by the fixed parser. `rederived` means Claude Code had already pruned the
-transcript, so the CHI-286 migration rebuilt the numbers structurally from the surviving
+transcript, so the migration rebuilt the numbers structurally from the surviving
 per-message rows; those read **low**, by 6.7% and 15.1% in the two sessions audited against
 the CLI's own usage report. `unverified` means neither was possible and the pre-fix inflated
 value stands, so it reads high. `NULL` means there was no per-call id to claim `exact` from
