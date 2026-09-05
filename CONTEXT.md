@@ -72,6 +72,10 @@ _Avoid_: sample, fixture (fixtures are a test thing).
 
 ### Reading the data
 
+**Surface**:
+One route or tab the operator navigates. The set is frozen: `spec/surface-contract.md` is the
+only place a surface is added, renamed or removed.
+
 **Insights**:
 The home surface at `/`, the one place cross-project analytics live. Never called Home.
 
@@ -182,12 +186,23 @@ One hit of a rule against a piece of text.
 
 ### The machine
 
+**App**:
+The local web app Chronicle serves, and the whole product an operator sees. `npx chronicle-cli`
+runs it in the foreground on `127.0.0.1` (default port 41730) and there are no subcommands. Its
+HTTP API under `/api/*` is loopback-only and has exactly one consumer, the app's own client.
+_Avoid_: console (it collides with browser devtools), dashboard, server (the server is one half of
+the app).
+
 **Operator**:
 The one human running Chronicle on their own machine. Chronicle has no accounts and no second user.
 _Avoid_: user, customer, you (in agent-facing docs).
 
 **Data folder**:
-`~/.chronicle`, or `$CHRONICLE_DATA_DIR`. Chronicle's database, config and Ask history, and the only place it writes.
+`~/.chronicle`, or `$CHRONICLE_DATA_DIR`. Chronicle's database, config and Ask history, and the only
+place it writes. `chronicle.db` holds projects, sessions, messages, tombstones and migrations, with
+full message content: it is the source of truth for the imported record, and as sensitive as the
+transcripts it was built from. Reading it is a seam without a compatibility layer, so a reader
+takes the base tables as they are and accepts that they may be reshaped.
 
 **Write token**:
 The per-boot value every mutating route demands, a same-origin guard and nothing more. Not auth.

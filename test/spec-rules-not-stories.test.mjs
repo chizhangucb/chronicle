@@ -1,8 +1,7 @@
 // Re-bloat guard for the spec/ contracts.
 //
-// surface-contract.md, design-qa-rubric.md and product-contract.md are normative
-// contracts a reviewer judges against, so they read as rules, not stories. They
-// had drifted into narrative: private ticket refs, dated sign-off paragraphs,
+// surface-contract.md and design-qa-rubric.md are normative contracts a reviewer
+// judges against, so they read as rules, not stories. They had drifted into narrative: private ticket refs, dated sign-off paragraphs,
 // spec-§ pointers, incident history. Chronicle is PUBLIC and its decision log
 // lives off-repo, so a ticket/decision ref in a spec is a dead pointer for an
 // external reader and an off-repo one for a fresh clone; the trace lives in git
