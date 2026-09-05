@@ -135,7 +135,7 @@ function capCell(v: unknown): unknown {
 // Describes EXACTLY the read-only surface scripts/ask-db-mcp.ts exposes. Kept
 // here so the runner prompt and the MCP server's TEMP objects stay in lockstep
 // (the MCP server builds `pricing`, `session_model_cost`, `message_cost`; the
-// base tables/contract views already exist in chronicle.db).
+// base tables already exist in chronicle.db).
 export function askSchemaDoc(costMode: AskCostMode): string {
   const basis = costBasisLabel(costMode);
   return [
@@ -156,10 +156,10 @@ export function askSchemaDoc(costMode: AskCostMode): string {
     '- pricing(model, day, input, output, cw5m, cw1h, cache_read): per-MTok rates used above, per',
     '    session-day so windowed rates match the dashboards (transparency).',
     '',
-    'Base tables / contract views (raw; do NOT SUM message token columns yourself for cost - prefer the',
+    'Base tables (raw; do NOT SUM message token columns yourself for cost - prefer the',
     'surfaces above): projects(id,path,name); sessions(id,project_id,source,started_at,ended_at,',
     'message_count,minor,usage,usage_source,agent_active_ms,engaged_ms,...); messages(session_id,seq,ts,kind,',
-    'text,tool_name,model,is_sidechain,agent_type,skill,...); contract_sessions; contract_message_metrics.',
+    'text,tool_name,model,is_sidechain,agent_type,skill,message_id,request_id,input_tokens,output_tokens,...).',
     '',
     'Honesty: `cost_usd` is NULL and `priced=0` for any model Chronicle cannot price (rare non-Claude',
     'metered models). SUM(cost_usd) silently skips them — if a cost answer has unpriced spend, SAY SO',

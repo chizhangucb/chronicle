@@ -1,5 +1,5 @@
 // Shared duration metrics, computed at import time and stored on `sessions`
-// (design doc §1.3). The UI and contract views read the stored numbers; the
+// (design doc §1.3). The UI reads the stored numbers; the
 // client-side fallback in SessionView mirrors these rules for live sessions.
 
 import type { Event } from '../shared/types.ts';

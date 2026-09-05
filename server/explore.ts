@@ -128,8 +128,8 @@ export function pickRollup(
   return 'monthly';
 }
 
-// CHI-324 D6. `mcp` (per-MCP-server spend, finishing the dormant
-// contract_message_metrics.mcp_server column) is calibrated exactly like
+// CHI-324 D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
+// tool_name shape) is calibrated exactly like
 // tool/skill: an MCP call is a tool_use row, so its token magnitude is
 // estimated from its text share of the bucket's billed total. A turn can hit
 // several MCP servers, so per-server figures double-count (MCP_DOUBLE_COUNT
@@ -210,9 +210,8 @@ function addCell(target: Record<string, ModelUsageCell>, model: string, cell: Mo
   target[model] = cur;
 }
 
-// MCP server name derived from an `mcp__server__tool` tool_name — the SAME
-// expression as the dormant contract_message_metrics.mcp_server view column
-// (server/db.ts), keeping the `.` alias so it works against the joined query.
+// MCP server name derived from an `mcp__server__tool` tool_name, keeping the
+// `.` alias so it works against the joined query.
 const mcpServerExpr = (alias: string): string =>
   `substr(${alias}.tool_name, 6, instr(substr(${alias}.tool_name, 6), '__') - 1)`;
 // Model VENDOR (CHI-324 D6) — NOT `source` (that is the TOOL vendor

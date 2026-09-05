@@ -55,6 +55,12 @@ before(async () => {
                            tool_use_id TEXT, model TEXT, input_tokens INTEGER, output_tokens INTEGER,
                            cache_read_tokens INTEGER, cache_w5m_tokens INTEGER, cache_w1h_tokens INTEGER);
     INSERT INTO projects (id, path, name) VALUES (1, '/tmp/p', 'p');
+    -- CHI-223: a database written by an older Chronicle carries the retired
+    -- contract views and the version pragma that gated them. Seed both so the
+    -- test below proves opening it clears them.
+    CREATE VIEW contract_sessions AS SELECT id FROM sessions;
+    CREATE VIEW contract_message_metrics AS SELECT session_id FROM messages;
+    PRAGMA user_version = 1;
   `);
 
   const dup = { model: 'm', input: 10, output: 100, cacheRead: 5000, cw5m: 0, cw1h: 700 };
@@ -111,16 +117,16 @@ describe('CHI-286 backfill', () => {
     });
   });
 
-  test('clears the token columns of the dropped row so the contract view stops double-counting', () => {
+  test('clears the token columns of the dropped row so message sums stop double-counting', () => {
     const rows = dbModule.db.prepare(
       'SELECT seq, input_tokens FROM messages WHERE session_id = ? ORDER BY seq').all('dup');
     // NULL, not 0 — that keeps "dropped as a replay" distinguishable from
     // "genuinely billed zero" on any later pass. Readers all COALESCE.
     assert.deepEqual(rows.map((x) => x.input_tokens), [10, null, 10]);
-    // And the view now sums to the same figure as sessions.usage.
+    // And the message rows now sum to the same figure as sessions.usage.
     const summed = dbModule.db.prepare(
       `SELECT COALESCE(SUM(input_tokens),0) AS input, COALESCE(SUM(output_tokens),0) AS output
-         FROM contract_message_metrics WHERE session_id = ?`).get('dup');
+         FROM messages WHERE session_id = ?`).get('dup');
     const usage = JSON.parse(row('dup').usage).m;
     assert.equal(summed.input, usage.input);
     assert.equal(summed.output, usage.output);
@@ -159,33 +165,17 @@ describe('CHI-286 backfill', () => {
     // replaceSession rewrites usage_source on every import, so gating on
     // "usage_source IS NULL" would re-run this migration on every boot, forever.
   });
+});
 
-  test('contract stays at user_version 1 — added columns are not a breaking view change', () => {
-    // Bumping would trip Varde's hard version gate and, because its
-    // mergeSnapshots only overwrites days present in the current scan, leave it
-    // serving the OLD INFLATED snapshot behind a contract error. So a bump only
-    // ever ships if both repos land in the same merge; CHI-287 and CHI-297 both
-    // consumed new columns at version 1 instead.
-    assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 1);
-    const cols = dbModule.db.prepare('SELECT * FROM contract_message_metrics LIMIT 1').all();
-    const names = cols.length ? Object.keys(cols[0]) : [];
-    assert.ok(names.includes('message_id'), 'contract view exposes message_id');
-    assert.ok(names.includes('request_id'), 'contract view exposes request_id');
-    // CHI-297: usage_source rides contract_sessions so a reader can label the
-    // rebuilt sessions rather than present them as measured. PRAGMA rather than
-    // SELECT * — the assertion must hold on an empty view too.
-    const sessCols = dbModule.db.prepare('PRAGMA table_info(contract_sessions)').all().map((c) => c.name);
-    assert.ok(sessCols.includes('usage_source'), 'contract view exposes usage_source');
-  });
-
-  test('contract_sessions.usage_source carries the value the backfill stamped', () => {
-    // The column is the whole point of CHI-297: without it a reader can only
-    // infer provenance from the absent-message_id correlation, which is an
-    // artifact of how this migration ran rather than anything contractual.
-    const bySource = dbModule.db.prepare(
-      'SELECT usage_source, COUNT(*) AS n FROM contract_sessions GROUP BY usage_source').all();
-    const seen = Object.fromEntries(bySource.map((r) => [String(r.usage_source), r.n]));
-    assert.ok((seen.rederived ?? 0) > 0, 'view surfaces the rederived sessions');
+// CHI-223: the contract views are retired. The base tables are the only read
+// seam, and an older database that still holds the views loses them on open.
+describe('CHI-223 contract views', () => {
+  test('opening an existing database leaves no contract_* view behind', () => {
+    const views = dbModule.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'view'").all().map((r) => r.name);
+    assert.deepEqual(views.filter((n) => n.startsWith('contract_')), []);
+    // And the version gate that fronted them is cleared, not left at 1.
+    assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 0);
   });
 });
 

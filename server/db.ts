@@ -63,7 +63,7 @@ export interface MessageRow {
   skill: string | null;
   // Anthropic's per-API-call identity (CHI-286). `uuid` above is per transcript
   // LINE; one API call is split across several lines, so this pair is the only
-  // stable per-CALL key. Exposed on contract_message_metrics for downstream.
+  // stable per-CALL key.
   message_id: string | null;
   request_id: string | null;
   input_tokens: number | null;
@@ -223,8 +223,8 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
 // response across several transcript lines (empty thinking / text / tool_use),
 // each repeating the full `message.usage`; summing per line billed a call two
 // or three times. `uuid` is per-LINE, so it can't collapse them — this pair
-// can. Persisted on every assistant row (usage-bearing or not) so downstream
-// readers of contract_message_metrics can apply the same dedup.
+// can. Persisted on every assistant row (usage-bearing or not) so any later
+// pass can apply the same dedup.
 try { db.exec('ALTER TABLE messages ADD COLUMN message_id TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN request_id TEXT'); } catch {}
 // Provenance of sessions.usage — see SessionRow.usage_source above.
@@ -367,7 +367,7 @@ function chi286Backfill(): void {
         setUsage.run(JSON.stringify(next), 'rederived', s.id);
         rederived++;
       }
-      // Duplicate rows lose their token columns so contract_message_metrics
+      // Duplicate rows lose their token columns so summing `messages`
       // stops double-counting for history too. NULL (not 0) keeps "dropped"
       // distinguishable from "genuinely zero"; every reader COALESCEs, and
       // messages_fts indexes only text/tool_input, so no index maintenance.
@@ -399,56 +399,15 @@ try {
   console.warn('[chronicle] CHI-286 backfill deferred (will retry next start):', (err as Error).message);
 }
 
-// Contract views: the dashboard reads ONLY these; base tables stay free to
-// refactor. user_version bumps only on breaking view changes.
+// CHI-223: the contract views and the version gate over them are gone. The base
+// tables are the only read seam now; nothing outside this repo consumes the
+// database. A database written by an older Chronicle still carries both, so
+// clear them once — leaving `user_version` at 1 would advertise a contract that
+// no longer exists to anyone who does read the pragma.
 db.exec(`
 DROP VIEW IF EXISTS contract_message_metrics;
-CREATE VIEW contract_message_metrics AS
-SELECT m.session_id, m.seq, m.ts, m.kind, m.model,
-       m.is_sidechain, m.agent_type, m.workflow_id, m.agent_id, m.skill,
-       m.tool_name,
-       CASE WHEN m.tool_name LIKE 'mcp__%'
-            THEN substr(m.tool_name, 6, instr(substr(m.tool_name, 6), '__') - 1)
-       END AS mcp_server,
-       -- CHI-286: Anthropic's per-API-call key, so a downstream reader can
-       -- collapse replayed lines the same way parseSpendLines does. Rows
-       -- imported after the fix already carry usage on exactly one row per
-       -- call, so this is for auditing and for cross-checking, not a
-       -- correction the reader is required to apply.
-       m.message_id, m.request_id,
-       m.input_tokens, m.output_tokens, m.cache_read_tokens,
-       m.cache_w5m_tokens, m.cache_w1h_tokens,
-       s.file_path AS source_file
-FROM messages m JOIN sessions s ON s.id = m.session_id;
 DROP VIEW IF EXISTS contract_sessions;
-CREATE VIEW contract_sessions AS
-SELECT s.id, s.source, p.path AS project_path, s.file_path,
-       s.started_at, s.ended_at, s.message_count, s.sidechain_count,
-       s.context_tokens, s.usage,
-       -- CHI-297: provenance of this session's token magnitudes, so a reader
-       -- can LABEL rebuilt numbers instead of presenting them as measured.
-       -- 'exact' = re-parsed from a transcript by the fixed parser.
-       -- 'rederived' = the transcript was already pruned, so CHI-286 rebuilt
-       -- the numbers structurally from the surviving per-message rows; these
-       -- read LOW (6.7% and 15.1% in the two audited against the CLI's own
-       -- usage report). 'unverified' = neither was possible, so the pre-fix
-       -- INFLATED value stands; that one reads high. NULL = no per-call id to
-       -- claim 'exact' from (codex/cursor), or an import predating the column.
-       -- The message rows follow the session: the rederived lane cleared the
-       -- replayed rows it collapsed, so contract_message_metrics agrees with
-       -- sessions.usage for 'rederived' and disagrees for 'unverified'.
-       s.usage_source,
-       s.agent_active_ms, s.engaged_ms
-FROM sessions s JOIN projects p ON p.id = s.project_id;
--- STAYS 1, twice now (CHI-286 message_id/request_id, CHI-297 usage_source).
--- Adding columns to a view is not a breaking change for a reader that selects
--- explicit columns, which Varde does (aggregator/sources/spend-chronicle.ts,
--- aggregator/sources/chronicle.ts). Bumping would trip Varde's hard version
--- gate at three call sites, and because its mergeSnapshots only overwrites
--- days present in the current scan, its spend lane would go on serving the OLD
--- INFLATED snapshot behind a contract error rather than visibly failing. A
--- bump therefore only ever ships if both repos land in the same merge.
-PRAGMA user_version = 1;
+PRAGMA user_version = 0;
 `);
 
 // FTS5 full-text index over message content (external-content table kept in
