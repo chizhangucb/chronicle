@@ -549,8 +549,8 @@ per-bucket split is an estimate even though the total it's scaled to is exact.
 Chronicle exposes one mount on one local port: `/api`. Requests are local only; the standalone
 server binds `127.0.0.1`.
 
-> **Reading the database directly?** External consumers should read the versioned
-> `contract_*` SQL views (above) rather than these routes.
+> **Reading the database directly?** There is no compatibility view layer: a reader takes the
+> base tables as they are, and they may be reshaped without notice.
 
 | Area | Routes |
 | --- | --- |

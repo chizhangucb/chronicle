@@ -174,6 +174,8 @@ describe('CHI-223 contract views', () => {
     const views = dbModule.db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'view'").all().map((r) => r.name);
     assert.deepEqual(views.filter((n) => n.startsWith('contract_')), []);
+    // And the version gate that fronted them is cleared, not left at 1.
+    assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 0);
   });
 });
 

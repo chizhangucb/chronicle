@@ -399,12 +399,15 @@ try {
   console.warn('[chronicle] CHI-286 backfill deferred (will retry next start):', (err as Error).message);
 }
 
-// CHI-223: the contract views and their version pragma are gone. The base
+// CHI-223: the contract views and the version gate over them are gone. The base
 // tables are the only read seam now; nothing outside this repo consumes the
-// database. Existing databases still carry the views, so drop them once.
+// database. A database written by an older Chronicle still carries both, so
+// clear them once — leaving `user_version` at 1 would advertise a contract that
+// no longer exists to anyone who does read the pragma.
 db.exec(`
 DROP VIEW IF EXISTS contract_message_metrics;
 DROP VIEW IF EXISTS contract_sessions;
+PRAGMA user_version = 0;
 `);
 
 // FTS5 full-text index over message content (external-content table kept in
