@@ -22,12 +22,12 @@ async function summary(page: import('@playwright/test').Page, baseURL: string) {
   return res.json();
 }
 
-// Clearing is a MUTATING route, so it needs the per-boot gate token exactly
-// like every other write in the app (server/api.ts mounts gateTokenGuard on
+// Clearing is a MUTATING route, so it needs the per-boot write token exactly
+// like every other write in the app (server/api.ts mounts writeTokenGuard on
 // every non-GET). Same pattern as ops-safety.spec.ts / ask.spec.ts.
 async function clearLog(page: import('@playwright/test').Page, baseURL: string) {
-  const { token } = await (await page.request.get(baseURL + '/api/gate/token')).json();
-  return page.request.delete(baseURL + '/api/view-log', { headers: { 'x-gate-token': token } });
+  const { token } = await (await page.request.get(baseURL + '/api/write-token')).json();
+  return page.request.delete(baseURL + '/api/view-log', { headers: { 'x-chronicle-write-token': token } });
 }
 
 test.describe('seeded: navigation is recorded and tagged agent', () => {
@@ -86,7 +86,7 @@ test.describe('seeded: navigation is recorded and tagged agent', () => {
   });
 });
 
-test.describe('seeded: the log is behind the same write gate as everything else', () => {
+test.describe('seeded: the log is behind the same write token as everything else', () => {
   test('an untokened DELETE is refused', async ({ page }) => {
     const res = await page.request.delete(state.baseURL + '/api/view-log');
     expect(res.status()).toBe(403);
