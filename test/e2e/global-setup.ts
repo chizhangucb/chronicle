@@ -27,9 +27,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     Array.from({ length: workers }, async (_unused, workerIndex) => {
       const { proc, ...state } = await launchSeeded(workerIndex);
       fs.writeFileSync(workerStateFile(workerIndex), JSON.stringify(state));
-      // Detach: the spawned server must outlive this globalSetup process exit
-      // (Playwright runs globalSetup in a short-lived process). global-teardown
-      // kills it by pid once the run is done.
+      // Detach: nothing here should hold the run open waiting on a server
+      // that is meant to outlive this hook and serve every spec after it.
+      // global-teardown kills it by pid once the run is done.
       proc.unref();
     }),
   );

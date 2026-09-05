@@ -18,11 +18,13 @@
 // server can be pointed at.
 //
 // Every server this file spawns writes a RECORD: a JSON file naming its pid,
-// baseURL and data dir, plus a sibling `.log` holding its stdout+stderr. The
-// log is the spawned process's own fd, so it keeps filling even after the
-// short-lived global-setup process that started the server has exited, and
-// `describeServers()` can report a dead server's exit status and last output
-// to a failing spec instead of a bare connection error.
+// baseURL and data dir, plus a sibling `.log` holding its stdout+stderr. Both
+// are on disk rather than in memory because the process that reads them is
+// almost never the process that spawned the server: global-setup runs in
+// Playwright's runner process, while the specs that need the diagnosis run in
+// separate worker processes that never saw the spawn. With the record on
+// disk, `describeDeadServers()` can report a dead server's exit status and
+// last output to a failing spec instead of a bare connection error.
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -204,8 +206,9 @@ export async function launchServer(opts: LaunchOptions): Promise<ServerHandle> {
 
   fs.mkdirSync(RECORDS_DIR, { recursive: true });
   const logFile = path.join(RECORDS_DIR, `${label}.log`);
-  // Own fd, not a piped stream: the log keeps being written even once the
-  // process that called this has exited (global-setup is short-lived).
+  // The child's own fd, not a piped stream read by this process: the log is
+  // then readable from the worker processes, which never saw the spawn, and
+  // keeps filling regardless of what happens to this process.
   const logFd = fs.openSync(logFile, 'w');
 
   const proc = spawn(process.execPath, [path.join(REPO_ROOT, 'server', 'standalone.ts')], {
