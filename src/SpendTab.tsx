@@ -17,13 +17,12 @@ import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
 import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type StateWord } from '../shared/spend/thresholds.ts';
 
-// The Spend tab (CHI-324 2b/2d/2e/2f) — the deep spend view. Reading order:
+// The Spend tab — the deep spend view. Reading order:
 // posture row (Budget + Anomaly) → chart row (spend-over-time + spend-by-model)
-// → plan windows → efficiency → skills/MCP. Chronicle's grammar; Varde content
-// only.
+// → plan windows → efficiency → skills/MCP.
 
 const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
-// Legacy home: the monthly budget used to live ONLY here (CHI-366 moved it
+// Legacy home: the monthly budget used to live ONLY here (moved it
 // server-side so every surface reads one number). Read once on mount to migrate
 // an existing value up to /settings, then cleared.
 const LEGACY_BUDGET_KEY = 'chronicle.monthlyBudget';
@@ -48,7 +47,7 @@ export default function SpendTab({ insights, activity, win, days }: {
 
   return (
     <div className="spend-tab">
-      {/* Budget is a full-width horizontal band (CHI-324 review): the anomaly is
+      {/* Budget is a full-width horizontal band: the anomaly is
           already the Overview tile, so the Spend tab shows budget alone up top,
           laid out horizontally so it fills the row with no empty half. */}
       <BudgetBand monthInsights={monthInsights} today={today} />
@@ -65,7 +64,7 @@ export default function SpendTab({ insights, activity, win, days }: {
 
 function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | null; today: string | null }): JSX.Element {
   const { mode } = useCostMode();
-  // Budget is server-backed (CHI-366): load it from /settings on mount, and
+  // Budget is server-backed: load it from /settings on mount, and
   // migrate a pre-existing localStorage budget up ONCE so upgrading users don't
   // silently lose their cap. `loaded` gates the render so the band never flashes
   // "no budget set" before the settings fetch resolves.
@@ -181,7 +180,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
 // (window-scoped ratio + top project/model movers + flagged days). ----
 // ---- Spend breakdown card: Spend by model ($) + Sources (session count by
 // tool vendor), stacked so this card matches the spend chart's height. Sources
-// moved here from Overview (CHI-324 review) — it pairs with the $ breakdown. ----
+// moved here from Overview — it pairs with the $ breakdown. ----
 function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null; win: RangeKey }): JSX.Element {
   const { mode } = useCostMode();
   const rows = useMemo(() => {
@@ -224,8 +223,8 @@ function SpendBreakdownCard({ insights, win }: { insights: InsightsResult | null
   );
 }
 
-// ---- Plan windows (CHI-324 2f): one card per ACCOUNT. Codex is a LOCAL read
-// (always); Claude is OUTBOUND + opt-in-off (D7) — the card shows an opt-in
+// ---- Plan windows: one card per ACCOUNT. Codex is a LOCAL read
+// (always); Claude is OUTBOUND + opt-in-off — the card shows an opt-in
 // prompt until the user turns it on in Settings, then the live meters. ----
 function fmtReset(iso: string | null, label: string): string {
   if (!iso) return '';
@@ -281,7 +280,7 @@ function PlanWindowsCard(): JSX.Element {
   );
 }
 
-// ---- Efficiency (CHI-324 2e), pass 1: DETECTORS. Four rows graded by the
+// ---- Efficiency, pass 1: DETECTORS. Four rows graded by the
 // shared state-words (cache hit rate, jumbo outputs, long context, error rows).
 // Cache-hit + error-rate derive from /api/insights; jumbo + long-context from
 // the per-message /api/detectors slice. Waste signals are pass 2. ----
@@ -392,9 +391,9 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
   );
 }
 
-// ---- Priced skills | MCP server spend (CHI-324 2b section 5) — both from the
+// ---- Priced skills | MCP server spend — both from the
 // Explore engine (client prices tokensByModel). MCP is calibrated + double-counts
-// (one turn can hit several servers), so its total does not sum to the day (D6). ----
+// (one turn can hit several servers), so its total does not sum to the day. ----
 function tokensOfRow(row: ExploreRow): number {
   let n = 0;
   for (const u of Object.values(row.tokensByModel)) n += u.input + u.output + u.cacheRead + u.cw5m + u.cw1h;

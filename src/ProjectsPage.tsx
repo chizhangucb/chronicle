@@ -32,8 +32,8 @@ interface ProjectMenuProps {
 // text-input step is an INLINE affordance inside the dropdown, never
 // window.confirm/prompt — those silently no-op in embedded/preview browsers
 // (see CLAUDE.md). `open` is controlled so a click-away resets the confirm
-// state. Moved here from the old HomePage with the project grid (Task 13).
-// "View Details" was removed (Task 17) — the card itself is already a click
+// state. Moved here from the old HomePage with the project grid.
+// "View Details" was removed — the card itself is already a click
 // target that navigates to the project.
 function ProjectMenu({ project, onRefresh }: ProjectMenuProps) {
   const [syncing, setSyncing] = useState(false);
@@ -152,7 +152,7 @@ export function WelcomeEmpty({ onImport }: { onImport: () => void }) {
   );
 }
 
-// The demo affordance (CHI-325 D9). A zero-data user who runs the plain command
+// The demo affordance. A zero-data user who runs the plain command
 // otherwise has no way to learn demo mode exists: it would be discoverable only
 // from --help or the README, which is exactly the audience least likely to read
 // either. This is the whole reason the feature was asked for.
@@ -306,7 +306,7 @@ function useProjectSelect(projects: ProjectSummary[], onRefresh: () => void, onB
   };
 }
 
-// PR-2c (Task 20): project select-mode CONTROLS rendered into the shared
+// PR-2c: project select-mode CONTROLS rendered into the shared
 // command bar — "<N> projects selected · Select all · Cancel · ⟳ Sync (N) ·
 // ⌫ Remove (N)", same two-step inline confirm as before, just no longer
 // wrapped in its own boxed `.select-toolbar` (that box is gone; the command

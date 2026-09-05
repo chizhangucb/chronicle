@@ -166,7 +166,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [noRepo, setNoRepo] = useState(false);
   const [commitLoading, setCommitLoading] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
-  // Two-level 'subagent' drill-in (D3), set by OverviewMode's Subagents card;
+  // Two-level 'subagent' drill-in, set by OverviewMode's Subagents card;
   // both null when not drilled in. NOT part of the sidebar rail's `modes` —
   // reached only via the Overview card.
   // Level 1: `subagentType` set, `subagentRunId` null — the RUN LIST for that

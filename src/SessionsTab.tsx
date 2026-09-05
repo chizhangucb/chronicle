@@ -13,7 +13,7 @@ import { formatRelativeTime } from './relativeTime.js';
 import { fmtDayLabel, dayKeyOf } from './charts/timeBuckets.ts';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 
-// The Sessions tab (CHI-324 2g): the ANALYZE half of the two session lists
+// The Sessions tab: the ANALYZE half of the two session lists
 // (the /projects ledger is the MANAGE half). Header count → two-up aggregates
 // (busiest days · busiest projects) → ONE flat sessions table (chips
 // cost|duration|recent, cost default), click-to-extend. All spend is priced
@@ -34,7 +34,7 @@ function fmtTok(n: number): string {
 const PAGE = 25;
 type Sort = 'cost' | 'duration' | 'recent';
 
-export default function SessionsHubTab({ insights }: { insights: InsightsResult | null }): JSX.Element {
+export default function SessionsTab({ insights }: { insights: InsightsResult | null }): JSX.Element {
   const [, navigate] = useLocation();
   const { mode } = useCostMode();
   const [sort, setSort] = useState<Sort>('cost');
@@ -97,7 +97,7 @@ export default function SessionsHubTab({ insights }: { insights: InsightsResult 
   const visible = sorted.slice(0, shown);
 
   return (
-    <div className="sessions-hub">
+    <div className="sessions-tab">
       <div className="sh-head">
         <span className="muted small">{fmtInt(rows.length)} {t('sessions')}</span>
       </div>

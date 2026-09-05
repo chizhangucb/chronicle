@@ -1,4 +1,4 @@
-// The definitions registry (CHI-325 3b, decision D3).
+// The definitions registry.
 //
 // ONE source for every metric definition in Chronicle. Both the small "ⓘ" tips
 // scattered across the surfaces AND the /reference page read from here, so the
@@ -6,7 +6,7 @@
 // carried its own inline string and a reference page would have been a second,
 // silently diverging copy of them.
 //
-// i18n (D12): `plain`/`good`/`tech` return ENGLISH SOURCE STRINGS. Callers pass
+// i18n: `plain`/`good`/`tech` return ENGLISH SOURCE STRINGS. Callers pass
 // them through the existing `t()` (src/i18n.ts is an English-keyed dictionary
 // with English fallback), so tips behave byte-identically to before the
 // migration and /reference translates exactly as far as the dictionary reaches.
@@ -17,8 +17,8 @@
 // site, so `vars` is absent and the definition must still read correctly: write
 // the fallback wording first, then the interpolation.
 //
-// The `retired` page is load-bearing, not a curiosity. The Chronicle/Varde
-// merge (CHI-322) deliberately dropped some surfaces; the decision was that the
+// The `retired` page is load-bearing, not a curiosity. Past releases
+// deliberately dropped some surfaces; the decision was that the
 // VOCABULARY survives even where the page did not, so someone who remembers a
 // term can still find out what it meant.
 
@@ -275,26 +275,26 @@ export const DEFINITIONS: Definition[] = [
     tech: () => 'server/viewlog.ts; routes are stored as patterns (/session/:id), never as instances',
   },
 
-  // ---- Retired: dropped in the Chronicle/Varde merge (CHI-322 Q6/Q7) ----
+  // ---- Retired: surfaces dropped by past releases ----
   // The surfaces are gone; the vocabulary survives, so a term you remember can
   // still be looked up. Each says plainly what replaced it.
   {
     id: 'retired.pinned-panels',
     page: 'retired',
     title: 'Pinned panels (retired)',
-    plain: () => 'Varde could promote a committed read-only SQL query over the contract_* views into a dashboard panel. Exactly one panel ever existed, "MCP tool calls by server", and that content is now a native feature on the Spend tab. The promote-to-panel mechanism itself was dropped in the merge; the Explore tab covers ad-hoc querying.',
+    plain: () => 'Chronicle could once promote a committed read-only SQL query over the contract_* views into a dashboard panel. Exactly one panel ever existed, "MCP tool calls by server", and that content is now a native feature on the Spend tab. The promote-to-panel mechanism itself is gone; the Explore tab covers ad-hoc querying.',
   },
   {
     id: 'retired.peek-drill',
     page: 'retired',
     title: 'Peek drill (retired)',
-    plain: () => 'Varde’s quick preview of a session from a spend row. Dropped in the merge because Chronicle’s session Overview is a richer version of the same idea; a row click goes straight there.',
+    plain: () => 'A quick preview of a session from a spend row. Dropped because Chronicle’s session Overview is a richer version of the same idea; a row click goes straight there.',
   },
   {
     id: 'retired.burn-tile',
     page: 'retired',
     title: 'Burn tile (retired)',
-    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced in CHI-324 by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers and flagged days.',
+    plain: () => 'Chronicle’s original client-side spend-versus-baseline tile. Replaced by the Anomaly tile, which keeps the same anatomy and window rules but adds dimension movers and flagged days.',
   },
   {
     id: 'retired.proxy-lane',

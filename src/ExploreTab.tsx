@@ -18,7 +18,7 @@ import PivotControls, {
 import { groupShowsTokenColumn } from './explore/tokenColumns.ts';
 import { useCachedFetch } from './useCachedFetch.ts';
 
-// Mounted by both HomeDashboard (the Home hub, scope {type:all}) and ProjectDetail
+// Mounted by both HomeDashboard (the Insights home, scope {type:all}) and ProjectDetail
 // (5e-4, scope {type:'project', id}) — kept generic from day one so 5e-4
 // doesn't need a second pass on this file.
 export interface Scope {
@@ -70,7 +70,7 @@ function rowTokens(row: ExploreCell): number {
 // cacheWrite5m/cacheWrite1h; costOf returns null for unpriced models, which
 // contributes 0 rather than poisoning the sum.
 //
-// CHI-228: an explicit `day` prices every model cell at that one day's rate
+// Day-aware pricing: an explicit `day` prices every model cell at that one day's rate
 // (used for a per-bucket ExploreCell, whose bucket key IS a day). With no
 // `day`, a range-total ExploreRow that carries `tokensByModelByDay` (EXACT_
 // USAGE_GROUPS — model/project/source/session) is priced per its OWN day
@@ -244,7 +244,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // table. D12: server/explore.ts only returns buckets that have data, so a
   // long idle gap used to collapse to equal spacing between distant buckets,
   // misrepresenting time. Zero-fill from the earliest to the latest bucket
-  // KEY (not label) via the shared densifyBuckets helper (Task 3), then look
+  // KEY (not label) via the shared densifyBuckets helper, then look
   // up each dense key's real bucket if present — a missing one renders as an
   // all-zero row with a label formatted the SAME way the server would have
   // (shared/bucketLabel.ts), so a gap bar looks identical in style to a real
@@ -260,7 +260,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
       const b = byKey.get(key);
       const row: Record<string, string | number> = { bucket: b ? b.label : bucketLabel(key) };
       // `key` (== b.bucket) is an hour/day/week/month bucket string whose
-      // first 10 chars are always a valid pricing day (CHI-228) — every cell
+      // first 10 chars are always a valid pricing day — every cell
       // in this bucket already shares that one day.
       const day = key.slice(0, 10);
       for (const { row: r } of ranked) {

@@ -181,8 +181,7 @@ Run it when a spend number looks wrong. It is not automated.
 of the roster from OpenRouter's public catalog, never the judgment columns
 (`test/litellm-guards.test.mjs` pins that, including that no row is added or dropped).
 The roster is a personal document rather than a repo one, so point the script at it with
-`--roster PATH`, `$CHRONICLE_ROSTER_MD`, or `$CHRONICLE_HUB` (from which it resolves
-`governance/model-routing.md`). With none of those set it exits 2 and says so.
+`--roster PATH` or `$CHRONICLE_ROSTER_MD`. With neither set it exits 2 and says so.
 
 ## Where things live
 

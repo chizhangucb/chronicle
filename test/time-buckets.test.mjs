@@ -1,6 +1,6 @@
 // Unit tests for src/charts/timeBuckets.ts (feedback-round Task 3 + D12): the
 // shared LOCAL-time bucket dense-fill + label helpers used by the Home
-// spend-over-time chart (daily/hourly), the ProjectDetail trend, and (Task 18)
+// spend-over-time chart (daily/hourly), the ProjectDetail trend, and
 // the Explore rollup chart's hourly/daily/weekly/monthly buckets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

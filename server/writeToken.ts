@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response, NextFunction, RequestHandler } from 'express';
 
 /**
- * Same-origin guard for mutating routes (CHI-222).
+ * Same-origin guard for mutating routes.
  *
  * Chronicle serves an unauthenticated HTTP API on loopback. Any page the user
  * has open can fire a cross-origin POST at 127.0.0.1, but it cannot READ a

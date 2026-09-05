@@ -1,4 +1,4 @@
-// Regression pin for the seeded release-walk vendor variety (CHI-324 2i).
+// Regression pin for the seeded release-walk vendor variety.
 // The seeded walk (scripts/walk-seed.mjs) exists so the Spend tab's
 // [project|provider] toggle / median dash / routing table show more than one
 // vendor. This pins the SEED LIST so a regression back to all-`claude-*` (which

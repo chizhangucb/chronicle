@@ -1,6 +1,5 @@
-// server/waste.ts (CHI-324 2e) — the Efficiency WASTE SIGNALS, ported from
-// Varde aggregator/sources/spend-detectors.ts (computeCacheChurn / RightSizing /
-// Rereads). The heavy per-message / per-tool-call scan runs here and ships TOKEN
+// server/waste.ts — the Efficiency WASTE SIGNALS: cache churn, right-sizing
+// and rereads. The heavy per-message / per-tool-call scan runs here and ships TOKEN
 // CELLS + counts; the client prices the premium / savings / wasted-$ via the
 // shared price table (never server dollar math). Windowed by message ts; minor
 // sessions excluded, matching server/detectors.ts.

@@ -72,7 +72,7 @@ export interface ProjectAnalytics {
   errors: number;
   commits: number;
   // Windowed per-session, per-model, per-day billed cells (Task 2/3, project-
-  // scoped; day-bucketed per CHI-228) — the client prices these via costOf
+  // scoped; day-bucketed) — the client prices these via costOf
   // for the Cost/Tokens KPI tiles and Cost by model bars, instead of summing
   // raw session.usage, so a session that started before the window but ran
   // INTO it contributes only its in-window share, and one that straddles a
@@ -98,7 +98,7 @@ function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null
     return s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
   } catch { return null; }
 }
-// Prices at the session's own start day (CHI-228) when known — a session
+// Prices at the session's own start day when known — a session
 // straddling a rate change (e.g. Sonnet 5's intro window) still prices at
 // one day (no sub-session split, same documented boundary as
 // server/activity.ts's topSession), but this is strictly more correct than
@@ -120,7 +120,7 @@ const FRIENDLY_CALL: Record<string, string> = {
 
 // Display name for a session: user-set name → tool summary → first prompt → id.
 // A synthetic first_prompt (command echo / cross-session IPC wrapper) is treated
-// as absent (CHI-368) so it never surfaces as the name on the Sessions tab/table
+// as absent so it never surfaces as the name on the Sessions tab/table
 // — this read-path guard also covers rows imported before the parser fix.
 export function sessionDisplayName(s: NamedSession): string {
   const fp = s.first_prompt && !isSyntheticUserText(s.first_prompt) ? s.first_prompt : null;
@@ -204,7 +204,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // "Today" = fractional days since local midnight, computed once per range change
   // (a stable value avoids a Date.now()-driven refetch loop). `rangeDays` is the
   // shared resolver (RangeBar.tsx, D10) — same option set + semantics as the `/`
-  // hub's window toggle so the two vocabularies cannot drift again.
+  // home page's window toggle so the two vocabularies cannot drift again.
   const days = useMemo(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0);
     const daysToday = (Date.now() - d.getTime()) / 86400000;
@@ -213,7 +213,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // `days` is `number | null` (null = no range limit); projectUrl's `days`
   // param is `number | string | undefined` — null and undefined mean the same
   // thing here (omit the query param), so convert honestly at the call site.
-  // The URL doubles as the SWR cache key (Task 5): re-landing on this exact
+  // The URL doubles as the SWR cache key: re-landing on this exact
   // id+range combo (tab switch, breadcrumb back-nav) renders the last-seen
   // data immediately instead of a blank page, then refreshes in place.
   // `loadError` is the hook's fetch-failure signal — only rendered as a hard
@@ -293,7 +293,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     // above (which is already overlap-gated server-side) at every window.
     let totalCost = 0, totalIn = 0, totalOut = 0;
     const windowedByModel = sumByModel(analytics.windowedTokensByModel);
-    // Day-bucketed pricing (CHI-228): group by model, then price each
+    // Day-bucketed pricing: group by model, then price each
     // model's cells per day-bucket — a model bag spanning a rate change
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
     const windowedByModelCells = groupByKey(analytics.windowedTokensByModel, (c) => c.model);
@@ -310,9 +310,9 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     // Trend: sessions + cost per LOCAL calendar day (see src/charts/timeBuckets.ts —
     // never a UTC slice of the ISO string, which shifts sessions started near
     // local midnight onto the wrong day). Project scope has no server-side
-    // day-bucketed cost split (unlike the Home hub's dailySpend/hourlySpend),
+    // day-bucketed cost split (unlike the Insights home's dailySpend/hourlySpend),
     // so each session's whole-session cost is attributed to the local day it
-    // started on — same as before, just local-keyed. Dense-filled (D12) from
+    // started on — same as before, just local-keyed. Dense-filled from
     // the first to the last day with any activity, so the chart's bar/line
     // spacing represents equal time even when some days in between were idle.
     const byDay = new Map<string, number>();

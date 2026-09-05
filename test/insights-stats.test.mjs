@@ -43,7 +43,7 @@ test('activeDaysCount: counts active days within a trailing window', () => {
   assert.equal(activeDaysCount(days, 30, '2026-08-10'), 1);
 });
 
-test('activeDaysCount: n never exceeds the window (CHI-370: was 31/30 on a fully-active month)', () => {
+test('activeDaysCount: n never exceeds the window ( was 31/30 on a fully-active month)', () => {
   // 31 consecutive active days ending at asOf. The inclusive 30-day window is
   // asOf and the 29 days before it, so exactly 30 fall inside — the 31st (the
   // oldest) is out. The count must be 30, never 31.

@@ -2,10 +2,6 @@
 // The ONE spend-threshold + honesty-definition registry, shared by the client
 // (page state-words + meters) and the shared spend math (shared/spend/*) so a
 // number in a tip can never drift from the number that colors the reading.
-// Ported from Varde's aggregator/config.ts (DEFAULT_CONFIG.anomaly/detectors/
-// budget), src/lib/thresholds.ts (graded state-words), and
-// aggregator/sources/spend-detectors.ts (the *_DEFINITION honesty strings +
-// PREMIUM_INPUT_RATE) + spend.ts (DIM_FLAG_FLOOR_USD). CHI-324 2a / D9.
 //
 // These shape the WORDS next to a reading and the FLAG lines, never the
 // collected numbers themselves. Relative-import module (never @shared), value
@@ -68,7 +64,7 @@ export interface SpendThresholds {
   stateWords: StateWordThresholds;
 }
 
-// Shipped defaults — mirror Varde's DEFAULT_CONFIG exactly. A future gated
+// Shipped defaults. A future gated
 // editor (D5 budget-config; later detector tuning) overrides key by key; the
 // shared math always takes a resolved SpendThresholds so callers can inject.
 export const DEFAULT_SPEND_THRESHOLDS: SpendThresholds = {
@@ -146,7 +142,7 @@ export const REREADS_DEFINITION =
   'Read tool calls that fetched a file already read earlier in the same session. Wasted tokens are ESTIMATED ' +
   'from the repeated results’ content length at ~4 characters per token.';
 
-// The MCP double-count caveat (CHI-324 D6): a single call can fan out to several
+// The MCP double-count caveat: a single call can fan out to several
 // MCP servers, so per-server spend double-counts and does not sum to the day total.
 export const MCP_DOUBLE_COUNT_DEFINITION =
   'One agent turn can call several MCP servers, so a turn’s spend is attributed to each server it used. ' +

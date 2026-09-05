@@ -11,17 +11,16 @@ Match key = the roster's Route column with the `openrouter/` prefix stripped, lo
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
 future direct-Anthropic route) are left untouched.
 
-This script does not belong in litellm/ (it maintains a hub document; the proxy
-never reads it). Moving it to scripts/ is issue #192.
+This script does not belong in litellm/ (it maintains an operator document; the
+proxy never reads it). Moving it to scripts/ is issue #192.
 
-The roster file itself is a hub document, not a repo one, so its location is
+The roster file is a personal document, not a repo one, so its location is
 resolved rather than baked in (issue #186), in this order:
 
     --roster PATH
     $CHRONICLE_ROSTER_MD
-    $CHRONICLE_HUB/governance/model-routing.md   (the knob server/hub/resolve.ts uses)
 
-With none of those set the script runs and explains what to point it at; it
+With neither set the script runs and explains what to point it at; it
 never guesses a machine-specific path.
 
 Usage:
@@ -44,17 +43,13 @@ import urllib.request
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
 
 _ROSTER_ENV = "CHRONICLE_ROSTER_MD"
-_HUB_ENV = "CHRONICLE_HUB"
-_ROSTER_REL = pathlib.PurePath("governance") / "model-routing.md"
 
 
 def resolve_roster(cli_path=None, env=None):
     """Locate the roster markdown, or return None when nothing is configured.
 
-    Order: --roster, $CHRONICLE_ROSTER_MD, then
-    $CHRONICLE_HUB/governance/model-routing.md -- the hub knob Chronicle already
-    documents. Nothing here is machine-specific; an unconfigured machine gets
-    None, not a bad guess.
+    Order: --roster, then $CHRONICLE_ROSTER_MD. Nothing here is
+    machine-specific; an unconfigured machine gets None, not a bad guess.
     """
     env = os.environ if env is None else env
     if cli_path:
@@ -62,16 +57,12 @@ def resolve_roster(cli_path=None, env=None):
     direct = (env.get(_ROSTER_ENV) or "").strip()
     if direct:
         return pathlib.Path(direct).expanduser().resolve()
-    hub = (env.get(_HUB_ENV) or "").strip()
-    if hub:
-        return (pathlib.Path(hub).expanduser() / _ROSTER_REL).resolve()
     return None
 
 
 _NO_ROSTER = (
     "roster: no roster file configured. Pass --roster PATH, or set "
-    f"{_ROSTER_ENV} to a model-routing.md, or set CHRONICLE_HUB to a hub "
-    "that has governance/model-routing.md."
+    f"{_ROSTER_ENV} to a model-routing.md."
 )
 
 # The roster header row, used to locate the table and the volatile columns.

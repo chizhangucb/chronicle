@@ -1,4 +1,4 @@
-// Client side of the per-boot write token (CHI-222; server/writeToken.ts).
+// Client side of the per-boot write token (server/writeToken.ts).
 //
 // Fetched once and cached per tab. A hostile page can fire cross-origin POSTs
 // at the loopback server but cannot read the token GET, so its POSTs die at the

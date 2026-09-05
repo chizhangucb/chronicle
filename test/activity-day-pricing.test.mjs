@@ -1,5 +1,5 @@
-// CHI-228: server/activity.ts's burn.windowSpendTokensByModel (the CURRENT-
-// window spend figure the Home Burn tile shows — the exact number CHI-227's
+// server/activity.ts's burn.windowSpendTokensByModel (the CURRENT-
+// window spend figure the Home Burn tile shows — the exact number the
 // audit found overstated ~50% for Sonnet-5-heavy usage during the intro
 // window) must carry a day-bucketed breakdown so the client can price a
 // window that straddles the 2026-08-31 cutover correctly per day. Uses

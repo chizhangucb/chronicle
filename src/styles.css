@@ -15,7 +15,7 @@
   --ok: #43a86f;
   --warn: #e0862c;
   --danger: #d94f3d;
-  /* Needs-you accent (CHI-374). Deliberately OFF --brass: brass is the everyday
+  /* Needs-you accent. Deliberately OFF --brass: brass is the everyday
      accent (nav, price toggle, links, chart series), so a brass card reads
      "highlighted", not "act on this". Terracotta separates from the ambient
      brass without going alarm-red, which would over-signal here. */
@@ -32,7 +32,7 @@
   --c5: #9a6cc9; /* violet */
 
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  /* ---- Page width (CHI-325 review, Chi 2026-08-28) ----
+  /* ---- Page width (review, Chi 2026-08-28) ----
      ONE width for every non-dashboard surface. Seven ad-hoc per-organ values
      (760 / 900 / 1000 / 1100 / 1040 / none) came first; a two-tier prose-vs-table
      split came second and still read as inconsistent when moving between pages,
@@ -435,7 +435,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    selection-state treatment or one of the two mount points loses its highlight. */
 .session-row.selectable, .row.selectable { cursor: pointer; transition: border-color 0.15s; }
 .session-row.selectable:hover, .row.selectable:hover { border-color: var(--brass); }
-/* PR-2c (Task 20): selected rows read as checkbox + subtle tint — the
+/* PR-2c: selected rows read as checkbox + subtle tint — the
    brass BORDER highlight is deliberately killed here (the row already has a
    normal `border: 1px solid var(--border)` at rest; a selected row keeps
    that same neutral border and adds only the background tint, so selection
@@ -624,7 +624,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 
 /* Topbar right cluster + language dropdown */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
-/* Sync status, click-to-sync-now (Task 17) — passive text promoted to a ghost
+/* Sync status, click-to-sync-now — passive text promoted to a ghost
    button; shows on every page via App.tsx's topbar (previously /projects only). */
 .sync-btn {
   background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px;
@@ -640,7 +640,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .lang-select:hover, .lang-select[data-state="open"] { border-color: var(--border-strong); }
 .lang-select .car { color: var(--ink-3); font-size: 10px; }
 
-/* Cost basis toggle (real/theoretical) — topbar (CHI-233 Part C) */
+/* Cost basis toggle (real/theoretical) — topbar */
 .cost-mode-toggle {
   display: inline-flex; align-items: center; gap: 4px;
   background: var(--bg2); border: 1px solid var(--border);
@@ -658,14 +658,14 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .cost-mode-toggle .cm-opt:hover { color: var(--ink); }
 .cost-mode-toggle .cm-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
 
-/* CHI-324 2d: Spend-over-time header (title + bare [project|provider] stack
+/* Spend-over-time header (title + bare [project|provider] stack
    toggle) and the compact segmented toggle itself. Default option far left. */
 .sot-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
 .sot-head h3 { margin: 0; }
 /* Deterministic chart-card height: the ResponsiveContainer is a fixed 220px and
    the legend is pinned to ONE non-wrapping row (scrolls sideways if crowded), so
    the card is the SAME height on every window — no more legend-wrap or transient
-   resize making Today look different from 7d/30d (CHI-324 review). */
+   resize making Today look different from 7d/30d. */
 .sot-card .legend { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
 .sot-card .legend span { flex: none; }
 .stack-toggle {
@@ -681,7 +681,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .stack-toggle .st-opt:hover { color: var(--ink); }
 .stack-toggle .st-opt.on { background: var(--brass); color: var(--bg0); font-weight: 600; }
 
-/* CHI-324 2b: Spend tab. */
+/* Spend tab. */
 .spend-tab { display: flex; flex-direction: column; gap: 10px; }
 .spend-tab .sub3 { color: var(--ink-3); font-weight: 400; }
 .edit-aff {
@@ -694,7 +694,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .mini-btn { cursor: pointer; border: 1px solid var(--border); background: var(--brass); color: var(--bg0); border-radius: 4px; padding: 3px 10px; font: 11px var(--mono); font-weight: 600; }
 .mini-btn.ghost { background: transparent; color: var(--ink-2); }
 
-/* Budget — a full-width HORIZONTAL band (CHI-324 review): big MTD number, a
+/* Budget — a full-width HORIZONTAL band: big MTD number, a
    meter that grows to fill the middle, and the pace/peak stats at the right, so
    the row fills the width with no empty half. */
 .budget-band .bb-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
@@ -713,7 +713,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .budget-track { position: relative; height: 8px; background: var(--bg2); border-radius: 4px; overflow: visible; }
 .bt-fill { height: 100%; background: var(--brass); border-radius: 4px; max-width: 100%; }
 .bt-proj { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); }
-/* Global sort indicator (CHI-324 review): the active-sort column's header + cells
+/* Global sort indicator: the active-sort column's header + cells
    tint brass and the header carries a small ▾. Consistent across every sortable
    table/chart so "which column is this sorted by" reads the same everywhere. */
 .sort-car { color: var(--brass-text); font-size: 9px; }
@@ -725,7 +725,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .mcp-table col.c-srv { width: 48%; }
 .mcp-table td.mcp-srv { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Efficiency detectors (CHI-324 2e): name · value+state-word · bar · definition. */
+/* Efficiency detectors: name · value+state-word · bar · definition. */
 .eff-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
 .eff-sub { color: var(--ink-3); font: 11px var(--mono); margin: var(--gap-3) 0 var(--gap-1); }
 /* Fixed name/value/state columns so every INDEPENDENT row-grid computes the
@@ -755,7 +755,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 @media (max-width: 680px) { .eff-cols { grid-template-columns: 1fr; } }
 .waste-row { display: grid; grid-template-columns: 130px 64px 1fr; gap: var(--gap-3); align-items: baseline; padding: 2px 0; font: 12px var(--mono); }
 .waste-row .eff-v { text-align: right; color: var(--brass-text); font-variant-numeric: tabular-nums; }
-/* Plan windows (CHI-324 2f): one card per account, auto-fit, each with slim meters. */
+/* Plan windows: one card per account, auto-fit, each with slim meters. */
 .acct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: var(--gap-2); }
 .acct { border: 1px solid var(--border); border-radius: 6px; padding: var(--gap-3); }
 .acct-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--gap-2); }
@@ -767,8 +767,8 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .pw-win .seg { height: 100%; border-radius: 3px; }
 .pw-v { text-align: right; color: var(--ink-2); }
 
-/* CHI-324 2g: Sessions tab. */
-.sessions-hub { display: flex; flex-direction: column; gap: 10px; }
+/* Sessions tab. */
+.sessions-tab { display: flex; flex-direction: column; gap: 10px; }
 .sh-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); }
 .sh-tablehead { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-3); margin-bottom: var(--gap-2); }
 .more-btn {
@@ -780,18 +780,18 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 /* Keep the aggregate tables inside their narrow grid2b cards (compact, first col
    ellipsised) and cap the sessions table's Session name so the later columns
    (Project · Source · Ctx · Active · Cost · When) stay on screen. */
-.sessions-hub .grid2b .tbl { font-size: 11px; }
-.sessions-hub .grid2b .tbl th, .sessions-hub .grid2b .tbl td { padding: 3px 5px; }
-.sessions-hub .grid2b .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sessions-hub .sh-sessions-table { table-layout: fixed; width: 100%; }
-.sessions-hub .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sessions-hub .sh-sessions-table col.c-session { width: 52%; }
-.sessions-hub .sh-sessions-table col.c-proj { width: 10%; }
-.sessions-hub .sh-sessions-table col.c-src { width: 9%; }
-.sessions-hub .sh-sessions-table col.c-ctx { width: 6%; }
-.sessions-hub .sh-sessions-table col.c-active { width: 8%; }
-.sessions-hub .sh-sessions-table col.c-cost { width: 8%; }
-.sessions-hub .sh-sessions-table col.c-when { width: 7%; }
+.sessions-tab .grid2b .tbl { font-size: 11px; }
+.sessions-tab .grid2b .tbl th, .sessions-tab .grid2b .tbl td { padding: 3px 5px; }
+.sessions-tab .grid2b .tbl td:first-child { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-tab .sh-sessions-table { table-layout: fixed; width: 100%; }
+.sessions-tab .sh-sessions-table td:first-child { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-tab .sh-sessions-table col.c-session { width: 52%; }
+.sessions-tab .sh-sessions-table col.c-proj { width: 10%; }
+.sessions-tab .sh-sessions-table col.c-src { width: 9%; }
+.sessions-tab .sh-sessions-table col.c-ctx { width: 6%; }
+.sessions-tab .sh-sessions-table col.c-active { width: 8%; }
+.sessions-tab .sh-sessions-table col.c-cost { width: 8%; }
+.sessions-tab .sh-sessions-table col.c-when { width: 7%; }
 
 /* Project detail */
 .project-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
@@ -1281,7 +1281,7 @@ h4 { margin: 6px 0; }
   border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
-/* Toasts (Radix Toast) — the Undo toast (5a) renders inside this
+/* Toasts (Radix Toast) — the Undo toast renders inside this
    Viewport/Root pair. */
 .toast-viewport {
   position: fixed; right: 20px; bottom: 20px; z-index: 1000;
@@ -1455,7 +1455,7 @@ h4 { margin: 6px 0; }
    the extra room (see ContentTab.tsx / HomeDashboard.tsx call sites). */
 .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: stretch; }
 .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
-/* Task 14 (D5/D7): Content tab's Tool results / Skills / Subagents row — three
+/* Task 14: Content tab's Tool results / Skills / Subagents row — three
    equal cards that wrap to 2+1 (then 1-per-row) as the viewport narrows,
    without a hardcoded breakpoint (auto-fit sizes columns from the available
    width, matching the no-overflow-at-1024 policy). */
@@ -1598,7 +1598,7 @@ h4 { margin: 6px 0; }
    `.rail-proj` and placed AFTER the `:hover` rule above so a selected+hovered
    row still reads as selected (equal specificity, cascade order decides). */
 .rail-proj.selectable { cursor: pointer; }
-/* PR-2c (Task 20): same "checkbox + subtle tint, no brass border" treatment
+/* PR-2c: same "checkbox + subtle tint, no brass border" treatment
    as `.row.selected` above — a neutral border (matching the row's own hover
    border-color, not brass) plus the tint is enough to read as selected. */
 .rail-proj.selected { border-color: var(--border); background: rgba(192, 138, 30, 0.08); }
@@ -1698,14 +1698,14 @@ h4 { margin: 6px 0; }
 .linklike:hover { color: var(--brass); }
 .note { font: 11px var(--mono); color: var(--ink-3); margin-top: 8px; }
 
-/* ---- Home dashboard (Task 13): Insights-overview landing (`/`) ---- */
+/* ---- Home dashboard: Insights-overview landing (`/`) ---- */
 /* The `.home-dash` zone (Today strip → Activity → Burn) sits above the reused
    Recent-sessions ledger; the whole `.home-dashboard` is a `.page` scroll
    container, so the dashboard zone stays compact and the ledger flows below. */
 .home-dashboard .dash-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-4); margin-bottom: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .dash-head .page-title { margin: 0; }
-/* Tabs + window toggle live together on the right of the hub head. */
-.home-dashboard .hub-ctl { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; }
+/* Tabs + window toggle live together on the right of the home head. */
+.home-dashboard .home-ctl { display: flex; align-items: center; gap: var(--gap-3); flex-wrap: wrap; }
 .home-dashboard .rangebar { display: inline-flex; gap: 2px; background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .home-dashboard .rangebar button { border: 0; background: none; color: var(--ink-3); font: 12px var(--mono); padding: 3px 10px; border-radius: 6px; cursor: pointer; min-height: 24px; }
 .home-dashboard .rangebar button:hover { color: var(--ink); }
@@ -1747,7 +1747,7 @@ h4 { margin: 6px 0; }
 .bt-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .bt-cost { flex: none; width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* CHI-324 anomaly-tile extras (AnomalyTile) — top-movers line and the multi-day
+/* anomaly-tile extras (AnomalyTile) — top-movers line and the multi-day
    flagged-days deep-link. Sit between the comparison bar and the top-session
    row; glyph in ink-3, mover names in ink. */
 .anom-mover { margin-top: var(--gap-3); font: 11px var(--mono); color: var(--ink-2); line-height: 1.5; }
@@ -1824,7 +1824,7 @@ h4 { margin: 6px 0; }
    if they were direct `.command-bar` children. */
 .command-bar-slot { display: contents; }
 
-/* ---- Gate confirm dialog (CHI-323) ---- */
+/* ---- Gate confirm dialog ---- */
 .gate-dialog { max-width: 540px; }
 .gate-lead { margin: 6px 0 10px; color: var(--ink); }
 .gate-tech-label { margin: 10px 0 4px; }
@@ -1838,16 +1838,16 @@ h4 { margin: 6px 0; }
 .gate-code-input { width: 96px; font-family: var(--mono); background: var(--bg0); border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; color: var(--ink); }
 .gate-code-input.wide { width: 120px; }
 .gate-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
-/* CHI-329: why a change is showing a card rather than applying on its own. */
+/* why a change is showing a card rather than applying on its own. */
 .gate-why { margin: 4px 0 10px; }
-/* CHI-329: an auto-applied write says so, so a cardless change is never silent. */
+/* an auto-applied write says so, so a cardless change is never silent. */
 .gate-applied { color: var(--ok); font-size: 12px; margin: 8px 0 0; }
 .gate-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .gate-expiry { margin-left: auto; }
 .btn.danger { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--bg1)); }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 18%, var(--bg1)); }
 
-/* ---- Write log (CHI-329 WP4) ---- */
+/* ---- Write log (WP4) ---- */
 /* The gate's audit trail, rendered. Reuses the confirm dialog's diff type
    scale so one change reads the same in the card and in the log. */
 .writelog-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
@@ -1862,7 +1862,7 @@ h4 { margin: 6px 0; }
 .writelog-badge.denied, .writelog-badge.expired { color: var(--ink-3); }
 @media (max-width: 900px) { .writelog-diff { max-width: none; } }
 
-/* ===== /ask (CHI-351): metric chat over chronicle.db ===================== */
+/* ===== /ask: metric chat over chronicle.db ===================== */
 /* One conversation column: day dividers, right-aligned questions, answer cards
    (prose + full-width table + SQL expander + cost-basis label). Judged against
    the approved D3 mock. */
@@ -1941,7 +1941,7 @@ h4 { margin: 6px 0; }
 /* sidebar entry: brass accent so the cross-cutting capability reads apart from nav */
 .sb-item.ask-item .sb-icon { color: var(--brass-text); }
 
-/* ---- Settings: the view-log block (CHI-325 3a) ----
+/* ---- Settings: the view-log block ----
    `.settings-row` is a 3-column grid built for a single toggle line; the view
    log needs a stacked block (toggle, explanation, counts, a small table, a
    destructive action), so it gets its own container rather than fighting that
@@ -1953,7 +1953,7 @@ h4 { margin: 6px 0; }
 .settings-block .tbl { max-width: 460px; }
 .settings-block .btn { align-self: flex-start; }
 
-/* ---- Reference (CHI-325 3b) ----
+/* ---- Reference ----
    The unified reference at /reference, rendered from the same definitions
    registry the InfoTips read. Uses the existing `.card` / `.eyebrow` grammar
    rather than inventing a page style; only the definition list and the
@@ -2003,7 +2003,7 @@ h4 { margin: 6px 0; }
   100% { background: transparent; }
 }
 
-/* Demo offer on the zero-data empty state (CHI-325 3c). Sits under the primary
+/* Demo offer on the zero-data empty state. Sits under the primary
    import action as the quieter second option: seeing the product is worth
    offering, but importing your own sessions is still the point. */
 .empty-state .demo-offer { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }

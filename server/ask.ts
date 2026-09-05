@@ -1,11 +1,11 @@
 /**
- * /ask (CHI-351) - the testable core, shared by the stdio MCP server
+ * /ask - the testable core, shared by the stdio MCP server
  * (scripts/ask-db-mcp.ts), the runner (scripts/run-ask.ts) and the route
  * (server/routes/ask.ts). Pure functions only here (no db handle, no spawn) so
  * node --test can exercise the SELECT-only guard, the caps, the envelope
  * validator and history pruning without a database or a claude binary.
  *
- * Posture (verified spikes, see the CHI-351 workstate): the model runs one MCP
+ * Posture (verified spikes, see the workstate): the model runs one MCP
  * tool `query({sql})` over a READ-ONLY chronicle.db handle - that handle is the
  * HARD SELECT-only guarantee (writes/ATTACH/load_extension all fail at the
  * SQLite layer; the fs functions aren't even compiled into node:sqlite). The
@@ -150,7 +150,7 @@ export function askSchemaDoc(costMode: AskCostMode): string {
     '- message_cost(session_id, seq, ts, day, model, kind, tool_name, mcp_server, skill, is_sidechain,',
     '    agent_type, agent_id, workflow_id, project_path, source, input_tokens, output_tokens,',
     '    cache_read_tokens, cache_w5m_tokens, cache_w1h_tokens, cost_usd, priced)',
-    '    Per-message, deduped (replayed rows were nulled by CHI-286). USE THIS for finer breakdowns:',
+    '    Per-message, deduped (replayed rows were nulled). USE THIS for finer breakdowns:',
     '    subagents (is_sidechain=1, group by agent_type), tools (tool_name / mcp_server), skills, by day.',
     '    Reconciles for exact/rederived sessions; may differ slightly for legacy usage_source=\'unverified\'.',
     '- pricing(model, day, input, output, cw5m, cw1h, cache_read): per-MTok rates used above, per',
@@ -178,7 +178,7 @@ export interface AskEnvelope {
   note?: string;
 }
 /** Validate the JSON the model must reply with (after using the query tool).
- * Throws with a clean message the route renders as a failed turn (review #9). */
+ * Throws with a clean message the route renders as a failed turn. */
 export function validateAskEnvelope(value: unknown): AskEnvelope {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('reply is not a JSON object');

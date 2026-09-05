@@ -6,7 +6,7 @@ import { t } from './i18n.js';
 
 export interface InfoTipProps {
   /**
-   * Registry id (CHI-325 3b). The PREFERRED form: the tip's wording lives in
+   * Registry id. The PREFERRED form: the tip's wording lives in
    * src/reference/definitions.ts, which /reference renders from the same
    * source, so the page and the console cannot drift apart. The bubble also
    * grows a "full definition" link to the term's own anchor.
@@ -135,7 +135,7 @@ export default function InfoTip({ def, vars, text }: InfoTipProps): JSX.Element 
         {/* The bubble keeps itself open while the pointer is INSIDE it. Without
             this the trigger's own onMouseLeave fires the moment the pointer
             crosses into the bubble, so the "full definition" link added in
-            CHI-325 3b could never be clicked. Closing on the bubble's own
+            3b could never be clicked. Closing on the bubble's own
             mouseleave preserves the stuck-open invariant that
             test/e2e/infotip.spec.ts pins. */}
         <Popover.Content side="bottom" sideOffset={7} align="center"

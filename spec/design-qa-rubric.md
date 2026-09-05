@@ -1,6 +1,6 @@
 # Chronicle design QA rubric
 
-Not the readability floor (type/contrast/ink) — that lives in the hub and applies everywhere. This
+Not the readability floor (type/contrast/ink), which applies everywhere. This
 file judges function / responsiveness / data-scale / product-completeness for Chronicle's own
 release walk.
 
@@ -39,7 +39,7 @@ AFFORD / BUG / LAYOUT) AND a lens (above).
 - [ ] No horizontal scrollbar on `document.documentElement` at any of the 3 reference widths.
 - [ ] Every icon in chrome is the mono glyph vocabulary (below) or an SVG — zero colored emoji.
 
-### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
+### Home = the Insights home (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
 Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-conformance lens).
 - [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Anomaly tile
       → Insights charts → Provenance strip LAST. NOTHING renders above the KPI strip (#220: the
@@ -54,9 +54,9 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
       App-wide invariants).
 - [ ] Both surfaces reflow with no horizontal overflow at 1024px (ledger + rail-list).
 
-### Project detail / Insights hub (`ProjectDetail.tsx`, `HomeDashboard.tsx`)
+### Project detail / Insights home (`ProjectDetail.tsx`, `HomeDashboard.tsx`)
 - [ ] Overview/Explore/Content/Sessions tabs (project) or Overview/Explore/Content/Spend/Sessions
-      tabs (the `/` Insights hub) all render without a client error at each reference width.
+      tabs (the `/` Insights home) all render without a client error at each reference width.
 - [ ] KPI/stat tiles: every numeric leaf reports `getComputedStyle(el).fontVariantNumeric`
       containing `"tabular"` (see Alignment policy).
 - [ ] No KPI tile's right edge (`getBoundingClientRect().right`) exceeds its row container's

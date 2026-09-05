@@ -8,7 +8,7 @@ import InfoTip from './InfoTip.tsx';
 import type { Scope } from './ExploreTab.tsx';
 import { useCachedFetch } from './useCachedFetch.ts';
 
-// Mounted by both HomeDashboard (the Home hub, scope {type:all}) and ProjectDetail
+// Mounted by both HomeDashboard (the Insights home, scope {type:all}) and ProjectDetail
 // (5e-4, scope {type:'project'|'session', id}) — generic from day one, same
 // convention as ExploreTab.tsx (5e-1).
 export interface ContentTabProps {
@@ -47,7 +47,7 @@ const COMPOSITION_LABELS: Record<string, string> = {
 };
 
 // Colors are keyed to the CATEGORY (message kind), not the row's display
-// position — Task 14 (D5/D7) sorts composition rows by value descending, so
+// position — Task 14 sorts composition rows by value descending, so
 // a position-keyed color would relabel a kind's color every time the ranking
 // shifts. This fixed order matches the server's KINDS order, giving each
 // kind a stable color whatever order it renders in.
@@ -70,7 +70,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
 
   // Composition bar widths are the share OF THE COMPOSITION LIST ITSELF (sums
   // to 100%), matching content.html's rows (74/12/7/5/2 = ~100). Task 14
-  // (D5/D7): sorted by value DESC (zero rows sink to the bottom for free,
+  // Ranking: sorted by value DESC (zero rows sink to the bottom for free,
   // since a descending sort already trails them last) — safe because color
   // is keyed to category via `compositionColor`, not row position.
   const compositionTotal = useMemo(() => (result ? result.composition.reduce((n, c) => n + c.tokens, 0) : 0), [result]);
@@ -79,7 +79,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
     [result],
   );
 
-  // Task 14 (D5/D7): Tool results / Skills / Subagents each get their own
+  // Task 14: Tool results / Skills / Subagents each get their own
   // top-N cap and their own bar-scale max (was one shared max across skills +
   // subagents, which left short bars looking empty whenever the tallest row
   // belonged to the other list). Balanced row caps: 6/6/6.

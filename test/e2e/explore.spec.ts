@@ -55,7 +55,7 @@ async function gotoExploreHourly(page: Page): Promise<void> {
   await expect(page.locator('.recharts-bar-rectangle').first()).toBeVisible();
 }
 
-test.describe('Explore hourly rollup + brush (Task 10)', () => {
+test.describe('Explore hourly rollup + brush', () => {
   test('Hourly + All renders many bars and a brush, never falls back to daily', async ({ page }) => {
     await gotoExploreHourly(page);
 
@@ -153,7 +153,7 @@ test.describe('Explore "Other" fold-in segment (Task 10 step 4)', () => {
   });
 });
 
-test.describe('Explore session group (Task 16)', () => {
+test.describe('Explore session group', () => {
   test('Group=Session renders the Detail table, and clicking a row opens that session', async ({ page }) => {
     await page.goto(`${state.baseURL}/`);
     await page.locator('.tabs button:has-text("Explore")').click();

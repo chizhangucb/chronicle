@@ -1,4 +1,4 @@
-// The demo corpus (CHI-325 3c, decision D9/D13).
+// The demo corpus.
 //
 // A zero-data user running `chronicle --demo` should see the WHOLE product, not
 // populated ops panels wrapped around an empty console. That means synthetic
@@ -133,6 +133,7 @@ export function demoSessions(): DemoSessionSpec[] {
 /** A stable fingerprint of the corpus SHAPE (not its dates), used as part of
  *  the seed cache key so an edit to this file rebuilds rather than serving a
  *  stale demo DB. */
-// v2 (issue #186): the demo's proxy spend log moved from `aios/litellm/` to
-// `litellm/` under the demo dir, following the de-hubbed spend-log default.
+// v2 (issue #186): the demo's proxy spend log moved out of the retired
+// checkout's `litellm/` to
+// `litellm/` under the demo dir, following the standalone spend-log default.
 export const DEMO_CORPUS_VERSION = 'v2';

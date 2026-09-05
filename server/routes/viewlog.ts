@@ -2,7 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { recordView, closeView, viewLogSummary, clearViewLog, type ViewEvent } from '../viewlog.ts';
 import { readConfig, writeConfig } from '../autosync.ts';
 
-// The view-log seam (CHI-325 3a). Three routes, all local:
+// The view-log seam. Three routes, all local:
 //   POST   /api/view-log          record events (batched)
 //   GET    /api/view-log/summary  the Settings readout
 //   DELETE /api/view-log          the Settings Clear button

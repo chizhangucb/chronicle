@@ -92,7 +92,7 @@ test('groupByKey: splits a cell list into one raw list per arbitrary key (e.g. s
   assert.equal(bySession.get('s2').length, 1);
 });
 
-test('costOfBucketedCells: a session straddling the Sonnet 5 intro cutover (CHI-228) prices EACH bucket at its own day, not one flat rate', () => {
+test('costOfBucketedCells: a session straddling the Sonnet 5 intro cutover prices EACH bucket at its own day, not one flat rate', () => {
   const straddling = [
     { ...sonnetCellA, bucket: '2026-08-15' }, // intro window: $2/1M input
     { ...sonnetCellB, bucket: '2026-09-01' }, // post-cutover: $3/1M input
@@ -122,7 +122,7 @@ test('costOfCells: accepts an optional day to resolve a date-dependent rate (e.g
   assert.equal(costOfCells(byModel), 3); // no day -> latest rate, unchanged from today's behavior
 });
 
-// ---- Real / theoretical mode threaded through the aggregation helpers (CHI-233 Part C) ----
+// ---- Real / theoretical mode threaded through the aggregation helpers ----
 
 test('costOfCells: real mode zeroes subscription-covered models; theoretical unchanged (default)', () => {
   const byModel = sumByModel([sonnetCellA, opusCellA]);

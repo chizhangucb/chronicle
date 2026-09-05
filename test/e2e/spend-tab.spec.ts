@@ -1,4 +1,4 @@
-// E2E drift-pins for the `/?tab=spend` Spend tab (CHI-324 2b/2d/2e). Guards the
+// E2E drift-pins for the `/?tab=spend` Spend tab. Guards the
 // signed surface-contract shape: budget BAND up top (no anomaly card — anomaly
 // is the Overview tile only), the shared spend chart with a [project|provider]
 // stack toggle, and the reading order down the tab.
@@ -16,7 +16,7 @@ async function gotoSpend(page: Page): Promise<void> {
 test('Spend tab leads with a full-width budget BAND, not an anomaly card', async ({ page }) => {
   await gotoSpend(page);
   await expect(page.locator('.spend-tab .budget-band')).toBeVisible();
-  // The anomaly lives only on the Overview tile (CHI-324 review) — no anomaly
+  // The anomaly lives only on the Overview tile — no anomaly
   // card on the Spend tab.
   await expect(page.locator('.spend-tab .anom-card')).toHaveCount(0);
 });

@@ -1,4 +1,4 @@
-// Global cross-project aggregation for the Insights hub (Task 5d-4). Mirrors
+// Global cross-project aggregation for the Insights home (Task 5d-4). Mirrors
 // the per-project analytics shapes in server/routes/projects.ts, but scoped
 // across ALL projects instead of one — same query patterns (COALESCE(minor,0)
 // = 0 gate, overlapGate session-inclusion — see server/windowUsage.ts). Error
@@ -50,13 +50,13 @@ export interface InsightsResult {
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
   // Windowed billed cells (Task 2, feedback-round P0 fix): per-session,
-  // per-model, per-LOCAL-day, in-window-scaled — the client (Task 3; CHI-228
+  // per-model, per-LOCAL-day, in-window-scaled — the client (Task 3, with
   // day-aware pricing) prices these for the KPI strip / spend-by-model /
   // sources / top-sessions instead of summing raw `sessions.usage`, so a
   // session that started before the window but ran INTO it (the root defect
   // — see server/windowUsage.ts) contributes its in-window share instead of
   // vanishing (old gate) or over-counting (naive overlap-only gate). Day-
-  // bucketed (CHI-228) so a session whose usage straddles a rate change (e.g.
+  // bucketed so a session whose usage straddles a rate change (e.g.
   // Sonnet 5's intro window) prices each day's share at that day's rate.
   windowedTokensByModel: BucketedUsageCell[];
   // Same cells, additionally bucketed by LOCAL calendar day — feeds the
@@ -187,7 +187,7 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // Windowed billed cells (Task 2) — see the InsightsResult field comments.
   // scopeWhere mirrors the same `COALESCE(s.minor,0)=0` gate every aggregate
   // above uses; windowedUsage/bucketedUsage apply overlapGate internally.
-  // Day-bucketed (CHI-228, not the plain windowedUsage()) so the client can
+  // Day-bucketed (not the plain windowedUsage()) so the client can
   // price each day's share at that day's rate — see InsightsResult's comment.
   const windowedTokensByModel = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
   const dailySpend = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');

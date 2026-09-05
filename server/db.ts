@@ -33,9 +33,9 @@ export interface SessionRow {
   minor: number;
   result_count: number | null;
   error_count: number | null;
-  // Provenance of `usage` (CHI-286). 'exact' = parsed from a transcript by a
+  // Provenance of `usage`. 'exact' = parsed from a transcript by a
   // parser that collapses replayed lines on (message_id, request_id).
-  // 'rederived' = the source transcript is gone, so the CHI-286 migration
+  // 'rederived' = the source transcript is gone, so the migration
   // rebuilt it structurally from the stored per-message token columns.
   // 'unverified' = neither was possible; the pre-fix (inflated) value stands.
   // NULL = imported before the column existed.
@@ -61,7 +61,7 @@ export interface MessageRow {
   agent_id: string | null;
   agent_desc: string | null;
   skill: string | null;
-  // Anthropic's per-API-call identity (CHI-286). `uuid` above is per transcript
+  // Anthropic's per-API-call identity. `uuid` above is per transcript
   // LINE; one API call is split across several lines, so this pair is the only
   // stable per-CALL key.
   message_id: string | null;
@@ -78,7 +78,7 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
 
-// WAL (CHI-325 3a). Until the view log there was exactly one writer, at import
+// WAL. Until the view log there was exactly one writer, at import
 // time, so rollback-journal's exclusive per-write lock never contended. The
 // view log writes on every navigation against this same synchronous handle
 // while it is also serving heavy analytics reads, which is precisely the shape
@@ -152,19 +152,19 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   deleted_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (source, session_id)
 );
--- Local-only view log (CHI-325 3a, decision D5-D8). Which surfaces actually get
--- used, actor-tagged, so a boundary question like CHI-307's is answered with
--- data instead of file mtimes. NEVER leaves the machine: no route reads it out
+-- Local-only view log (3a, decision D5-D8). Which surfaces actually get
+-- used, actor-tagged, so a boundary question like "is this surface earning its
+-- space" is answered with data instead of file mtimes. NEVER leaves the machine: no route reads it out
 -- except the operator's own Settings block, and there is no outbound path.
 --
 -- The route column is a PATTERN ('/session/:id'), never an instance.
 -- The log answers "which surfaces earn their space", not "which session did I
 -- read". Pattern-only keeps it from becoming a second copy of the history.
 --
--- The four actor columns are stored UNCOLLAPSED on purpose (D5). No detector
+-- The four actor columns are stored UNCOLLAPSED on purpose. No detector
 -- catches an agent driving a real browser profile today; when a better
 -- fingerprint is found, the retained rows can be re-tagged. Collapsing to one
--- verdict at write time would repeat the CHI-307 error permanently. Readers
+-- verdict at write time would repeat the error permanently. Readers
 -- collapse via collapseActor() in server/viewlog.ts.
 CREATE TABLE IF NOT EXISTS view_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,7 +219,7 @@ try { db.exec('ALTER TABLE messages ADD COLUMN cache_w1h_tokens INTEGER'); } cat
 // tens of thousands of tool_result heads per request (was 0.8-17s per click).
 try { db.exec('ALTER TABLE sessions ADD COLUMN result_count INTEGER'); } catch {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
-// CHI-286: Anthropic's per-API-call identity. Claude Code splits ONE API
+// Call key: Anthropic's per-API-call identity. Claude Code splits ONE API
 // response across several transcript lines (empty thinking / text / tool_use),
 // each repeating the full `message.usage`; summing per line billed a call two
 // or three times. `uuid` is per-LINE, so it can't collapse them — this pair
@@ -271,7 +271,7 @@ try {
   console.warn('[chronicle] error-count backfill deferred (will retry next start):', (err as Error).message);
 }
 
-// ---- CHI-286 one-time backfill ------------------------------------------
+// ---- one-time backfill ------------------------------------------
 //
 // Every session imported before the parser fix billed each API call once per
 // transcript line it was split across (2.20-2.44x measured against transcript
@@ -291,7 +291,12 @@ try {
 //
 // Lane 2 runs over Lane 1's sessions too, so the number is right even if
 // auto-sync never runs; the re-import later upgrades them to 'exact'.
-const CHI286 = 'chi-286-collapse-replayed-usage';
+// The persisted migration name. This exact string sits in `chronicle_migrations`
+// on every install that has already run the backfill, so it is a SCHEMA VALUE,
+// not prose: renaming it would re-run the whole backfill on live databases. It
+// is the one place the retired tracker's vocabulary is allowed to survive, and
+// test/repo-shape.test.mjs exempts this literal by value, not the file.
+const COLLAPSE_REPLAYED_USAGE = 'chi-286-collapse-replayed-usage';
 
 interface UsageRow {
   id: number;
@@ -304,8 +309,8 @@ interface UsageRow {
   cache_w1h_tokens: number;
 }
 
-function chi286Backfill(): void {
-  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(CHI286);
+function collapseReplayedUsageBackfill(): void {
+  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(COLLAPSE_REPLAYED_USAGE);
   if (done) return;
   const targets = db.prepare(`SELECT id, file_path, usage FROM sessions
                               WHERE source = 'claude-code' AND usage IS NOT NULL`)
@@ -329,8 +334,8 @@ function chi286Backfill(): void {
       const total = r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_w5m_tokens + r.cache_w1h_tokens;
       const sig = `${model}|${r.input_tokens}|${r.output_tokens}|${r.cache_read_tokens}|${r.cache_w5m_tokens}|${r.cache_w1h_tokens}`;
       if (r.session_id !== prevSession) { prevSession = r.session_id; prevSig = ''; }
-      // A replay repeats the previous row's cells exactly. `total > 0` mirrors
-      // Varde's own all-zero guard: the only false positive found across every
+      // A replay repeats the previous row's cells exactly. `total > 0` is an
+      // all-zero guard: the only false positive found across every
       // transcript on disk was a pair of adjacent all-zero `<synthetic>` rows,
       // and collapsing a genuinely-zero row would be a (harmless) guess.
       if (total > 0 && sig === prevSig) { drop.push(r.id); continue; }
@@ -376,16 +381,16 @@ function chi286Backfill(): void {
       const relive = db.prepare('UPDATE sessions SET imported_at = NULL WHERE id = ?');
       let reimport = 0;
       for (const s of targets) if (fs.existsSync(s.file_path)) { relive.run(s.id); reimport++; }
-      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
       db.exec('COMMIT');
-      console.log(`[chronicle] CHI-286 backfill: ${rederived} sessions re-derived, ${unverified} unverified, ` +
+      console.log(`[chronicle] backfill: ${rederived} sessions re-derived, ${unverified} unverified, ` +
                   `${drop.length} duplicate token rows cleared, ${reimport} queued for exact re-import`);
     } catch (err) {
       db.exec('ROLLBACK');
       throw err;
     }
   } else {
-    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
   }
 }
 
@@ -394,12 +399,12 @@ function chi286Backfill(): void {
 // cause; the marker is only written inside the committed transaction, so a
 // failed run leaves nothing half-applied and retries on the next boot.
 try {
-  chi286Backfill();
+  collapseReplayedUsageBackfill();
 } catch (err) {
-  console.warn('[chronicle] CHI-286 backfill deferred (will retry next start):', (err as Error).message);
+  console.warn('[chronicle] backfill deferred (will retry next start):', (err as Error).message);
 }
 
-// CHI-223: the contract views and the version gate over them are gone. The base
+// Retired: the contract views and the version gate over them are gone. The base
 // tables are the only read seam now; nothing outside this repo consumes the
 // database. A database written by an older Chronicle still carries both, so
 // clear them once — leaving `user_version` at 1 would advertise a contract that
@@ -410,7 +415,7 @@ DROP VIEW IF EXISTS contract_sessions;
 PRAGMA user_version = 0;
 `);
 
-// CHI-222: the write gate (propose -> diff card -> confirm, backup, verify,
+// Retired: the write gate (propose -> diff card -> confirm, backup, verify,
 // undo) and its audit trail are gone. A database written by an older Chronicle
 // still carries the table, so drop it once — nothing reads it any more.
 db.exec('DROP TABLE IF EXISTS gate_audit;');
@@ -427,7 +432,7 @@ try {
 } catch {}
 
 // Snapshot the whole DB. Called before destructive deletes (project/session
-// removal, via routes/_shared.ts's backupDbBeforeDelete) and before the CHI-286
+// removal, via routes/_shared.ts's backupDbBeforeDelete) and before the usage
 // backfill rewrites historical usage. Throttled to at most one snapshot per
 // hour so a multi-select Remove loop makes ONE backup, not N; `force` overrides
 // that for a one-shot migration, which must always be recoverable. Keeps the

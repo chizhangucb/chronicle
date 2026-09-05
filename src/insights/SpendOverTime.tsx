@@ -13,12 +13,12 @@ import { useCostMode } from '../costMode.tsx';
 import { providerOf, PROVIDER_ORDER, type Provider } from '../../shared/provider.ts';
 
 // Spend-over-time stacked bar with a bare [project | provider] stack toggle and
-// a quiet median dash on the same y-scale (CHI-324 2d). Shared by the Overview
+// a quiet median dash on the same y-scale. Shared by the Overview
 // tab (InsightsCharts) and the Spend tab so the two charts cannot drift. Title
 // stays "Spend over time" (name + window only); NO flagged-day markers — the
 // anomaly tile carries flags. `provider` = model VENDOR (anthropic/openai/
 // google), NOT `source` (that is the tool vendor, the Sources chart). Prices
-// every bucket at its own day's rate (CHI-228) and honors the List/Billed
+// every bucket at its own day's rate and honors the List/Billed
 // toggle.
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
@@ -61,7 +61,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   // Series get their color by RANK (distinct-by-construction from the 5-hue
   // palette), NOT by the app-wide per-project identity color — that one is
   // assigned by project id, so two different top-5-by-spend projects could land
-  // on the same hue (CHI-324 review: aios-dashboard vs healthverse collided).
+  // on the same hue (two top-5 projects collided in review).
   const series: Series[] = useMemo(() => {
     if (stack === 'provider') {
       return presentProviders.map((p) => ({ key: p, name: p, color: CATEGORICAL_COLORS[PROVIDER_ORDER.indexOf(p) % CATEGORICAL_COLORS.length] }));
@@ -80,7 +80,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   const chartData = useMemo(() => {
     const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
     const byBucket = groupByBucket(cells);
-    // Dense-fill so equal bar spacing = equal time (D12), capped to avoid runaway.
+    // Dense-fill so equal bar spacing = equal time, capped to avoid runaway.
     const denseKeys = densifyBuckets([...byBucket.keys()], bucketUnit);
     const { keys: bucketKeys } = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
     const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
@@ -123,8 +123,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
           <CartesianGrid {...GRID_PROPS} />
           <XAxis dataKey="bucket" {...AXIS_PROPS} />
           {/* Fixed width so the plot area starts at the same x on every window,
-              regardless of tick-label magnitude ($140 vs $1,000) — CHI-324
-              review: charts looked different widths across windows. */}
+              regardless of tick-label magnitude ($140 vs $1,000) — review: charts looked different widths across windows. */}
           <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v: number) => fmtMoney(v, 0)} />
           <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
           {median != null && (

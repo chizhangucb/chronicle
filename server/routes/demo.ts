@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from 'express';
 
-// Demo-mode control (CHI-325 3c, decision D9).
+// Demo-mode control.
 //
 // Entering and leaving demo cannot be done in-process: server/db.ts binds its
 // handle to CHRONICLE_DATA_DIR at import time, so switching databases means

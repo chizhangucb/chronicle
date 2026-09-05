@@ -1,6 +1,5 @@
 // shared/spend/budget.ts
-// Monthly budget posture, ported from Varde's SpendPage month math (CHI-324
-// 2a / D5): month-to-date, $/day pace, month-end projection, budget share +
+// Monthly budget posture: month-to-date, $/day pace, month-end projection, budget share +
 // graded state. Pure over already-costed day series (dollars), pricing-agnostic
 // like anomaly.ts. Relative-import value module (never @shared), B3.
 
@@ -10,7 +9,7 @@ import type { CostedDay } from './anomaly.ts';
 
 export interface BudgetPosture {
   /** null when no budget is set — the console reports "no cap set", never a
-   * share against a number you never chose (Varde's shipped default). */
+   * share against a number you never chose. */
   monthlyUsd: number | null;
   monthToDate: number;
   /** $/day so far this month = monthToDate / elapsed days. */

@@ -41,7 +41,7 @@ export function longestStreak(days: DayCount[]): number {
 // Count of active days in the trailing `windowDays`-day window ending at (and
 // including) `asOf`. The window is INCLUSIVE of both ends, so the cutoff is
 // asOf − (windowDays − 1): a 30-day window is asOf and the 29 days before it.
-// CHI-370: the old `asOf − windowDays` cutoff spanned 31 calendar days, so a
+// Active-day count: the old `asOf − windowDays` cutoff spanned 31 calendar days, so a
 // fully-active month reported "31/30". The boundary fix is the real correction;
 // the upper `<= asOf` bound drops any stray future-dated row, and the final
 // Math.min is a belt-and-suspenders clamp so the numerator can never exceed the

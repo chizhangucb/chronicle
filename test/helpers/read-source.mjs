@@ -3,7 +3,7 @@
 // Two pins read src/ off disk on PURPOSE (page-width.test.mjs, the css; and
 // reference-registry.test.mjs, every .tsx): a module import would not see a raw
 // pixel width or an inline InfoTip string, so the read has to hit the real file.
-// The cost is a race (CHI-382): a read that lands inside a truncate+write window
+// The cost is a race: a read that lands inside a truncate+write window
 // returns an empty or partial file and fails an assertion non-deterministically,
 // which is why the flake only ever bit while an agent or human was editing as the
 // suite ran, never on CI's clean checkout.

@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from './i18n.js';
 
 // The ONE time-range vocabulary for every range/window toggle in the app
-// (D10, Task 17 — feedback-round). Before this, the `/` hub rangebar
+// (D10, Task 17 — feedback-round). Before this, the home page at `/` rangebar
 // (Today · 7d · 30d · 90d · All) and ProjectDetail's rangebar
 // (Today · 7 Days · 30 Days · 1 Year · All time) had independently drifted
 // option sets AND labels. This is now the single source of truth both
