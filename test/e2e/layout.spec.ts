@@ -4,8 +4,8 @@
 // (e)). Each probe is written to FAIL on the pre-fix markup/CSS and PASS once the Task-11
 // policy classes (`.num-col`/`.ts-col`/`.pane`/`--gap-N`) are applied — see task-12-report.md
 // for the per-probe RED/GREEN table recorded during development.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState, WIDTHS } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState, WIDTHS } from './helpers.ts';
 
 const state = readSeedState();
 

@@ -7,8 +7,7 @@
 //
 // Everything here runs on the seeded server, which is the stock
 // public-install shape.
-import { test, expect } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

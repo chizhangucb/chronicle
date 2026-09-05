@@ -1,6 +1,6 @@
-// Playwright E2E harness: seed a temp Chronicle instance with the Task-1 big
-// fixture session (120 subagents, 5000 messages — test/fixtures/gen-big-session.mjs)
-// and launch the standalone server against it.
+// Playwright E2E harness: one isolated Chronicle instance PER WORKER, each
+// seeded with the Task-1 big fixture session (120 subagents, 5000 messages —
+// test/fixtures/gen-big-session.mjs) plus five mini sessions.
 //
 // Design choice (documented per the task brief's "pick the simpler" note):
 // Playwright's built-in `webServer` config option only supports "poll a URL
@@ -8,291 +8,148 @@
 // server is listening" from "the fixture has finished importing", and the
 // import (5000 messages + 120 subagent files) takes long enough that a naive
 // `webServer` setup would race: the first spec could hit an empty Home page.
-// Instead, `launchSeeded()` runs to completion — build, generate fixture,
-// spawn the server, wait for it to answer, seed via the import API, confirm
-// the import succeeded — entirely inside Playwright's `globalSetup`, which
-// is guaranteed to finish before any test starts. `globalSetup` and the test
-// workers are separate processes, so the connection info is persisted to a
-// JSON file (`STATE_FILE`) rather than kept in a module-scope variable; specs
-// call `readSeedState()` to get it. `globalTeardown` reads the same file to
-// kill the server and clean up the temp dirs.
+// Instead the whole provisioning — build, generate the fixture, seed a data
+// dir through the real import API, spawn the server specs talk to — runs to
+// completion inside Playwright's `globalSetup`, which is guaranteed to finish
+// before any test starts.
+//
+// `globalSetup` and the test workers are separate processes, so the
+// connection info is persisted to disk rather than kept in a module-scope
+// variable. It is persisted PER WORKER INDEX (`workerStateFile`), and a spec
+// calls `readSeedState()`, which resolves the file for the worker it is
+// running on (`TEST_PARALLEL_INDEX`). There is no fixed shared state path, so
+// two workers never share a server or a database. `globalTeardown` reads
+// every worker's file to kill the servers and clean up the temp dirs.
+//
+// The seed/launch seam itself, and the per-server records that let a failing
+// spec report *why* its server is gone, live in harness.ts.
 import fs from 'node:fs';
-import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, execSync, type ChildProcess } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { generateBigSession } from '../fixtures/gen-big-session.mjs';
-import { writeMiniSession } from '../fixtures/gen-mini-session.mjs';
+import { test as base, expect } from '@playwright/test';
+import {
+  RUN_DIR, workerStateFile, seedDataDir, launchServer, stopServer,
+  describeDeadServers,
+  type SeededData, type ServerHandle,
+} from './harness.ts';
+
+// Specs and the global hooks import from here only; harness.ts is the seam's
+// implementation. Re-exported are just the names they actually reach for.
+export { REPO_ROOT, RUN_DIR, workerStateFile } from './harness.ts';
 
 // Reference viewport widths the overflow smoke check runs at (spec §5.1,
 // step 2d): a laptop, a common desktop, and a wide desktop.
 export const WIDTHS = [1024, 1366, 1728];
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = path.resolve(HERE, '..', '..');
-
-// Where globalSetup persists the seeded server's connection info for specs
-// (and globalTeardown) to read back.
-export const STATE_FILE = path.join(os.tmpdir(), 'chronicle-e2e-state.json');
-
-export interface SeedState {
+export interface SeedState extends SeededData {
   baseURL: string;
-  dataDir: string;
-  fixtureDir: string;
-  sessionId: string;
   pid: number;
-  // Task 14 (select.spec.ts): 3 small extra sessions seeded alongside the big
-  // fixture — the big fixture is deliberately ONE session on ONE day, which
-  // can't exercise day-group tri-state selection or a filtered multi-row
-  // "Select all". miniAlpha/miniBravo land on the same (second) day as each
-  // other — a 2-row day-group — while miniMinor is a sub-10-message session
-  // on a third day that the noise gate routes into the minor-sessions bucket
-  // instead of the main ledger. See gen-mini-session.mjs.
-  miniAlphaId: string;
-  miniBravoId: string;
-  miniMinorId: string;
-  // Task 7 (window-matrix): two more mini sessions, timestamped RELATIVE TO
-  // Date.now() at seed time (not a fixed calendar date like the three
-  // above) — see the writeMiniSession call sites below for why.
-  spanningSessionId: string;
-  todayOnlySessionId: string;
+  /** Names this instance's server record (harness.ts) — the thing a failing
+   * spec quotes an exit status and log tail from. */
+  label: string;
 }
 
-export function readSeedState(): SeedState {
-  return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) as SeedState;
+/** Which worker this module is being loaded on. Playwright sets
+ * TEST_PARALLEL_INDEX in every worker process; it is absent in globalSetup /
+ * globalTeardown, where 0 is the right default. */
+export function currentWorkerIndex(): number {
+  const raw = process.env.TEST_PARALLEL_INDEX;
+  const n = raw === undefined ? 0 : Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.on('error', reject);
-    srv.listen(0, '127.0.0.1', () => {
-      const addr = srv.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 0;
-      srv.close(() => resolve(port));
-    });
-  });
-}
-
-// Builds the client bundle once. Skipped when dist/index.html already exists
-// (fast local re-runs of `npm run test:e2e`); CI always starts from a clean
-// checkout, so it always builds there.
-function ensureClientBuilt(): void {
-  const distIndex = path.join(REPO_ROOT, 'dist', 'index.html');
-  if (fs.existsSync(distIndex)) return;
-  execSync('npm run build', { cwd: REPO_ROOT, stdio: 'inherit' });
-}
-
-async function waitForServer(url: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let lastErr: unknown;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch (err) {
-      lastErr = err;
-    }
-    await new Promise((r) => setTimeout(r, 200));
+/** The seeded instance belonging to the worker running this spec. */
+export function readSeedState(workerIndex: number = currentWorkerIndex()): SeedState {
+  const file = workerStateFile(workerIndex);
+  let raw: string;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch {
+    throw new Error(
+      `No seeded Chronicle instance for worker ${workerIndex} (${file}). ` +
+      'globalSetup provisions one instance per worker; run the suite through `npm run test:e2e`.',
+    );
   }
-  throw new Error(`Chronicle standalone server never became ready at ${url}: ${String(lastErr)}`);
+  return JSON.parse(raw) as SeedState;
 }
 
-interface ScannedSession {
-  id: string;
-  file: string | null;
-}
-interface ScannedProject {
-  logDir: string;
-  sessions?: ScannedSession[];
-}
-interface ScanResponse {
-  'claude-code'?: ScannedProject[];
-}
-interface ImportResponse {
-  imported?: number;
-}
-
-// Generates the fixture, starts a standalone server against a fresh temp
-// CHRONICLE_DATA_DIR with CHRONICLE_E2E=1 (unlocks the `?dir=` scan/import
-// override in server/routes/import-sync.ts — never live unless that env var
-// is set), then seeds the DB THROUGH THE REAL IMPORT API: a guarded
-// `GET /api/scan?dir=<fixtureDir>` to discover the generated session, then a
-// normal `POST /api/import` with the discovered logDir/file — not a direct
-// DB write. Returns only after the import is confirmed (imported >= 1), so
-// callers never observe a half-seeded server.
-export async function launchSeeded(): Promise<SeedState & { proc: ChildProcess }> {
-  ensureClientBuilt();
-
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-fixture-'));
-  const { sessionId } = generateBigSession(fixtureDir);
-
-  // Task 14: 3 small extra sessions in the SAME munged project dir as the big
-  // fixture (writeMiniSession defaults to the big fixture's cwd), so they
-  // scan as more sessions of the one seeded project. Noon-UTC timestamps give
-  // a wide margin either side of local midnight so the day-group bucketing
-  // (client-side, in the browser's timezone) lands on the intended calendar
-  // day regardless of the machine running the suite.
-  const miniAlphaId = 'minifix-alpha';
-  const miniBravoId = 'minifix-bravo';
-  const miniMinorId = 'minifix-minor';
-  writeMiniSession(fixtureDir, {
-    sessionId: miniAlphaId, dateISO: '2026-08-05T10:00:00.000Z', turns: 8,
-    promptText: 'Mini fixture Alpha: review the auth flow.',
-  });
-  writeMiniSession(fixtureDir, {
-    sessionId: miniBravoId, dateISO: '2026-08-05T14:00:00.000Z', turns: 8,
-    promptText: 'Mini fixture Bravo: investigate the billing bug.',
-  });
-  writeMiniSession(fixtureDir, {
-    sessionId: miniMinorId, dateISO: '2026-08-06T10:00:00.000Z', turns: 2, // <10 messages -> minor
-    promptText: 'Mini fixture Charlie: quick tweak.',
-  });
-
-  // Task 7 (window-matrix): the fixture above is pinned to a fixed calendar
-  // date (2026-08), so it's invisible to "Today"/"7d"/"30d" windows once this
-  // suite runs far enough past that date (explore.spec.ts's header comment
-  // already documents this exact fragility). These two sessions are seeded
-  // RELATIVE TO Date.now() AT THIS POINT (globalSetup runs once, before any
-  // spec starts, so this is deterministic for the whole test run even though
-  // the absolute timestamps drift run to run).
-  const nowMs = Date.now();
-  const spanningSessionId = 'minifix-spanning';
-  const todayOnlySessionId = 'minifix-today';
-  // spanningSessionId: starts 26h before now — guaranteed to fall on an
-  // earlier LOCAL calendar day than "today" no matter what the wall-clock
-  // time is when this runs, since the span exceeds 24h — and ends 5 minutes
-  // before now, which is trivially always "today" (an end 5 minutes shy of
-  // "now" cannot itself be in the future or cross back over a *later*
-  // midnight). This is the exact regression shape overlapGate
-  // (server/windowUsage.ts) fixes: the OLD gate compared only
-  // `started_at >= cutoff` and would have dropped this session from "Today"
-  // even though ~26h of its own activity ran INTO today. 30 turns (60
-  // messages, well over the noise-gate's 10-message floor) spread evenly
-  // across the ~26h span keeps every individual inter-message gap well under
-  // durations.ts's 10-min Agent-Active cap, but the capped sum still clears
-  // the 5-min-active floor by two orders of magnitude, so this is never
-  // routed into the minor-sessions bucket regardless of config.
-  writeMiniSession(fixtureDir, {
-    sessionId: spanningSessionId,
-    dateISO: new Date(nowMs - 26 * 3600 * 1000).toISOString(),
-    endISO: new Date(nowMs - 5 * 60 * 1000).toISOString(),
-    turns: 30,
-    promptText: 'Mini fixture Spanning: overnight investigation of the parser regression.',
-  });
-  // todayOnlySessionId: entirely inside the last 40 minutes — the naive-gate
-  // control case alongside the spanning session above for window-matrix.spec.ts's
-  // overlap-gate and probes.spec.ts's dense-time-axis (D12) assertions.
-  //
-  // These two sessions are seeded relative to seed-`now` (not local midnight),
-  // so run in the first ~35 min after local midnight and their activity lands
-  // just BEFORE midnight, outside a genuine `[midnight, now]` Today window —
-  // this WAS an "accepted low-probability risk" that hit CI twice on PR #143.
-  // CHI-376 neutralizes it: window-matrix.spec.ts freezes its browser clock to
-  // local noon (`page.clock.setFixedTime`), so the Today window is a fixed 12h
-  // ending at ~now and always contains both sessions regardless of wall clock.
-  // Any spec asserting Today-window DATA against these two must apply the same
-  // freeze (only window-matrix does today).
-  writeMiniSession(fixtureDir, {
-    sessionId: todayOnlySessionId,
-    dateISO: new Date(nowMs - 40 * 60 * 1000).toISOString(),
-    endISO: new Date(nowMs - 5 * 60 * 1000).toISOString(),
-    turns: 12,
-    promptText: 'Mini fixture Today: same-day quick investigation.',
-  });
-
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-data-'));
-  const port = await findFreePort();
-  const baseURL = `http://127.0.0.1:${port}`;
-
-  const proc = spawn(process.execPath, [path.join(REPO_ROOT, 'server', 'standalone.ts')], {
-    cwd: REPO_ROOT,
-    // A stock install: demo mode explicitly off, so the seeded harness is the
-    // shape a stranger gets. Demo coverage runs in its own launcher
-    // (launchDemo) + the 1h demo walk.
-    env: {
-      ...process.env, CHRONICLE_DATA_DIR: dataDir, CHRONICLE_E2E: '1', PORT: String(port),
-      CHRONICLE_DEMO: '',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let out = '';
-  proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
-  proc.stderr?.on('data', (d: Buffer) => { out += d.toString(); });
-  proc.on('exit', (code) => {
-    if (code !== null && code !== 0) console.error(`chronicle standalone server exited (${code}):\n${out}`);
-  });
-
-  await waitForServer(`${baseURL}/api/settings`, 30_000);
-
-  const scanRes = await fetch(`${baseURL}/api/scan?dir=${encodeURIComponent(fixtureDir)}`);
-  if (!scanRes.ok) throw new Error(`Seed scan failed (${scanRes.status}): ${await scanRes.text()}`);
-  const scanJson = (await scanRes.json()) as ScanResponse;
-  const project = (scanJson['claude-code'] ?? []).find((p) => p.sessions?.some((s) => s.id === sessionId));
-  const sessionFile = project?.sessions?.find((s) => s.id === sessionId)?.file;
-  if (!project || !sessionFile) {
-    throw new Error(`Fixture session not found in scan result: ${JSON.stringify(scanJson)}`);
+/** Every provisioned instance, for globalTeardown. */
+export function listSeedStates(): SeedState[] {
+  let names: string[];
+  try { names = fs.readdirSync(RUN_DIR); } catch { return []; }
+  const out: SeedState[] = [];
+  for (const name of names) {
+    if (!/^worker-\d+\.json$/.test(name)) continue;
+    try { out.push(JSON.parse(fs.readFileSync(path.join(RUN_DIR, name), 'utf8')) as SeedState); } catch { /* mid-write */ }
   }
-
-  const miniFiles = [miniAlphaId, miniBravoId, miniMinorId, spanningSessionId, todayOnlySessionId].map((id) => {
-    const f = project.sessions?.find((s) => s.id === id)?.file;
-    if (!f) throw new Error(`Mini fixture session not found in scan result: ${id}`);
-    return f;
-  });
-
-  // Writes carry the per-boot write token (CHI-222). The browser client
-  // attaches it automatically; this Node-side seed fetch must fetch it first.
-  const writeToken = ((await (await fetch(`${baseURL}/api/write-token`)).json()) as { token: string }).token;
-  const importRes = await fetch(`${baseURL}/api/import`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-chronicle-write-token': writeToken },
-    body: JSON.stringify({ source: 'claude-code', logDir: project.logDir, files: [sessionFile, ...miniFiles] }),
-  });
-  if (!importRes.ok) throw new Error(`Seed import failed (${importRes.status}): ${await importRes.text()}`);
-  const importJson = (await importRes.json()) as ImportResponse;
-  if (!importJson.imported || importJson.imported < 6) {
-    throw new Error(`Seed import reported ${importJson.imported ?? 0} sessions imported, expected 6: ${JSON.stringify(importJson)}`);
-  }
-
-  return {
-    baseURL, dataDir, fixtureDir, sessionId, miniAlphaId, miniBravoId, miniMinorId,
-    spanningSessionId, todayOnlySessionId, pid: proc.pid ?? -1, proc,
-  };
+  return out;
 }
 
-export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir'>): void {
-  if (state.pid > 0) {
-    try { process.kill(state.pid); } catch { /* already gone */ }
-  }
+/** Seed a data directory and launch the server specs talk to against it. The
+ * two halves are separate operations (harness.ts); this is their composition,
+ * used once per worker by globalSetup. */
+export async function launchSeeded(workerIndex = 0): Promise<SeedState & { proc: ServerHandle['proc'] }> {
+  const label = `worker-${workerIndex}`;
+  const seeded = await seedDataDir(label);
+  const server = await launchServer({ dataDir: seeded.dataDir, label });
+  return { ...seeded, baseURL: server.baseURL, pid: server.pid, label, proc: server.proc };
+}
+
+export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>): void {
+  stopServer(state);
   for (const dir of [state.dataDir, state.fixtureDir]) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
 }
 
-export interface DemoServer { baseURL: string; proc: ChildProcess; dataDir: string; }
+export interface DemoServer {
+  baseURL: string;
+  proc: ServerHandle['proc'];
+  dataDir: string;
+  pid: number;
+  label: string;
+}
+
+let demoSeq = 0;
 
 /** Launch a standalone server in DEMO mode (CHRONICLE_DEMO=1): synthetic
  * sessions and projects, so a zero-data console still renders a populated
- * product. Caller stops it in afterAll. */
+ * product. Caller stops it in afterAll. Like every other spawned server it
+ * gets a record, so a spec failing against a dead demo server says why. */
 export async function launchDemo(): Promise<DemoServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-demo-'));
-  const port = await findFreePort();
-  const baseURL = `http://127.0.0.1:${port}`;
-  const proc = spawn(process.execPath, [path.join(REPO_ROOT, 'server', 'standalone.ts')], {
-    cwd: REPO_ROOT,
-    env: { ...process.env, CHRONICLE_DATA_DIR: dataDir, CHRONICLE_E2E: '1', CHRONICLE_DEMO: '1', PORT: String(port) },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let out = '';
-  proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
-  proc.stderr?.on('data', (d: Buffer) => { out += d.toString(); });
-  proc.on('exit', (code) => { if (code !== null && code !== 0) console.error(`demo server exited (${code}):\n${out}`); });
-  await waitForServer(`${baseURL}/api/settings`, 30_000);
-  return { baseURL, proc, dataDir };
+  // Unique across workers AND across spec files sharing one worker.
+  const label = `demo-w${currentWorkerIndex()}-${process.pid}-${demoSeq++}`;
+  const server = await launchServer({ dataDir, label, demo: true });
+  return { baseURL: server.baseURL, proc: server.proc, dataDir, pid: server.pid, label };
 }
 
 export function stopDemo(server: DemoServer): void {
-  try { server.proc.kill(); } catch { /* already gone */ }
+  stopServer(server);
   try { fs.rmSync(server.dataDir, { recursive: true, force: true }); } catch { /* best effort */ }
 }
+
+// A failing spec's first question is almost always "was the server even
+// there?". This auto fixture answers it: when a test fails AND some recorded
+// server is no longer running, that server's exit status and the tail of its
+// log are appended to the failure, instead of leaving a bare
+// `net::ERR_CONNECTION_REFUSED`. A passing run touches nothing, and a failure
+// with every server healthy (an ordinary assertion miss) is left alone.
+export const test = base.extend<{ serverDiagnostics: void }>({
+  serverDiagnostics: [async ({}, use, testInfo) => {
+    await use();
+    if (testInfo.status === testInfo.expectedStatus) return;
+    const diag = describeDeadServers();
+    if (!diag) return;
+    const note = `\n\n--- Chronicle e2e: a server this run depends on is not running ---\n${diag}`;
+    await testInfo.attach('chronicle-server-status', { body: diag, contentType: 'text/plain' });
+    for (const err of testInfo.errors) {
+      // Reporters print `stack` when there is one and fall back to `message`,
+      // so append to both to be sure the note is actually shown.
+      if (typeof err.message === 'string') err.message += note;
+      if (typeof err.stack === 'string') err.stack += note;
+    }
+  }, { auto: true }],
+});
+
+export { expect };

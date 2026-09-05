@@ -27,8 +27,8 @@
 // Every test here registers a `page.on('dialog', …)` handler that fails loudly
 // if a native dialog ever fires, so the Remove flow's inline confirm bar is
 // verified, not just assumed.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

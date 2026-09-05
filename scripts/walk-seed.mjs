@@ -12,7 +12,7 @@
 // It NEVER touches the operator's real DB: everything lands in an mkdtemp
 // CHRONICLE_DATA_DIR that is removed on exit. Seeding goes through the real
 // import API (scan -> import), never a direct DB write — same seam as the E2E
-// harness (test/e2e/helpers.ts launchSeeded).
+// harness (test/e2e/helpers.ts launchSeeded / harness.ts seedDataDir).
 //
 // Usage:
 //   node scripts/walk-seed.mjs                 # seed + walk -> /tmp/chronicle-walk-seeded/

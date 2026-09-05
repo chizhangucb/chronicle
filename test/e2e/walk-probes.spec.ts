@@ -6,8 +6,8 @@
 // no popover-clip defect: the tip was correctly unreachable, same as it
 // would be for a real user. That's a harness coverage gap, not a UI bug, and
 // it must never come back reported as a plain `fail` again (see CHI-310).
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 import { probePopoverClip } from './walk.mjs';
 
 const state = readSeedState();

@@ -25,8 +25,8 @@
 // `.command-bar` instead of two separate boxed toolbars, and are mutually
 // exclusive. Below 1100px the rail leaves the chrome and renders as a boxed
 // "Projects" section BELOW the ledger (ledger stays first, D1/D13).
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 import { getDefinition } from '../../src/reference/definitions.ts';
 
 const state = readSeedState();

@@ -5,8 +5,7 @@
 // one). The NO-service-worker assertion is the load-bearing half: a cached app
 // shell could serve a stale UI after `npx chronicle-cli` pulled a new version,
 // and there is nothing to gain offline from a server on localhost.
-import { test, expect } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

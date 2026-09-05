@@ -20,7 +20,7 @@
 // of today's date, so every test here selects it explicitly rather than
 // relying on the default 30d range.
 //
-// Task 7 update: test/e2e/helpers.ts's `launchSeeded` now ALSO seeds two mini
+// Task 7 update: test/e2e/harness.ts's `seedDataDir` now ALSO seeds two mini
 // sessions timestamped relative to Date.now() AT SEED TIME (`spanningSessionId`/
 // `todayOnlySessionId`), so Today/7d/30d windows ARE genuinely testable now —
 // see window-matrix.spec.ts, which exercises exactly that. This file's own
@@ -35,8 +35,8 @@
 // rollup, which would make "hourly renders many buckets" untestable.
 // Metric=Requests buckets by per-MESSAGE `ts` instead (any group), which is
 // what actually exercises many distinct hourly buckets against this fixture.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

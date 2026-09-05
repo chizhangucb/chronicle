@@ -8,8 +8,7 @@
 // Two regimes:
 //   seeded (CHRONICLE_E2E=1)  -> rows are written, every one tagged agent
 //   demo   (CHRONICLE_DEMO=1) -> no rows at all, because demo is not usage
-import { test, expect } from '@playwright/test';
-import { readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
+import { test, expect, readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
 
 const state = readSeedState();
 
