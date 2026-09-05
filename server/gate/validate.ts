@@ -34,7 +34,7 @@ export function jsonDiff(before: any, after: any, path = '', out: DiffEntry[] = 
   const isPlain = (v: any): boolean => v !== null && typeof v === 'object' && !Array.isArray(v);
   // Recurse when both sides are objects, and also when ONE side is an object
   // and the other absent: a first-time nested write then diffs leaf by leaf
-  // ("briefing.cadence: unset -> weekly") instead of dumping a JSON blob.
+  // ("noiseGate.minMessages: unset -> 10") instead of dumping a JSON blob.
   if (
     (isPlain(before) || isPlain(after)) &&
     (before === undefined || isPlain(before)) &&

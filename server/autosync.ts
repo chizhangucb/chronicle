@@ -36,7 +36,7 @@ export interface ChronicleConfig {
   ask?: boolean;
   // Monthly spend budget in USD (CHI-366). The server-visible home for what used
   // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
-  // headless briefing runner read the SAME number (they can never disagree).
+  // Spend tab read the SAME number wherever it is shown.
   // null / absent = no budget set. Local app pref, written like the toggles
   // above via /settings — NOT an egress/hub gate surface.
   monthlyBudget?: number | null;
@@ -46,9 +46,6 @@ export interface ChronicleConfig {
   // operator's own behavior, so it gets a visible switch and a Clear button in
   // Settings rather than being invisible machinery. See server/viewlog.ts.
   viewLog?: boolean;
-  // The two home bands (CHI-325 3d / D2), default ON (opt-OUT). Off collapses /
-  // back to exactly the Overview that shipped before the merge's phase 3.
-  homeBands?: boolean;
   [key: string]: unknown;
 }
 

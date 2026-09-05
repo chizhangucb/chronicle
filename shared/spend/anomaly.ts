@@ -2,7 +2,7 @@
 // Spend anomaly detection, ported from Varde aggregator/sources/spend.ts
 // computeAnomaly (CHI-324 2a / D4). Pure over ALREADY-COSTED day series, so it
 // is pricing-agnostic: the caller prices token cells with its own PriceFn (the
-// client at the toggled mode, the briefing runner at the theoretical basis)
+// client at the toggled mode, the server at the theoretical basis)
 // and hands this dollars. ONE algorithm, no second pricing path.
 //
 // Baseline = median cost of the trailing `windowDays` ACTIVE days (cost > 0)

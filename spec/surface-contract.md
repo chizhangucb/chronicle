@@ -25,7 +25,6 @@
 | `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
 | `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + controls over the hub's gate-config surfaces (every one of which cards, always) + the write log: every gate write, newest first, with Undo. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
 | `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and cardless pause/resume via the gate's `launchd-jobs` surface (a protected job still cards). Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
-| `/briefing` | **Ops surface (hub-conditional).** The daily briefing's action cards (needs-you / awareness / handled) with terminal-outcome actions (done/dismiss/snooze/reopen) and a Run-now. The two-file split (run writes `briefing.json`, the UI writes `briefing-state.json`, never cross-writing). Covers jobs / safety / coverage AND spend (spend-anomaly + budget-posture cards). | `src/BriefingPage.tsx` |
 | `/records` | **Ops surface (hub-conditional).** The append-only hub records, via the `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY current type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, contacts/operations) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
 | `/reference` | **The unified reference. NOT hub-conditional** (product vocabulary, not hub data), so a stock public install has it. Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for surfaces that were dropped (pinned panels, peek drill, the old burn tile, and the whole Memory vocabulary retired by the shrink). | `src/ReferencePage.tsx` |
 | `/ask` | **Ask: NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
@@ -50,7 +49,7 @@ drag-resizable when expanded. Contents, top to bottom:
   but NOT on the Insights hub.
 - **`sb-top` ops nav — hub-conditional.** After Projects, the ops items render ONLY when
   `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent, in order:
-  **Modules (`▦`)** · **Safety (`⊘`)** · **Jobs (`⧗`)** · **Briefing (`▣`)** · **Records (`≡`)**. So on a stock public install with no hub, `sb-top` is exactly Insights +
+  **Modules (`▦`)** · **Safety (`⊘`)** · **Jobs (`⧗`)** · **Records (`≡`)**. So on a stock public install with no hub, `sb-top` is exactly Insights +
   Projects; with a hub or in demo it also carries the ops items. See the "ops routes are
   hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -88,7 +87,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 | | Surfaces |
 |---|---|
-| `--page-max` | `/briefing`, `/safety`, `/modules`, `/jobs`, `/records`, `/reference` |
+| `--page-max` | `/safety`, `/modules`, `/jobs`, `/records`, `/reference` |
 | full bleed (no cap) | `/`, `/projects`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
 
 **Prose carries its own `ch` measure cap** so a wide frame never means a 200-character line
@@ -131,19 +130,17 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
-  `▦`=modules `⊘`=safety `⧗`=jobs `▣`=briefing `≡`=records `※`=reference. `⌂`=Home is
+  `▦`=modules `⊘`=safety `⧗`=jobs `≡`=records `※`=reference. `⌂`=Home is
   retired from chrome and does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use` to
     colored emoji (👤/💭/🔧) in Playback rows — adjudicated at the walk, per the rubric.
-- **Status-band domains** (`/` Overview `.status-band`): `Spend` · `Sessions` · `Safety` · `Jobs`.
-  Exactly four, in this order, columns `domain · now · context · glance · state`. Rendered
-  whether or not a hub is present: with no hub the two hub-fed rows (Safety/Jobs) read as an
-  upsell line rather than disappearing. The whole band, and the briefing band above it, are hidden by
-  the Settings `homeBands` toggle (default ON), which collapses `/` back to exactly the pre-bands
-  Overview. Guard: `test/e2e/home-bands.spec.ts`.
+- **Nothing renders above the KPI strip on `/`** (#220). The briefing band, the status
+  band and the Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST
+  element inside the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the
+  KPI strip".
 - **Ops routes are hub-conditional.** The ops surfaces (Modules `/modules`, Safety / Jobs /
-  Briefing, and Records `/records`) and their `sb-top` nav items render ONLY when
+  and Records `/records`) and their `sb-top` nav items render ONLY when
   `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
   are hidden and their routes fail soft (the page shows a "no hub connected" line, never a broken
   view). This is why a stock public install (no hub) still shows exactly Insights + Projects in
@@ -155,15 +152,8 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 ### `/` Overview tab — reading order is load-bearing (top → bottom)
 
-The whole of items 0, 1b and 7 is behind the Settings `homeBands` toggle (default ON); with it off,
-`/` is exactly the pre-bands Overview.
+Nothing renders above item 1: the Overview opens on the KPI strip (#220).
 
-0. **Briefing band** (`.home-briefing`, `BriefingBand`) — the latest run's OPEN cards, above
-   the numbers because it is the only part of the home that ASKS something of you.
-   EVERY needs-you card is a one-line `.compact-needs` row; the title links to `/briefing`, where the
-   full what-happened / what-it-means / what-to-do anatomy lives. FYI cards are a `.home-fyi` list.
-   A calm day renders a stated calm result, not an empty div. Hub-conditional in practice (the
-   briefing is a hub organ), so a stock install shows nothing here.
 1. **KPI strip** (`.kpis`, `KpiStrip`) — headline tiles from one `/api/insights` fetch: Spend ·
    Sessions · Tokens · Agent active (InfoTip) · Your engaged (InfoTip, shows leverage) · Tool
    calls (InfoTip) · Error rate (InfoTip) · Commits, plus a conditional **Proxy lane (billed)**
@@ -176,16 +166,6 @@ The whole of items 0, 1b and 7 is behind the Settings `homeBands` toggle (defaul
      `~/.aios/machine_sessions.jsonl` manifest (weekly/nightly/session-close/spend-advice jobs),
      bucketed by job; a manifest session whose transcript is also imported is counted once, as
      automation (transcript wins, never double counted).
-1b. **Status band** (`.status-band`, `HomeStatusBand`) — the five-domain enumerable above.
-   A SECOND, DIFFERENT read of the KPI strip, not a dedupe: the tiles state a number flat,
-   the band adds a trend sparkline, the explicit baseline NUMBER (never the ratio alone),
-   and a deep link per domain. Load-bearing honesty rules: (a) **the band never originates an
-   alarm** — a row's `flagged` accent is only ever an ECHO of an open needs-you card in band 0, so
-   exactly one place on the page raises something new; (b) the Spend row's window and baseline math
-   ARE the anomaly detector's own (`src/insights/anomalyMath.ts`), and the Sessions row reuses the
-   same shape of baseline on session counts derived from `insights.sessions` (the same list the KPI
-   counts, NOT `dailyActivity`, which counts messages) — so the band can never contradict the tile
-   above it; (c) a row with no data claims nothing rather than inventing an "ok".
 2. **Activity block** (`.activity-card`, `ActivityBlock`) — **Today window ONLY** (absent on
    7d/30d/90d/All). Two groups: "Live now" + "Since you left". Each row: live-dot · session name ·
    project · error count (if > 0) · when (live / relative ended-at) · cost.
@@ -211,10 +191,10 @@ The whole of items 0, 1b and 7 is behind the Settings `homeBands` toggle (defaul
    would collide for two top-5-by-spend projects); the aggregated **Other** bar uses a visible neutral
    and shows only when it carries spend; the `<synthetic>` pseudo-model is excluded from every spend
    view. The recent-sessions ledger does NOT mount on `/` (see `/projects`).
-7. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip`) — **LAST**, the Overview tab ends
-   here. One quiet line closing the page: session count per source tool, hub connected/absent, last
-   sync, and the active cost basis. The topbar sync pill says WHEN data last landed; this says WHAT is
-   behind the figures, which on a console merging four tools plus a hub plus a proxy lane is the
+7. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip` in `src/home/ProvenanceStrip.tsx`) —
+   **LAST**, the Overview tab ends here. One quiet line closing the page: session count per source
+   tool, last sync, and the active cost basis. The topbar sync pill says WHEN data last landed; this
+   says WHAT is behind the figures, which on a console merging four tools is the
    credibility question. Sources are derived from `insights.sessions`, the same derivation the Spend
    tab's Sources card uses.
 
@@ -229,8 +209,8 @@ scopes the tab.
 
 1. **Budget band** — FULL-WIDTH horizontal band (the anomaly is already the Overview tile, so the
    Spend tab carries budget alone up top). Eyebrow `Budget · <Month> · list price` + a `✎ edit`
-   affordance (the budget is server-backed via `/settings` → `~/.chronicle/config.json`, so the
-   briefing runner reads the same number; an inline editor, NOT a `budget-config` gate). Body,
+   affordance (the budget is server-backed via `/settings` → `~/.chronicle/config.json`, so every
+   surface reads the same number; an inline editor, NOT a `budget-config` gate). Body,
    left→right: big `$MTD` month-to-date number + (`of $Y · %` + `on track`/`approaching`/`over budget`
    state chip when a budget is set, else `month to date · no budget set`); a meter bar (fill +
    projection tick) that grows to fill the middle (only when a budget is set); stats `$/day pace ·
@@ -429,10 +409,10 @@ accepted-gaps register.
   through the hub, and action rows, have no local backup and say so.
 - **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
   `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
-  acceptance / (watch) revisit trigger + a "Work on this" launcher (`POST /api/launch/gap`: Terminal
-  print -z on macOS, clipboard fallback elsewhere, demo-refused). An actionable gap wears the same
-  `--attention` accent as a briefing needs-you card: "act on this" is one visual language app-wide,
-  and neither surface uses the everyday brass for it. Watch cards stay neutral.
+  acceptance / (watch) revisit trigger. No launcher: the "Work on this" Terminal launch
+  (`POST /api/launch/gap`) is removed (#220) — Chronicle no longer launches other programs. An
+  actionable gap wears the `--attention` accent: "act on this" is one visual language app-wide,
+  and never the everyday brass. Watch cards stay neutral.
 - **Confidentiality floor**: emit-ALLOWLIST per file (not a denylist) + a value-side creds scan;
   marker phrases are COUNTS only. The raw-phrase drill-down (`GET /api/hub/safety/confidential`) is
   HARD-GATED: a live hub AND an explicit opt-in flag, else 403. The default/public build never
@@ -462,44 +442,6 @@ Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
   templates ship DORMANT (never auto-installed, so no duplicate daily run).
 - **Demo**: synthetic jobs (no real machine scan); the gate is inert so Pause/Resume 409s.
 
-### `/briefing` — ops surface (hub-conditional, `BriefingPage.tsx`)
-
-Reading order: header (`as of` + open/snoozed counts + Run-now) → **filter chips** → card sections.
-- **Filter chips**: `All` · `Needs you` · `Awareness` · `Handled`, exactly four, in this order, in
-  the boxed `.tabs` chrome, each carrying its own count, default `All`.
-- **Two-file contract**: the run writes `~/.chronicle/briefing.json`; the UI writes
-  `~/.chronicle/briefing-state.json`. They never cross-write, so a run can never clobber a "done".
-- **Card sections**: Needs you (open + needsYou, `--attention` accent) · For your awareness (open
-  FYI) · Handled (done/dismissed/resolved/snoozed), **grouped by the day the card was acted on**
-  (`actedAt`, falling back to `runAt`), newest day first, closing with a stated retention line.
-  Handled is the HISTORY: `briefing.json` is a 90-day ledger (`mergeRuns` + `LEDGER_KEEP_DAYS`). Each
-  card: domain chip · title · summary · optional plain-language anatomy (what happened / means / to
-  do) · evidence expander · an internal link · terminal actions (Done / Snooze / Dismiss, or Reopen)
-  · **an age badge on OPEN cards older than 2 days** (`open Nd`, `--attention` toned from 7 days). A
-  re-emitted card keeps its ORIGINAL `runAt`, so the age is its true age rather than resetting each
-  run. A card is binary (needs you or not) — no severity ladder.
-- **Needs-you accent**: a dedicated `--attention` terracotta (`#cd5f3c`), NOT `--brass`, on the left
-  bar plus a 7% warm wash on the card face. Brass is the everyday accent (nav, price toggle, links,
-  chart series); terracotta separates from ambient brass while staying short of alarm-red. The accent
-  stays binary — the same treatment for every needs-you card (jobs, safety, coverage, spend), with no
-  per-severity variants.
-- **Spend cards**: the runner assembles a `spend` slice (`server/spendSnapshot.ts`) — the SAME costed
-  days + shared thresholds the Spend tab runs on, priced server-side at the fixed theoretical (list)
-  basis. Two card kinds:
-  - `spend-anomaly:<today>` — emitted when today's cost is flagged vs the trailing 14-day median
-    (needs-you when escalated); auto-resolves once the day rolls past or the reading is no longer
-    flagged.
-  - `budget-posture:<YYYY-MM>` — emitted when the monthly budget posture is `approaching` or `over
-    budget` (needs-you only when over). Priced Lane-C-free to match the Spend tab's budget band.
-    Auto-resolves when the month rolls or the state returns to `on track`. The monthly budget lives
-    server-side (`monthlyBudget` in `~/.chronicle/config.json`, read/written via `/settings`) so the
-    Spend tab and the runner read the same number; `state` null (no budget set) emits nothing. The
-    `budget-config` gate surface below is unbuilt — the budget is a local app pref written like the
-    other `/settings` toggles, not an egress/hub gate.
-  Both resolve in `server/briefing-resolve.ts`.
-- **Run-now** spawns the headless runner (assembles the snapshot from the adapter slices, keeps the
-  `live-data.json` filename, spawns `claude -p --allowedTools Read,Glob,Grep` from an isolated runner
-  cwd). Demo-refused (409); the dormant launchd template is NOT installed (no duplicate daily run).
 
 ### `/records` — ops surface (hub-conditional, `RecordsPage.tsx`)
 
@@ -523,7 +465,7 @@ type's table.
 ### Settings modal (`SettingsModal`, `src/App.tsx`)
 
 Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
-(quota)** · **Home bands** (default ON; hides the briefing + status bands) · **Ask (experimental)**.
+(quota)** · **Ask (experimental)**.
 Then one BLOCK, fenced by a rule: the **Local view log** — an on/off toggle, a one-paragraph
 statement of exactly what is recorded and that it never leaves the machine, the captured-rows count
 and date range, a top-5 surfaces table (Surface / You / Agent / Typical visit, human vs agent
@@ -540,7 +482,9 @@ when empty and is absent in demo (demo never records).
 | Modules slice reads only `product-contract.md`, refuses confidential-tree paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
 | Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
 | `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
-| Actionable gap cards share the briefing needs-you `--attention` accent; watch cards stay neutral | `test/e2e/ops-safety.spec.ts` — "actionable gap cards use the off-brass attention accent" |
+| The briefing, the launcher and the scope-suggest routes are unmounted (404); `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
+| Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |
+| Actionable gap cards carry the off-brass `--attention` accent; watch cards stay neutral | `test/e2e/ops-safety.spec.ts` — "actionable gap cards use the off-brass attention accent" |
 | Confidential marker drill-down is 403 by default (never served on the public build) | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` — confidentialMarkersEnabled gating |
 | Safety slice emit-allowlist (no innocuous-key creds leak), markers as COUNTS only | `test/hub-safety.test.mjs` (node) — allowlist + planted-secret + counts assertions |
 | Gap launcher refuses demo (409); prompt built server-side | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` |
@@ -548,10 +492,6 @@ when empty and is absent in demo (demo never records).
 | `/jobs` unified list (launchd/cron/registry/template) + log-tail drill-in (demo) | `test/e2e/ops-jobs.spec.ts` — list renders + log drill-in tails the declared log |
 | Job log tail opens only declared paths (browser sends id, never a path); tail-capped | `test/hub-jobs.test.mjs` (node) — job-logs reads only the declared path + TAIL_LINES |
 | Pause/resume refused in demo (gate inert) | `test/e2e/ops-jobs.spec.ts` — "pause is refused in demo" |
-| Briefing nav hidden when the hub is absent | `test/e2e/ops-briefing.spec.ts` — "no Briefing nav item" |
-| `/briefing` renders cards; a card action moves state (two-file split) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` (applyCardAction/resolveCards) |
-| Needs-you accent is the off-brass `--attention` terracotta + warm wash, awareness cards are neutral | `test/e2e/ops-briefing.spec.ts` — "needs-you cards use the off-brass attention accent" |
-| Briefing run refused in demo (409) | `test/e2e/ops-briefing.spec.ts` + `test/briefing.test.mjs` |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
 | Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
@@ -587,14 +527,12 @@ when empty and is absent in demo (demo never records).
 | Anomaly tile headline = ratio + flag (`high` text label), support = absolute `$current vs $baseline`, + movers/flagged-days/Lane-C lines (keeps the burn-tile anatomy) | no dedicated e2e pin (no probe touches `.burn-now` internals); visual conformance judged at the design-QA walk vs the pixel reference |
 | Spend tab renders budget band → chart row (spend-over-time + spend-by-model/Sources) → plan windows → efficiency → skills/mcp → proxy lane; NO anomaly card (Overview-tile-only), NO Spend-by-model on Overview | `test/e2e/spend-tab.spec.ts` — "Spend tab reading order + budget band present" |
 | Spend-over-time stack toggle = exactly [project \| provider]; toggling repaints series without cross-mode color bleed; median dash on the same y-scale, no flagged-day chart markers | `test/e2e/spend-tab.spec.ts` — "spend chart stack toggle is project/provider, one y-axis, no flagged markers" |
-| Monthly budget is server-backed: the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once), and the briefing runner reads the SAME number, priced Lane-C-free | `test/spend-snapshot-budget.test.mjs` — budget slice is Lane-C-free + reads config; `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
-| Briefing `budget-posture:<YYYY-MM>` card auto-resolves on month-roll / return to on-track | `test/briefing.test.mjs` — budget-posture resolve conditions |
+| Monthly budget is server-backed: the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once) | `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
 | Sessions tab = [human\|all] toggle + 3-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend | `test/e2e/sessions-tab.spec.ts` — "Sessions tab toggle + aggregates + one flat table" |
 | Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
 | Records nav hidden + `/api/hub/records` absent-sentinel when the hub is absent | `test/e2e/ops-records.spec.ts` — "no Records nav item; /api/hub/records returns the absent sentinel" |
 | `/records` renders the sessions-type table (Date / Session ID / Repo / Focus) from the hub (demo); type switcher present | `test/e2e/ops-records.spec.ts` + `test/hub-records.test.mjs` — records slice parse + newest-first + imported-id link |
 | Explore dimensions include `mcp` (per-server, calibrated) + `provider` (model vendor) | `test/explore-mcp-provider.test.mjs` (node) — mcp derivation + provider mapping + calibrated flag |
-| Briefing spend cards light up (spend domain accepted) | `test/briefing.test.mjs` — "validator accepts a spend-domain card" + the removed `.briefing-scope` gap note |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card | `test/e2e/content-characteristics.spec.ts` |
 | Playback selection drives panels | `test/e2e/playback.spec.ts` |

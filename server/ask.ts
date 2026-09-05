@@ -240,8 +240,8 @@ export interface AskTurn {
 }
 
 // ---- claude CLI presence (server-side; routes can't import scripts/**) ----
-// Same probe order as scripts/run-briefing.ts findClaude, but importable by the
-// route (which gates /ask on CLI presence) and the runner alike.
+// Importable by the route (which gates /ask on CLI presence) and by the
+// headless runner alike.
 function probeClaudeBin(env: NodeJS.ProcessEnv): string | null {
   if (env.CHRONICLE_CLAUDE_BIN) return env.CHRONICLE_CLAUDE_BIN;
   try {
@@ -270,6 +270,22 @@ export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | nu
   const bin = probeClaudeBin(env);
   claudeBinCache = { at: now, bin };
   return bin;
+}
+
+/** Pull the JSON object out of a headless run's stdout: the CLI may fence it,
+ * prefix it with prose, or both. Tries the fenced block first, then the widest
+ * brace span. Throws when neither parses, so a garbled run fails loud. */
+export function extractJson(text: string): unknown {
+  const candidates: string[] = [];
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) candidates.push(fenced[1]);
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last > first) candidates.push(text.slice(first, last + 1));
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch { continue; }
+  }
+  throw new Error('no parseable JSON object in the run output');
 }
 
 // ---- durable history (~/.chronicle/ask-history.jsonl) --------------------

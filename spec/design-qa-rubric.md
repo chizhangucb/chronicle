@@ -41,10 +41,9 @@ AFFORD / BUG / LAYOUT) AND a lens (above).
 
 ### Home = the Insights hub (`HomeDashboard.tsx`) + Projects (`ProjectsPage.tsx`)
 Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-conformance lens).
-- [ ] `/` Overview reading order top→bottom: (briefing band →) KPI strip → (status band →) Activity
-      block (Today only) → Anomaly tile → Insights charts → Provenance strip LAST. NO recent-sessions
-      ledger on `/`. The briefing/status/provenance bands are behind the `homeBands` toggle (default
-      ON). Exactly one KPI strip, one `/api/insights` fetch.
+- [ ] `/` Overview reading order top→bottom: KPI strip → Activity block (Today only) → Anomaly tile
+      → Insights charts → Provenance strip LAST. NOTHING renders above the KPI strip (#220: the
+      briefing band and the status band are removed). NO recent-sessions ledger on `/`.
 - [ ] Tabs Overview / Explore / Content / Spend / Sessions and a five-option window toggle
       (Today/7d/30d/90d/All) present.
 - [ ] `/projects` is the dense `.rail-proj` LIST (pdot · name · live dot … count · gear menu; meta =

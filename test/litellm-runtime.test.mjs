@@ -113,7 +113,7 @@ test('a copied-but-unfilled env file does not count as configured', (t) => {
   assert.equal(/OPENROUTER_API_KEY/.test(half.stdout), false, 'a filled key was reported missing');
 
   // Jobs that declare no requirement are never withheld.
-  assert.equal(/skipped bootstrap for com\.chronicle\.briefing/.test(bare.stdout), false);
+  assert.equal(/skipped bootstrap for com\.chronicle\.daily-digest/.test(bare.stdout), false);
 });
 
 test('a moved env file is written into the plist, so the job reads it too', (t) => {

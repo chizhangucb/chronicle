@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Install Chronicle's launchd job templates (CHI-323 3c). NOT run automatically:
-// the templates ship DORMANT so a second daily briefing never fires alongside
-// another console's. Run this by hand to opt in. macOS only.
+// the templates ship DORMANT so a scheduled job never fires without you asking
+// for it. Run this by hand to opt in. macOS only.
 //
 // Usage: node scripts/install-jobs.mjs [--bootstrap]
 //   fills each launchd/*.plist.template's __NODE__ / __REPO__ / __DATA__ and

@@ -26,7 +26,7 @@ import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type St
 
 const WIN_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d': '30d', '90d': '90d', all: 'All' };
 // Legacy home: the monthly budget used to live ONLY here (CHI-366 moved it
-// server-side so the briefing runner can read it). Read once on mount to migrate
+// server-side so every surface reads one number). Read once on mount to migrate
 // an existing value up to /settings, then cleared.
 const LEGACY_BUDGET_KEY = 'chronicle.monthlyBudget';
 // Synthetic pseudo-model rows carry 0 real tokens — excluded from spend views.

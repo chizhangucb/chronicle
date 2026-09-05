@@ -1,0 +1,5 @@
+[2026-08-26 09:00:01] daily-digest run started (demo)
+[2026-08-26 09:00:01] collecting local signals: git, db, sync
+[2026-08-26 09:00:03] 4 jobs healthy, 1 stale (health-sweep)
+[2026-08-26 09:00:04] wrote 1 digest artifact
+[2026-08-26 09:00:04] daily-digest run finished, exit 0

@@ -7,7 +7,7 @@
 // independently and phases 2-3 compose without a giant shared object.
 //
 // Slice methods are added to `HubAdapter` as their organ lands (1c Modules,
-// 1d Safety, 1e Jobs, 1f Briefing). Phase 1a establishes the
+// 1d Safety, 1e Jobs). Phase 1a establishes the
 // interface + `status()` + the three implementations + the factory, so every
 // organ just plugs a method into Live/Demo and the route wiring already exists.
 import { resolveHub, type HubMode, type HubHandle } from './resolve.ts';

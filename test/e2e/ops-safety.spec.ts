@@ -43,9 +43,9 @@ test.describe('demo hub: /safety renders posture + gaps, writes are inert', () =
     expect(body).not.toMatch(/hermes/i);
   });
 
-  // CHI-374 sweep pin: /safety's actionable gap cards carry the SAME off-brass
-  // --attention treatment as the briefing needs-you card, so "act on this" reads
-  // identically app-wide. Watch-only gaps stay neutral.
+  // CHI-374 sweep pin: /safety's actionable gap cards carry the off-brass
+  // --attention treatment, so "act on this" reads identically app-wide.
+  // Watch-only gaps stay neutral.
   test('actionable gap cards use the off-brass attention accent, watch gaps do not', async ({ page }) => {
     await page.goto(demo.baseURL + '/safety');
     const actionable = page.locator('.gap-card.actionable').first();
@@ -74,13 +74,4 @@ test.describe('demo hub: /safety renders posture + gaps, writes are inert', () =
     expect(res.status()).toBe(403);
   });
 
-  test('the gap launcher refuses demo (409)', async ({ page }) => {
-    // needs the gate token like any write; fetch it, then POST.
-    const token = (await (await page.request.get(demo.baseURL + '/api/gate/token')).json()).token;
-    const res = await page.request.post(demo.baseURL + '/api/launch/gap', {
-      headers: { 'content-type': 'application/json', 'x-gate-token': token },
-      data: { id: 'spend-caps-unset' },
-    });
-    expect(res.status()).toBe(409);
-  });
 });

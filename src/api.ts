@@ -362,10 +362,8 @@ export interface Settings {
   minorMessageCountThreshold: number;
   planWindows: boolean;
   // Monthly spend budget in USD, or null when unset (CHI-366). Server-visible so
-  // the Spend tab and the briefing runner read the same value.
+  // the Spend tab reads the same value wherever it is shown.
   monthlyBudget: number | null;
-  /** The briefing + status bands on / (CHI-325 3d). Default true. */
-  homeBands: boolean;
 }
 
 // Subscription plan windows (CHI-324 2f) — mirrors server/planWindows.ts. One
@@ -775,7 +773,6 @@ export interface SafetyResult {
   gatingPolicy: GatingPolicyView;
 }
 export type HubSafetyResult = SafetyResult | { hubPresent: false };
-export interface LaunchGapResult { launched: boolean; buffer?: string; copyPrompt?: string; reason?: string }
 
 // Jobs (organ 1e)
 export type JobSource = 'launchd' | 'cron' | 'registry' | 'repo-template';
@@ -801,22 +798,6 @@ export interface RecordsSliceView {
 export type HubRecordsResult = RecordsSliceView | { hubPresent: false };
 export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
 export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
-
-// Briefing (organ 1f)
-export type BriefingDomainView = 'sessions' | 'safety' | 'jobs' | 'coverage';
-export type CardStateView = 'open' | 'done' | 'dismissed' | 'snoozed' | 'resolved';
-export type CardActionView = 'done' | 'dismiss' | 'snooze' | 'reopen';
-export interface ResolvedCardView {
-  id: string; runAt: string; kind: string; domain: BriefingDomainView; needsYou: boolean;
-  title: string; summary: string; body?: string; whatHappened?: string; whatItMeans?: string;
-  whatToDo?: string; evidence?: string; link?: { label: string; to: string }; launch?: { prompt: string; cwd?: string };
-  state: CardStateView; actedAt: string | null; snoozedUntil: string | null; workedAt: string | null; ticketRef: string | null;
-}
-export interface FollowThroughView {
-  open: number; snoozed: number; actedWithinDays: number | null; followThroughDays: number; medianHoursToAct: number | null;
-}
-export interface BriefingResult { generatedAt: string; cadence: string; cards: ResolvedCardView[]; followThrough: FollowThroughView }
-export interface BriefingRunStatus { running: boolean; startedAt: string | null; lastResult: { ok: boolean; code: number | null; at: string } | null }
 
 
 export const api = {
@@ -861,17 +842,9 @@ export const api = {
   hubStatus: (): Promise<HubStatus> => j('/api/hub/status'),
   hubModules: (): Promise<ModulesResult> => j('/api/hub/modules'),
   hubSafety: (): Promise<HubSafetyResult> => j('/api/hub/safety'),
-  launchGap: (id: string): Promise<LaunchGapResult> => j('/api/launch/gap', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
-  }),
   hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
   hubRecords: (): Promise<HubRecordsResult> => j('/api/hub/records'),
   jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
-  briefing: (): Promise<BriefingResult> => j('/api/briefing'),
-  briefingAction: (cardId: string, action: CardActionView): Promise<{ cards: ResolvedCardView[]; followThrough: FollowThroughView }> =>
-    j('/api/briefing/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId, action }) }),
-  briefingRun: (): Promise<{ started: boolean }> => j('/api/briefing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
-  briefingRunStatus: (): Promise<BriefingRunStatus> => j('/api/briefing/run-status'),
   // /ask (CHI-351)
   askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
   askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),

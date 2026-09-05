@@ -62,8 +62,8 @@ function parseCliArgs() {
 // complete (if mostly-errored) report rather than crashing.
 async function discoverContext(base) {
   const ctx = { projectId: null, sessionId: null, hubPresent: false, hubMode: 'absent', notes: [] };
-  // Hub adapter status (CHI-323): the ops routes (/modules, /safety, /jobs,
-  // /briefing) render only when the hub is present (live or demo). A
+  // Hub adapter status (CHI-323): the ops routes (/modules, /safety, /jobs)
+  // render only when the hub is present (live or demo). A
   // walk against a stock no-hub instance simply omits them; run the walk against
   // a CHRONICLE_DEMO=1 (or live-hub) server to cover them.
   try {
@@ -72,7 +72,7 @@ async function discoverContext(base) {
       const s = await res.json();
       ctx.hubPresent = s.present === true;
       ctx.hubMode = s.mode ?? 'absent';
-      if (!ctx.hubPresent) ctx.notes.push('hub absent -> ops routes (modules/safety/jobs/briefing) skipped; run against CHRONICLE_DEMO=1 to cover them');
+      if (!ctx.hubPresent) ctx.notes.push('hub absent -> ops routes (modules/safety/jobs) skipped; run against CHRONICLE_DEMO=1 to cover them');
     }
   } catch (err) {
     ctx.notes.push(`hub status probe failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -280,13 +280,6 @@ function buildRoutes(base, ctx) {
       async setup(page) {
         await page.goto(`${base}/jobs`, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('.jobs-page, .page.center', { timeout: NAV_TIMEOUT_MS });
-      },
-    });
-    routes.push({
-      slug: 'briefing',
-      async setup(page) {
-        await page.goto(`${base}/briefing`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('.briefing-page, .page.center', { timeout: NAV_TIMEOUT_MS });
       },
     });
     routes.push({

@@ -1,6 +1,6 @@
 // shared/pricing.ts
 // The ONE price table + cost math, shared by the client (src/models.ts
-// re-exports it) AND the server (the CHI-324 phase-2 briefing runner + the
+// re-exports it) AND the server (the
 // shared spend math need dollars server-side). Relocated here from
 // src/models.ts (CHI-324 D1) — NOT duplicated: there is still exactly one
 // price table, now importable on both sides. The rule "pricing is never
@@ -212,7 +212,7 @@ export function costOf(model: string | null | undefined, u: ModelUsageInput | nu
 
 // A price function bound to a cost mode, the currency the shared spend math
 // (shared/spend/*) runs on. The client passes `(m,u,day) => costOf(m,u,day,mode)`
-// at the toggled mode; the server briefing runner passes it at the fixed
+// at the toggled mode; the server passes it at the fixed
 // theoretical basis (matching Varde's anomaly/budget math). ONE implementation,
 // no second pricing path.
 export type PriceFn = (model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null) => number | null;

@@ -18,7 +18,7 @@
   /* Needs-you accent (CHI-374). Deliberately OFF --brass: brass is the everyday
      accent (nav, price toggle, links, chart series), so a brass card reads
      "highlighted", not "act on this". Terracotta separates from the ambient
-     brass without going alarm-red, which would over-signal for a briefing. */
+     brass without going alarm-red, which would over-signal here. */
   --attention: #cd5f3c;
   /* Text twin, same relationship --brass-text has to --brass: the bar hue is
      only 4.3:1 on --bg2, under the readability floor for words. */
@@ -1942,7 +1942,7 @@ h4 { margin: 6px 0; }
 .json-textarea { width: 100%; min-height: 160px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; resize: vertical; }
 .json-editor .btn { margin-top: 8px; }
 .gap-card { border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px; background: var(--bg1); padding: 12px 14px; margin-top: 10px; }
-/* Same needs-you language as the briefing card (CHI-374 sweep): an actionable
+/* Needs-you language (CHI-374 sweep): an actionable
    gap is the one thing on /safety that wants doing, so it wears --attention,
    not the everyday brass. Watch-only gaps stay neutral. */
 .gap-card.actionable { border-left-color: var(--attention); background: color-mix(in srgb, var(--attention) 7%, var(--bg1)); }
@@ -2011,30 +2011,6 @@ h4 { margin: 6px 0; }
 .jobs-log { margin-top: 10px; }
 .jobs-log-body { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-2); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; }
 
-/* ---- Briefing ops surface (CHI-323 3d) ---- */
-.briefing-page { max-width: var(--page-max); }
-.briefing-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.briefing-empty { padding: 48px 0; }
-.briefing-section { margin-bottom: 22px; }
-.briefing-sec-head { margin-bottom: 8px; }
-.briefing-card { border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px; background: var(--bg1); padding: 14px 16px; margin-bottom: 10px; }
-/* Binary needs-you treatment (CHI-374): the off-brass bar plus a very faint warm
-   wash on the card face, so the whole card reads "act" while staying calm. */
-.briefing-card.needs-you { border-left-color: var(--attention); background: color-mix(in srgb, var(--attention) 7%, var(--bg1)); }
-.briefing-card.acted { opacity: 0.72; }
-.bc-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
-.bc-domain { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; background: var(--bg2); color: var(--ink-3); }
-.bc-title { font-weight: 600; color: var(--ink); }
-.bc-state { margin-left: auto; font-size: 10.5px; font-weight: 600; text-transform: lowercase; color: var(--ink-3); border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 6px; }
-.bc-state.done, .bc-state.resolved { color: var(--ok); }
-/* Measure caps: the page frame is wide for consistency, so the PROSE holds
-   its own comfortable line length rather than running the full width. */
-.bc-summary { color: var(--ink-2); font-size: 13px; margin: 0 0 8px; max-width: 92ch; }
-.bc-anatomy { font-size: 12.5px; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; max-width: 92ch; }
-.bc-label { font-weight: 600; color: var(--ink-3); text-transform: uppercase; font-size: 10px; letter-spacing: 0.03em; margin-right: 4px; }
-.bc-evidence-body { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 6px 0 0; white-space: pre-wrap; }
-.bc-actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
-.bc-spacer { flex: 1; }
 
 /* ===== /ask (CHI-351): metric chat over chronicle.db ===================== */
 /* One conversation column: day dividers, right-aligned questions, answer cards
@@ -2184,60 +2160,6 @@ h4 { margin: 6px 0; }
 .empty-state .demo-offer .small { max-width: 46ch; text-align: center; }
 .empty-state .demo-offer code { font: 11.5px var(--mono); background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
 
-/* ---- Home bands (CHI-325 3d) ----
-   Band 1 briefing cards, band 2 the 5-domain status band, band 3 the sources
-   strip. The band is a TABLE of rows, not cards: five domains at a glance is a
-   scanning task, and five separate cards would be five things to read. */
-.home-briefing { margin-bottom: 12px; }
-.home-briefing.calm { display: flex; align-items: center; gap: 10px; padding: 12px 14px; color: var(--ink-2); font: 12.5px var(--mono); }
-.home-briefing.calm .calm-mark { color: var(--brass-text); }
-.home-briefing.calm .calm-link { margin-left: auto; color: var(--ink-3); text-decoration: none; }
-.home-briefing.calm .calm-link:hover { color: var(--ink); }
-.home-fyi { padding: 4px 0; }
-.home-fyi .fyi-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 14px; border-bottom: 1px solid var(--border); }
-.home-fyi .fyi-row:last-child { border-bottom: 0; }
-.home-fyi .fyi-title { font: 12px var(--mono); color: var(--ink); }
-
-.status-band { margin-bottom: 12px; padding-bottom: 2px; }
-.status-band .band-head,
-.status-band .band-row {
-  display: grid;
-  grid-template-columns: 132px 1fr 1fr 96px 108px;
-  align-items: center; gap: 0 18px; padding: 0 14px;
-}
-.status-band .band-head {
-  font: 10.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--ink-3); padding-bottom: 7px; border-bottom: 1px solid var(--border);
-}
-.status-band .band-row {
-  height: 38px; border-bottom: 1px solid var(--border);
-  font: 12px var(--mono); color: var(--ink-2); text-decoration: none;
-}
-.status-band .band-row:last-child { border-bottom: 0; }
-.status-band .band-row:hover { background: var(--bg2); }
-.status-band .band-row b { color: var(--ink); font-weight: 600; }
-.status-band .band-name { display: flex; align-items: center; gap: 8px; color: var(--ink); }
-.status-band .band-glance { text-align: right; }
-.status-band .band-state { text-align: right; font-size: 11.5px; }
-/* The band never originates an alarm: `flagged` is an ECHO of an open
-   needs-you card above, which is why it is a quiet left edge and not a fill. */
-.status-band .band-row.flagged { box-shadow: inset 2px 0 0 var(--attention); }
-.status-band .tone-ok { color: var(--ink-3); }
-.status-band .tone-warn { color: var(--attention); }
-.status-band .tone-err { color: var(--danger, var(--attention)); }
-.status-band .tone-neutral { color: var(--ink-3); }
-.band-spark { display: inline-block; vertical-align: middle; }
-.band-spark path { stroke: var(--ink-3); }
-.band-row:hover .band-spark path { stroke: var(--brass-text); }
-.band-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-3); }
-.band-dot-spend { background: var(--c1); }
-.band-dot-sessions { background: var(--c2); }
-.band-dot-safety { background: var(--c4); }
-.band-dot-jobs { background: var(--c5); }
-.gap-dots { display: inline-flex; gap: 3px; justify-content: flex-end; }
-.gap-dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink-3); }
-.gap-dot.on { background: var(--ink-3); }
-
 .provenance-strip {
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
   margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border);
@@ -2246,38 +2168,7 @@ h4 { margin: 6px 0; }
 .provenance-strip .prov-label { letter-spacing: 0.1em; text-transform: uppercase; }
 .provenance-strip .prov-items { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .provenance-strip .prov-item b { color: var(--ink-2); font-weight: 600; }
-/* Compact needs-you row: every card after the lead one (volume hierarchy). */
-.compact-needs {
-  display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; margin-bottom: 8px;
-  /* Collapsing a needs-you card must not DEMOTE it: it keeps the same attention
-     edge the full card carries, so "this needs you" survives the collapse and
-     an FYI row still reads differently at a glance (Chi, 2026-08-28). */
-  border-left: 3px solid var(--attention);
-}
-.compact-needs .cn-title { font: 600 12px var(--mono); color: var(--ink); }
-.compact-needs .cn-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The compact needs-you title links through to /briefing, where the full
-   what-happened / what-it-means / what-to-do anatomy lives. */
-.compact-needs .cn-title { color: var(--ink); text-decoration: none; }
-.compact-needs .cn-title:hover { color: var(--brass-text); }
-/* "We cannot say" in the state column: a muted placeholder, never a blank cell.
-   A row with no baseline yet has no honest state word, and an empty cell reads
-   as a rendering bug rather than as an answer. */
-.status-band .tone-unknown { color: var(--ink-3); opacity: 0.5; }
 /* Why a Settings toggle is on but inert. Sits under its description, indented
    with the description column so it reads as a footnote to that row. */
 .settings-why { display: block; margin-top: 5px; color: var(--attention); }
 
-/* ---- Briefing: filter, handled history, card age (CHI-325 review) ---- */
-.briefing-filter { margin: 4px 0 14px; }
-.briefing-filter .tab-count { color: var(--ink-3); margin-left: 5px; }
-.briefing-filter .tab.on .tab-count { color: inherit; }
-.handled-day { margin-bottom: 10px; }
-.handled-day-head {
-  font: 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-3); padding: 6px 0 7px;
-}
-.handled-note { margin: 10px 0 0; }
-/* Card age: quiet at two days, attention-toned once a card has sat a week. */
-.bc-age { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
-.bc-age.stale { color: var(--attention); }
