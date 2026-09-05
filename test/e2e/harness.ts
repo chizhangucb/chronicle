@@ -37,14 +37,84 @@ import { writeMiniSession } from '../fixtures/gen-mini-session.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '..', '..');
 
-// Root for everything the harness persists across processes. Fixed only as a
-// DIRECTORY: the per-worker state and the per-server records live inside it
-// under distinct names, so nothing is shared between workers.
-export const RUN_DIR = path.join(os.tmpdir(), 'chronicle-e2e');
-const RECORDS_DIR = path.join(RUN_DIR, 'servers');
+// Root for everything the harness persists across processes.
+//
+// CHI #244: this used to be ONE fixed directory, shared by every suite run on
+// the machine. Two runs at once — two worktrees, two agent sessions — then
+// destroyed each other: the second run's globalSetup killed the first run's
+// servers and deleted its state files, and the first run's globalTeardown did
+// the same back. That is the "seeded server dies mid-run" cascade: a crash
+// point that moves with the overlap, connection errors in unrelated specs,
+// and every one of them passing in isolation. CI never saw it because a CI
+// job is the only run on its runner.
+//
+// So the fixed path is only the ROOT. Each run gets its own directory under
+// it, created once by globalSetup and published to the worker processes
+// through CHRONICLE_E2E_RUN_DIR — workers are forked after globalSetup, so
+// they inherit it. Nothing outside a run's own directory is ever touched,
+// except the stale sweep, which reaps only runs whose owner process is gone.
+export const RUNS_ROOT = path.join(os.tmpdir(), 'chronicle-e2e');
+const RUN_DIR_ENV = 'CHRONICLE_E2E_RUN_DIR';
+
+/** This run's state directory. Throws rather than inventing one: a caller
+ * without it is a process that was not started by our globalSetup, and
+ * guessing a path is exactly the bug above. */
+export function currentRunDir(): string {
+  const dir = process.env[RUN_DIR_ENV];
+  if (!dir) {
+    throw new Error(
+      `${RUN_DIR_ENV} is not set: the e2e harness state directory is created by globalSetup ` +
+      'and inherited by worker processes. Run the suite through `npm run test:e2e`.',
+    );
+  }
+  return dir;
+}
+
+/** Create this run's own state directory and publish it to everything forked
+ * from here. Stamped with the owner pid so the stale sweep can tell an
+ * abandoned run from a live one. */
+export function createRunDir(): string {
+  fs.mkdirSync(RUNS_ROOT, { recursive: true });
+  const dir = fs.mkdtempSync(path.join(RUNS_ROOT, 'run-'));
+  fs.writeFileSync(path.join(dir, 'owner.json'), JSON.stringify({ pid: process.pid }));
+  adoptRunDir(dir);
+  return dir;
+}
+
+/** Point this process at an existing run directory. */
+export function adoptRunDir(dir: string): void {
+  process.env[RUN_DIR_ENV] = dir;
+}
+
+/** Run directories left behind by a run whose owner process is no longer
+ * alive — an interrupted suite whose teardown never got to run. A run whose
+ * owner is still alive is NEVER stale, however old it looks. */
+export function staleRunDirs(): string[] {
+  let names: string[];
+  try { names = fs.readdirSync(RUNS_ROOT); } catch { return []; }
+  const out: string[] = [];
+  for (const name of names) {
+    if (!name.startsWith('run-')) continue;
+    const dir = path.join(RUNS_ROOT, name);
+    let owner: { pid?: number };
+    try {
+      owner = JSON.parse(fs.readFileSync(path.join(dir, 'owner.json'), 'utf8')) as { pid?: number };
+    } catch {
+      // No readable stamp: either mid-creation by a run that is about to
+      // write it, or debris. Leave it alone rather than risk the former.
+      continue;
+    }
+    if (!isAlive(owner.pid ?? -1)) out.push(dir);
+  }
+  return out;
+}
+
+function recordsDir(): string {
+  return path.join(currentRunDir(), 'servers');
+}
 
 export function workerStateFile(workerIndex: number): string {
-  return path.join(RUN_DIR, `worker-${workerIndex}.json`);
+  return path.join(currentRunDir(), `worker-${workerIndex}.json`);
 }
 
 /** Persisted description of one spawned server. Survives the process that
@@ -124,21 +194,21 @@ async function waitForServer(url: string, timeoutMs: number, label: string): Pro
 }
 
 function recordFile(label: string): string {
-  return path.join(RECORDS_DIR, `${label}.json`);
+  return path.join(recordsDir(), `${label}.json`);
 }
 
 function writeRecord(rec: ServerRecord): void {
-  fs.mkdirSync(RECORDS_DIR, { recursive: true });
+  fs.mkdirSync(recordsDir(), { recursive: true });
   fs.writeFileSync(recordFile(rec.label), JSON.stringify(rec));
 }
 
 export function readRecords(): ServerRecord[] {
   let names: string[];
-  try { names = fs.readdirSync(RECORDS_DIR); } catch { return []; }
+  try { names = fs.readdirSync(recordsDir()); } catch { return []; }
   const out: ServerRecord[] = [];
   for (const name of names) {
     if (!name.endsWith('.json')) continue;
-    try { out.push(JSON.parse(fs.readFileSync(path.join(RECORDS_DIR, name), 'utf8')) as ServerRecord); } catch { /* mid-write */ }
+    try { out.push(JSON.parse(fs.readFileSync(path.join(recordsDir(), name), 'utf8')) as ServerRecord); } catch { /* mid-write */ }
   }
   return out;
 }
@@ -204,8 +274,8 @@ export async function launchServer(opts: LaunchOptions): Promise<ServerHandle> {
   const port = await findFreePort();
   const baseURL = `http://127.0.0.1:${port}`;
 
-  fs.mkdirSync(RECORDS_DIR, { recursive: true });
-  const logFile = path.join(RECORDS_DIR, `${label}.log`);
+  fs.mkdirSync(recordsDir(), { recursive: true });
+  const logFile = path.join(recordsDir(), `${label}.log`);
   // The child's own fd, not a piped stream read by this process: the log is
   // then readable from the worker processes, which never saw the spawn, and
   // keeps filling regardless of what happens to this process.
@@ -248,13 +318,27 @@ export async function launchServer(opts: LaunchOptions): Promise<ServerHandle> {
 // exit event must not write them back.
 const stopped = new Set<string>();
 
-export function stopServer(handle: Pick<ServerHandle, 'pid' | 'label'>): void {
+/** True when `pid` is a process whose command line is one of our standalone
+ * servers. The stale sweep kills pids recorded by a run that ended some time
+ * ago, and a pid that old may since have been recycled by an unrelated
+ * process — this is what keeps us from killing it. */
+function looksLikeOurServer(pid: number): boolean {
+  if (!(pid > 0)) return false;
+  try {
+    return execSync(`ps -o command= -p ${pid}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .includes(path.join('server', 'standalone.ts'));
+  } catch {
+    return false; // no such process
+  }
+}
+
+export function stopServer(handle: Pick<ServerHandle, 'pid' | 'label'>, opts: { verify?: boolean } = {}): void {
   stopped.add(handle.label);
-  if (handle.pid > 0) {
+  if (handle.pid > 0 && (!opts.verify || looksLikeOurServer(handle.pid))) {
     try { process.kill(handle.pid); } catch { /* already gone */ }
   }
   try { fs.rmSync(recordFile(handle.label), { force: true }); } catch { /* best effort */ }
-  try { fs.rmSync(path.join(RECORDS_DIR, `${handle.label}.log`), { force: true }); } catch { /* best effort */ }
+  try { fs.rmSync(path.join(recordsDir(), `${handle.label}.log`), { force: true }); } catch { /* best effort */ }
 }
 
 interface ScannedSession { id: string; file: string | null }
@@ -389,9 +473,11 @@ async function importFixtures(
  * it leaves behind is what `launchServer()` is later pointed at. */
 export async function seedDataDir(label: string): Promise<SeededData> {
   ensureClientBuilt();
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-fixture-'));
+  // Inside this run's directory, not loose in $TMPDIR: reaping a stale run
+  // then removes its fixtures and databases too, not just its state files.
+  const fixtureDir = fs.mkdtempSync(path.join(currentRunDir(), 'fixture-'));
   const ids = writeFixtures(fixtureDir);
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-data-'));
+  const dataDir = fs.mkdtempSync(path.join(currentRunDir(), 'data-'));
 
   const seeder = await launchServer({ dataDir, label: `${label}-seed` });
   try {

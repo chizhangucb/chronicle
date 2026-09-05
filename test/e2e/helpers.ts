@@ -15,27 +15,32 @@
 //
 // `globalSetup` and the test workers are separate processes, so the
 // connection info is persisted to disk rather than kept in a module-scope
-// variable. It is persisted PER WORKER INDEX (`workerStateFile`), and a spec
-// calls `readSeedState()`, which resolves the file for the worker it is
-// running on (`TEST_PARALLEL_INDEX`). There is no fixed shared state path, so
-// two workers never share a server or a database. `globalTeardown` reads
-// every worker's file to kill the servers and clean up the temp dirs.
+// variable. It lands in THIS RUN's own state directory (CHI #244 — see
+// harness.ts's RUNS_ROOT comment for why a machine-wide fixed one let two
+// concurrent suite runs kill each other's servers), and inside it, PER WORKER
+// INDEX (`workerStateFile`). A spec calls `readSeedState()`, which resolves
+// the file for the worker it is running on (`TEST_PARALLEL_INDEX`). There is
+// no fixed shared state path, so neither two workers nor two runs ever share a
+// server or a database. `globalTeardown` reads every worker's file to kill the
+// servers, then removes the run directory.
 //
 // The seed/launch seam itself, and the per-server records that let a failing
 // spec report *why* its server is gone, live in harness.ts.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { test as base, expect } from '@playwright/test';
 import {
-  RUN_DIR, workerStateFile, seedDataDir, launchServer, stopServer,
+  currentRunDir, workerStateFile, seedDataDir, launchServer, stopServer,
   describeDeadServers,
   type SeededData, type ServerHandle,
 } from './harness.ts';
 
 // Specs and the global hooks import from here only; harness.ts is the seam's
 // implementation. Re-exported are just the names they actually reach for.
-export { REPO_ROOT, RUN_DIR, workerStateFile } from './harness.ts';
+export {
+  REPO_ROOT, workerStateFile,
+  RUNS_ROOT, currentRunDir, createRunDir, adoptRunDir, staleRunDirs,
+} from './harness.ts';
 
 // Reference viewport widths the overflow smoke check runs at (spec §5.1,
 // step 2d): a laptop, a common desktop, and a wide desktop.
@@ -75,12 +80,15 @@ export function readSeedState(workerIndex: number = currentWorkerIndex()): SeedS
 
 /** Every provisioned instance, for globalTeardown. */
 export function listSeedStates(): SeedState[] {
+  let dir: string;
   let names: string[];
-  try { names = fs.readdirSync(RUN_DIR); } catch { return []; }
+  // Tolerant on purpose: global-teardown calls this even when globalSetup
+  // failed before it ever created this run's directory.
+  try { dir = currentRunDir(); names = fs.readdirSync(dir); } catch { return []; }
   const out: SeedState[] = [];
   for (const name of names) {
     if (!/^worker-\d+\.json$/.test(name)) continue;
-    try { out.push(JSON.parse(fs.readFileSync(path.join(RUN_DIR, name), 'utf8')) as SeedState); } catch { /* mid-write */ }
+    try { out.push(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as SeedState); } catch { /* mid-write */ }
   }
   return out;
 }
@@ -95,8 +103,11 @@ export async function launchSeeded(workerIndex = 0): Promise<SeedState & { proc:
   return { ...seeded, baseURL: server.baseURL, pid: server.pid, label, proc: server.proc };
 }
 
-export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>): void {
-  stopServer(state);
+export function stopSeeded(
+  state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>,
+  opts: { verify?: boolean } = {},
+): void {
+  stopServer(state, opts);
   for (const dir of [state.dataDir, state.fixtureDir]) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
@@ -117,7 +128,7 @@ let demoSeq = 0;
  * product. Caller stops it in afterAll. Like every other spawned server it
  * gets a record, so a spec failing against a dead demo server says why. */
 export async function launchDemo(): Promise<DemoServer> {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-e2e-demo-'));
+  const dataDir = fs.mkdtempSync(path.join(currentRunDir(), 'demo-'));
   // Unique across workers AND across spec files sharing one worker.
   const label = `demo-w${currentWorkerIndex()}-${process.pid}-${demoSeq++}`;
   const server = await launchServer({ dataDir, label, demo: true });
