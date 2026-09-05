@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import type { FullConfig } from '@playwright/test';
 import {
-  createRunDir, staleRunDirs, adoptRunDir, workerStateFile, launchSeeded, listSeedStates, stopSeeded,
+  createRunDir, staleRunDirs, adoptRunDir, workerStateFile, launchSeeded, listSeedStates, stopStaleSeeded,
 } from './helpers.ts';
 import { ensureClientBuilt } from './harness.ts';
 
@@ -24,9 +24,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // Only runs whose owner process is gone — never a suite running right now.
   for (const stale of staleRunDirs()) {
     adoptRunDir(stale);
-    // verify: these pids were recorded by a run that is already gone, so one
-    // may since have been recycled by an unrelated process.
-    for (const state of listSeedStates()) stopSeeded(state, { verify: true });
+    for (const state of listSeedStates()) stopStaleSeeded(state);
     fs.rmSync(stale, { recursive: true, force: true });
   }
 

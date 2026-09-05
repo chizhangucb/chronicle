@@ -319,26 +319,42 @@ export async function launchServer(opts: LaunchOptions): Promise<ServerHandle> {
 const stopped = new Set<string>();
 
 /** True when `pid` is a process whose command line is one of our standalone
- * servers. The stale sweep kills pids recorded by a run that ended some time
- * ago, and a pid that old may since have been recycled by an unrelated
- * process — this is what keeps us from killing it. */
+ * servers — .ts as spawned here, .js for a compiled dist-server tree. */
 function looksLikeOurServer(pid: number): boolean {
   if (!(pid > 0)) return false;
+  let command: string;
   try {
-    return execSync(`ps -o command= -p ${pid}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-      .includes(path.join('server', 'standalone.ts'));
+    command = execSync(`ps -o command= -p ${pid}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch {
     return false; // no such process
   }
+  return /\bstandalone\.[jt]s\b/.test(command);
 }
 
-export function stopServer(handle: Pick<ServerHandle, 'pid' | 'label'>, opts: { verify?: boolean } = {}): void {
+/** Kill a server this process spawned. The pid was recorded moments ago and
+ * is ours by construction, so it is signalled without further ceremony. */
+export function stopServer(handle: Pick<ServerHandle, 'pid' | 'label'>): void {
   stopped.add(handle.label);
-  if (handle.pid > 0 && (!opts.verify || looksLikeOurServer(handle.pid))) {
+  if (handle.pid > 0) {
     try { process.kill(handle.pid); } catch { /* already gone */ }
   }
   try { fs.rmSync(recordFile(handle.label), { force: true }); } catch { /* best effort */ }
   try { fs.rmSync(path.join(recordsDir(), `${handle.label}.log`), { force: true }); } catch { /* best effort */ }
+}
+
+/** Kill a server recorded by a run that is already gone. Unlike
+ * `stopServer()`, this checks the pid still IS one of our servers first: a
+ * pid that old may since have been recycled by an unrelated process, and
+ * signalling that would be the very cross-process kill CHI #244 removed. */
+export function stopStaleServer(handle: Pick<ServerHandle, 'pid' | 'label'>): void {
+  if (!looksLikeOurServer(handle.pid)) {
+    // Still clear the record, so the sweep's rm of the run directory is not
+    // left racing a record nobody owns.
+    stopped.add(handle.label);
+    try { fs.rmSync(recordFile(handle.label), { force: true }); } catch { /* best effort */ }
+    return;
+  }
+  stopServer(handle);
 }
 
 interface ScannedSession { id: string; file: string | null }

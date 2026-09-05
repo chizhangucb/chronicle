@@ -30,7 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test as base, expect } from '@playwright/test';
 import {
-  currentRunDir, workerStateFile, seedDataDir, launchServer, stopServer,
+  currentRunDir, workerStateFile, seedDataDir, launchServer, stopServer, stopStaleServer,
   describeDeadServers,
   type SeededData, type ServerHandle,
 } from './harness.ts';
@@ -103,11 +103,18 @@ export async function launchSeeded(workerIndex = 0): Promise<SeedState & { proc:
   return { ...seeded, baseURL: server.baseURL, pid: server.pid, label, proc: server.proc };
 }
 
-export function stopSeeded(
-  state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>,
-  opts: { verify?: boolean } = {},
-): void {
-  stopServer(state, opts);
+export function stopSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>): void {
+  stopServer(state);
+  removeSeedDirs(state);
+}
+
+/** `stopSeeded` for an instance left behind by a run that is already gone. */
+export function stopStaleSeeded(state: Pick<SeedState, 'pid' | 'dataDir' | 'fixtureDir' | 'label'>): void {
+  stopStaleServer(state);
+  removeSeedDirs(state);
+}
+
+function removeSeedDirs(state: Pick<SeedState, 'dataDir' | 'fixtureDir'>): void {
   for (const dir of [state.dataDir, state.fixtureDir]) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
