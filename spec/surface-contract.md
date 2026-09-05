@@ -22,9 +22,8 @@
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + controls over the hub's gate-config surfaces (every one of which cards, always) + the write log: every gate write, newest first, with Undo. Same hub-conditional gating as the other ops surfaces. | `src/SafetyPage.tsx` |
-| `/reference` | **The unified reference. NOT hub-conditional** (product vocabulary, not hub data), so a stock public install has it. Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for surfaces that were dropped (pinned panels, peek drill, the old burn tile, and the whole Memory vocabulary retired by the shrink). | `src/ReferencePage.tsx` |
-| `/ask` | **Ask: NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
+| `/reference` | **The unified reference.** Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for every surface that was dropped — pinned panels, peek drill, the old burn tile, and the whole vocabulary the shrink retired (Memory, Modules, Jobs, Records, Safety and its egress-gate terms, the briefing, the home bands, the "Work on this" launcher, the proxy lane, automation sessions, the routing roster, the write log). This is the ONE place removed surfaces may still be named. | `src/ReferencePage.tsx` |
+| `/ask` | **Ask: gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
 
 - There is exactly ONE Insights surface, at `/` — no separate Insights page, no second KPI strip,
   no duplicate `/api/insights` fetch. There is no `InsightsPage.tsx`; the Overview body lives inline
@@ -39,16 +38,12 @@ Exactly ONE collapsible left sidebar; collapse state persists in `localStorage`;
 drag-resizable when expanded. Contents, top to bottom:
 
 - **Brand** — `◷` Chronicle (click → `/`).
-- **`sb-top` nav — two ALWAYS-ON items:** Insights (`∑`) and Projects (`◫`). NO Home entry, no
-  `⌂` glyph in the sidebar — the hub at `/` is labeled **Insights** everywhere (sidebar item
+- **`sb-top` nav — exactly two items, always on:** Insights (`∑`) and Projects (`◫`). There is
+  no third `sb-top` entry on any install, in any mode: `sb-top` is Insights + Projects, full stop.
+  NO Home entry, no `⌂` glyph in the sidebar — the hub at `/` is labeled **Insights** everywhere (sidebar item
   title, `/` page title), never "Home". `⌂` does not appear anywhere in `src/`. Projects highlights
   across every project-scoped route (`/projects`, `/project/:id[/explore|/content]`, `/session/:id`)
   but NOT on the Insights hub.
-- **`sb-top` ops nav — hub-conditional.** After Projects, the ops items render ONLY when
-  `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent, in order:
-  **Safety (`⊘`)**. So on a stock public install with no hub, `sb-top` is exactly Insights +
-  Projects; with a hub or in demo it also carries the ops items. See the "ops routes are
-  hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
   `SessionView` via `onRailChange`: Overview (`⬚`, ⌘1) · Playback (`▶`, ⌘2) · Refine (`✂`, ⌘3) ·
   Security Check (`◈`). The Subagents drill-in is reached only via the Overview Subagents card,
@@ -56,9 +51,8 @@ drag-resizable when expanded. Contents, top to bottom:
 - **`sb-bottom` — Ask (`∴`) then util.** `∴ Ask` is its OWN one-item group at the TOP of
   `sb-bottom`, fenced by a `sb-sep` ABOVE and BELOW (between it and Settings), signalling a
   cross-cutting capability (not nav, not chrome). It renders ONLY when `/api/ask/status` reports
-  `enabled` (Settings `ask` toggle on AND the claude CLI present AND non-demo) — NOT hub-conditional,
-  so it can show on a stock public install. Below it, the util group: Settings (`⚙`) · **Reference
-  (`※`, NOT hub-conditional; it is chrome/meta, a thing you consult ABOUT the app)** · Feedback
+  `enabled` (Settings `ask` toggle on AND the claude CLI present AND non-demo). Below it, the util
+  group: Settings (`⚙`) · **Reference (`※` — chrome/meta, a thing you consult ABOUT the app)** · Feedback
   (`⊞`, link to GitHub issues) · Collapse toggle (`⟨`/`⟩`).
 
 ## Topbar (`src/App.tsx`, every route)
@@ -84,7 +78,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 | | Surfaces |
 |---|---|
-| `--page-max` | `/safety`, `/reference` |
+| `--page-max` | `/reference` (the only framed non-dashboard surface left) |
 | full bleed (no cap) | `/`, `/projects`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
 
 **Prose carries its own `ch` measure cap** so a wide frame never means a 200-character line
@@ -124,28 +118,29 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
-  `⊘`=safety `※`=reference. `⌂`=Home is
-  retired from chrome and does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
+  `∴`=ask `※`=reference. `⌂`=Home and `⊘`=safety are
+  retired from chrome and appear nowhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use` to
     colored emoji (👤/💭/🔧) in Playback rows — adjudicated at the walk, per the rubric.
-- **Nothing renders above the KPI strip on `/`** (#220). The briefing band, the status
-  band and the Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST
-  element inside the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the
-  KPI strip".
-- **Ops routes are hub-conditional.** The Safety ops surface (`/safety`) and its
-  `sb-top` nav item render ONLY when
-  `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
-  are hidden and their routes fail soft (the page shows a "no hub connected" line, never a broken
-  view). This is why a stock public install (no hub) still shows exactly Insights + Projects in
-  `sb-top`. Guard: `test/e2e/ops-safety.spec.ts`. The demo walk pass screenshots the rendered
-  surface.
+- **Nothing renders above the KPI strip on `/`.** The briefing band, the status band and the
+  Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST element inside
+  the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the KPI strip".
+- **The removed surfaces stay removed.** The shrink (spec #215) deleted the Modules, Jobs,
+  Records, Memory, Briefing and Safety surfaces, the hub adapter, the write gate, the Terminal
+  launcher, the proxy spend lane, the machine-sessions manifest, the contract database views and
+  the `hub` CLI subcommand. Their routes are unmounted (404), their nav items are gone, and no
+  Settings row, env knob or config key reads them. Nothing on this page describes them; they are
+  named only in the Reference `Retired` group and in the CHANGELOG. Guards:
+  `test/removed-routes.test.mjs`, `test/routes-after-contract-views.test.mjs`,
+  `test/cli-hub-removed.test.mjs`, `test/repo-shape.test.mjs`.
 
 ## Per-surface content inventory (what each surface MUST show)
 
 ### `/` Overview tab — reading order is load-bearing (top → bottom)
 
-Nothing renders above item 1: the Overview opens on the KPI strip (#220).
+Nothing renders above item 1: the Overview opens on the KPI strip. Five items, in this order,
+and nothing else.
 
 1. **KPI strip** (`.kpis`, `KpiStrip`) — headline tiles from one `/api/insights` fetch: Spend ·
    Sessions · Tokens · Agent active (InfoTip) · Your engaged (InfoTip, shows leverage) · Tool
@@ -179,7 +174,7 @@ Nothing renders above item 1: the Overview opens on the KPI strip (#220).
    would collide for two top-5-by-spend projects); the aggregated **Other** bar uses a visible neutral
    and shows only when it carries spend; the `<synthetic>` pseudo-model is excluded from every spend
    view. The recent-sessions ledger does NOT mount on `/` (see `/projects`).
-7. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip` in `src/home/ProvenanceStrip.tsx`) —
+5. **Provenance strip** (`.provenance-strip`, `ProvenanceStrip` in `src/home/ProvenanceStrip.tsx`) —
    **LAST**, the Overview tab ends here. One quiet line closing the page: session count per source
    tool, last sync, and the active cost basis. The topbar sync pill says WHEN data last landed; this
    says WHAT is behind the figures, which on a console merging four tools is the
@@ -191,7 +186,7 @@ the project view uses per-project).
 
 ### `/` Spend tab — reading order top → bottom (`SpendTab.tsx`)
 
-Chronicle's visual grammar wins; content is Varde-derived. Card titles use the `.card h3` recipe
+Card titles use the `.card h3` recipe
 (name + window only; explanations live in InfoTips, never caption suffixes). The shared rangebar
 scopes the tab.
 
@@ -213,11 +208,12 @@ scopes the tab.
    `fable` (top-tier model 7d — follow whatever the quota API reports, NEVER hardcode opus). Codex
    cards: `7d`. A `COVERED` tag once per card head, never per meter. Caption: quota-read posture +
    Settings opt-out (Claude) / local (Codex). Claude meters are opt-in-off outbound.
-4. **Efficiency card** (Varde's ROW grammar, Chronicle-restyled): **DETECTORS** rows (name · value +
-   lowercase state word · small bar · right-muted definition): cache hit rate · jumbo outputs ·
-   long context · error rows. Below, two columns: **WASTE SIGNALS** (right-sizing approx `$/mo` ·
-   cache churn `$` · repeat file reads — each with a brass "check" affordance) | **ROUTING
-   COMPLIANCE** (on-roster % · off-roster models + `$` · Prepare promotion launcher).
+4. **Efficiency card** (ROW grammar): **DETECTORS** rows (name · value + lowercase state word ·
+   small bar · right-muted definition): cache hit rate · jumbo outputs · long context · error rows.
+   Below, ONE column — **WASTE SIGNALS** (right-sizing approx `$` · cache churn `$` · repeat file
+   reads), estimates, each a plain row with no action affordance. There is NO routing-compliance
+   block: it graded models against a roster file kept outside Chronicle, which Chronicle no longer
+   reads.
 5. **grid2**: **Priced skills** (Skill · Runs · Tokens · Cost) | **MCP server spend** hbars + the
    double-count caption.
 - **Billed flip** everywhere (`Billed` cost basis): covered models re-rank ~$0 with a `COVERED` tag;
@@ -344,50 +340,6 @@ never switches on a characteristic's `key`):
   active, not a binary flag). `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over
   unchanged — real, non-binary percentages even for one session.
 
-### `/safety` — ops surface (hub-conditional, `SafetyPage.tsx`)
-
-Reading order: eyebrow `SAFETY` + lede → posture tiles → push posture → gate controls → write log →
-accepted-gaps register.
-- **Posture tiles** (4): Egress gate (ENABLED green / OFF fail-closed danger) · Spend caps
-  (per-tx / per-session) · Tool classes (count + read/send/publish/spend breakdown) · Confidential
-  markers (total COUNT + per-category counts, labeled "counts only" — the phrases never appear here).
-- **Push posture** (read-only, no gate controls): one card per conditioned-auto push pin
-  (repo, visibility, any-branch/confidentiality-scoped-off callout, feature-branch + PR-protected-branch
-  posture, leak-scrub + scrub-whitelist COUNT) plus one dashed "Owner rule (unbounded)" card for the
-  unpinned-repo default. Emit-ALLOWLIST per pin: `scrub_whitelist` values (identity regexes) are never
-  rendered, only their count, same posture as confidential markers above. Hidden entirely when the
-  gating-policy file is absent.
-- **Gate controls** (only when a writable live hub is present; a single read-only note otherwise,
-  incl. demo): edits over the connected hub's gate-config surfaces. **All of them card, always**:
-  they edit the gate's own config, so every edit goes propose -> validated diff card
-  (`GateConfirmDialog`) -> Confirm/Deny. The card names WHY it is carding. Surfaces that are off
-  state the shared reason once, not per row.
-- **Approval tiering**: the gate is not confirm-first over every write. Each surface declares
-  `approval`, and ABSENT MEANS CONFIRM. Only surfaces writing Chronicle's own reversible state are
-  `auto`; every hub-writing surface and the Tier 2 surface card. Floors live in
-  `server/gate/core.ts`, not the registry: Tier 2 never autos, a hub-writing surface declaring auto
-  throws at construction, a classifier that throws cards, and **model-generated content cards on
-  every surface** (so a scope suggestion keeps its human review). The per-boot token still guards
-  every write; only the human-confirm step is tiered.
-- **Write log**: every gate write, newest first, off `GET /api/gate/audit`. Columns When · Surface ·
-  Outcome (`applied` for a cardless write, else the raw event) · Change (reason + up to 3 diff rows,
-  `+N more`) · Undo. **Undo** is offered on any row that took a backup; it is NOT its own approval
-  category (the restore meets the same policy, so it cannot walk a loosening past a card) and it
-  verifies the backup against a sha256 recorded at write time before restoring. Rows written
-  through the hub, and action rows, have no local backup and say so.
-- **Accepted-gaps register** (`data/safety-gaps.json`, synthetic-safe; operator override at
-  `~/.chronicle/safety-gaps.json`): actionable + watch cards, each with exposure / blast radius /
-  acceptance / (watch) revisit trigger. No launcher: the "Work on this" Terminal launch
-  (`POST /api/launch/gap`) is removed (#220) — Chronicle no longer launches other programs. An
-  actionable gap wears the `--attention` accent: "act on this" is one visual language app-wide,
-  and never the everyday brass. Watch cards stay neutral.
-- **Confidentiality floor**: emit-ALLOWLIST per file (not a denylist) + a value-side creds scan;
-  marker phrases are COUNTS only. The raw-phrase drill-down (`GET /api/hub/safety/confidential`) is
-  HARD-GATED: a live hub AND an explicit opt-in flag, else 403. The default/public build never
-  serves confidential content.
-- **Demo**: posture shows synthetic data; the gate is INERT for writes (all surfaces unavailable,
-  propose/apply 409), so a demo never touches real machine state (hub config files, scheduled jobs).
-
 ### Settings modal (`SettingsModal`, `src/App.tsx`)
 
 Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
@@ -402,15 +354,13 @@ when empty and is absent in demo (demo never records).
 
 | Enumerable / shape fact | Guarding test |
 |---|---|
-| Sidebar = exactly Insights + Projects, no Home entry, no `⌂` (hub ABSENT — the default e2e harness) | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
-| Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
-| `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
-| The briefing, the launcher and the scope-suggest routes are unmounted (404); `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
+| Sidebar `sb-top` = exactly Insights + Projects, no Home entry, no `⌂`, on every install and in every mode | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
+| Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, hub, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
+| The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
+| The CLI has no `hub` subcommand and reads no hub path input | `test/cli-hub-removed.test.mjs` |
+| Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
+| No launchd or cron template ships in the published tarball | `test/repo-shape.test.mjs` — "the published package ships no job template" |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |
-| Actionable gap cards carry the off-brass `--attention` accent; watch cards stay neutral | `test/e2e/ops-safety.spec.ts` — "actionable gap cards use the off-brass attention accent" |
-| Confidential marker drill-down is 403 by default (never served on the public build) | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` — confidentialMarkersEnabled gating |
-| Safety slice emit-allowlist (no innocuous-key creds leak), markers as COUNTS only | `test/hub-safety.test.mjs` (node) — allowlist + planted-secret + counts assertions |
-| Gap launcher refuses demo (409); prompt built server-side | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
 | Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |

@@ -77,9 +77,11 @@ results, skills, and subagents, as a share of total tokens). The same three tabs
 to a single project (its **Overview / Explore / Content / Sessions** tabs) and scoped to a
 single session (from that session's Overview, drill into **Content**).
 
-> **Local-first:** Every step ran entirely on your machine. Chronicle made no LLM calls and no
-> network requests — it parsed local logs into a local SQLite database and reconstructed code
-> from your own Git history. Nothing about viewing a session leaves your laptop.
+> **Local-first:** Every step ran entirely on your machine. Chronicle made no model call and
+> no network request — it parsed local logs into a local SQLite database and reconstructed
+> code from your own commit history. Nothing about viewing a session leaves your laptop. The
+> one feature that does run a model is Ask, which is off by default; turned on, it runs
+> `claude -p` locally on your own Claude subscription, once per question you type.
 
 ## Related
 

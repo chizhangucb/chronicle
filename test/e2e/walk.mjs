@@ -196,7 +196,7 @@ function buildRoutes(base, ctx) {
     async setup(page, notes) {
       await gotoInsights(page);
       await page.locator('.tabs .tab', { hasText: 'Spend' }).click();
-      // Spend fetches detectors/waste/routing/plan-windows async — give them a beat.
+      // Spend fetches detectors/waste/plan-windows async — give them a beat.
       await page.waitForSelector('.spend-tab .budget-band', { timeout: NAV_TIMEOUT_MS });
       // CHI-369: the budget band flashes "$0 month to date" until the SEPARATE
       // month-insights fetch resolves; wait for the month-to-date figure to

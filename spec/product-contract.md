@@ -3,22 +3,24 @@
 Status: living · Owner: Chi Zhang · Location: `~/personal-projects/chronicle` (`chizhangucb/chronicle`, public, npm `chronicle-cli`) · License: Apache-2.0 (third-party notices in `NOTICE`)
 
 ## Purpose
-A local-first session-data engine and operator console for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content), deterministic replay, security redaction, AND a hub-conditional Safety ops surface over a nisse-format hub, plus a tiered write gate. On-machine and heuristic: no LLM calls in the analysis path (the /ask runner is a user-triggered headless Claude); the one outbound call is opt-out — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
+A local-first session-data engine for your AI coding stack. It ingests your coding tools' transcripts into one local SQLite DB and serves session browsing, session-pattern analytics (Insights / Explore / Content / Spend / Sessions), deterministic replay, security redaction and redacted export, and /ask. On-machine and heuristic: no model call in the analysis path. The one model run in the product is /ask, opt-in off by default, an operator-initiated local `claude -p` on the operator's own Claude subscription. The one outbound call is opt-out — the Claude plan-windows quota read to api.anthropic.com, on by default, off with a Settings toggle (Codex plan windows are local).
 
 ## Surfaces
-- CLI (`npx chronicle-cli`, bins `chronicle`/`chronicle-cli`): runs the local web app in the foreground; `--port` (default 41730), `--no-open`. Node 24+. Setup subcommand `chronicle hub set|status|clear <path>` points the console at a nisse-format hub.
-- Web UI (SPA routes): the analytics core `/`, `/projects`, `/project/:id`, `/session/:id` (`/insights` redirects to `/`), PLUS the hub-conditional ops route `/safety` (rendered only when `/api/hub/status` reports present, i.e. a live hub or demo; hidden when absent). Exact enumerable shape lives in the surface contract.
-- HTTP API: `http://127.0.0.1:<port>`, loopback only, `/api/*`. Consumed only by the app's own SPA. Includes the hub adapter (`/api/hub/{status,safety,codegraphs,...}`) and the write gate (`/api/gate/*`: per-boot token, then either an auto-applied write or propose → validated diff card → confirm, both ending backup → temp-rename write → verify → audit; plus `/api/gate/undo`).
-- Env knobs: `CHRONICLE_HUB` (primary public hub path), `AIOS_HUB`, `config.json hubRoot` (resolution order after `CHRONICLE_DEMO`), and `CHRONICLE_DEMO=1` (synthetic ops data for a zero-data user / fresh machine).
-- DB read seam: the base tables in `chronicle.db`, taken as they are. There is no compatibility view layer and no version pragma over one; a reader accepts that the tables may be reshaped without notice. Gate audit lives in a self-created `gate_audit` table.
+- CLI (`npx chronicle-cli`, bins `chronicle`/`chronicle-cli`): runs the local web app in the foreground; `--port` (default 41730), `--no-open`, `--demo`, `--app`. Node 24+. No subcommands.
+- Web UI (SPA routes): `/`, `/projects`, `/project/:id`, `/session/:id`, `/reference`, `/ask` (`/insights` redirects to `/`). `/ask` renders only when its Settings toggle is on, the claude CLI is present and the console is non-demo; otherwise it fails soft. There are no other routes, and no route is conditional on anything outside Chronicle's own data folder. Exact enumerable shape lives in the surface contract.
+- HTTP API: `http://127.0.0.1:<port>`, loopback only, `/api/*`. Consumed only by the app's own SPA. Mutating routes carry a per-boot write token as a same-origin guard, and nothing more.
+- Env knobs: `CHRONICLE_DATA_DIR` (where the data folder lives) and `CHRONICLE_DEMO=1` (synthetic sessions and projects for a zero-data user / fresh machine). No env var or config key names a path outside Chronicle's own folder, the source tools' logs and the operator's git repos.
+- DB read seam: the base tables in `chronicle.db`, taken as they are. There is no compatibility view layer and no version pragma over one; a reader accepts that the tables may be reshaped without notice.
 - `chronicle://session/<id>`: deep-link resolver for a session (`server/routes/sessions.ts`).
-- Autosync: in-process incremental DB sync (server start, 30-min backstop, debounced fs-watch). Registered in hub `operations.md` as `chronicle-autosync`.
+- Autosync: in-process incremental DB sync (server start, 30-min backstop, debounced fs-watch).
 
 ## Owned data
 `~/.chronicle/chronicle.db` (SQLite, full message content): projects, sessions, messages, session tombstones, migrations. Source of truth for the imported session record; writes nowhere else, reads source logs read-only.
 
 ## Consumers
-The human operator (browser console), now acting through gated writes as well as reads: the operator edits the hub egress posture and jobs through the tiered gate, and Chronicle consumes a nisse-format hub as an adapter (read-only, titles/paths/counts only). The former Varde console (the only external consumer the DB ever had) is decommissioned; nothing outside this repo reads chronicle.db.
+The human operator, through the browser console, reading and editing Chronicle's own records (rename, unlink, delete, settings, redaction rules). Nothing outside this repo reads `chronicle.db` today.
+
+**Direction of data.** Chronicle owns its data folder and reads the source tools' logs and the operator's git repos read-only. It reads no file belonging to another project. Any future integration with another tool is that tool reading Chronicle's data, never Chronicle reading that tool's files.
 
 ## Internals
 One seam earns a grandfathered sub-contract (register, not rewrite); the rest covered here.
@@ -28,34 +30,34 @@ One seam earns a grandfathered sub-contract (register, not rewrite); the rest co
 - **analysis engines + live SSE** (`server/insights.ts`, `explore.ts`, `content.ts`, `live.ts`): internal; shape owned by the surface contract.
 
 ## Non-goals
-No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. Chronicle IS the aggregate multi-tool operator console (the ops surfaces), the role it absorbed from the now-decommissioned Varde.
+No cloud, account, auth, or telemetry. Never writes a source tool's data. Redaction is a share/export-boundary promise, not a claim about the local DB. Chronicle is a session-analysis tool, not an operator console over a machine: it does not read another project's configuration, schedule jobs, gate egress, or launch other programs.
 
 ## Invariants
 CHI SIGN-OFF TO EDIT. Two HARD floors, everything else posture.
 
 **Hard floors (never violated):**
 - No telemetry ever: chronicle never phones home; there is no view-log or outbound analytics.
-- Never mutate source transcripts: chronicle only ever reads a source tool's logs, and reads a connected nisse-format hub read-only (titles/paths/counts only, never body text, confidential trees pruned).
+- Never mutate source transcripts: chronicle only ever reads a source tool's logs, and reads nothing belonging to another project.
 
-**Validated-seam writes (all writes go through one):**
-- Every mutating route carries the per-boot gate token (same-origin/CSRF guard); the gate's own write surfaces run backup → temp-rename → post-write verify → audit, behind a confirm card unless the surface declares `approval: 'auto'` (absent means confirm; the floors that can never auto live in `core.ts`, not the registry); hub writes go through the hub's own gated entry point. No raw file edits.
+**Guarded writes:**
+- Every mutating route carries the per-boot write token (a same-origin/CSRF guard, `server/writeToken.ts`). It is the whole of the mutation guard: there is no propose step, no diff card, no backup-and-verify ritual, no audit table and no undo. Chronicle writes only its own data folder.
 - Share/export redaction runs before anything leaves the machine.
 - IA/surface changes are gated by the surface contract's Change rule; drift without a signed edit is a publish-blocking P0.
 
-**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no LLM calls in the analysis path (the /ask runner is a user-triggered headless Claude); no outbound network beyond the opt-out Claude-quota read and a hub the operator connects. The gate model is tiered auto-approval on a reversibility bar: reversible Chronicle-owned state applies automatically; the egress gate's own config, Hermes approvals, and anything model-generated confirm. Every auto write is listed with an Undo on `/safety`.
+**Posture (current, not locked):** binds loopback only (`127.0.0.1`); no model call in the analysis path; the one model run is /ask, opt-in off by default, spawned locally on the operator's own subscription and confined to a single read-only SELECT-only handle on `chronicle.db`; no outbound network beyond the opt-out Claude-quota read.
 
 ## Change triggers
 Update this file in the same pass.
 - A new source-client parser; a new `/api/*` or UI route.
-- **Merge shipped.** Varde merged into Chronicle at parity and was decommissioned; composed-not-merged retired. Chronicle won every identity slot over a 4-phase, no-flag-day rollout, each phase landing a signed surface-contract revision.
-- **Signed invariant architecture for the merged product** (landed across the 4 phases): hard floors = no telemetry ever + never mutate source transcripts; all other writes through validated seams (gated diff-first surfaces, hub append command); no-LLM-in-analysis-path, outbound scope, and loopback become posture, not invariants.
-- **Cloud-scale moment.** If Chronicle plus Nisse reach online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
+- **Shrink shipped** (spec #215). Chronicle is a session-analysis tool and nothing else. The ops surfaces (Modules, Safety, Jobs, Briefing, Memory, Records), the hub adapter, the tiered write gate, the Terminal launcher, the proxy spend lane, the machine-sessions manifest, the contract database views and the `hub` CLI subcommand are removed. Chronicle is independent: it reads only its own data folder, the source tools' logs and the operator's git repos.
+- **Signed invariant architecture**: hard floors = no telemetry ever + never mutate source transcripts; mutating routes carry the per-boot write token; no-model-in-analysis-path, outbound scope and loopback are posture, not invariants.
+- **Cloud-scale moment.** If Chronicle reaches online-platform scale, re-open go-to-market: identity, opt-in external telemetry, native shell, extraction questions.
 
 ## Pointers
-In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`. Hub dev-knowledge and strategy: `$HUB/personal-projects/chronicle/`. Registry: hub `operations.md`; rationale: hub `records/decisions.jsonl` (session ledger `records/sessions.jsonl`).
+In-repo: `README.md`, `docs/`, `spec/surface-contract.md`, `spec/design-qa-rubric.md`, `docs/adr/`. Work and rationale are tracked as GitHub issues on `chizhangucb/chronicle` (see `docs/agents/issue-tracker.md`).
 
 ## Roadmap
 Only Now is a commitment.
-- **Now:** release-walk hardening on the 1.3.x line.
-- **Next:** open. The 4-phase Varde merge that sat here has shipped: unique organs ported behind the nisse-hub adapter, spend/sessions consolidated, home merge + unified reference + demo mode + local view log, Varde decommissioned.
-- **Later:** native desktop shell (deferred, bridge = PWA/dedicated window); cloud-platform exposure; contracts/registry rendered for a wider audience.
+- **Now:** finish the shrink (spec #215) and the standalone restructure (#173): vocabulary sweep, CONTEXT.md, the codebase-design pass.
+- **Next:** open.
+- **Later:** native desktop shell (deferred, bridge = PWA/dedicated window); cloud-platform exposure; contracts rendered for a wider audience.

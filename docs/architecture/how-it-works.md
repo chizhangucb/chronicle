@@ -3,7 +3,8 @@
 Chronicle is a local-first "time machine" for AI coding sessions: it imports conversation
 logs from four tools, maps every message to the Git snapshot at that moment, and adds
 security redaction, live streaming, invisible background sync, and a cross-project Insights
-engine — all in a single Node process with no cloud backend and no LLM calls.
+engine — all in a single Node process with no cloud backend and no model call anywhere in the
+analysis path.
 
 This page is the whole architecture, top to bottom: the one design decision everything else
 hangs off (single process, single port), the data model, ingestion, the Git snapshot engine,
@@ -124,7 +125,10 @@ watchers) lives on `globalThis` so a Vite SSR module reload in dev doesn't orpha
    project) back up the database first and tombstone rather than silently discard.
 5. **Everything heavy is heuristic + local.** Causality confidence tiers, redaction regexes,
    active-duration math, Insights aggregation, token calibration — all local heuristics.
-   **No LLM calls anywhere.**
+   **No model call in the analysis path.** The one model run in the product is Ask, which is
+   off by default and, when on, spawns a local `claude -p` on the operator's own Claude
+   subscription once per question, confined to a single read-only SELECT-only tool over
+   `chronicle.db`. It never sits on the path that produces a dashboard number.
 
 ### Key stack decisions
 

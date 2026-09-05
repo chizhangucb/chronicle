@@ -16,8 +16,9 @@
     "data",
     "dist",
     "dist-server",
-    "launchd",
-    "scripts"
+    "scripts",
+    "!scripts/install-jobs.mjs",
+    "!scripts/walk-seed.mjs"
   ],
   "scripts": {
     "dev": "vite",

@@ -2,12 +2,15 @@
 
 Local-first session manager for AI coding assistants. Import your conversation logs,
 click any message to **time-travel** to the exact code state at that moment
-(reconstructed from your project's Git history), and see where your tokens and time
-actually go. Everything runs on your machine: no LLM calls, no cloud, no telemetry.
-The one network call is opt-out — Chronicle can read *your own* Claude plan quota
-from Anthropic (the same request Claude Code makes; Codex quota is read locally),
-and one Settings toggle turns it off. Source logs and project repos are never
-written to.
+(reconstructed from your project's commit history), and see where your tokens and
+time actually go. Everything runs on your machine: no cloud, no telemetry, and no
+model call anywhere in the analysis path — every number is a local heuristic or a
+static table. The one feature that uses a model is **Ask**, off by default; turned
+on, it runs `claude -p` locally on the Claude subscription you already pay for, once
+per question you type. The one network call is opt-out — Chronicle can read *your
+own* Claude plan quota from Anthropic (the same request Claude Code makes; Codex
+quota is read locally), and one Settings toggle turns it off. Source logs and project
+repos are never written to.
 
 Full docs: **[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
 
@@ -33,10 +36,11 @@ The highlights:
 - **Import from 4 tools** — Claude Code, Codex, Cursor, and OpenCode, via a guided
   wizard. Read-only into a local SQLite DB (WAL-safe temp copies; originals never
   touched). Sessions aggregate into logical projects by repo path.
-- **Home dashboard** — the landing page is a live Insights-overview: a Today/7d/30d
-  KPI strip, a Today-only Activity block (live sessions + what happened "since you
-  left"), a Burn tile, and a recent-sessions ledger with search, day-grouping, and
-  bulk select below it. The project grid moved to its own **Projects** page.
+- **Insights home** — the landing page opens straight on the numbers: a Today/7d/30d/
+  90d/All KPI strip, a Today-only Activity block (live sessions + what happened "since
+  you left"), a spend anomaly tile, and the charts. Tabs across the top for Overview /
+  Explore / Content / Spend / Sessions. Projects and the recent-sessions ledger (search,
+  day-grouping, bulk select) live on their own **Projects** page.
 - **Time-travel & Playback** — click any message to see your code exactly as it was,
   rebuilt from Git history, with file diffs, a scrubbable timeline of messages and
   commits, and a resizable conversation panel.
@@ -61,7 +65,13 @@ The highlights:
 - **Search** — a Home command palette backed by an FTS5 full-text index (LIKE fallback)
   across all sessions; empty query shows recent access.
 - **Cost & usage** — per-model token totals multiplied by a local, static price table
-  (no billed data ever leaves your machine), split by cache-write TTL.
+  (no billed data ever leaves your machine), split by cache-write TTL. One spend figure,
+  estimated from your imported sessions. The **Spend** tab adds a monthly budget, a
+  flagged-day anomaly, plan-window quota meters, and efficiency detectors.
+- **Ask (opt-in)** — turn it on in Settings to ask free-form questions over your own
+  session data in plain English. Each question spawns a local `claude -p` on your own
+  Claude subscription, confined to one read-only, SELECT-only handle on your database.
+  Off by default; off means no model runs.
 - **i18n** — English · 简体中文 · 日本語.
 
 ## Develop

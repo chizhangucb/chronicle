@@ -5,74 +5,94 @@ https://github.com/chizhangucb/chronicle/releases
 
 ## Unreleased
 
-- **The daily briefing, the home bands, the Terminal launcher and the scope suggester are
-  gone.** Chronicle is a session-analysis tool; these were console features for a hub it no
-  longer talks to. Insights now opens straight on the KPI strip, with no briefing cards and
-  no five-domain status band above the numbers, and `/briefing` is no longer a route. The
-  briefing runner and its two state files, the Run-now, the "Work on this" button that
-  opened a Terminal on Safety, and the AI "Suggest scope" flow on Memory are all removed:
-  Chronicle no longer spawns a model run or another program on its own. The monthly budget
-  and the flagged-day spend anomaly stay exactly where you use them, on the Spend tab. The
-  Settings "Home bands" toggle is removed with the bands it hid.
+### Removed
 
-- **Chronicle now records its own writes, not just the gate's.** Changing a setting,
-  deleting a session, editing a redaction rule: all of it happened with no trace. The
-  write log now covers every route that changes something, with what it was and whether
-  it succeeded. Request bodies are never recorded, only that a write happened and where,
-  so the log can never become a copy of your settings. Page views stay out of it.
-- **The console stops asking permission for changes it can take back.** Every write used
-  to open a confirm card, including the reversible ones: editing which folders count as
-  knowledge, pausing a scheduled job. Now a change to Chronicle's own state applies when
-  you click, and the card is reserved for what actually deserves it. Editing the egress
-  gate's own config or Hermes' approvals still shows you a diff first, and so does
-  anything a model wrote: the scope suggestion keeps its review step, because reading the
-  diff is the point of it. Pausing a job is cardless too, unless it is the job that
-  carries your approval messages or runs enforcement.
-- **A write log on Safety, with Undo.** Chronicle has recorded every gate write since the
-  feature shipped and shown you none of them. That was survivable while nothing could
-  happen without a click. Now that reversible changes apply on their own, Safety lists
-  every write newest-first with its exact diff, and offers Undo on any of them. Undo is
-  not a shortcut: the restore meets the same approval rules as any other change, and
-  Chronicle refuses to restore a backup that has been altered since it was written.
-- **Safety says why a control is off.** The four egress-gate controls have never been able
-  to write on any machine whose hub lacks the write entry point, and said only "no hub
-  checkout", which sends you looking in the wrong place. They now name the real cause.
-- **The home answers "what needs you" before "what did it cost".** Insights opens with
-  your daily briefing cards, one line each, then the KPI strip you already had, then a
-  new status band reading Spend, Memory, Sessions, Safety and Jobs at a glance: a trend
-  line, the baseline number it is being compared against, and a link into each. The band
-  never raises an alarm of its own; a highlighted row is always an echo of a briefing
-  card above it, so exactly one place on the page tells you something new. The page ends
-  with a sources strip: which tools the numbers came from, how fresh they are, and which
-  cost basis is showing. Prefer the old view? One Settings toggle turns both bands off.
-- **A reference for every number on the console.** The new Reference page defines every
-  metric Chronicle shows, rendered from the same registry the small "i" tips read, so the
-  page cannot drift from the surfaces. It also keeps definitions for surfaces that were
-  deliberately retired, so a term you remember stays lookup-able even when its page is
-  gone.
-- **Try Chronicle before importing anything.** `npx chronicle-cli --demo` builds a
-  complete synthetic console: four projects, five model vendors, four months of history,
-  a flagged spend day, and every ops surface populated. It never touches your real data
-  and never makes a network call. A zero-data install now offers it directly.
+- **Chronicle is now only a session-analysis tool.** It was built as the console for a
+  personal operations folder and grew a second product's worth of surfaces to do that job.
+  That folder is gone, and every page that read it rendered empty or refused to load on any
+  machine but one. All of it is removed in this release, listed here so an upgrade holds no
+  surprises. What you use Chronicle for is untouched: import, browse, replay, time-travel,
+  Insights / Explore / Content / Spend / Sessions, redaction and redacted export, Ask.
+
+  Pages gone, their routes now unrouted: **Modules**, **Jobs**, **Records**, **Memory**,
+  **Briefing** and **Safety**. The sidebar carries Insights and Projects and nothing else,
+  on every install and in every mode. A stale bookmark to one of these lands on the ordinary
+  not-found page instead of a "no hub connected" placeholder.
+
+  **The write gate is gone.** Changes used to go propose, read a validated diff card,
+  Confirm or Deny, then backup, temp-rename, verify and audit. That machinery existed to
+  edit configuration files kept outside Chronicle, and Chronicle no longer touches them.
+  Renaming, unlinking, deleting a session or project, editing settings and editing redaction
+  rules all still work, exactly as before. What went with the gate: the confirm card, the
+  proposal step, the backup-and-verify write path, the audit table, the write log on Safety,
+  and Undo on a write-log row. One piece stays, renamed: a per-boot token every mutating
+  route still carries, so a page on another origin cannot change your data.
+
+  **The daily briefing is gone**, with the Run-now action, its two state files, its filtering
+  and history, and the two bands it put above your numbers on the home page. Insights now
+  opens straight on the KPI strip. Chronicle no longer starts a model run on its own. The
+  parts of the briefing you actually used live on the Spend tab, where they always were: the
+  monthly budget and the flagged-day spend anomaly.
+
+  **The "Work on this" Terminal launcher is gone**, and with it the AI "Suggest scope" flow
+  that was on Memory. Chronicle no longer launches another program or spawns a model run of
+  its own accord. Ask is the one model run in the product, it is off by default, and it only
+  ever runs on a question you typed.
+
+  **The proxy spend lane and the automation-sessions manifest are gone.** The Spend figure on
+  the KPI strip and the Spend tab is now one number, estimated from the sessions you imported
+  and priced from the local price table, so there is no second lane to reconcile. Chronicle
+  reads no spend log outside its own data folder, and no manifest written by another tool.
+  The routing-compliance block on the Spend tab goes with them: it graded your models against
+  a roster file kept elsewhere.
+
+  **The `chronicle hub` subcommand is gone**, along with the `CHRONICLE_HUB` and `AIOS_HUB`
+  environment variables and the `hubRoot` config key. Setting one of them now changes
+  nothing. `chronicle --help` lists only flags the product honours.
+
+  **The contract database views and their version pragma are gone.** `chronicle.db` exposes
+  its base tables as they are; anything reading it should expect them to be reshaped without
+  a compatibility ritual.
+
+  **Settings rows gone with their features:** the "Home bands" toggle. What remains is
+  auto-sync, pause auto-sync, Claude plan windows, Ask, the monthly budget, and the local
+  view log.
+
+  **Also removed:** the daily-digest job that wrote into the old operations folder, and its
+  launchd template. The published package now ships no job template at all. Demo mode still
+  seeds synthetic sessions and projects, and seeds nothing for the surfaces above, so a demo
+  console and a stock install differ only in whether they have sessions.
+
+  Every term above stays looked-up-able: the Reference page's **Retired** group defines each
+  removed surface and says what, if anything, replaced it.
+
+### Added
+
+- **A reference for every number on the console.** The Reference page defines every metric
+  Chronicle shows, rendered from the same registry the small "i" tips read, so the page
+  cannot drift from the surfaces. It also keeps definitions for surfaces that were
+  deliberately retired, so a term you remember stays lookup-able even when its page is gone.
+- **Try Chronicle before importing anything.** `npx chronicle-cli --demo` builds a complete
+  synthetic console: four projects, five model vendors, four months of history and a flagged
+  spend day. It never touches your real data and never makes a network call. A zero-data
+  install now offers it directly.
 - **Install it as an app.** Chrome and Edge will offer to install Chronicle, and
   `npx chronicle-cli --app` opens it in its own window with no tab strip or address bar.
   No service worker, so an upgrade is never masked by a cached page.
-- **A local view log, off-switch included.** Chronicle can record which of its own
-  surfaces you use, tagged human or agent so automated runs never read as yours. It lives
-  only in your database, is kept 180 days, and never leaves the machine. Settings shows
-  the counts and clears them.
-- **Briefing filtering and history.** Filter by needs-you, awareness or handled; handled
-  cards group by the day you acted on them and state their own 90-day retention. Cards
-  open more than two days show how long they have been waiting.
+- **A local view log, off-switch included.** Chronicle can record which of its own surfaces
+  you use, tagged human or agent so automated runs never read as yours. It lives only in
+  your database, is kept 180 days, and never leaves the machine. Settings shows the counts
+  and clears them.
 - **Consistent page widths.** Every non-dashboard page now shares one frame width instead
   of six different ones, with long prose holding its own comfortable line length.
 
 ### Fixed
 
-- Reopening a handled briefing card works on a demo console (it silently reverted before).
 - Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
   to do nothing.
-- The Modules table fills the page instead of reserving space for a panel that is not open.
+- The docs, the README and the privacy page no longer claim Chronicle makes no model call
+  at all. It makes none in the analysis path, and Ask, which is off by default, runs
+  `claude -p` locally on your own Claude subscription.
 
 ## 1.4.0 - 2026-08-27
 

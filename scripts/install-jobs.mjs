@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Install Chronicle's launchd job templates (CHI-323 3c). NOT run automatically:
-// the templates ship DORMANT so a scheduled job never fires without you asking
-// for it. Run this by hand to opt in. macOS only.
+// Install Chronicle's launchd job templates. Development tooling: the templates
+// are tracked but NOT published in the npm tarball, and nothing runs this for
+// you — a scheduled job never exists until you run this by hand. macOS only.
+// Today the only template is the optional LiteLLM spine (see litellm/README.md).
 //
 // Usage: node scripts/install-jobs.mjs [--bootstrap]
 //   fills each launchd/*.plist.template's __NODE__ / __REPO__ / __DATA__ and
 //   writes it to ~/Library/LaunchAgents/. With --bootstrap it also loads the job
 //   (launchctl bootstrap); without, it only installs the plist so you can review
-//   it first and pause/resume it from the Jobs page.
+//   it first and load it yourself with launchctl.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

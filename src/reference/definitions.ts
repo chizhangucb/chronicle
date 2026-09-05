@@ -436,6 +436,18 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'The egress gate refused a single spend above a per-transaction cap and cut a session off at a session cap. Chronicle only displayed them. For your own budget, the Spend tab’s monthly budget line is the surviving control.',
   },
   {
+    id: 'retired.write-log',
+    page: 'retired',
+    title: 'The write log (retired)',
+    plain: () => 'A ledger on Safety of every change Chronicle made, newest first, each with the exact diff it wrote and an Undo. It existed because changes used to go through a confirm-and-backup gate that could record them. The gate is gone and Chronicle no longer writes outside its own database, so there is nothing left for the log to record.',
+  },
+  {
+    id: 'retired.confirm-card',
+    page: 'retired',
+    title: 'Confirm card (retired)',
+    plain: () => 'A diff shown for approval before a change was written: propose, read the validated diff, then Confirm or Deny. It guarded edits to configuration kept outside Chronicle. Removed with those surfaces; Chronicle’s own edits (rename, delete, settings, redaction rules) apply when you click, as they always did.',
+  },
+  {
     id: 'retired.safety-roster',
     page: 'retired',
     title: 'Routing roster (retired)',
