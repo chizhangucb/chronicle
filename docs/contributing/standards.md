@@ -45,9 +45,8 @@ optional field on a response: none of those change the shape a user navigates or
 statement already in the contract. Update the contract to describe what you added and land it.
 
 The test is whether an existing statement in the contract becomes false. If one does, that is a
-reshape and it needs the sign-off, however small the diff looks. The same test governs the
-`contract_*` database views: adding a column is additive, because a consumer selects the columns
-it wants; changing or removing one is breaking and bumps `PRAGMA user_version`.
+reshape and it needs the sign-off, however small the diff looks, and a one-line diff that
+retires a card is exactly the case the rule was written for.
 
 ## The gates, and who wins
 

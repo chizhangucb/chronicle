@@ -36,6 +36,8 @@ development never touches that path.
 - **Read-only on foreign systems.** Copy a SQLite source to temp with its sidecars; never open
   the live file. Never write a source log or a user's repo.
 - **Back up before anything destructive**, and tombstone rather than drop.
+- **Hold long-lived state on `globalThis`.** Watchers, timers and child processes survive a dev
+  module reload only if they live there. See [gotchas](gotchas.md).
 
 ## Client
 
@@ -44,7 +46,6 @@ development never touches that path.
   one.
 - **Shared vocabulary has one home.** Chat-type labels live only in `src/kinds.ts`; model
   prices and context windows only in `src/models.ts`. Add wording and numbers there.
-- **Long-lived state on `globalThis`** for anything that must survive a dev module reload.
 
 ## Verification
 

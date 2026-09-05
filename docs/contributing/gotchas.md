@@ -114,8 +114,12 @@ it rather than writing their own cutoff.
 
 Only genuine server-runtime dependencies belong in `dependencies`. Vite bundles React,
 Recharts, `wouter`, `diff` and the Radix packages into `dist/` at build time, and the published
-package ships only `bin/`, `dist/` and `dist-server/`. Promoting a client library to
+package ships only `bin/`, `dist/` and `dist-server/`. Putting a client library in
 `dependencies` adds weight to every user's install for nothing.
+
+Check the rule before you add a package: `package.json` currently carries a couple of
+client-only libraries in `dependencies` that predate the rule, so the existing split is not a
+reliable example to copy.
 
 ## The Git pill is uncached on purpose
 
