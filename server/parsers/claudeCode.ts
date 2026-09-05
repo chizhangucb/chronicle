@@ -300,7 +300,7 @@ export function parseClaudeLine(o: ClaudeLine): Event[] {
     }
     // Anthropic's per-call identity on EVERY event of the line, usage-bearing
     // or not (CHI-286) — `uuid` is per-line, so this pair is the only thing a
-    // downstream reader of contract_message_metrics can dedup on.
+    // later pass over `messages` can dedup on.
     for (const e of events) {
       e.message_id = o.message.id ?? null;
       e.request_id = o.requestId ?? null;

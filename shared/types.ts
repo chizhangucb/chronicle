@@ -81,8 +81,8 @@ export interface Event {
   // `thinking` block, then text, then tool_use), and every one of those lines
   // repeats the SAME `message.usage`. `uuid` is per-LINE, so it cannot collapse
   // them; `(message_id, request_id)` is the only stable per-CALL key. Stamped on
-  // every event of an assistant line, usage-bearing or not, so downstream
-  // readers (contract_message_metrics -> Varde) can apply the same dedup.
+  // every event of an assistant line, usage-bearing or not, so any later pass
+  // can apply the same dedup.
   // Null for non-assistant events and for imports that predate these columns.
   message_id?: string | null;
   request_id?: string | null;

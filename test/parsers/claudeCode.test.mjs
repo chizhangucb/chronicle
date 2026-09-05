@@ -255,7 +255,7 @@ describe('parseClaudeSession — synthetic fixtures for behavior the committed f
     const assistantEvents = events.filter((e) => e.kind !== 'user');
     assert.equal(assistantEvents.length, 2);
     // Both events of the line carry the key (only the first carries tokens), so
-    // contract_message_metrics readers can dedup or audit.
+    // a later pass over `messages` can dedup or audit.
     for (const e of assistantEvents) {
       assert.equal(e.message_id, 'msg_9');
       assert.equal(e.request_id, 'req_9');
