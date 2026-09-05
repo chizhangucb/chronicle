@@ -75,7 +75,9 @@ fully parallel on two workers, each with its own seeded Chronicle instance, so a
 not depend on another spec having run first; if it genuinely must, mark its file
 `test.describe.configure({ mode: 'serial' })` and say why in a comment. A spec that passes only
 on its retry fails the job as flaky rather than being quietly absorbed. CI splits the same
-suite across three shards (`npm run test:e2e -- --shard=1/3`).
+suite across three shards (`npm run test:e2e -- --shard=1/3`), and skips the whole gate on a PR
+confined to `docs/`, `website/` or root-level markdown, which cannot reach the running app.
+`docs/contributing/release.md` has the wiring; this PR is the demonstration of it.
 `npm run walk` runs the release walk against the surface contract in `spec/`.
 
 When you add a source tool, validate against a fixture **and** a real session before opening
