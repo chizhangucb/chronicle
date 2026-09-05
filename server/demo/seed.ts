@@ -1,7 +1,7 @@
 // Demo seeding (CHI-325 3c, decision D9/D13).
 //
 // `chronicle --demo` shows the WHOLE product on synthetic data, not just the
-// synthetic hub slices CHRONICLE_DEMO already provided. The sessions go in
+// synthetic slices CHRONICLE_DEMO already provided. The sessions go in
 // through gatherParsed/importParsed, the same functions POST /api/import calls,
 // so demo exercises the production parse and import path rather than a
 // privileged shortcut that could drift from it.

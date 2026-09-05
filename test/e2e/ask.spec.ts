@@ -30,7 +30,7 @@ test.describe('ask disabled by default (seeded): no entry, route soft-fails', ()
   });
 });
 
-test.describe('demo hub: /ask is refused', () => {
+test.describe('demo mode: /ask is refused', () => {
   let demo: DemoServer;
   test.beforeAll(async () => { demo = await launchDemo(); });
   test.afterAll(() => { if (demo) stopDemo(demo); });

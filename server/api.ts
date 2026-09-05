@@ -12,9 +12,7 @@ import { mountContent }    from './routes/content.ts';
 import { mountActivity }   from './routes/activity.ts';
 import { mountDetectors }  from './routes/detectors.ts';
 import { mountWaste }      from './routes/waste.ts';
-import { mountRouting }    from './routes/routing.ts';
 import { mountPlanWindows } from './routes/planWindows.ts';
-import { mountHub }        from './routes/hub.ts';
 import { mountAsk }        from './routes/ask.ts';
 import { mountViewLog }    from './routes/viewlog.ts';
 import { mountDemo }       from './routes/demo.ts';
@@ -38,7 +36,7 @@ api.use(express.json());        // MUST stay first — body parsing for all POST
 
 // Gate token guard on EVERY mutating route (CHI-323 D2): the ported gate routes
 // AND Chronicle's existing writes (import, sync, project/session ops, settings,
-// security rules, hub config), one consistent posture. See gateTokenGuard. The
+// security rules), one consistent posture. See gateTokenGuard. The
 // tiered auto-approval model is CHI-329.
 api.use(gateTokenGuard(gate));
 
@@ -60,9 +58,7 @@ mountContent(api);
 mountActivity(api);
 mountDetectors(api);
 mountWaste(api);
-mountRouting(api);
 mountPlanWindows(api);
-mountHub(api);
 mountAsk(api);
 mountViewLog(api);
 mountDemo(api);

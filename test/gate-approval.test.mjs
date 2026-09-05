@@ -249,7 +249,7 @@ test('undo: an action surface (no backup) points at the inverse action instead',
 // source assertion because the bug is in the rendering expression itself.
 test('every diff cell in the UI falls back to "unset" for an absent value', async () => {
   const { readFileSync } = await import('node:fs');
-  for (const f of ['src/SafetyPage.tsx', 'src/gate/GateConfirmDialog.tsx']) {
+  for (const f of ['src/gate/GateConfirmDialog.tsx']) {
     const src = readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
     for (const m of src.matchAll(/gate-diff-(from|to)">\{([^}]*)\}/g)) {
       assert.match(m[2], /\?\? 'unset'/, `${f}: gate-diff-${m[1]} must fall back to 'unset'`);
@@ -261,7 +261,7 @@ test('every diff cell in the UI falls back to "unset" for an absent value', asyn
 // six characters literally, not an arrow.
 test('no literal \\uXXXX escape survives in rendered JSX text', async () => {
   const { readFileSync } = await import('node:fs');
-  for (const f of ['src/SafetyPage.tsx', 'src/gate/GateConfirmDialog.tsx']) {
+  for (const f of ['src/gate/GateConfirmDialog.tsx']) {
     const src = readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
     assert.doesNotMatch(src, />\\u[0-9a-fA-F]{4}</, `${f}: use the real character in JSX text`);
   }

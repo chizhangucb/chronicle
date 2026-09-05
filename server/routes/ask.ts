@@ -2,7 +2,6 @@ import type { Express, Request, Response } from 'express';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { getHubAdapter } from '../hub/adapter.ts';
 import { readConfig } from '../autosync.ts';
 import {
   findClaudeBin, readAskHistory, appendAskTurn, normalizeAskCostMode,
@@ -30,8 +29,8 @@ const OUTER_TIMEOUT_MS = 120 * 1000;
 export function askToggleOn(env: NodeJS.ProcessEnv = process.env): boolean {
   return readConfig().ask === true && env.CHRONICLE_ASK !== '0';
 }
-function isDemo(): boolean {
-  return getHubAdapter().status().mode === 'demo';
+function isDemo(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CHRONICLE_DEMO === '1';
 }
 
 /** Runner entry: compiled JS in the published package, else the TS source in dev

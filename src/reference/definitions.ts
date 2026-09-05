@@ -25,7 +25,6 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'safety'
   | 'ask' | 'settings'
   | 'retired';
 
@@ -47,7 +46,6 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'safety',
   'ask', 'settings', 'retired',
 ];
 
@@ -59,7 +57,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   content: 'Insights · Content',
   projects: 'Projects',
   session: 'Session view',
-  safety: 'Safety',
   ask: 'Ask',
   settings: 'Settings',
   retired: 'Retired (kept for the vocabulary)',
@@ -261,38 +258,6 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'A run is one subagent invocation (agent_id); a type (for example general-purpose) can have many runs. Turns are that type’s assistant messages across all its runs. Tokens are input + output across all its runs.',
   },
 
-  // ---- Ops surfaces (ported from Varde, CHI-323/324) ----
-  {
-    id: 'safety.gate',
-    page: 'safety',
-    title: 'The egress gate',
-    plain: () => 'The egress gate sits in front of anything your agents send, publish or spend: every gated call passes an intent check and a confidentiality scan before it leaves this machine. OFF is fail-closed: every gated outward send is denied, not waved through.',
-  },
-  {
-    id: 'safety.markers',
-    page: 'safety',
-    title: 'Confidentiality markers',
-    plain: () => 'Phrases the gate’s confidentiality scanner watches for in anything outbound. Chronicle shows only per-category COUNTS; the phrases themselves are served only when this instance explicitly opts in.',
-  },
-  {
-    id: 'safety.gaps',
-    page: 'safety',
-    title: 'Safety gaps',
-    plain: () => 'A curated risk register: each row is a known hole in the posture, stated plainly, accepted ones included. A gap stands until the closing edit is made; actionable rows need work, watch rows are accepted risks waiting on a trigger.',
-  },
-  {
-    id: 'safety.caps',
-    page: 'safety',
-    title: 'Spend caps',
-    plain: () => 'The gate refuses a single spend above the per-transaction cap and cuts a session off at the session cap. An explicit null means that axis is unconstrained.',
-  },
-  {
-    id: 'safety.roster',
-    page: 'safety',
-    title: 'Routing roster',
-    plain: () => 'The trust policy from your hub’s governance/routing.md: which external models are allowed, at what trust level (no-train means the destination must not train on your data), through which billing lane. Hand-curated, so a model only appears once it has been reviewed.',
-  },
-
   // ---- Ask ----
   {
     id: 'ask.local',
@@ -443,11 +408,38 @@ export const DEFINITIONS: Definition[] = [
     title: 'Records (retired)',
     plain: () => 'A page that read an append-only session ledger and decision log kept outside Chronicle, showing date, session id, repo and focus. Removed with the rest of the external-folder coupling; Chronicle’s own Sessions tab covers the sessions it imported.',
   },
+  // ---- Retired: the Safety ops surface, dropped in the shrink (#221 / spec
+  // #215). The egress-gate panels and the routing roster read another
+  // project's folder and are gone; the vocabulary stays findable. ----
   {
-    id: 'retired.nisse-upsell',
+    id: 'retired.safety-gate',
     page: 'retired',
-    title: 'Nisse coupling',
-    plain: () => 'Not retired: the Safety ops surface lights up when a nisse-format hub is present and is hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
+    title: 'The egress gate (retired)',
+    plain: () => 'A policy that sat in front of anything an agent sent, published or spent: every gated call passed an intent check and a confidentiality scan before leaving the machine, and OFF meant fail-closed. It was configured and enforced outside Chronicle; the page that read its posture is gone.',
+  },
+  {
+    id: 'retired.safety-markers',
+    page: 'retired',
+    title: 'Confidentiality markers (retired)',
+    plain: () => 'Phrases the egress gate’s confidentiality scanner watched for in anything outbound. Chronicle showed per-category counts only, and the phrases themselves behind an explicit opt-in. Removed with the Safety page.',
+  },
+  {
+    id: 'retired.safety-gaps',
+    page: 'retired',
+    title: 'Safety gaps (retired)',
+    plain: () => 'A curated risk register kept outside Chronicle: each row a known hole in the egress posture, accepted ones included. Actionable rows needed work; watch rows were accepted risks waiting on a trigger. Removed with the Safety page.',
+  },
+  {
+    id: 'retired.safety-caps',
+    page: 'retired',
+    title: 'Spend caps (retired)',
+    plain: () => 'The egress gate refused a single spend above a per-transaction cap and cut a session off at a session cap. Chronicle only displayed them. For your own budget, the Spend tab’s monthly budget line is the surviving control.',
+  },
+  {
+    id: 'retired.safety-roster',
+    page: 'retired',
+    title: 'Routing roster (retired)',
+    plain: () => 'A hand-curated list of allowed model families, read from an external governance file, against which the Spend tab graded a window’s models as on- or off-roster. Removed: the file lived in another project’s folder, which Chronicle no longer reads.',
   },
 ];
 

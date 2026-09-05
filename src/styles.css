@@ -766,10 +766,6 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 .pw-win .track { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
 .pw-win .seg { height: 100%; border-radius: 3px; }
 .pw-v { text-align: right; color: var(--ink-2); }
-.routing-body { padding: 2px 0; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
-.routing-line { margin-bottom: var(--gap-1); }
-.routing-line b { color: var(--ink); }
-.promote-aff { color: var(--brass-text); cursor: default; }
 
 /* CHI-324 2g: Sessions tab. */
 .sessions-hub { display: flex; flex-direction: column; gap: 10px; }
@@ -1828,48 +1824,6 @@ h4 { margin: 6px 0; }
    if they were direct `.command-bar` children. */
 .command-bar-slot { display: contents; }
 
-/* ---- Safety ops surface (CHI-323 3d) ---- */
-.safety-page { max-width: var(--page-max); }
-.safety-lede { margin: 4px 0 18px; }
-.safety-posture { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--gap-3); margin-bottom: 24px; }
-.posture-tile { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
-.posture-tile.on { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
-.posture-tile.off { border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
-.posture-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
-.posture-value { font-size: 20px; font-weight: 600; color: var(--ink); margin: 4px 0 2px; }
-.posture-tile.on .posture-value { color: var(--ok); }
-.posture-tile.off .posture-value { color: var(--danger); }
-.safety-section { margin-bottom: 28px; }
-.safety-sec-head { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-.safety-pushpins { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--gap-3); margin-top: 10px; }
-.pushpin-card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; }
-.pushpin-card.any-branch { border-color: color-mix(in srgb, var(--attention) 50%, var(--border)); }
-.pushpin-card.owner-rule { border-style: dashed; }
-.pushpin-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.pushpin-repo { font-weight: 600; color: var(--ink); font-size: 13px; }
-.safety-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg1); padding: 12px 14px; margin-top: 10px; }
-.safety-control.column { display: block; }
-.safety-control.disabled { opacity: 0.6; }
-.safety-control-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.control-title { font-weight: 600; color: var(--ink); font-size: 13px; }
-.control-inputs { display: flex; gap: 8px; align-items: center; }
-.json-editor { margin-top: 10px; }
-.json-textarea { width: 100%; min-height: 160px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink); background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px; resize: vertical; }
-.json-editor .btn { margin-top: 8px; }
-.gap-card { border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px; background: var(--bg1); padding: 12px 14px; margin-top: 10px; }
-/* Needs-you language (CHI-374 sweep): an actionable
-   gap is the one thing on /safety that wants doing, so it wears --attention,
-   not the everyday brass. Watch-only gaps stay neutral. */
-.gap-card.actionable { border-left-color: var(--attention); background: color-mix(in srgb, var(--attention) 7%, var(--bg1)); }
-.gap-card.watch { border-left-color: var(--ink-3); }
-.gap-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-.gap-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; background: var(--bg2); color: var(--ink-2); }
-.gap-kind.actionable { color: var(--attention-text); }
-.gap-title { font-weight: 600; color: var(--ink); }
-.gap-meta { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
-.gap-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
-.gap-group { margin: 14px 0 2px; }
-
 /* ---- Gate confirm dialog (CHI-323) ---- */
 .gate-dialog { max-width: 540px; }
 .gate-lead { margin: 6px 0 10px; color: var(--ink); }
@@ -1896,7 +1850,6 @@ h4 { margin: 6px 0; }
 /* ---- Write log (CHI-329 WP4) ---- */
 /* The gate's audit trail, rendered. Reuses the confirm dialog's diff type
    scale so one change reads the same in the card and in the log. */
-.safety-why-off { margin: 8px 0 0; }
 .writelog-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
 .writelog-table th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .writelog-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }

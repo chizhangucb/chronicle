@@ -18,13 +18,11 @@ import type { ParseResult } from '../shared/types.ts';
 export interface ChronicleConfig {
   autoSync?: boolean;
   autoSyncPaused?: boolean;
-  // Path to a nisse-format hub, written by the hub setup affordance (CHI-323
-  // D3). Read by server/hub/resolve.ts. Merged in via writeConfig so it never
-  // clobbers the autosync / noise-gate keys that share this file (review #1).
+  // Legacy: a path written by the retired hub setup affordance. Nothing reads
+  // it any more (#221); the key stays typed so an existing config file
+  // round-trips through writeConfig instead of being dropped on the next write.
+  // The CLI subcommand that wrote it goes in #224.
   hubRoot?: string;
-  // Opt-in for the hard-gated confidential marker drill-down (CHI-323 D8),
-  // default OFF. Only honored on a live hub. Never on the public/default build.
-  confidentialMarkers?: boolean;
   // Spend-tab Claude Plan windows (CHI-324 2f / D7), default ON (opt-OUT). The
   // ONE outbound call in Chronicle: reads the user's own Claude quota from
   // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
@@ -38,7 +36,7 @@ export interface ChronicleConfig {
   // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
   // Spend tab read the SAME number wherever it is shown.
   // null / absent = no budget set. Local app pref, written like the toggles
-  // above via /settings — NOT an egress/hub gate surface.
+  // above via /settings.
   monthlyBudget?: number | null;
   // Local-only view log (CHI-325 3a / D7), default ON (opt-OUT). Records which
   // surfaces get used, actor-tagged, in chronicle.db. Nothing about it is

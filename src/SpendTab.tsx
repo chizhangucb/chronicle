@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, type JSX } from 'react';
-import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, RosterResult, PlanWindowsResult, AccountWindow, PlanAccount } from './api.js';
-import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, routingUrl, planWindowsUrl } from './api.js';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, PlanWindowsResult, AccountWindow, PlanAccount } from './api.js';
+import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, planWindowsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
@@ -284,34 +284,14 @@ function PlanWindowsCard(): JSX.Element {
 // ---- Efficiency (CHI-324 2e), pass 1: DETECTORS. Four rows graded by the
 // shared state-words (cache hit rate, jumbo outputs, long context, error rows).
 // Cache-hit + error-rate derive from /api/insights; jumbo + long-context from
-// the per-message /api/detectors slice. Waste signals + routing compliance are
-// pass 2. ----
+// the per-message /api/detectors slice. Waste signals are pass 2. ----
 interface DetectorRow { name: string; pct: number; state: StateWord; barPct: number; def: string }
 
 function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | null; win: RangeKey; days: number | null }): JSX.Element {
   const { mode } = useCostMode();
   const { data: det } = useCachedFetch<DetectorCounts>(detectorsUrl(days));
   const { data: waste } = useCachedFetch<WasteResult>(wasteUrl(days));
-  const { data: roster } = useCachedFetch<RosterResult>(routingUrl());
   const th = DEFAULT_SPEND_THRESHOLDS;
-
-  // Routing compliance: classify the window's models on/off the hub roster
-  // (family prefix), price each from the insights windowed cells.
-  const routing = useMemo(() => {
-    if (!roster?.present || !insights) return null;
-    const byModel = groupByKey(insights.windowedTokensByModel, (c) => c.model);
-    let onCost = 0; let total = 0;
-    const off: { model: string; cost: number }[] = [];
-    for (const [model, cells] of byModel) {
-      if (PSEUDO_MODELS.has(model)) continue;
-      const c = costOfBucketedCells(cells, mode);
-      total += c;
-      if (roster.families.some((f) => model.startsWith(f))) onCost += c;
-      else if (c > 0) off.push({ model, cost: c });
-    }
-    off.sort((a, b) => b.cost - a.cost);
-    return { onPct: total > 0 ? (onCost / total) * 100 : 100, off: off.slice(0, 4), offCost: off.reduce((s, o) => s + o.cost, 0) };
-  }, [roster, insights, mode]);
 
   // Waste $ priced client-side from the shipped cells (the price table is
   // client-only). All at list price — these are "what could you save" estimates.
@@ -406,20 +386,6 @@ function EfficiencyCard({ insights, win, days }: { insights: InsightsResult | nu
               <div className="waste-row"><span className="eff-n">{t('Repeat file reads')}</span><span className="eff-v">{fmtMoney(wasteRows.rereadCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.rereadCalls)} {t('re-reads')}</span></div>
             </>
           ) : <div className="muted small pad8">{t('Loading…')}</div>}
-        </div>
-        <div>
-          <div className="eff-sub">— {t('routing compliance')}</div>
-          {roster == null ? <div className="muted small pad8">{t('Loading…')}</div>
-            : !roster.present ? <div className="muted small pad8">{t('No roster — add governance/model-routing.md to your hub to track on/off-roster routing.')}</div>
-            : routing ? (
-              <div className="routing-body">
-                <div className="routing-line">
-                  <span className={`sw ${routing.onPct >= 90 ? 'ok' : routing.onPct >= 75 ? 'warn' : 'danger'}`}>{routing.onPct.toFixed(0)}% {t('on-roster')}</span>
-                  {routing.off.length > 0 && <span className="muted"> · {t('off-roster')}: <b>{routing.off[0].model}</b> {fmtMoney(routing.off[0].cost, 2)}{routing.off.length > 1 ? ` +${routing.off.length - 1}` : ''}</span>}
-                </div>
-                <div className="muted small">{t('roster from your hub’s governance/model-routing.md')}{routing.off.length > 0 && <> · <span className="promote-aff">{t('Prepare promotion')}</span></>}</div>
-              </div>
-            ) : <div className="muted small pad8">{t('Loading…')}</div>}
         </div>
       </div>
     </div>

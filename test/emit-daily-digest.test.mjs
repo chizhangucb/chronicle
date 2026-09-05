@@ -2,9 +2,8 @@
 //
 // AIOS_HUB is set to a fresh temp dir for EVERY call into the emitter here --
 // this suite must never write into the real hub's records/spool/chronicle/.
-// (no-ambient-hub.mjs already clears any ambient AIOS_HUB/CHRONICLE_HUB before
-// this file runs, so a bare `main()` with no override would resolve to the
-// hardcoded ~/chizhang-2 fallback -- every test below overrides it explicitly.)
+// (Every test below sets or deletes AIOS_HUB explicitly, so the suite is
+// hermetic w.r.t. a machine that exports one.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

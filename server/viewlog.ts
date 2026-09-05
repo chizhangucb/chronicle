@@ -65,7 +65,6 @@ const ROUTES = new Set([
   '/projects',
   '/project/:id',
   '/session/:id',
-  '/safety',
   '/reference',
   '/ask',
 ]);

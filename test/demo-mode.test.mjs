@@ -73,12 +73,10 @@ test('the corpus is deep and varied enough for every surface', () => {
   // Today must not be empty, or the default window opens blank.
   assert.ok(specs.some((s) => s.daysAgo === 0), 'no session lands today');
 
-  // Vendor spread: the [project|provider] toggle and the routing table are flat
-  // without it, and the off-roster row needs a non-roster model.
+  // Vendor spread: the [project|provider] toggle is flat without it.
   const models = new Set(specs.map((s) => s.model));
   assert.ok(models.size >= 5, `expected vendor variety, got ${[...models].join(', ')}`);
   assert.ok(models.has('gpt-5') && models.has('gemini-2.5-pro'), 'needs non-Anthropic vendors');
-  assert.ok(models.has('mistral-large-2'), 'needs an off-roster model for routing compliance');
 
   // Project spread for the busiest-projects table and the stacked chart.
   assert.equal(new Set(specs.map((s) => s.cwd)).size, 4);
