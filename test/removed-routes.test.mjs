@@ -1,12 +1,12 @@
-// Removal pin for the shrink (#220, #221): the briefing, the launcher, the
-// memory scope-suggest runner, every route under the hub prefix and the routing
-// roster are gone, so their routes must be UNMOUNTED, not stubbed. A 404 here
-// is the observable an API client sees; asserting module shape would pin the
-// implementation instead of the product.
+// Removal pin for the shrink (#220, #221, #222): the briefing, the launcher,
+// the memory scope-suggest runner, every route under the hub prefix, the
+// routing roster and the whole write gate are gone, so their routes must be
+// UNMOUNTED, not stubbed. A 404 here is the observable an API client sees;
+// asserting module shape would pin the implementation instead of the product.
 //
 // The surviving routers are mounted directly rather than importing
-// server/api.ts, which starts auto-sync watchers and a console gate and would
-// never let the test process exit.
+// server/api.ts, which starts auto-sync watchers and would never let the test
+// process exit.
 //
 // The surviving neighbours are asserted in the same run so a wholesale
 // mis-mount (an app that answers 404 for everything) cannot pass this file.
@@ -51,6 +51,17 @@ const GONE = [
   ['GET', '/hub/codegraphs'],
   ['POST', '/hub/config'],
   ['GET', '/routing'],
+  // The write gate (#222). Its surviving remnant is the renamed per-boot token
+  // guard, pinned in test/write-token.test.mjs.
+  ['GET', '/gate/token'],
+  ['GET', '/gate/surfaces'],
+  ['GET', '/gate/surface'],
+  ['GET', '/gate/jobs'],
+  ['GET', '/gate/audit'],
+  ['POST', '/gate/propose'],
+  ['POST', '/gate/apply'],
+  ['POST', '/gate/confirm'],
+  ['POST', '/gate/undo'],
 ];
 
 test('every removed route is unmounted (404)', async () => {
