@@ -47,7 +47,7 @@ export function workerStateFile(workerIndex: number): string {
 
 /** Persisted description of one spawned server. Survives the process that
  * spawned it — `exitCode`/`exitSignal` are filled in by whoever is still
- * watching; `alive()` re-checks the pid for readers who were not. */
+ * watching; `isAlive()` re-checks the pid for readers who were not. */
 export interface ServerRecord {
   label: string;
   pid: number;
@@ -402,7 +402,7 @@ export async function seedDataDir(label: string): Promise<SeededData> {
 
 /** Block until a killed server's pid is really gone, so a data directory can
  * safely be handed to the next server. */
-export async function awaitExit(pid: number, timeoutMs = 10_000): Promise<void> {
+async function awaitExit(pid: number, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline && isAlive(pid)) {
     await new Promise((r) => setTimeout(r, 50));

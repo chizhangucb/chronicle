@@ -33,11 +33,9 @@ import {
   type SeededData, type ServerHandle,
 } from './harness.ts';
 
-export {
-  REPO_ROOT, RUN_DIR, workerStateFile, seedDataDir, launchServer, stopServer,
-  readRecords, isAlive, describeServer, describeDeadServers,
-} from './harness.ts';
-export type { SeededData, ServerHandle, ServerRecord } from './harness.ts';
+// Specs and the global hooks import from here only; harness.ts is the seam's
+// implementation. Re-exported are just the names they actually reach for.
+export { REPO_ROOT, RUN_DIR, workerStateFile } from './harness.ts';
 
 // Reference viewport widths the overflow smoke check runs at (spec §5.1,
 // step 2d): a laptop, a common desktop, and a wide desktop.
@@ -130,8 +128,6 @@ export function stopDemo(server: DemoServer): void {
   stopServer(server);
   try { fs.rmSync(server.dataDir, { recursive: true, force: true }); } catch { /* best effort */ }
 }
-
-export { awaitExit } from './harness.ts';
 
 // A failing spec's first question is almost always "was the server even
 // there?". This auto fixture answers it: when a test fails AND some recorded
