@@ -1,6 +1,6 @@
 # Codebase-design audit: seams, duplicates, dead machinery
 
-Resolves [#183](https://github.com/chizhangucb/chronicle/issues/183) on map #173. Read by reviewers, not published.
+Resolves [#183](https://github.com/chizhangucb/chronicle/issues/183) on map #173. Agent-only, excluded from the docs site.
 Method: the codebase-design skill's vocabulary (module, interface, seam, depth, the deletion test) run as a harsh audit
 over `server/`, `src/`, `shared/`, `scripts/`, `test/`, `bin/`, `website/` at commit `0b868bd`, after the shrink
 (#215, #217 to #226) landed. No code moved here. Every finding names who decides: **Chi** when it is a product fact
@@ -23,7 +23,7 @@ How the code is shaped today, module by module, with a verdict: **deep** (small 
 | `scope.ts` | `scopeClause()`, `minorGate()` | shallow and under-used | The minor gate is spelled out by hand 35 more times across seven files. |
 | `insights.ts` | `computeInsights(days)` | leaky | All-scope only. Carries two private TTL caches. Computes `bucketedUsage` twice with identical arguments (`windowedTokensByModel` and `dailySpend` are the same call). |
 | `routes/projects.ts` `/projects/:id` | inline | duplicate engine | A fourth analytics engine: the same toolDist / kindDist / activity / errors queries as `insights.ts` with a `project_id` filter. |
-| `explore.ts` | `computeExplore(query)` | deep but split-brained | 742 lines. The ranked rows are scaled to in-window share; the time-rollup buckets place whole-session usage at `started_at` unscaled (documented as a follow-up inside the file). Errors are regexed per request here while Insights reads precomputed counts. |
+| `explore.ts` | `computeExplore(query)` | deep but split-brained | 742 lines. The ranked rows are scaled to in-range share; the time-rollup buckets place whole-session usage at `started_at` unscaled (documented as a follow-up inside the file). Errors are regexed per request here while Insights reads precomputed counts. |
 | `content.ts` | `computeContent(scope, days)` | deep | Fine. Shares the calibrate seam. |
 | `activity.ts` | `computeActivity(since, days, now)` | leaky | Own `parseUsage`, own `LIVE_WINDOW_MS`, baseline median in UTC days while every other bucket is local time. |
 | `detectors.ts`, `waste.ts` | `compute*(days)` | shallow | No Scope, no overlap gate, own time gate. Fine as bodies; wrong seam. |
@@ -111,7 +111,7 @@ is local time). Make `scope.ts` the one place: `scopeClause`, `minorGate`, `rang
 aggregate queries as `insights.ts` with a `project_id` filter. Give `computeInsights` a Scope (F7 makes that natural)
 and the project route calls it. Also removes the double `bucketedUsage` call in insights. **eng**, medium.
 
-**F9. Explore's two magnitude paths.** Ranked rows are scaled to in-window share; the time-rollup buckets are not, so
+**F9. Explore's two magnitude paths.** Ranked rows are scaled to in-range share; the time-rollup buckets are not, so
 the total bar and the stacked chart can disagree for a session that spans the range edge. `bucketedUsage` supports
 hour and day only. Extend it to week and month and route the rollup through it; then the per-request error regex in
 explore can read the precomputed session counts the way insights does, except for per-tool attribution. **eng**,
