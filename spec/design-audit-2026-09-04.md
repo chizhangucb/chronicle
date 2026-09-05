@@ -206,6 +206,36 @@ cursorProjectsDir, cursorProjectSlug, clearCursorGlobalCache, parseCursorAgentSe
 parseClaudePayload · `security.ts` Finding · `viewlog.ts` Actor, RETENTION_DAYS, serverActor · `charts/timeBuckets.ts`
 hourKeyOf, monthKeyOf · `reference/definitions.ts` Definition, DEF_BY_ID.
 
-## 5. Second reviewer
+## 5. Second reviewer and reconciliation
 
-Codex was handed the same brief and this map; its review and the reconciliation are recorded on #183.
+Codex (codex-cli 0.146.0, read-only sandbox) was handed the same brief and §1 to §4. Verdict per finding: F1, F3, F6,
+F9, F10, F15, F16, F18, F19, F20 confirmed; the rest adjusted; none disputed. Adjustments taken into the findings:
+
+- F2: prune only exports with no production caller; test-only exports are a judgment call, not automatically dead.
+- F5: the display-name copies are near, not exact (the client prefixes and shortens the id). Still one function.
+- F7: not one blunt `rangeGate()`. Session, message and token windows have different semantics, so the fix is one
+  query-context module in `scope.ts` that hands an engine its scope, minor and range fragments together.
+- F8: extract the shared aggregates into the engine; the project route keeps its session list and Git data.
+- F11: normalise scan and parse first; do not force one live-tail shape on stores that differ (JSONL vs SQLite).
+- F12: consolidate the two server TTL helpers only; the client cache stays separate.
+- F13: `createApp()` is not enough on its own; database open and migrations must become an explicit call too.
+- F17: the view log is also reachable through Ask's read-only handle, not only Settings.
+- F21: prefer interface tests when deepening; do not make "no test-only exports" a rule.
+
+Codex added three findings. Two stand, one is settled elsewhere:
+
+**F22. Deleting the original transcript.** `DELETE /sessions/:id/source-file` and `?source=1` on session delete
+unlink the tool's own transcript, irreversibly. Plain words: the session manager can erase the file it was built to
+read, with no trash. Options: remove the feature and keep only "remove Chronicle's copy"; or move the file to the OS
+trash. **Chi**, medium.
+
+**F23. Route contracts have no single owner.** Client reads go through `api.ts`, but `SecurityCheck.tsx` and
+`SessionView.tsx` also call `fetch` directly with their own copies of the response shapes. Folded into F10: the shared
+response types plus one client fetch module.
+
+Not taken: Codex flagged Ask as breaking the local-only story (the question and query results go to `claude -p`, and
+up to 500 turns of history are kept locally). Chi settled Ask in #177 (keep, off by default, subscription only) and
+ADR 0007 records the boundary. The history file is worth one line on the privacy page; no new finding.
+
+Codex's top five by value per effort: F1, F6, F3, F15, F22. This audit's ordering agrees on the first three and puts
+F4 and F7 next, since they unblock F8, F9 and F11.
