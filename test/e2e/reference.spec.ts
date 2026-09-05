@@ -16,7 +16,7 @@ test.describe('/reference', () => {
   test('is reachable with no hub, from the sb-bottom util group', async ({ page }) => {
     await page.goto(state.baseURL + '/');
     // Stock install: no hub, so the ops nav is absent but Reference is present.
-    await expect(page.locator('.sidebar .sb-item[title="Modules"]')).toHaveCount(0);
+    await expect(page.locator('.sidebar .sb-item[title="Safety"]')).toHaveCount(0);
     const ref = page.locator('.sidebar .sb-bottom .sb-item[title="Reference"]');
     await expect(ref).toHaveCount(1);
     await ref.click();

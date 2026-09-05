@@ -22,10 +22,7 @@
 | `/project/:id` (`/explore`, `/content`) | Project analytics — Overview / Explore / Content / Sessions | `src/ProjectDetail.tsx` |
 | `/session/:id` | Session view — Overview / Playback / Refine + Security Check | `src/SessionView.tsx` |
 | `/insights` | **Redirect only** → `/` (preserves a `?tab=` deep-link: `/insights?tab=explore` → `/?tab=explore`) | `src/App.tsx` |
-| `/modules` | **Ops surface (hub-conditional).** The hub `## Modules` registry + a read-only snapshot of each module's `product-contract.md`: a table (Module / Tier / Purpose / Project / Contract-status badge) + a detail panel showing the selected contract's markdown. Rendered ONLY when `/api/hub/status` reports present (live or demo); hidden + unreachable when absent. | `src/ModulesPage.tsx` |
-| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + controls over the hub's gate-config surfaces (every one of which cards, always) + the write log: every gate write, newest first, with Undo. Same hub-conditional gating as `/modules`. | `src/SafetyPage.tsx` |
-| `/jobs` | **Ops surface (hub-conditional).** Every scheduled thing on the machine in one list (launchd + cron + hub registry + repo templates) with live state, a log-tail drill-in, and cardless pause/resume via the gate's `launchd-jobs` surface (a protected job still cards). Chronicle's own templates ship DORMANT (install via `scripts/install-jobs.mjs`); demo shows synthetic jobs and the gate is inert. | `src/JobsPage.tsx` |
-| `/records` | **Ops surface (hub-conditional).** The append-only hub records, via the `records()` adapter slice. A record-TYPE switcher (boxed tabs) whose ONLY current type is **Sessions** (`records/sessions.jsonl`): a table Date · Session ID · Repo · Focus, newest first, text filter + repo chips, click-to-extend, NO rangebar; imported session ids link to `/session/:id`, else plain mono. Future types (decisions, wiki sources, contacts/operations) are switcher stubs only. Same hub-conditional gating as the other ops surfaces. | `src/RecordsPage.tsx` |
+| `/safety` | **Ops surface (hub-conditional).** A descriptive read of the connected hub's egress/safety posture + controls over the hub's gate-config surfaces (every one of which cards, always) + the write log: every gate write, newest first, with Undo. Same hub-conditional gating as the other ops surfaces. | `src/SafetyPage.tsx` |
 | `/reference` | **The unified reference. NOT hub-conditional** (product vocabulary, not hub data), so a stock public install has it. Every metric and term on the console, rendered from `src/reference/definitions.ts`, the SAME registry every `<InfoTip def=...>` reads, so the page cannot drift from the surfaces. Search box + `page`-grouped definition list in the `.card`/`.eyebrow` grammar; each entry is deep-linkable (`/reference#def-<id>`) and each InfoTip carries a `full definition →` link to its own anchor. Ends with a **`Retired`** group holding definitions for surfaces that were dropped (pinned panels, peek drill, the old burn tile, and the whole Memory vocabulary retired by the shrink). | `src/ReferencePage.tsx` |
 | `/ask` | **Ask: NOT hub-conditional — gated on the Settings `ask` toggle AND the claude CLI being present AND a non-demo console, all decided server-side by `/api/ask/status` (`enabled = toggleOn && claudePresent && !demo`).** One conversation column: eyebrow `ASK`, day dividers, right-aligned questions, answer cards (prose + full-width result table + `SQL ▸` expander + cost-basis label + a `re-ask under {other basis}` action), a bottom input bar, and a "nothing leaves your machine" footer. Durable local history at `~/.chronicle/ask-history.jsonl` (newest 500). Each answer is produced by an operator-initiated local `claude -p` spawn confined to EXACTLY ONE tool — a read-only, SELECT-only query server over `chronicle.db` (`--tools "" --allowedTools mcp__chronicledb__query --strict-mcp-config`; the read-only handle is the hard guarantee). Dollar figures use the two deduped cost surfaces (`session_model_cost` reconciles with the Insights dashboards) so `/ask` never contradicts the dashboards. Renders the page ONLY when enabled; otherwise the route fails soft (a "not available" message). Demo refuses `POST /api/ask` with 409 like every runner. | `src/AskPage.tsx` |
 
@@ -49,7 +46,7 @@ drag-resizable when expanded. Contents, top to bottom:
   but NOT on the Insights hub.
 - **`sb-top` ops nav — hub-conditional.** After Projects, the ops items render ONLY when
   `/api/hub/status` reports present (live or demo); ALL hidden when the hub is absent, in order:
-  **Modules (`▦`)** · **Safety (`⊘`)** · **Jobs (`⧗`)** · **Records (`≡`)**. So on a stock public install with no hub, `sb-top` is exactly Insights +
+  **Safety (`⊘`)**. So on a stock public install with no hub, `sb-top` is exactly Insights +
   Projects; with a hub or in demo it also carries the ops items. See the "ops routes are
   hub-conditional" enumerable below.
 - **Session modes** — appear in `sb-top` ONLY while a session is open, published up from
@@ -87,7 +84,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 | | Surfaces |
 |---|---|
-| `--page-max` | `/safety`, `/modules`, `/jobs`, `/records`, `/reference` |
+| `--page-max` | `/safety`, `/reference` |
 | full bleed (no cap) | `/`, `/projects`, `/project/:id`, `/session/:id` — dashboards, where density IS the point |
 
 **Prose carries its own `ch` measure cap** so a wide frame never means a 200-character line
@@ -95,9 +92,6 @@ constant; readability is solved on the TEXT, not by moving the frame.
 
 **A surface must FILL its width.** Two rules:
 
-- **Never reserve space for something that is not there.** `/modules`' `1.4fr | 1fr` table/detail
-  split applies ONLY when a module is selected (`.modules-layout.split`); with none selected the
-  table fills the width.
 - **When the natural measure is narrower than the frame, add COLUMNS, do not stretch lines.**
   `/reference` definitions read at ~70ch, so the list is a two-column GRID of bounded tiles
   (`repeat(auto-fill, minmax(400px, 1fr))`), collapsing to one column below ~840px. Each definition
@@ -130,7 +124,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `spec/design-qa-rubric.md`): `⌕`=search `⧖`=time `◫`=project `▤`=chat/session
   `⬚`=session-Overview-mode (sidebar only) `◈`=security `⚙`=settings `⌫`=destructive `✕`=close
   `∑`=insights (the sidebar Insights item) `⊞`=feedback `◷`=brand `⎇`=git branch
-  `▦`=modules `⊘`=safety `⧗`=jobs `≡`=records `※`=reference. `⌂`=Home is
+  `⊘`=safety `※`=reference. `⌂`=Home is
   retired from chrome and does not appear anywhere in `src/`. Per-surface: `/` hub tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
   - **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use` to
@@ -139,14 +133,13 @@ constant; readability is solved on the TEXT, not by moving the frame.
   band and the Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST
   element inside the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the
   KPI strip".
-- **Ops routes are hub-conditional.** The ops surfaces (Modules `/modules`, Safety / Jobs /
-  and Records `/records`) and their `sb-top` nav items render ONLY when
+- **Ops routes are hub-conditional.** The Safety ops surface (`/safety`) and its
+  `sb-top` nav item render ONLY when
   `GET /api/hub/status` reports `present` (mode `live` or `demo`); when the hub is `absent` they
   are hidden and their routes fail soft (the page shows a "no hub connected" line, never a broken
   view). This is why a stock public install (no hub) still shows exactly Insights + Projects in
-  `sb-top`. Guard: `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the
-  API returns the absent sentinel" (absent) + "ops nav shows Modules and the page lists the
-  synthetic modules" (demo). The demo walk pass screenshots the rendered surfaces.
+  `sb-top`. Guard: `test/e2e/ops-safety.spec.ts`. The demo walk pass screenshots the rendered
+  surface.
 
 ## Per-surface content inventory (what each surface MUST show)
 
@@ -351,22 +344,6 @@ never switches on a characteristic's `key`):
   active, not a binary flag). `cacheEfficiency` / `subagentTurns` / `workflowRuns` carry over
   unchanged — real, non-binary percentages even for one session.
 
-### `/modules` — ops surface (hub-conditional, `ModulesPage.tsx`)
-
-Reading order: eyebrow `MODULES · N` + one-line lede → a registry table → a contract detail panel.
-- **Registry table** columns, in order: Module (name, bold) · Tier · Purpose · Project · Contract
-  (status badge). One row per module in the hub's `## Modules` table (operations.md), parsed by
-  header name. Rows with no Module cell are dropped.
-- **Contract status badge** = `full` / `grandfathered` (both green, contract readable) · `pending`
-  (warn, cell was `(pending CHI-NNN)`) · `n/a` (muted, unreadable/out-of-policy). A contract is
-  read ONLY from a path named `product-contract.md` that does not pass through
-  the hub's confidential trees — any other path degrades to `n/a`, never read.
-- **Contract detail** (right, appears on row select): the module name + status badge, then the
-  snapshotted `product-contract.md` markdown in a mono block (read-only, scrolls). Pending/
-  unreadable contracts show a one-line reason instead.
-- **Absent/empty states**: reached with no hub → "no hub connected" line; hub present but no
-  `## Modules` table → "no module registry found" line. Never a blank or broken page.
-
 ### `/safety` — ops surface (hub-conditional, `SafetyPage.tsx`)
 
 Reading order: eyebrow `SAFETY` + lede → posture tiles → push posture → gate controls → write log →
@@ -411,48 +388,6 @@ accepted-gaps register.
 - **Demo**: posture shows synthetic data; the gate is INERT for writes (all surfaces unavailable,
   propose/apply 409), so a demo never touches real machine state (hub config files, scheduled jobs).
 
-### `/jobs` — ops surface (hub-conditional, `JobsPage.tsx`)
-
-Reading order: eyebrow `JOBS · N` + per-source counts → jobs table.
-- **Table** columns: Job (name + description + agent/model) · Source (launchd / cron / registry /
-  repo-template) · Schedule · Status badge · Last run · actions.
-- **Status badge**: success/running (green) · failed (danger) · stale/paused (warn) ·
-  pending/disabled/not-installed (muted). Registry heartbeat health (stale/failed) outranks a
-  launchd exit of 0.
-- **Actions**: a Log button (only when the job declares a log path) opens a modal tailing the last
-  ~100 lines of exactly the paths the slice declared (the browser never sends a path). launchd jobs
-  get Pause / Resume through the gate's `launchd-jobs` surface. This applies WITHOUT a card
-  (the plist is never edited, so resume restores exactly the installed schedule) and reports the
-  new state inline; pausing a job whose label
-  reads as enforcement, reporting, or the approval channel (`PROTECTED_JOB_PATTERNS`, matched as
-  case-insensitive substrings by FUNCTION, never by a specific machine's job names) still shows the
-  card, because pausing those disables enforcement or the channel every remaining card travels on.
-  Operators extend the set additively at `~/.chronicle/protected-jobs.json`; nothing there can
-  remove a shipped pattern. A `not-installed`
-  repo-template shows the CLI install hint (`node scripts/install-jobs.mjs`) — Chronicle's own job
-  templates ship DORMANT (never auto-installed, so no duplicate daily run).
-- **Demo**: synthetic jobs (no real machine scan); the gate is inert so Pause/Resume 409s.
-
-
-### `/records` — ops surface (hub-conditional, `RecordsPage.tsx`)
-
-The append-only hub records, via the `records()` adapter slice (reads `records/*.jsonl`). The surface
-is a record BROWSER, not one ledger.
-
-Reading order: eyebrow `RECORDS` + a record-TYPE switcher (boxed `.tabs` chrome) → the active
-type's table.
-- **Type switcher**: exactly ONE type ships, **Sessions**. Future types (Decisions from
-  `records/decisions.jsonl`; Wiki sources; contacts/operations) are each a switcher entry + a
-  contract line with ZERO new IA — do NOT build them.
-- **Sessions type** (`records/sessions.jsonl`): a table **Date · Session ID · Repo · Focus**,
-  newest first, NO rangebar. A text filter + repo chips. Click-to-extend `N more` (window-btn
-  pattern). The session id renders as its FULL id (never truncated); clicking it copies the full id
-  to the clipboard (brief `copied` feedback) — a copy affordance, not a link, so a non-imported id
-  is never a dead link.
-- **Hub-conditional**: same wholesale nav toggle as the other ops organs — the `≡ Records` nav item
-  + route render only when `/api/hub/status` reports present (live or demo), hidden when absent.
-- **Demo**: synthetic session-ledger rows from the demo `records()` slice.
-
 ### Settings modal (`SettingsModal`, `src/App.tsx`)
 
 Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
@@ -468,9 +403,6 @@ when empty and is absent in demo (demo never records).
 | Enumerable / shape fact | Guarding test |
 |---|---|
 | Sidebar = exactly Insights + Projects, no Home entry, no `⌂` (hub ABSENT — the default e2e harness) | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
-| Ops nav (Modules) hidden + `/api/hub/modules` absent-sentinel when the hub is absent | `test/e2e/ops-modules.spec.ts` — "the Modules nav item is not rendered and the API returns the absent sentinel" |
-| `/modules` renders the registry table + contract detail from the hub (demo synthetic) | `test/e2e/ops-modules.spec.ts` — "ops nav shows Modules and the page lists the synthetic modules with a contract detail" |
-| Modules slice reads only `product-contract.md`, refuses confidential-tree paths | `test/hub-modules.test.mjs` (node) — parseContractCell refusal cases + parseModulesTable |
 | Safety nav hidden + `/api/hub/safety` absent-sentinel when the hub is absent | `test/e2e/ops-safety.spec.ts` — "no Safety nav item; /api/hub/safety returns the absent sentinel" |
 | `/safety` posture tiles + accepted-gaps render (demo); gate controls inert in demo | `test/e2e/ops-safety.spec.ts` — "posture tiles + accepted-gaps render; gate controls are read-only in demo" |
 | The briefing, the launcher and the scope-suggest routes are unmounted (404); `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
@@ -479,10 +411,6 @@ when empty and is absent in demo (demo never records).
 | Confidential marker drill-down is 403 by default (never served on the public build) | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` — confidentialMarkersEnabled gating |
 | Safety slice emit-allowlist (no innocuous-key creds leak), markers as COUNTS only | `test/hub-safety.test.mjs` (node) — allowlist + planted-secret + counts assertions |
 | Gap launcher refuses demo (409); prompt built server-side | `test/e2e/ops-safety.spec.ts` + `test/hub-safety.test.mjs` |
-| Jobs nav hidden + `/api/hub/jobs` absent-sentinel when the hub is absent | `test/e2e/ops-jobs.spec.ts` — "no Jobs nav item; /api/hub/jobs returns the absent sentinel" |
-| `/jobs` unified list (launchd/cron/registry/template) + log-tail drill-in (demo) | `test/e2e/ops-jobs.spec.ts` — list renders + log drill-in tails the declared log |
-| Job log tail opens only declared paths (browser sends id, never a path); tail-capped | `test/hub-jobs.test.mjs` (node) — job-logs reads only the declared path + TAIL_LINES |
-| Pause/resume refused in demo (gate inert) | `test/e2e/ops-jobs.spec.ts` — "pause is refused in demo" |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
 | Ask gating formula `enabled === toggleOn && claudePresent && !demo` never drifts | `test/e2e/ask.spec.ts` — the formula assertion in both describes |
 | `POST /api/ask` refused with 409 in demo; `∴ Ask` never shows in demo | `test/e2e/ask.spec.ts` — "POST /api/ask returns 409 (nothing spawns)" |
@@ -521,8 +449,6 @@ when empty and is absent in demo (demo never records).
 | Monthly budget is server-backed: the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once) | `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
 | Sessions tab = count line + 2-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend | `test/e2e/sessions-tab.spec.ts` — "Sessions tab two-up aggregates + one flat table" |
 | Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
-| Records nav hidden + `/api/hub/records` absent-sentinel when the hub is absent | `test/e2e/ops-records.spec.ts` — "no Records nav item; /api/hub/records returns the absent sentinel" |
-| `/records` renders the sessions-type table (Date / Session ID / Repo / Focus) from the hub (demo); type switcher present | `test/e2e/ops-records.spec.ts` + `test/hub-records.test.mjs` — records slice parse + newest-first + imported-id link |
 | Explore dimensions include `mcp` (per-server, calibrated) + `provider` (model vendor) | `test/explore-mcp-provider.test.mjs` (node) — mcp derivation + provider mapping + calibrated flag |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card | `test/e2e/content-characteristics.spec.ts` |

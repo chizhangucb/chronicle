@@ -678,21 +678,6 @@ export interface HubStatus {
   root?: string | null;
   reason?: string;
 }
-export interface ModuleContractView {
-  status: 'full' | 'pending' | 'grandfathered';
-  raw: string;
-  pendingTicket: string | null;
-  path: string | null;
-  available: boolean;
-  markdown: string | null;
-}
-export interface ModuleRowView {
-  name: string; tier: string; purpose: string; prdHome: string; project: string;
-  contract: ModuleContractView;
-}
-export interface ModulesSliceView { found: boolean; rows: ModuleRowView[] }
-// The route sends the slice when the hub is present, or this sentinel when absent.
-export type ModulesResult = ModulesSliceView | { hubPresent: false };
 
 // Safety (organ 1d)
 export interface SafetyNetView {
@@ -745,30 +730,6 @@ export interface SafetyResult {
 }
 export type HubSafetyResult = SafetyResult | { hubPresent: false };
 
-// Jobs (organ 1e)
-export type JobSource = 'launchd' | 'cron' | 'registry' | 'repo-template';
-export type JobStatus = 'success' | 'failed' | 'stale' | 'pending' | 'running' | 'not-installed' | 'disabled' | 'paused';
-export interface JobRowView {
-  id: string; name: string; source: JobSource; schedule: string; scheduleKind: string;
-  nextRun: string | null; lastRun: string | null; lastRunAt: string | null; status: JobStatus;
-  lastExit: number | null; runner: string | null; model: string | null; agent: string | null;
-  project: string | null; projectPath: string | null; command: string; logPath: string | null;
-  errLogPath?: string | null; missingPath?: string | null; description?: string | null; meta?: string;
-}
-export interface JobsSliceView { scannedAt: string; sources: Record<JobSource, number>; jobs: JobRowView[] }
-export type HubJobsResult = JobsSliceView | { hubPresent: false };
-
-// Records (CHI-324 2h) — the append-only hub records, index fields only.
-export interface RecordsLedgerRowView { date: string; sessionId: string; focus: string; repo: string | null }
-export interface RecordsDecisionView { date: string | null; title: string }
-export interface RecordsSliceView {
-  found: boolean;
-  decisions: { total: number; recent: RecordsDecisionView[] };
-  ledger: { total: number; recent: RecordsLedgerRowView[]; rows: RecordsLedgerRowView[] };
-}
-export type HubRecordsResult = RecordsSliceView | { hubPresent: false };
-export interface LogTailView { path: string; exists: boolean; lines: string[]; truncated: boolean }
-export interface JobLogResult { id: string; stdout: LogTailView | null; stderr: LogTailView | null }
 
 
 export const api = {
@@ -811,11 +772,7 @@ export const api = {
   runAutosync: (): Promise<AutosyncStatus['lastResult']> => j('/api/autosync/run', { method: 'POST' }),
   // Hub adapter (CHI-323): ops surfaces read these. status gates all ops nav.
   hubStatus: (): Promise<HubStatus> => j('/api/hub/status'),
-  hubModules: (): Promise<ModulesResult> => j('/api/hub/modules'),
   hubSafety: (): Promise<HubSafetyResult> => j('/api/hub/safety'),
-  hubJobs: (): Promise<HubJobsResult> => j('/api/hub/jobs'),
-  hubRecords: (): Promise<HubRecordsResult> => j('/api/hub/records'),
-  jobLog: (id: string): Promise<JobLogResult | { hubPresent: false }> => j(`/api/jobs/log?id=${encodeURIComponent(id)}`),
   // /ask (CHI-351)
   askStatus: (): Promise<AskStatus> => j('/api/ask/status'),
   askHistory: (): Promise<{ turns: AskTurn[] }> => j('/api/ask/history'),

@@ -22,7 +22,7 @@ const css = readSource(
 /** Every non-dashboard surface. Dashboards are full bleed and carry no cap. */
 const FRAMED = [
   '.safety-page',
-  '.modules-page', '.jobs-page', '.records-page', '.reference-page',
+  '.reference-page',
 ];
 
 test('the page-width token is defined once', () => {
@@ -44,6 +44,6 @@ test('every framed page uses the token, never a raw pixel width', () => {
 test('prose blocks keep their own measure cap', () => {
   // A wide frame must never mean a 200-character line: readability is solved on
   // the TEXT, which is what lets the frame stay constant.
-  assert.match(css, /\.modules-purpose \{[^}]*max-width:\s*\d+ch/);
   assert.match(css, /\.reference-page \.ref-intro \{[^}]*max-width:\s*\d+ch/);
+  assert.match(css, /\.settings-block p \{[^}]*max-width:\s*\d+ch/);
 });

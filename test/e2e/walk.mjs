@@ -62,17 +62,17 @@ function parseCliArgs() {
 // complete (if mostly-errored) report rather than crashing.
 async function discoverContext(base) {
   const ctx = { projectId: null, sessionId: null, hubPresent: false, hubMode: 'absent', notes: [] };
-  // Hub adapter status (CHI-323): the ops routes (/modules, /safety, /jobs)
-  // render only when the hub is present (live or demo). A
-  // walk against a stock no-hub instance simply omits them; run the walk against
-  // a CHRONICLE_DEMO=1 (or live-hub) server to cover them.
+  // Hub adapter status (CHI-323): the /safety ops route renders only when the
+  // hub is present (live or demo). A walk against a stock no-hub instance simply
+  // omits it; run the walk against a CHRONICLE_DEMO=1 (or live-hub) server to
+  // cover it.
   try {
     const res = await fetch(`${base}/api/hub/status`);
     if (res.ok) {
       const s = await res.json();
       ctx.hubPresent = s.present === true;
       ctx.hubMode = s.mode ?? 'absent';
-      if (!ctx.hubPresent) ctx.notes.push('hub absent -> ops routes (modules/safety/jobs) skipped; run against CHRONICLE_DEMO=1 to cover them');
+      if (!ctx.hubPresent) ctx.notes.push('hub absent -> the /safety ops route skipped; run against CHRONICLE_DEMO=1 to cover it');
     }
   } catch (err) {
     ctx.notes.push(`hub status probe failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -262,36 +262,10 @@ function buildRoutes(base, ctx) {
   // to cover them.
   if (ctx.hubPresent) {
     routes.push({
-      slug: 'modules',
-      async setup(page) {
-        await page.goto(`${base}/modules`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('.modules-page, .page.center', { timeout: NAV_TIMEOUT_MS });
-      },
-    });
-    routes.push({
       slug: 'safety',
       async setup(page) {
         await page.goto(`${base}/safety`, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('.safety-page, .page.center', { timeout: NAV_TIMEOUT_MS });
-      },
-    });
-    routes.push({
-      slug: 'jobs',
-      async setup(page) {
-        await page.goto(`${base}/jobs`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('.jobs-page, .page.center', { timeout: NAV_TIMEOUT_MS });
-      },
-    });
-    routes.push({
-      slug: 'records',
-      async setup(page) {
-        // CHI-369: /records was missing from the walk. Wait on `.records-page`
-        // (present once the hub records load) — NOT `.records-table`, which is
-        // absent when the ledger is empty (RecordsPage renders `.records-empty`
-        // instead) or when no hub is connected (`.page center`). The route is
-        // hub-gated above, so `.records-page` is the reliable settled marker.
-        await page.goto(`${base}/records`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('.records-page, .page.center', { timeout: NAV_TIMEOUT_MS });
       },
     });
   }

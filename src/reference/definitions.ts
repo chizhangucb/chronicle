@@ -25,7 +25,7 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'safety' | 'jobs' | 'records' | 'modules'
+  | 'safety'
   | 'ask' | 'settings'
   | 'retired';
 
@@ -47,7 +47,7 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'safety', 'jobs', 'records', 'modules',
+  'safety',
   'ask', 'settings', 'retired',
 ];
 
@@ -60,9 +60,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   projects: 'Projects',
   session: 'Session view',
   safety: 'Safety',
-  jobs: 'Jobs',
-  records: 'Records',
-  modules: 'Modules',
   ask: 'Ask',
   settings: 'Settings',
   retired: 'Retired (kept for the vocabulary)',
@@ -295,36 +292,6 @@ export const DEFINITIONS: Definition[] = [
     title: 'Routing roster',
     plain: () => 'The trust policy from your hub’s governance/routing.md: which external models are allowed, at what trust level (no-train means the destination must not train on your data), through which billing lane. Hand-curated, so a model only appears once it has been reviewed.',
   },
-  {
-    id: 'jobs.states',
-    page: 'jobs',
-    title: 'Job states',
-    plain: () => 'running and success are healthy; due means the scheduled time passed without a recorded run. failed and stale need a look, paused means unloaded until you resume it, and not-installed means this repo ships the job but this machine does not run it.',
-  },
-  {
-    id: 'jobs.sources',
-    page: 'jobs',
-    title: 'Where jobs come from',
-    plain: () => 'launchd is how macOS schedules background work; crontab is the classic Unix scheduler (0 is normal on a Mac). Hub registry is what your automations registry declares should exist; repo templates are jobs a repo ships but that are not installed here.',
-  },
-  {
-    id: 'jobs.pause',
-    page: 'jobs',
-    title: 'Pause and resume',
-    plain: () => 'Pause unloads a job from launchd so it stops running; resume loads it again with exactly the installed schedule. Both go through the confirm card and are audited; the plist file is never edited.',
-  },
-  {
-    id: 'records.append-only',
-    page: 'records',
-    title: 'Append-only records',
-    plain: () => 'The hub’s records are append-only logs: rows are added, never edited in place. Chronicle reads index fields only (date, id, repo, focus) and never the body of a decision.',
-  },
-  {
-    id: 'modules.contract-status',
-    page: 'modules',
-    title: 'Contract status',
-    plain: () => 'Whether the module ships a product-contract.md and whether Chronicle could read it. This is a presence check on the file, not a judgment about the contract’s content.',
-  },
 
   // ---- Ask ----
   {
@@ -459,10 +426,28 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'A button on Safety that opened a Terminal with a review prompt typed but unsubmitted. Removed: Chronicle no longer launches other programs.',
   },
   {
+    id: 'retired.modules-page',
+    page: 'retired',
+    title: 'Modules (retired)',
+    plain: () => 'A page that listed the software modules described in a connected operations folder, with each module’s tier, purpose and a read-only view of its contract document. Removed because Chronicle no longer reads another project’s files. Nothing replaces it.',
+  },
+  {
+    id: 'retired.jobs-page',
+    page: 'retired',
+    title: 'Jobs (retired)',
+    plain: () => 'A page that listed every scheduled task on the machine (launchd, crontab, registry entries and repo templates) with its live state, a log tail and pause/resume. Removed because scheduling other people’s work was never part of reading your coding sessions. Use the scheduler your machine already ships.',
+  },
+  {
+    id: 'retired.records-page',
+    page: 'retired',
+    title: 'Records (retired)',
+    plain: () => 'A page that read an append-only session ledger and decision log kept outside Chronicle, showing date, session id, repo and focus. Removed with the rest of the external-folder coupling; Chronicle’s own Sessions tab covers the sessions it imported.',
+  },
+  {
     id: 'retired.nisse-upsell',
     page: 'retired',
     title: 'Nisse coupling',
-    plain: () => 'Not retired: the ops surfaces (Safety, Jobs, Records, Modules) light up when a nisse-format hub is present and are hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
+    plain: () => 'Not retired: the Safety ops surface lights up when a nisse-format hub is present and is hidden when it is absent. This entry exists because the vocabulary is easy to meet before the panels appear.',
   },
 ];
 

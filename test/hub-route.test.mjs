@@ -100,3 +100,23 @@ test('clearing hubRoot returns to absent but keeps other keys', async () => {
   assert.equal(cfg.autoSync, false); // preserved through the clear
   assert.equal((await status()).mode, 'absent');
 });
+
+// #218 regression pin (#215 Testing Decisions: "assertions that every removed
+// route path returns 404"). The Modules, Jobs and Records surfaces are gone;
+// their slice routes must be UNMOUNTED, not merely returning an absent
+// sentinel. A sentinel would mean the route is still there and the page could
+// be revived by re-adding a component. Asserted with a hub CONFIGURED, so a
+// 404 cannot be an accident of the absent-hub guard.
+test('the removed Modules/Jobs/Records routes are unmounted, not sentinel-guarded', async () => {
+  await setHub(hub);
+  assert.equal((await status()).present, true, 'guard: the hub must be live for this to prove anything');
+
+  for (const route of ['/hub/modules', '/hub/jobs', '/hub/records', '/jobs/log?id=anything']) {
+    const res = await fetch(`${baseUrl}${route}`);
+    assert.equal(res.status, 404, `${route} must 404, not answer`);
+  }
+
+  // The surviving slice route still answers on the same live hub, so the 404s
+  // above are the removal and not a broken mount.
+  assert.equal((await fetch(`${baseUrl}/hub/safety`)).status, 200);
+});

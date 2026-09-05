@@ -9,10 +9,7 @@ import SessionView from './SessionView.jsx';
 import SearchModal from './SearchModal.tsx';
 import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
-import ModulesPage from './ModulesPage.tsx';
 import SafetyPage from './SafetyPage.tsx';
-import JobsPage from './JobsPage.tsx';
-import RecordsPage from './RecordsPage.tsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
 import { useHubStatus } from './useHubStatus.ts';
@@ -73,10 +70,7 @@ export default function App() {
   const [atInsights] = useRoute('/insights');
   // Ops routes (CHI-323) are hub-conditional: rendered only when the hub adapter
   // reports present (live or demo). Hidden + unreachable when absent.
-  const [atModules] = useRoute('/modules');
   const [atSafety] = useRoute('/safety');
-  const [atJobs] = useRoute('/jobs');
-  const [atRecords] = useRoute('/records');
   const [atAsk] = useRoute('/ask');
   // Reference (CHI-325 3b, D4): product vocabulary, NOT hub-conditional, so a
   // stock public install with no hub still has it.
@@ -209,27 +203,9 @@ export default function App() {
           {/* Ops nav (CHI-323): hub-conditional. Rendered only when the hub is
               present (live or demo); hidden when absent. Enumerable: spec/surface-contract.md */}
           {hubPresent && (
-            <button className={`sb-item ${atModules && !rail ? 'on' : ''}`} title={t('Modules')}
-              onClick={() => navigate('/modules')}>
-              <span className="sb-icon">▦</span><span className="sb-label">{t('Modules')}</span>
-            </button>
-          )}
-          {hubPresent && (
             <button className={`sb-item ${atSafety && !rail ? 'on' : ''}`} title={t('Safety')}
               onClick={() => navigate('/safety')}>
               <span className="sb-icon">⊘</span><span className="sb-label">{t('Safety')}</span>
-            </button>
-          )}
-          {hubPresent && (
-            <button className={`sb-item ${atJobs && !rail ? 'on' : ''}`} title={t('Jobs')}
-              onClick={() => navigate('/jobs')}>
-              <span className="sb-icon">⧗</span><span className="sb-label">{t('Jobs')}</span>
-            </button>
-          )}
-          {hubPresent && (
-            <button className={`sb-item ${atRecords && !rail ? 'on' : ''}`} title={t('Records')}
-              onClick={() => navigate('/records')}>
-              <span className="sb-icon">≡</span><span className="sb-label">{t('Records')}</span>
             </button>
           )}
           {rail && (
@@ -334,10 +310,7 @@ export default function App() {
             onOpenSession={(sid: string) => navigate(`/session/${encodeURIComponent(sid)}`)}
             onImport={() => setWizardOpen(true)} onRefresh={refresh} />
         )}
-        {atModules && <ModulesPage />}
         {atSafety && <SafetyPage />}
-        {atJobs && <JobsPage />}
-        {atRecords && <RecordsPage />}
         {atReference && <ReferencePage />}
         {atAsk && (askEnabled
           ? <AskPage />

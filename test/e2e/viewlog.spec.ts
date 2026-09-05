@@ -100,7 +100,7 @@ test.describe('demo: usage is never recorded', () => {
 
   test('navigating a demo console writes zero rows', async ({ page }) => {
     await page.goto(demo.baseURL + '/');
-    await page.goto(demo.baseURL + '/jobs');
+    await page.goto(demo.baseURL + '/safety');
     await page.goto(demo.baseURL + '/');
     // Not "eventually zero": zero, always. Demo usage is not usage, and it is
     // dropped at write time rather than filtered at read time.

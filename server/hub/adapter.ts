@@ -6,26 +6,22 @@
 // own file-state freshness (freshness.ts). The surface contract pins each slice
 // independently and phases 2-3 compose without a giant shared object.
 //
-// Slice methods are added to `HubAdapter` as their organ lands (1c Modules,
-// 1d Safety, 1e Jobs). Phase 1a establishes the
+// Slice methods are added to `HubAdapter` as their organ lands. Phase 1a
+// establishes the
 // interface + `status()` + the three implementations + the factory, so every
 // organ just plugs a method into Live/Demo and the route wiring already exists.
 import { resolveHub, type HubMode, type HubHandle } from './resolve.ts';
-import { collectModules, type ModulesSlice } from './slices/modules.ts';
 import { collectSafetyNet, type SafetyNetSlice } from './slices/safetynet.ts';
 import { collectEgress, type EgressSlice } from './slices/egress.ts';
 import { collectSafetyGaps, type SafetyGapsSlice } from './slices/gaps.ts';
 import { collectGatingPolicy, type GatingPolicySlice } from './slices/gatingpolicy.ts';
 import { readConfidentialMarkers, type ConfidentialMarkerCategory } from './slices/confidential.ts';
-import { collectJobs, type JobsSlice } from './slices/jobs.ts';
-import { collectRecords, EMPTY_RECORDS, type RecordsSlice } from './slices/records.ts';
-import { collectAutomations } from './slices/automations.ts';
 import { collectCodegraphs, type DashGraphEntry } from './slices/codegraph.ts';
 import { loadConfidentialSegments, ConfidentialPolicyUnavailable } from './confidential-segments.ts';
 import { freshSliceAsync, treeMaxMtimeMs } from './freshness.ts';
 import { join } from 'node:path';
-import { safetyGapsRegisterPath, packageRoot } from './paths.ts';
-import { DEMO_MODULES, DEMO_SAFETYNET, DEMO_EGRESS, DEMO_GATINGPOLICY, DEMO_JOBS, DEMO_RECORDS, demoCodegraphs } from './demo.ts';
+import { safetyGapsRegisterPath } from './paths.ts';
+import { DEMO_SAFETYNET, DEMO_EGRESS, DEMO_GATINGPOLICY, demoCodegraphs } from './demo.ts';
 
 // The HEAVY slice re-checks freshness at most this often (a stat-walk over
 // every built graph is not free); inside the window the cached value is served
@@ -44,8 +40,6 @@ export interface HubStatus {
 export interface HubAdapter {
   /** Cheap, always available. The client gates all ops nav on this. */
   status(): HubStatus;
-  /** Modules registry + snapshotted product contracts (organ 1c). */
-  modules(): ModulesSlice;
   /** Egress-gate posture, emit-allowlisted, markers as counts (organ 1d). */
   safetyNet(): SafetyNetSlice;
   /** Egress kill-switch on/off (organ 1d). */
@@ -58,17 +52,10 @@ export interface HubAdapter {
   /** Raw confidential marker phrases (organ 1d) — HARD-GATED at the route (D8);
    * the adapter only reads, the route decides whether it may be served. */
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] };
-  /** Scheduled jobs: launchd + cron + hub registry + repo templates (organ 1e). */
-  jobs(): JobsSlice;
-  /** Append-only hub records (CHI-324): decisions + session ledger, index
-   * fields only (never the decision body). LIGHT slice, read fresh. */
-  records(): RecordsSlice;
   /** Built code graphs (graphs/index.json + per-graph god-nodes) (organ 1g).
    * HEAVY: freshness-cached. */
   codegraphs(): Promise<DashGraphEntry[]>;
 }
-
-const EMPTY_JOBS: JobsSlice = { scannedAt: '', sources: { launchd: 0, cron: 0, registry: 0, 'repo-template': 0 }, jobs: [] };
 
 /** Live hub: reads a real nisse-format hub at `root`. */
 export class LiveHubAdapter implements HubAdapter {
@@ -76,17 +63,6 @@ export class LiveHubAdapter implements HubAdapter {
   constructor(root: string) { this.root = root; }
   status(): HubStatus {
     return { present: true, mode: 'live', root: this.root };
-  }
-  // Modules is a LIGHT slice: read fresh per request (a handful of file reads),
-  // no on-disk cache. The heavy slice (codegraphs) uses freshness.ts.
-  modules(): ModulesSlice {
-    let segs: Set<string>;
-    try { segs = loadConfidentialSegments(this.root); }
-    catch (e) {
-      if (e instanceof ConfidentialPolicyUnavailable) return { found: false, rows: [] };
-      throw e;
-    }
-    return collectModules(this.root, segs);
   }
   safetyNet(): SafetyNetSlice {
     return collectSafetyNet(this.root);
@@ -103,15 +79,6 @@ export class LiveHubAdapter implements HubAdapter {
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return readConfidentialMarkers(this.root);
   }
-  // Scans the REAL machine (launchd/cron) enriched by the hub registry +
-  // Chronicle's shipped-but-dormant templates. Read-only.
-  jobs(): JobsSlice {
-    return collectJobs({ registry: collectAutomations(this.root), repoRoot: packageRoot() });
-  }
-  // Records is a LIGHT slice: two small JSONL reads, read fresh per request.
-  records(): RecordsSlice {
-    return collectRecords(this.root);
-  }
   codegraphs(): Promise<DashGraphEntry[]> {
     return freshSliceAsync('codegraphs', () => String(treeMaxMtimeMs(join(this.root, 'graphs'))), () => collectCodegraphs(this.root), { ttlMs: HEAVY_TTL_MS });
   }
@@ -123,9 +90,6 @@ export class LiveHubAdapter implements HubAdapter {
 export class DemoHubAdapter implements HubAdapter {
   status(): HubStatus {
     return { present: true, mode: 'demo', root: null };
-  }
-  modules(): ModulesSlice {
-    return DEMO_MODULES;
   }
   safetyNet(): SafetyNetSlice {
     return DEMO_SAFETYNET;
@@ -143,13 +107,6 @@ export class DemoHubAdapter implements HubAdapter {
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };
   }
-  // Synthetic jobs; never scans the real machine.
-  jobs(): JobsSlice {
-    return DEMO_JOBS;
-  }
-  records(): RecordsSlice {
-    return DEMO_RECORDS;
-  }
   codegraphs(): Promise<DashGraphEntry[]> {
     return Promise.resolve(demoCodegraphs());
   }
@@ -162,11 +119,6 @@ export class NullHubAdapter implements HubAdapter {
   constructor(reason?: string) { this.reason = reason; }
   status(): HubStatus {
     return { present: false, mode: 'absent', root: null, reason: this.reason };
-  }
-  // Never reached in practice: the route checks status().present first and
-  // returns the absent sentinel. Present for interface completeness.
-  modules(): ModulesSlice {
-    return { found: false, rows: [] };
   }
   safetyNet(): SafetyNetSlice {
     return { found: false, gateConfig: null, classification: null, markers: { categories: [] }, proxyServers: null };
@@ -182,12 +134,6 @@ export class NullHubAdapter implements HubAdapter {
   }
   confidentialMarkers(): { categories: ConfidentialMarkerCategory[] } {
     return { categories: [] };
-  }
-  jobs(): JobsSlice {
-    return EMPTY_JOBS;
-  }
-  records(): RecordsSlice {
-    return EMPTY_RECORDS;
   }
   codegraphs(): Promise<DashGraphEntry[]> {
     return Promise.resolve([]);
