@@ -153,8 +153,8 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   PRIMARY KEY (source, session_id)
 );
 -- Local-only view log (3a, decision D5-D8). Which surfaces actually get
--- used, actor-tagged, so a boundary question like the is answered with
--- data instead of file mtimes. NEVER leaves the machine: no route reads it out
+-- used, actor-tagged, so a boundary question like "is this surface earning its
+-- space" is answered with data instead of file mtimes. NEVER leaves the machine: no route reads it out
 -- except the operator's own Settings block, and there is no outbound path.
 --
 -- The route column is a PATTERN ('/session/:id'), never an instance.
@@ -291,7 +291,12 @@ try {
 //
 // Lane 2 runs over Lane 1's sessions too, so the number is right even if
 // auto-sync never runs; the re-import later upgrades them to 'exact'.
-const CHI286 = 'chi-286-collapse-replayed-usage';
+// The persisted migration name. This exact string sits in `chronicle_migrations`
+// on every install that has already run the backfill, so it is a SCHEMA VALUE,
+// not prose: renaming it would re-run the whole backfill on live databases. It
+// is the one place the retired tracker's vocabulary is allowed to survive, and
+// test/repo-shape.test.mjs exempts this literal by value, not the file.
+const COLLAPSE_REPLAYED_USAGE = 'chi-286-collapse-replayed-usage';
 
 interface UsageRow {
   id: number;
@@ -304,8 +309,8 @@ interface UsageRow {
   cache_w1h_tokens: number;
 }
 
-function chi286Backfill(): void {
-  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(CHI286);
+function collapseReplayedUsageBackfill(): void {
+  const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(COLLAPSE_REPLAYED_USAGE);
   if (done) return;
   const targets = db.prepare(`SELECT id, file_path, usage FROM sessions
                               WHERE source = 'claude-code' AND usage IS NOT NULL`)
@@ -376,7 +381,7 @@ function chi286Backfill(): void {
       const relive = db.prepare('UPDATE sessions SET imported_at = NULL WHERE id = ?');
       let reimport = 0;
       for (const s of targets) if (fs.existsSync(s.file_path)) { relive.run(s.id); reimport++; }
-      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+      db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
       db.exec('COMMIT');
       console.log(`[chronicle] backfill: ${rederived} sessions re-derived, ${unverified} unverified, ` +
                   `${drop.length} duplicate token rows cleared, ${reimport} queued for exact re-import`);
@@ -385,7 +390,7 @@ function chi286Backfill(): void {
       throw err;
     }
   } else {
-    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(CHI286);
+    db.prepare('INSERT INTO chronicle_migrations (name) VALUES (?)').run(COLLAPSE_REPLAYED_USAGE);
   }
 }
 
@@ -394,7 +399,7 @@ function chi286Backfill(): void {
 // cause; the marker is only written inside the committed transaction, so a
 // failed run leaves nothing half-applied and retries on the next boot.
 try {
-  chi286Backfill();
+  collapseReplayedUsageBackfill();
 } catch (err) {
   console.warn('[chronicle] backfill deferred (will retry next start):', (err as Error).message);
 }

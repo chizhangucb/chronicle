@@ -22,8 +22,10 @@ export const LEGACY_LAYOUT = /scripts\/litellm|scripts\/tests\/test_(litellm|lan
 export const PRIVATE_LOCATION = /\bhub\s+`/i;
 
 /** Ticket ids from the private tracker. A reader who is not the author cannot
- *  open one, so prose citing them is prose that dead-ends (issue #187). */
-export const PRIVATE_TICKET = /\bCHI-\d+/;
+ *  open one, so prose citing them is prose that dead-ends (issue #187).
+ *  Case-insensitive and separator-tolerant: `chi286Backfill` and
+ *  `chi-286-...` dead-end exactly as `CHI-286` does. */
+export const PRIVATE_TICKET = /\bchi[-_]?\d{2,}/i;
 
 /** A sibling repo named as a consumer of this repo's data. Nobody outside can
  *  follow the reference, and the coupling it implies is not ours to document. */

@@ -29,7 +29,7 @@ before(async () => {
   dbModule = temp.dbModule;
   teardown = temp.teardown;
 
-  const p = dbModule.upsertProject('/tmp/chi223-proj');
+  const p = dbModule.upsertProject('/tmp/views-proj');
   projectId = p.id;
 
   // Twelve assistant messages spread over three hours: past the noise gate on
@@ -44,7 +44,7 @@ before(async () => {
   }));
   dbModule.replaceSession(
     {
-      id: 'chi223', project_id: projectId, source: 'claude-code', file_path: '/tmp/chi223.jsonl',
+      id: 'views', project_id: projectId, source: 'claude-code', file_path: '/tmp/views.jsonl',
       started_at: iso(now - 3 * HOUR), ended_at: iso(now - 60000),
       usage: JSON.stringify({ [MODEL]: { input: 120, output: 60, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } }),
     },
@@ -94,7 +94,7 @@ test('session, project, search and security routes answer', async () => {
   const project = await get(`/projects/${projectId}`);
   assert.ok(project && typeof project === 'object', '/projects/:id returns an object');
 
-  const messages = await get('/sessions/chi223/messages');
+  const messages = await get('/sessions/views/messages');
   const rows = Array.isArray(messages) ? messages : messages.messages;
   assert.equal(rows.length, 12, 'every seeded message comes back');
 

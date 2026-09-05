@@ -185,10 +185,35 @@ const VOCAB_EXEMPT = new Set([
 ]);
 const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 
+// The ONE surviving literal, exempted BY VALUE rather than by file: this exact
+// string is written into `chronicle_migrations` on every install that has run
+// the usage-collapse backfill, so it is a schema value, not prose. Renaming it
+// would re-run the backfill on live databases. Exempting the value (not
+// server/db.ts, and not the suite that asserts it) keeps every other line in
+// those files swept, and makes a SECOND such literal fail here rather than
+// quietly inherit the allowance.
+const SCHEMA_LITERALS = ['chi-286-collapse-replayed-usage'];
+const stripSchemaLiterals = (line) =>
+  SCHEMA_LITERALS.reduce((acc, lit) => acc.split(lit).join(''), line);
+
 const sweepable = tracked.filter(
   (rel) => !VOCAB_EXEMPT.has(rel) && !BINARY.test(rel),
 );
-const readTracked = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+
+// The ONE way this file reads the swept set. `report(rel, src)` returns the
+// offender strings for one file; unreadable files are skipped rather than
+// throwing, so a stray binary the BINARY list does not know about cannot turn
+// a real assertion into a crash.
+function sweep(report, { skip = () => false } = {}) {
+  const offenders = [];
+  for (const rel of sweepable) {
+    if (skip(rel)) continue;
+    let src;
+    try { src = fs.readFileSync(path.join(REPO, rel), 'utf8'); } catch { continue; }
+    offenders.push(...report(rel, src));
+  }
+  return offenders;
+}
 
 test('the sweep covers source, config, spec and docs, not just docs', () => {
   // A sweep that quietly stopped scanning src/ or server/ would pass forever.
@@ -206,30 +231,26 @@ test('the sweep covers source, config, spec and docs, not just docs', () => {
 
 for (const { word, re } of RETIRED_WORDS) {
   test(`no tracked file outside the CHANGELOG names "${word}"`, () => {
-    const offenders = [];
-    for (const rel of sweepable) {
-      let src;
-      try { src = readTracked(rel); } catch { continue; }
-      for (const [i, line] of src.split('\n').entries()) {
-        if (re.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
-      }
-    }
+    // Per LINE, so the failure names the line a reader has to go fix.
+    const offenders = sweep((rel, src) =>
+      src.split('\n').flatMap((line, i) =>
+        re.test(stripSchemaLiterals(line)) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
+      ),
+    );
     assert.deepEqual(offenders, [], `"${word}" is back:\n  ${offenders.join('\n  ')}`);
   });
 }
 
 test('no tracked file mounts or fetches a route the shrink removed', () => {
   // Quoted only: a bare `/jobs` in prose is a sentence, `'/jobs'` is a route.
-  const offenders = [];
-  for (const rel of sweepable) {
-    if (rel === 'test/removed-routes.test.mjs') continue; // it lists them to assert 404
-    let src;
-    try { src = readTracked(rel); } catch { continue; }
-    for (const prefix of RETIRED_ROUTE_PREFIXES) {
-      const quoted = new RegExp(`['"\`]${prefix.replace(/\//g, '\\/')}`);
-      if (quoted.test(src)) offenders.push(`${rel} -> ${prefix}`);
-    }
-  }
+  const offenders = sweep(
+    (rel, src) =>
+      RETIRED_ROUTE_PREFIXES.filter((prefix) =>
+        new RegExp(`['"\`]${prefix.replace(/\//g, '\\/')}`).test(src),
+      ).map((prefix) => `${rel} -> ${prefix}`),
+    // It lists every removed route in order to assert each one 404s.
+    { skip: (rel) => rel === 'test/removed-routes.test.mjs' },
+  );
   assert.deepEqual(offenders, [], `a retired route is referenced again:\n  ${offenders.join('\n  ')}`);
 });
 
@@ -239,17 +260,12 @@ test('no module the shrink deleted is tracked or imported', () => {
   );
   assert.deepEqual(backOnDisk, [], `a deleted module is tracked again: ${backOnDisk}`);
 
-  const importers = [];
-  for (const rel of sweepable) {
-    let src;
-    try { src = readTracked(rel); } catch { continue; }
-    for (const mod of RETIRED_MODULE_PATHS) {
+  const importers = sweep((rel, src) =>
+    RETIRED_MODULE_PATHS.filter((mod) => {
       // Imports are written relative ('./gate/core.ts'), so match the tail.
-      const tail = mod.replace(/^(server|src)\//, '');
-      if (new RegExp(`from ['"][^'"]*${tail.replace(/\//g, '\\/')}`).test(src)) {
-        importers.push(`${rel} -> ${mod}`);
-      }
-    }
-  }
+      const tail = mod.replace(/^(server|src)\//, '').replace(/\//g, '\\/');
+      return new RegExp(`from ['"][^'"]*${tail}`).test(src);
+    }).map((mod) => `${rel} -> ${mod}`),
+  );
   assert.deepEqual(importers, [], `a deleted module is imported again:\n  ${importers.join('\n  ')}`);
 });

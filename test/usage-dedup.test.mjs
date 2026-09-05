@@ -39,7 +39,7 @@ function session(db, id, usage, filePath) {
 }
 
 before(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-chi286-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-usage-dedup-'));
   // A transcript that still exists on disk, so Lane 1 can target it.
   livePath = path.join(dir, 'live-session.jsonl');
   fs.writeFileSync(livePath, '');
