@@ -35,8 +35,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState, WIDTHS } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState, WIDTHS } from './helpers.ts';
 
 const state = readSeedState();
 
@@ -70,7 +70,10 @@ function git(args: string[], env: NodeJS.ProcessEnv = process.env): string {
 
 // Idempotent (wipe + recreate) so repeated local `npm run test:e2e` runs
 // don't accumulate history. Not safe under concurrent local runs — same
-// accepted caveat as helpers.ts's STATE_FILE; not a CI risk (CI is single-run).
+// accepted caveat as before the per-worker split: this path is fixed, so two
+// concurrent LOCAL runs would collide. Not a worker-count risk (Playwright
+// never runs one spec file on two workers at once) and not a CI risk (CI is
+// single-run).
 function makeFixtureRepo(commit1Iso: string, commit2Iso: string): void {
   fs.rmSync(FIXTURE_REPO_DIR, { recursive: true, force: true });
   fs.mkdirSync(FIXTURE_REPO_DIR, { recursive: true });

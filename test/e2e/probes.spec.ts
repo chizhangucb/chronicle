@@ -23,8 +23,8 @@
 // Recharts renders every tick — see `forceHomeExploreDaily7d` etc. below —
 // rather than reading ticks off whatever range a plain route visit happens
 // to land on.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 const WIDTH = 1366;

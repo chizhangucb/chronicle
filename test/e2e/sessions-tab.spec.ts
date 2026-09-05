@@ -1,8 +1,8 @@
 // E2E drift-pins for the `/?tab=sessions` Sessions tab (CHI-324 2g). Guards the
 // signed shape: a session count, two-up aggregates, and ONE flat sessions
 // table (no day sub-headers — day grouping stays ledger-only).
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

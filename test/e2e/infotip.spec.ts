@@ -11,8 +11,8 @@
 // in a `repeat(auto-fit, minmax(132px, 1fr))` grid — at
 // 1024px wide that wraps to several columns, so "right-most" is found by
 // measuring bounding rects at runtime rather than assuming DOM order.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

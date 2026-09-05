@@ -6,8 +6,8 @@
 // (`expect(locator).toBeVisible()`/`toContainText()` auto-retry) or an
 // explicit `expect.poll` for the one non-DOM assertion (the perf floor) —
 // never a bare `page.waitForTimeout`/sleep.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState, WIDTHS } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState, WIDTHS } from './helpers.ts';
 
 const state = readSeedState();
 

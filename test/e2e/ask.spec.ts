@@ -3,8 +3,7 @@
 // (toggle default off) so there is NO `∴ Ask` entry and the route fails soft.
 // Demo: POST /api/ask is refused with 409 like every runner. The gating FORMULA
 // (enabled === toggleOn && claudePresent && !demo) is asserted so it can't drift.
-import { test, expect } from '@playwright/test';
-import { readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
+import { test, expect, readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
 
 const state = readSeedState();
 

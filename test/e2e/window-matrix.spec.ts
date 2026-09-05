@@ -7,7 +7,7 @@
 //   2. a raw fractional-day count ("0.99…D") leaked into the Explore card
 //      title instead of reading "Today".
 //
-// Fixture guarantee this relies on (test/e2e/helpers.ts `launchSeeded`):
+// Fixture guarantee this relies on (test/e2e/harness.ts, `seedDataDir`):
 // `spanningSessionId` starts 26h before seed time (always yesterday, local)
 // and ends 5 minutes before seed time (always today, local); `todayOnlySessionId`
 // is entirely inside the last 40 minutes. Both are non-minor (>=10 messages)
@@ -35,8 +35,8 @@
 // 26h ago (before the ~12h cutoff) and ends 5 min ago (after it), so it is
 // counted ONLY via overlapGate; `todayOnlySessionId` stays the naive-gate
 // control. 7d/30d cases are unaffected (rangeDays ignores daysToday for them).
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

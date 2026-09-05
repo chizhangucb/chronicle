@@ -7,8 +7,7 @@
 // "N% ..." lead-in and an InfoTip trigger), and the 6-row session-facts set
 // at session scope (mixed percent/tokens/hours formats, so not every row
 // leads with "%").
-import { test, expect } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

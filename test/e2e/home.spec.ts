@@ -13,8 +13,8 @@
 //
 // Flake discipline: every wait is on a visible DOM condition (auto-retrying
 // `expect`), never a bare sleep.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState, launchDemo, stopDemo, type DemoServer } from './helpers.ts';
 
 const state = readSeedState();
 

@@ -2,8 +2,8 @@
 // signed surface-contract shape: budget BAND up top (no anomaly card — anomaly
 // is the Overview tile only), the shared spend chart with a [project|provider]
 // stack toggle, and the reading order down the tab.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 
 const state = readSeedState();
 

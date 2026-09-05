@@ -3,8 +3,8 @@
 // Flake discipline: every wait is on a visible DOM condition (auto-retrying
 // `expect`) or an `expect.poll` against a real server response, never a bare
 // sleep.
-import { test, expect, type Page } from '@playwright/test';
-import { readSeedState } from './helpers.ts';
+import { type Page } from '@playwright/test';
+import { test, expect, readSeedState } from './helpers.ts';
 import { getDefinition } from '../../src/reference/definitions.ts';
 
 /** The canonical wording of a definition, so specs cannot drift from it. */
