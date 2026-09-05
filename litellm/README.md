@@ -153,9 +153,12 @@ completed request would otherwise evaporate. `litellm/lane_c_spend_logger.py` is
   a guessed $0. `provider` and `latency_ms` are emitted only when the payload carries them.
 - Fail-soft: a logging error is swallowed and never breaks the request it was recording.
 
-`test/litellm-runtime.test.mjs` pins the parts that would silently rot: where the log
-defaults to, that a written row is one the Spend tab reads back, and that no path in here
-goes machine-specific.
+Two node suites guard this, both on every PR. `test/litellm-runtime.test.mjs` pins the
+parts that would silently rot: where the log defaults to, that a written row is one the
+Spend tab reads back, and that no path in here goes machine-specific.
+`test/litellm-guards.test.mjs` pins the promises above: fail-soft, metrics only, and no
+guessed `$0`. Both shell out to `python3` rather than adding a second test runner; CI sets
+`CHRONICLE_REQUIRE_PYTHON=1` so a missing interpreter fails instead of skipping.
 
 ## Checking the numbers against OpenRouter
 
@@ -174,9 +177,10 @@ Run it when a spend number looks wrong. It is not automated.
 ## Roster refresh
 
 `python litellm/refresh_roster.py [--dry-run]` updates only the price and context columns
-of the roster from OpenRouter's public catalog, never the judgment columns. The roster is a
-personal document rather than a repo one, so point the script at it with `--roster PATH`,
-`$CHRONICLE_ROSTER_MD`, or `$CHRONICLE_HUB` (from which it resolves
+of the roster from OpenRouter's public catalog, never the judgment columns
+(`test/litellm-guards.test.mjs` pins that, including that no row is added or dropped).
+The roster is a personal document rather than a repo one, so point the script at it with
+`--roster PATH`, `$CHRONICLE_ROSTER_MD`, or `$CHRONICLE_HUB` (from which it resolves
 `governance/model-routing.md`). With none of those set it exits 2 and says so.
 
 ## Where things live

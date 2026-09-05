@@ -202,8 +202,16 @@ class LaneCSpendLogger(CustomLogger):  # type: ignore[misc,valid-type]
         self.path = path or default_spend_path()
 
     def _capture(self, kwargs) -> None:
-        slo = (kwargs or {}).get("standard_logging_object")
-        row = build_row(slo)
+        # Fail-soft covers SHAPING too, not just the write: a payload whose
+        # token counts are not numbers used to raise straight out of build_row
+        # into LiteLLM's success path, failing a request the user already paid
+        # for. Guarded by test/litellm-guards.test.mjs.
+        try:
+            slo = (kwargs or {}).get("standard_logging_object")
+            row = build_row(slo)
+        except Exception as err:  # noqa: BLE001 - logging must never break a request
+            print(f"[lane-c-spend] build failed: {err}", file=sys.stderr)
+            return
         if row is not None:
             write_row(row, self.path)
 
