@@ -30,7 +30,7 @@ id=$(gh api repos/chizhangucb/chronicle/issues/<blocker> --jq .id)
 gh api --method POST repos/chizhangucb/chronicle/issues/<child>/dependencies/blocked_by -F issue_id=$id
 ```
 
-`issue_dependencies_summary` reads stale for a few seconds after that POST. Confirm the edge with `gh api repos/chizhangucb/chronicle/issues/<child>/dependencies/blocked_by`.
+Back-to-back POSTs drop edges silently: space them about three seconds apart, and `issue_dependencies_summary` reads stale for a few seconds after each. Confirm every edge with `gh api repos/chizhangucb/chronicle/issues/<child>/dependencies/blocked_by`.
 
 ## A decision ticket ends at its resolution comment
 
