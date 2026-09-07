@@ -122,7 +122,7 @@ docs/       This documentation set
 This page is the setup and the day-to-day loop. The rest of the contributor knowledge is split
 by what you need:
 
-- [Architecture](contributing/architecture.md): the shape to keep, the seven load-bearing
+- [Architecture](contributing/architecture.md): the shape to keep, the load-bearing
   decisions, and where the seams are.
 - [Code map](contributing/code-map.md): what lives where, and which file owns a decision.
 - [Patterns](contributing/patterns.md): the TypeScript rules and the verification loop.
