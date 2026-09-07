@@ -1,10 +1,8 @@
 # Architecture decisions
 
-One file per decision that is hard to reverse, surprising to a newcomer, and bought with a
-real trade-off. Everything else is a doc line, not an ADR: see
-[`docs/contributing/architecture.md`](../contributing/architecture.md).
+One file per decision that is hard to reverse, surprising to a newcomer, and bought with a real trade-off. Everything else is a doc line, not an ADR: see [`docs/contributing/architecture.md`](../contributing/architecture.md).
 
-This directory is agent-only. It is excluded from the published docs build.
+Agent-only; excluded from the published docs build.
 
 | ADR | Decision |
 | --- | --- |
@@ -20,6 +18,4 @@ This directory is agent-only. It is excluded from the published docs build.
 
 ## Writing one
 
-Status, Context, Decision, Consequences. Consequences carry the cost you accepted, not only
-the benefit you wanted. When new work contradicts an ADR, say so in the PR rather than
-quietly overriding it.
+A title and one to three sentences: the context, the decision, and the alternative it beat. Add Consequences only for costs a reader would not guess. When new work contradicts an ADR, say so in the PR rather than quietly overriding it.

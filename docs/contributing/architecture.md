@@ -19,23 +19,9 @@ A feature that does not serve session review or pattern analysis does not belong
 matter how well it works. Proposing the removal of a module that has stopped earning its place
 is a normal and welcome review finding.
 
-## The seven load-bearing decisions
+## The load-bearing decisions
 
-Each is written up in [`docs/adr/`](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/README.md), with its context, its trade-off, and
-the cost that was accepted. Read the one that touches your area before you change it.
-
-1. [No native modules](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0001-no-native-modules.md). `node:sqlite`, git via `execFile`,
-   Node 24 floor.
-2. [Git history is the only source of code state](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0002-git-is-the-only-code-state.md).
-   No snapshot store, never current disk.
-3. [Redaction runs at the export boundary](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0003-redaction-at-the-export-boundary.md).
-   The local database holds full content so playback is faithful.
-4. [A flat five-kind event model](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0004-flat-five-kind-event-model.md) is the ingestion
-   contract across all four tools.
-5. [The server ships token cells; the client prices them](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0005-server-ships-tokens-client-prices.md).
-6. [Per-bucket tokens are calibrated from text share](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0006-token-calibration-by-text-share.md),
-   marked with `≈`.
-7. [`/ask`: a read-only SQLite handle is the security boundary](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/0007-ask-read-only-handle-is-the-boundary.md).
+Each is written up in [`docs/adr/`](https://github.com/chizhangucb/chronicle/blob/main/docs/adr/README.md): the context, the alternative it beat, and the cost accepted. The README there is the list. Read the one that touches your area before you change it.
 
 ### Facts that are not ADRs
 
