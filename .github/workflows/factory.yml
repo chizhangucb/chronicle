@@ -1,0 +1,98 @@
+# The software factory's thin caller. This is the only factory file chronicle carries;
+# everything it runs lives in chizhangucb/software-factory.
+#
+# factory_ref must equal the ref in each `uses:` (the scripts are checked out at factory_ref;
+# GitHub does not tell a cross-repo reusable workflow which ref it came from). Change both together.
+#
+# node_version is 24 everywhere the target's own tooling runs: chronicle's server and tests read
+# .ts through Node's type stripping, and package.json says engines.node >= 24.
+name: factory
+
+on:
+  issues:
+    types: [closed, labeled]
+  pull_request_target:
+    types: [labeled]
+  pull_request:
+    types: [opened, synchronize, reopened, closed] # closed: the first-20 audit on merged factory PRs
+  push:
+    branches: [main] # update-branch: bring stale auto-merge PRs up to date when main moves
+  repository_dispatch:
+    # factory-update-branch: sent by the review workflow on a passing verdict.
+    # factory-sweep: the dispatcher's sweep, from outside GitHub when its cron does not fire:
+    #   gh api repos/chizhangucb/chronicle/dispatches -f event_type=factory-sweep
+    types: [factory-update-branch, factory-sweep]
+  schedule:
+    # Dispatcher and reconciler sweep, the fallback for missed events. Off the :00 slots;
+    # GitHub delays crons on busy minutes and on some accounts skips them for hours, so a
+    # cron on any machine sends the factory-sweep dispatch above as the real trigger.
+    - cron: "4,14,24,34,44,54 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  statuses: write # factory/verdict, factory/red-green, factory/test-integrity
+  checks: read # retry handler: the head's check runs
+  actions: read # retry handler: failing runs' logs and artifacts
+
+jobs:
+  dispatch:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'factory-sweep') ||
+      (github.event_name == 'issues' && (github.event.action == 'closed' || github.event.label.name == 'ready-for-agent'))
+    uses: chizhangucb/software-factory/.github/workflows/dispatch.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      # chronicle is public: anyone can open an issue, and a ticket body is what the
+      # implementer executes. Only the owner's own tickets run (ADR 0002 amendment).
+      trusted_author_associations: OWNER
+  implement:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent:implement'
+    uses: chizhangucb/software-factory/.github/workflows/implement.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      node_version: "24"
+  review:
+    if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:review'
+    uses: chizhangucb/software-factory/.github/workflows/review.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      node_version: "24"
+  implement-pr:
+    if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:implement'
+    uses: chizhangucb/software-factory/.github/workflows/implement-pr.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      node_version: "24"
+  gate:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    uses: chizhangucb/software-factory/.github/workflows/gate.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      node_version: "24"
+  audit:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged
+    uses: chizhangucb/software-factory/.github/workflows/audit.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
+      node_version: "24"
+      # The strongest model verified on the subscription (README, Audit).
+      audit_model: claude-fable-5-1
+  update-branch:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'factory-update-branch')
+    uses: chizhangucb/software-factory/.github/workflows/update-branch.yml@main
+    secrets: inherit
+    with:
+      factory_ref: main
