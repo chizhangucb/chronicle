@@ -43,3 +43,14 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## A wayfinder ticket never files implementation tickets
+
+Wayfinder produces decisions, not deliverables. A decision ticket records its answer, closes, and stops there.
+
+- Naming the work a decision uncovered is fine, in the resolution comment.
+- Filing one issue per uncovered piece of work is not. Those issues skip `/to-spec` and `/to-tickets`, so they arrive with no acceptance criteria, no blocking edges and no readiness label that means anything.
+- The handoff is: map clears, then `/to-spec` collapses the linked decisions into a buildable plan, then `/to-tickets` slices it, then `/implement` per ticket. Go straight to `/implement` only when the effort turned out genuinely small.
+- Never write "file a needs-triage issue per finding" into a ticket body. `/triage` is for issues that arrive raw from someone else; it has nothing to assess on an issue we authored ourselves.
+
+Seen on [#183](https://github.com/chizhangucb/chronicle/issues/183), whose brief asked for one issue per audit finding and produced 20 unshaped tickets, six of which were keep/drop questions wrongly labelled `ready-for-agent`.
