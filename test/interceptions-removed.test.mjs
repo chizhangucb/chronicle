@@ -112,12 +112,19 @@ const namesTheFeature = (text) => SPELLINGS.some((re) => re.test(text));
 // is the pin, so it has to spell what it forbids; server/db.ts carries the
 // drop, which cannot drop a table without naming it, and is swept on its own
 // terms by the test below instead.
+const PIN = 'test/interceptions-removed.test.mjs';
 const PIN_EXEMPT = new Set([
   'CHANGELOG.md',
   'docs/agents/design-audit-2026-09-04.md',
-  'test/interceptions-removed.test.mjs',
+  PIN,
   'server/db.ts',
 ]);
+
+// This pin's own path is a spelling of the feature, and the surface contract's
+// pin inventory has to cite it by that path. Strip the literal before matching,
+// so citing the suite is allowed and everything else in the same file is not —
+// the same trick repo-shape plays with the frozen migration name.
+const withoutPinPath = (text) => text.split(PIN).join('');
 
 test('no tracked file carries an interception string, key or identifier', () => {
   // This is what stands in for the locale dictionaries the ticket names: the
@@ -127,7 +134,7 @@ test('no tracked file carries an interception string, key or identifier', () => 
   const offenders = tracked.filter((rel) => {
     // Lockfiles everywhere, not just the root one: website/ ships its own.
     if (PIN_EXEMPT.has(rel) || BINARY.test(rel) || rel.endsWith('package-lock.json')) return false;
-    return namesTheFeature(read(rel));
+    return namesTheFeature(withoutPinPath(read(rel)));
   });
   assert.deepEqual(offenders, [], `these tracked files still name the feature: ${offenders.join(', ')}`);
 });
