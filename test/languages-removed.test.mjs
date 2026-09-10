@@ -10,22 +10,22 @@
 // Asserted off disk over `git ls-files`, like the page-width, reference-registry
 // and transcript-delete-removed pins: a translation wrapper, a dictionary entry
 // and a dropdown label are text an operator meets, not exported symbols, so a
-// module import would not see them. Gitignored artifacts (dist/, node_modules/)
+// module import would not see them. The tracked list comes from the ONE reader
+// in test/helpers/tracked-files.mjs, so this sweep cannot drift from the
+// repo-shape and local-first sweeps. Gitignored artifacts (dist/, node_modules/)
 // can never make this flaky.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { REPO, git, tracked } from './helpers/tracked-files.mjs';
 import { readSource } from './helpers/read-source.mjs';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const git = (...args) =>
-  execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8' }).split('\n').filter(Boolean);
-
-const tracked = git('ls-files');
 /** Every git-tracked client module. The dictionary and the menu both lived here. */
-const CLIENT_SOURCES = git('ls-files', '--', 'src').filter((rel) => /\.tsx?$/.test(rel));
+const CLIENT_SOURCES = git('ls-files', '--', 'src').split('\n').filter(Boolean)
+  .filter((rel) => /\.tsx?$/.test(rel));
+// `readSource`, not the helper's plain `read`: this pin sweeps src/ while an
+// agent may be editing it, and a read that lands in a truncate+write window
+// would otherwise pass vacuously on an empty file.
 const read = (rel) => readSource(path.join(REPO, rel));
 
 // This file is the pin, so it has to spell the words it forbids; CHANGELOG.md is
@@ -49,13 +49,16 @@ test('no client module calls the t() translation wrapper', () => {
 });
 
 test('no tracked file carries a zh or ja dictionary string', () => {
-  // Han, Hiragana and Katakana. The dictionaries were the only tracked source of
-  // CJK text in the repo; a hit means a dictionary (or a menu label) grew back.
+  // Han, Hiragana and Katakana. The app dictionaries and the website
+  // walkthrough's per-locale captions were the only tracked sources of CJK text
+  // in the repo; a hit means a dictionary, a menu label or a localized caption
+  // grew back. `.vue` is in the extension list so the website component the
+  // captions lived in is covered too, not just the app source.
   const CJK = /[぀-ヿ㐀-䶿一-鿿]/;
   const offenders = tracked.filter((rel) => {
     // Lockfiles everywhere, not just the root one: `website/` ships its own.
     if (PIN_EXEMPT.has(rel) || rel.endsWith('package-lock.json')) return false;
-    if (!/\.(tsx?|jsx?|mjs|css|md|html|json|yml|yaml)$/.test(rel)) return false;
+    if (!/\.(tsx?|jsx?|mjs|vue|css|md|html|json|yml|yaml)$/.test(rel)) return false;
     return CJK.test(read(rel));
   });
   assert.deepEqual(offenders, [], `translated strings survive in: ${offenders.join(', ')}`);
@@ -71,7 +74,7 @@ test('no language menu, language state or language setter survives', () => {
   ];
   for (const { what, re } of MENU) {
     const offenders = tracked
-      .filter((rel) => !PIN_EXEMPT.has(rel) && /\.(tsx?|jsx?|mjs|css|md)$/.test(rel))
+      .filter((rel) => !PIN_EXEMPT.has(rel) && /\.(tsx?|jsx?|mjs|vue|css|md)$/.test(rel))
       .filter((rel) => re.test(read(rel)));
     assert.deepEqual(offenders, [], `${what} is back in: ${offenders.join(', ')}`);
   }
