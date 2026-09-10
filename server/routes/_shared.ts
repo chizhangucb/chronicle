@@ -1,9 +1,4 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { db, snapshotDb } from '../db.ts';
-
-export const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
+import { snapshotDb } from '../db.ts';
 
 // Snapshot the whole DB before destructive deletes (project or session removal).
 // At most one snapshot per hour (a multi-select Remove loop = one backup, not N);

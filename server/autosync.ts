@@ -7,36 +7,14 @@
 // module reloads don't orphan watchers/timers.
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { db, upsertProject, replaceSession } from './db.ts';
 import { scanClaudeProjects, parseClaudeSession, claudeSessionMtimeMs, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.ts';
 import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.ts';
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
+import { readConfig } from './config.ts';
 import type { ParseResult } from '../shared/types.ts';
 
-export interface ChronicleConfig {
-  autoSync?: boolean;
-  autoSyncPaused?: boolean;
-  // Spend-tab Claude Plan windows, default ON (opt-OUT). The
-  // ONE outbound call in Chronicle: reads the user's own Claude quota from
-  // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
-  // fully offline instance. Codex windows are always local (never gated here).
-  planWindows?: boolean;
-  // Opt-in for /ask: the local claude-CLI-backed metric chat. Default
-  // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
-  // CLI being present AND a non-demo console (all enforced server-side).
-  ask?: boolean;
-  // Monthly spend budget in USD. The server-visible home for what used
-  // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
-  // Spend tab read the SAME number wherever it is shown.
-  // null / absent = no budget set. Local app pref, written like the toggles
-  // above via /settings.
-  monthlyBudget?: number | null;
-  [key: string]: unknown;
-}
-
-export type ConfigPatch = Partial<ChronicleConfig>;
 
 export interface SyncResultOk {
   ok: true;
@@ -72,8 +50,6 @@ declare global {
   var __chronicleAutoSync: AutoSyncState | undefined;
 }
 
-const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
-const CONFIG_PATH = path.join(CHRONICLE_DIR, 'config.json');
 const DEBOUNCE_MS = 30 * 1000;       // a streaming JSONL isn't re-imported per line
 const MAXWAIT_MS = 2 * 60 * 1000;    // continuous churn can't starve a sync past this
 const BACKSTOP_MS = 30 * 60 * 1000;  // catches missed fs events (macOS drops them across sleep)
@@ -90,17 +66,6 @@ const BACKSTOP_MS = 30 * 60 * 1000;  // catches missed fs events (macOS drops th
 export function nextDelay(nowMs: number, firstPendingAtMs: number | null): number {
   const first = firstPendingAtMs === null ? nowMs : firstPendingAtMs;
   return Math.min(DEBOUNCE_MS, Math.max(0, first + MAXWAIT_MS - nowMs));
-}
-
-export function readConfig(): ChronicleConfig {
-  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
-}
-
-export function writeConfig(patch: ConfigPatch): ChronicleConfig {
-  const cfg = { ...readConfig(), ...patch };
-  fs.mkdirSync(CHRONICLE_DIR, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
-  return cfg;
 }
 
 export function autoSyncEnabled(): boolean {

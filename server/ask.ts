@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { resolveDataDir } from './config.ts';
 import type { CostMode } from '../shared/pricing.ts';
 
 // ---- caps (result-size, review #5/#8) ------------------------------------
@@ -292,11 +293,8 @@ export function extractJson(text: string): unknown {
 export const ASK_HISTORY_MAX = 500; // newest N turns kept
 export const ASK_HISTORY_ROWS = 100; // rows persisted PER turn (bounds file size)
 
-export function dataDir(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
-}
 export function askHistoryPath(env: NodeJS.ProcessEnv = process.env): string {
-  return join(dataDir(env), 'ask-history.jsonl');
+  return join(resolveDataDir(env), 'ask-history.jsonl');
 }
 
 /** Parse one turn per line; skip malformed lines. Newest last (append order). */

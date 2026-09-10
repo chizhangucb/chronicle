@@ -17,6 +17,7 @@ let dbModule;
 let dir;
 let teardown;
 let autosync;
+let config;
 
 before(async () => {
   const temp = await withTempDb();
@@ -27,6 +28,7 @@ before(async () => {
   // (a bare relative specifier) — same resolved URL as helpers.mjs already
   // imported, so it binds to the SAME already-temp-dir-backed db instance.
   autosync = await import('../server/autosync.ts');
+  config = await import('../server/config.ts');
 });
 
 after(() => {
@@ -174,7 +176,7 @@ test('noise gate: ignore tombstones the session (same mechanism as delete)', () 
 // ---------------------------------------------------------------------------
 
 test('pause: runIncrementalSync no-ops (does not scan or import anything) while paused', async () => {
-  autosync.writeConfig({ autoSyncPaused: true });
+  config.writeConfig({ autoSyncPaused: true });
   assert.equal(autosync.autoSyncPaused(), true);
 
   const before_ = dbModule.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
@@ -187,13 +189,13 @@ test('pause: runIncrementalSync no-ops (does not scan or import anything) while 
   // Sanity: the config file really lives under the temp data dir, not ~/.chronicle.
   assert.ok(fs.existsSync(`${dir}/config.json`));
 
-  autosync.writeConfig({ autoSyncPaused: false }); // leave clean for any later test
+  config.writeConfig({ autoSyncPaused: false }); // leave clean for any later test
 });
 
 test('pause: unpausing clears the flag', () => {
-  autosync.writeConfig({ autoSyncPaused: true });
+  config.writeConfig({ autoSyncPaused: true });
   assert.equal(autosync.autoSyncPaused(), true);
-  autosync.writeConfig({ autoSyncPaused: false });
+  config.writeConfig({ autoSyncPaused: false });
   assert.equal(autosync.autoSyncPaused(), false);
 });
 
