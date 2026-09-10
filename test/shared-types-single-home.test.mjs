@@ -181,7 +181,9 @@ const READERS = [
 
 test('each reader imports the shape it reads from the shared home', () => {
   for (const { rel, reads } of READERS) {
-    const text = SOURCES.find((s) => s.rel === rel).text;
+    const source = SOURCES.find((s) => s.rel === rel);
+    assert.ok(source, `${rel} is listed as a reader but is not a source file`);
+    const { text } = source;
     for (const [name, home] of reads) {
       // The whole home path, not its basename: `results.ts` alone would pass on
       // an import from anywhere that happens to be called that.
@@ -285,19 +287,25 @@ function fieldSet(shape, siblings) {
  * copy that a name table cannot see. */
 function structuralCopies(sources) {
   const shapes = sources.flatMap(({ rel, text }) => shapesOf(rel, text));
-  const siblingsOf = (rel) => new Set(shapes.filter((s) => s.rel === rel).map((s) => s.name));
+  const siblings = new Map();
+  for (const { rel, name } of shapes) {
+    if (!siblings.has(rel)) siblings.set(rel, new Set());
+    siblings.get(rel).add(name);
+  }
   // A shape with a single field says too little to identify a copy by.
   const named = shapes.filter((s) => s.fields.length > 1);
+  // One field set per shape, not one per (home, candidate) pair.
+  const sigOf = new Map(named.map((s) => [s, fieldSet(s, siblings.get(s.rel))]));
   const homes = named.filter((s) => s.rel.startsWith('shared/') && PINNED.includes(s.name));
   const copies = [];
   for (const home of homes) {
-    const sig = fieldSet(home, siblingsOf(home.rel));
+    const sig = sigOf.get(home);
     for (const candidate of named) {
       // shared/ is the home region: two shared shapes that coincide (rates per
       // MTok and token counts are both five numbers) each keep one home, which
       // the name tables above already pin. A copy lives outside it.
       if (candidate.rel.startsWith('shared/')) continue;
-      if (fieldSet(candidate, siblingsOf(candidate.rel)) === sig) {
+      if (sigOf.get(candidate) === sig) {
         copies.push(`${candidate.rel} declares ${candidate.name}, the field set of ${home.name} (${home.rel})`);
       }
     }
