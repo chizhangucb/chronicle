@@ -1,5 +1,5 @@
 import { type JSX } from 'react';
-import { type InsightsResult } from '../api.js';
+import type { InsightsResult } from '../../shared/results.ts';
 import { useCostMode } from '../costMode.tsx';
 import InfoTip from '../InfoTip.tsx';
 

@@ -7,18 +7,9 @@ import { backupDbBeforeDelete } from './_shared.ts';
 
 type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
 
-interface MinorSessionRow {
-  id: string;
-  project_id: number;
-  source: string;
-  name: string | null;
-  summary: string | null;
-  first_prompt: string | null;
-  message_count: number;
-  agent_active_ms: number | null;
-  started_at: string | null;
-  project_name: string;
-}
+// The minor bucket's row and the session payload live in shared/ (#307).
+import type { MinorSessionRow } from '../../shared/rows.ts';
+import type { SessionMessagesResult } from '../../shared/results.ts';
 
 export function mountSessions(app: Express): void {
   // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----
@@ -77,8 +68,9 @@ export function mountSessions(app: Express): void {
     const commits = session.started_at && session.ended_at
       ? gitEngine.commitsBetween(project.path, session.started_at, session.ended_at) : [];
     const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
-    res.json({ session, project, messages, commits, git: gitEngine.repoInfo(project.path),
-      liveCandidate: isLiveCandidate(session.file_path, session, peers) });
+    const payload: SessionMessagesResult = { session, project, messages, commits, git: gitEngine.repoInfo(project.path),
+      liveCandidate: isLiveCandidate(session.file_path, session, peers) };
+    res.json(payload);
   });
 
   // Delete a session's imported copy from Chronicle. The source transcript is

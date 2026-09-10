@@ -10,69 +10,11 @@ import type { Event, SessionInput, Project } from '../shared/types.ts';
 import { parseUsage, totalTokens, type UsageByModel } from '../shared/usage.ts';
 import { dataDir } from './config.ts';
 
-export type ProjectRow = Project;
-
-// Full `sessions` row shape, as read back out of the DB (all columns, incl.
-// the ones added by the idempotent ALTER TABLE migrations below).
-export interface SessionRow {
-  id: string;
-  project_id: number;
-  source: string;
-  file_path: string;
-  started_at: string | null;
-  ended_at: string | null;
-  message_count: number;
-  first_prompt: string | null;
-  context_tokens: number | null;
-  name: string | null;
-  summary: string | null;
-  usage: string | null;
-  sidechain_count: number;
-  imported_at: string | null;
-  agent_active_ms: number | null;
-  engaged_ms: number | null;
-  minor: number;
-  result_count: number | null;
-  error_count: number | null;
-  // Provenance of `usage`. 'exact' = parsed from a transcript by a
-  // parser that collapses repeated usage lines on (message_id, request_id).
-  // 'rederived' = the source transcript is gone, so the migration
-  // rebuilt it structurally from the stored per-message token columns.
-  // 'unverified' = neither was possible; the pre-fix (inflated) value stands.
-  // NULL = imported before the column existed.
-  usage_source: string | null;
-}
-
-// Full `messages` row shape.
-export interface MessageRow {
-  id: number;
-  session_id: string;
-  seq: number;
-  uuid: string | null;
-  ts: string | null;
-  kind: string;
-  text: string | null;
-  tool_name: string | null;
-  tool_input: string | null;
-  tool_use_id: string | null;
-  model: string | null;
-  is_sidechain: number;
-  agent_type: string | null;
-  workflow_id: string | null;
-  agent_id: string | null;
-  agent_desc: string | null;
-  skill: string | null;
-  // Anthropic's per-API-call identity. `uuid` above is per transcript
-  // LINE; one API call is split across several lines, so this pair is the only
-  // stable per-CALL key.
-  message_id: string | null;
-  request_id: string | null;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  cache_read_tokens: number | null;
-  cache_w5m_tokens: number | null;
-  cache_w1h_tokens: number | null;
-}
+// Row shapes live in shared/rows.ts (#307), so the client reads the same
+// `sessions`/`messages` contract the server writes. Re-exported here because
+// every server query that selects these columns already names this module.
+export type { ProjectRow, SessionRow, MessageRow } from '../shared/rows.ts';
+import type { ProjectRow } from '../shared/rows.ts';
 
 // The folder comes from the one config module (server/config.ts); db.ts is
 // what freezes it, because this handle is bound here at import time.

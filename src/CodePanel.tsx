@@ -1,17 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { diffLines, type Change } from 'diff';
-import { api, type GitTreeResult, type GitFileResult } from './api.js';
+import { api } from './api.js';
+import type { GitFileResult, GitTreeResult } from '../shared/results.ts';
+// The message-to-snapshot mapping SessionView passes down as `commit`.
+export type { Commit } from '../shared/rows.ts';
+import type { Commit } from '../shared/rows.ts';
 
-// A commit as returned by server/git.ts (commitAt/commitsBetween) — the
-// message-to-snapshot mapping SessionView passes down as `commit`.
-export interface Commit {
-  hash: string;
-  date: string;
-  subject: string;
-  beforeHistory?: boolean;
-}
-
-// The successful (non-`noRepo`) halves of api.ts's GitTreeResult/GitFileResult
+// The successful (non-`noRepo`) halves of the shared GitTreeResult/GitFileResult
 // unions — what this component actually stores once a `noRepo` response has
 // been narrowed away below.
 interface GitTree {

@@ -1,7 +1,7 @@
 // shared/spend/budget.ts
 // Monthly budget posture: month-to-date, $/day pace, month-end projection, budget share +
 // graded state. Pure over already-costed day series (dollars), pricing-agnostic
-// like anomaly.ts. Relative-import value module (never @shared), B3.
+// like anomaly.ts. Imported by relative path from both sides.
 
 import type { BudgetThresholds } from './thresholds.ts';
 import { DEFAULT_SPEND_THRESHOLDS, gradeBudget, type StateWord } from './thresholds.ts';

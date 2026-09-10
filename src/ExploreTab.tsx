@@ -1,7 +1,8 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams, type ExploreRollup } from './api.ts';
+import { exploreUrl } from './api.ts';
+import type { ExploreQueryParams, ExploreRollup, ExploreWireCellSet, ExploreWireResult, ExploreWireRow } from '../shared/explore.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
@@ -10,7 +11,7 @@ import SortCaret from './SortCaret.tsx';
 import { fmtMoney } from './format.ts';
 import { useCostMode } from './costMode.tsx';
 import { fmtHourOfDay, densifyBuckets, capDenseBuckets, type BucketUnit } from './charts/timeBuckets.ts';
-import { bucketLabel } from '@shared/bucketLabel.ts';
+import { bucketLabel } from '../shared/bucketLabel.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
@@ -55,9 +56,9 @@ function fmtSubgroupLabel(key: string, label: string | undefined, subgroup: stri
 }
 
 // These read only the metric-agnostic aggregate fields, so they accept either a
-// range-total ExploreRow or a per-bucket ExploreCell (ExploreRow is a superset).
+// range-total ExploreWireRow or a per-bucket ExploreWireCellSet (ExploreWireRow is a superset).
 // Sum of a cell's billed input+output tokens across every model it touched.
-function rowTokens(row: ExploreCell): number {
+function rowTokens(row: ExploreWireCellSet): number {
   let n = 0;
   for (const u of Object.values(row.tokensByModel)) n += u.input + u.output;
   return n;
@@ -70,15 +71,15 @@ function rowTokens(row: ExploreCell): number {
 // contributes 0 rather than poisoning the sum.
 //
 // Day-aware pricing: an explicit `day` prices every model cell at that one day's rate
-// (used for a per-bucket ExploreCell, whose bucket key IS a day). With no
-// `day`, a range-total ExploreRow that carries `tokensByModelByDay` (EXACT_
+// (used for a per-bucket ExploreWireCellSet, whose bucket key IS a day). With no
+// `day`, a range-total ExploreWireRow that carries `tokensByModelByDay` (EXACT_
 // USAGE_GROUPS — model/project/source/session) is priced per its OWN day
 // breakdown instead of one flat rate, so a range straddling a rate change
 // (e.g. Sonnet 5's intro window) prices correctly. Rows without that field
 // (calibrated tool/skill, hour/subagent groups — see server/explore.ts) fall
 // back to the flat tokensByModel total at the latest rate, unchanged.
-export function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theoretical'): number {
-  const byDay = (row as ExploreRow).tokensByModelByDay;
+export function rowSpend(row: ExploreWireCellSet, day?: string, mode: CostMode = 'theoretical'): number {
+  const byDay = (row as ExploreWireRow).tokensByModelByDay;
   if (day == null && byDay) {
     let n = 0;
     for (const [d, byModel] of Object.entries(byDay)) {
@@ -101,7 +102,7 @@ export function rowSpend(row: ExploreCell, day?: string, mode: CostMode = 'theor
   return n;
 }
 
-function metricValue(row: ExploreCell, metric: PivotMetric, day?: string, mode: CostMode = 'theoretical'): number {
+function metricValue(row: ExploreWireCellSet, metric: PivotMetric, day?: string, mode: CostMode = 'theoretical'): number {
   switch (metric) {
     case 'spend': return rowSpend(row, day, mode);
     case 'tokens': return rowTokens(row);
@@ -115,7 +116,7 @@ function metricValue(row: ExploreCell, metric: PivotMetric, day?: string, mode: 
 
 // `moneyDp` controls Spend precision: 0dp for ranked-bar labels (default),
 // 2dp for the Detail table's metric column (EXP-03).
-function fmtMetricValue(row: ExploreRow, metric: PivotMetric, moneyDp: 0 | 2 = 0, mode: CostMode = 'theoretical'): string {
+function fmtMetricValue(row: ExploreWireRow, metric: PivotMetric, moneyDp: 0 | 2 = 0, mode: CostMode = 'theoretical'): string {
   switch (metric) {
     case 'spend': return fmtMoney(rowSpend(row, undefined, mode), moneyDp);
     case 'tokens': return fmtTok(rowTokens(row));
@@ -153,7 +154,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     topN: pivot.topN,
     rollup: pivot.rollup,
   };
-  const { data: result } = useCachedFetch<ExploreResult>(exploreUrl(params));
+  const { data: result } = useCachedFetch<ExploreWireResult>(exploreUrl(params));
 
   // days<1 (e.g. fractional days-since-local-midnight for "Today") reads as
   // "Today" rather than a fractional day count like "0.9960218055555555D".
@@ -213,7 +214,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // competing with the real top-N series for attention (dataviz "color
   // follows the entity" rule: a non-entity fold-in gets the neutral ink, not
   // a slot in the categorical rotation).
-  const rowColor = (row: ExploreRow, i: number): string =>
+  const rowColor = (row: ExploreWireRow, i: number): string =>
     row.key === 'Other' ? 'var(--ink-3)' : CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length];
   // "<synthetic>" is Claude Code's placeholder model tag for client-generated
   // assistant turns that never hit the API — connection errors, rate-limit
@@ -223,7 +224,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // rowSpend/rowTokens; this is display-only, no cost-math change needed).
   // Relabeled here rather than server-side so the raw model group key stays a
   // faithful passthrough of the source data.
-  const rowDisplayLabel = (row: ExploreRow): string =>
+  const rowDisplayLabel = (row: ExploreWireRow): string =>
     (pivot.group === 'model' && row.key === '<synthetic>') ? 'client-generated' : row.label;
   // Server bucket-key unit per effective rollup, for densifyBuckets. 'total'
   // never reaches here (result.buckets is undefined for it).

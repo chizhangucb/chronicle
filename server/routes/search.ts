@@ -42,19 +42,11 @@ interface MatchRow {
   project_name: string;
 }
 
-interface SessionResult {
-  id: string;
-  project_id: number;
-  source: string;
-  name: string | null;
-  summary: string | null;
-  first_prompt: string | null;
-  project_name: string;
-  matchCount: number;
-  snippet: string;
-  seq: number;
-  ts: string | null;
-}
+// One search hit, and the envelope around it: shared/rows.ts and
+// shared/results.ts own both shapes (#307), so the Home ledger reads what this
+// route sends.
+import type { SearchResultItem as SessionResult } from '../../shared/rows.ts';
+import type { SearchResponse } from '../../shared/results.ts';
 
 function snippetAround(text: string, q: string, radius = 60): string {
   if (!text) return '';
@@ -94,7 +86,8 @@ export function mountSearch(app: Express): void {
         FROM sessions s JOIN projects p ON p.id = s.project_id
         WHERE ${where.join(' AND ')}
         ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 50 OFFSET ?`).all(...params, offset) as unknown as RecentRow[];
-      return res.json({ recent: true, results: rows.map((r) => ({ ...r, matchCount: 0, snippet: '', ts: r.ended_at || r.started_at })) });
+      const recentPayload: SearchResponse = { recent: true, results: rows.map((r) => ({ ...r, matchCount: 0, snippet: '', ts: r.ended_at || r.started_at })) };
+      return res.json(recentPayload);
     }
 
     // FTS5 MATCH (phrase query, prefix on the last term) with LIKE fallback when
@@ -142,6 +135,7 @@ export function mountSearch(app: Express): void {
         e.ts = r.ts;
       }
     }
-    res.json({ recent: false, results: [...bySession.values()].slice(0, 40) });
+    const payload: SearchResponse = { recent: false, results: [...bySession.values()].slice(0, 40) };
+    res.json(payload);
   });
 }

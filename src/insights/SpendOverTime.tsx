@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
-import type { InsightsResult } from '../api.js';
+import type { InsightsResult } from '../../shared/results.ts';
 import {
   costOfCells, costOfBucketedCells, groupByKey, groupByBucket, sumByKeyModel, type BucketedCell,
 } from '../rangedUsage.ts';

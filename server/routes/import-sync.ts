@@ -30,32 +30,9 @@ function errMessage(err: unknown): string {
   return String((err as Error)?.message || err);
 }
 
-interface GatherParsedParams {
-  source: string;
-  logDir?: string | null;
-  files?: string[];
-  directory?: string;
-  sessionIds?: string[];
-  physicalPath?: string | null;
-}
-
-interface ProjectAgg {
-  id: number;
-  name: string;
-  path: string;
-  created: boolean;
-  sessions: number;
-  messages: number;
-}
-
-interface ImportResult {
-  ok: true;
-  imported: number;
-  skippedSessions: number;
-  totalMessages: number;
-  projects: ProjectAgg[];
-  projectId: number | null;
-}
+// What the import wizard POSTs, and what it gets back: shared/results.ts owns
+// both shapes (#307), so the wizard reads the contract this route writes.
+import type { ImportPayload as GatherParsedParams, ImportProjectAgg as ProjectAgg, ImportResult } from '../../shared/results.ts';
 
 // Lifted to module scope so the demo seeder can drive the SAME
 // parse+import path the HTTP route uses, instead of writing rows into the DB

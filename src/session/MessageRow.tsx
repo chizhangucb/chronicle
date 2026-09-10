@@ -1,7 +1,7 @@
 import React, { useState, type JSX, type ReactNode } from 'react';
 import { KIND_ICON, KIND_LABEL } from '../kinds.ts';
 import { summarizeToolInput } from './stats.js';
-import type { DisplayKind, Event } from '@shared/types.ts';
+import type { DisplayKind, Event } from '../../shared/types.ts';
 
 // A rendered playback row. `seq`/`kind` are always present on a fetched/live
 // message; `live` is stamped by SessionView on rows arriving over live SSE.

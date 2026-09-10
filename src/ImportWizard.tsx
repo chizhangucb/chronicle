@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { pluralize } from './format.js';
 import Modal from './Modal.tsx';
-import type { ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import type { ScannedProject, ScannedSession, SourceId } from '../shared/types.ts';
 
 // scan<Tool>Projects() results, as annotated by the server's `annotateScan`
 // (server/routes/import-sync.ts) with an `imported` flag per project/session
@@ -65,35 +65,9 @@ function badgeOf(item: AnnotatedProject): Badge {
   return item.imported ? { kind: 'imported', text: 'Imported' } : { kind: 'new', text: 'NEW' };
 }
 
-// Import job payload — one of these per project with selected units, POSTed to
-// /api/import (server/routes/import-sync.ts).
-interface ImportPayload {
-  source: SourceId;
-  logDir: string;
-  directory?: string;
-  physicalPath: string | null;
-  files?: string[];
-  sessionIds?: string[];
-}
-
-// Mirrors server/routes/import-sync.ts's ImportResult (client only reads a
-// subset of these fields).
-interface ImportResultProjectAgg {
-  id: number;
-  name: string;
-  path: string;
-  created: boolean;
-  sessions: number;
-  messages: number;
-}
-interface ImportResult {
-  ok: true;
-  imported: number;
-  skippedSessions: number;
-  totalMessages: number;
-  projects: ImportResultProjectAgg[];
-  projectId: number | null;
-}
+// What this wizard POSTs to /api/import and what it gets back, declared once
+// in shared/results.ts (#307) alongside every other route contract.
+import type { ImportPayload, ImportProjectAgg, ImportResult } from '../shared/results.ts';
 
 interface ImportJob {
   item: AnnotatedProject;
@@ -263,7 +237,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
   const failedJobs = jobs.filter((j) => j.status === 'failed');
   const importedSessions = doneJobs.reduce((s, j) => s + (j.result?.imported || 0), 0);
   const importedMessages = doneJobs.reduce((s, j) => s + (j.result?.totalMessages || 0), 0);
-  const resultProjects: ImportResultProjectAgg[] = [];
+  const resultProjects: ImportProjectAgg[] = [];
   for (const j of doneJobs) for (const p of j.result?.projects || []) {
     const existing = resultProjects.find((x) => x.id === p.id);
     if (existing) { existing.sessions += p.sessions; existing.messages += p.messages; existing.created = existing.created || p.created; }

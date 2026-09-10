@@ -71,8 +71,9 @@ wrapped. The `use*.ts` hooks own polled and streamed server state.
 ## `shared/`
 
 `types.ts` is the cross-boundary contract: the normalized event model (`Kind`, `Event`,
-`Session`). The server imports it relatively; the client imports types via the `@shared` alias
-and values relatively. Alongside it: `usage.ts` (the one token cell, `parseUsage` and `addCell`
+`Session`). Both sides import it by relative path. Alongside it: `rows.ts`, `results.ts` and
+`explore.ts` (the row and result shapes every route answers with, imported by the engine that
+computes each one and the surface that renders it), `usage.ts` (the one token cell, `parseUsage` and `addCell`
 every surface reads a session's usage through), `pricing.ts` (the shared cost arithmetic),
 `contextWindows.ts`, `provider.ts`, `bucketLabel.ts`, `synthetic.ts`, `spend/` (budget, anomaly,
 thresholds), and the three the client used to copy by hand — `errors.ts` (the tool-result error

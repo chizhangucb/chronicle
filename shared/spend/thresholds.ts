@@ -4,7 +4,7 @@
 // number in a tip can never drift from the number that colors the reading.
 //
 // These shape the WORDS next to a reading and the FLAG lines, never the
-// collected numbers themselves. Relative-import module (never @shared), value
+// collected numbers themselves. Imported by relative path from both sides, value
 // export — same B3 rule as shared/pricing.ts.
 
 // ---- Anomaly (spend.ts computeAnomaly) ----

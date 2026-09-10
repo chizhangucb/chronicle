@@ -22,15 +22,10 @@ import { readConfig } from './config.ts';
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const FETCH_TIMEOUT_MS = 15_000;
 
-export interface AccountWindow { label: string; utilization: number; resetsAt: string | null }
-export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[] }
-export interface PlanWindowsResult {
-  /** Claude toggle state (default ON). False means we never went outbound. */
-  claudeEnabled: boolean;
-  /** true when the Claude toggle is on but no readable credential was found. */
-  claudeUnauthed: boolean;
-  accounts: PlanAccount[];
-}
+// Declared in shared/results.ts (#307), so the Spend tab's plan-window card
+// reads the shape this module answers with.
+export type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
+import type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
 
 // ---- Claude (outbound, opt-out, default on) ----
 function readClaudeToken(home: string = homedir()): string | null {

@@ -25,58 +25,10 @@ const RECENT_CAP = 10;
 // The trailing complete-days window the "Today" burn baseline medians over.
 const MEDIAN_DAYS = 14;
 
-export interface ActivitySessionLite {
-  id: string;
-  name: string;              // resolved display name (name → summary → first_prompt → id)
-  projectName: string;
-  source: string;
-  live: boolean;
-  endedAt: string | null;
-  tokensByModel: UsageByModel;  // client prices via costOf
-  errorCount: number;
-}
-
-export interface ActivityBurn {
-  rangeSpendTokensByModel: UsageByModel;
-  // Day-bucketed (LOCAL calendar day) breakdown of rangeSpendTokensByModel —
-  // lets the client price the Burn tile's current-window spend per day at that day's
-  // rate (e.g. Sonnet 5's intro window) instead of one flat rate for the whole window.
-  // This is the figure the audit found overstated ~50% during the intro window, so
-  // it's the one burn.* field worth day-bucketing; baselineTokensByModel/
-  // topSessionTokensByModel stay flat (see their own comments below for why).
-  rangeSpendTokensByModelByDay: Record<string, UsageByModel>;
-  // Today → 14-day daily median (a statistical "typical day" construct with no single
-  // real date to price at); Nd → prior-Nd totals (a comparison anchor, not the live spend
-  // figure this fix targets — deliberately left flat, see server/activity.ts note).
-  baselineTokensByModel: UsageByModel;
-  topSessionId: string | null;
-  topSessionName: string | null;
-  // Price-free-proxy magnitude (see header) — left flat/unscaled by the same existing
-  // design as the rest of this field, day-bucketing not attempted for one session's usage.
-  topSessionTokensByModel: UsageByModel;
-  // 2c: per-day per-dimension token CELLS over a lookback window, so the
-  // client can price (at the toggled mode) → CostedDay[] → the shared
-  // computeAnomaly (movers + flagged days). Server ships cells, not dollars.
-  anomalyDays: AnomalyDayCells[];
-  // LOCAL "today" key (YYYY-MM-DD), the anchor computeAnomaly compares against.
-  today: string;
-}
-
-// One day's per-dimension token cells (dollars are priced client-side). project
-// is keyed by NAME for display; movers cover project/model/source (exact from
-// sessions.usage). skill/agent/mcp movers are a later refinement (calibrated).
-export interface AnomalyDayCells {
-  day: string;
-  byModel: UsageByModel;
-  byProject: Record<string, UsageByModel>;
-  bySource: Record<string, UsageByModel>;
-}
-
-export interface ActivityResult {
-  live: ActivitySessionLite[];
-  recent: ActivitySessionLite[];
-  burn: ActivityBurn;
-}
+// The feed's shapes live in shared/results.ts (#307); the Home dashboard reads
+// them straight from there instead of keeping a hand-typed mirror.
+export type { ActivitySessionLite, ActivityBurn, AnomalyDayCells, ActivityResult } from '../shared/results.ts';
+import type { ActivityBurn, ActivityResult, ActivitySessionLite, AnomalyDayCells } from '../shared/results.ts';
 
 interface SessionRowLite {
   id: string;

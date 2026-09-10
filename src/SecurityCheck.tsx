@@ -1,47 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import Modal from './Modal.tsx';
 import { api } from './api.js';
+import type { SecurityFinding, SecurityRule, SecurityScanResult } from '../shared/results.ts';
 
 // One-Click Security Check (FR-SEC-4): preview detections highlighted next to
 // redacted output; manage custom rules; export a one-way redacted copy.
 
-// A custom redaction/allow rule (server/security.js rule row).
-export interface SecurityRule {
-  id: number;
-  pattern: string;
-  replacement: string;
-  kind: 'redact' | 'allow';
-  enabled: boolean;
-  name?: string;
-}
-
-// One glob-pattern match within a scanned message's text or tool_input.
-export interface SecurityFinding {
-  field: 'text' | 'tool_input';
-  start: number;
-  end: number;
-  match: string;
-  name?: string;
-}
-
-// One scanned message, as returned by GET /api/sessions/:id/security-check.
-export interface SecurityCheckMessage {
-  seq: number;
-  kind: string;
-  tool_name?: string | null;
-  originalText?: string | null;
-  originalInput?: string | null;
-  redactedText?: string | null;
-  redactedInput?: string | null;
-  findings: SecurityFinding[];
-}
-
-export interface SecurityScanResult {
-  error?: string;
-  findingCount: number;
-  totals: Record<string, number>;
-  messages: SecurityCheckMessage[];
-}
+// The scan payload and the rule row are declared in shared/results.ts (#307),
+// beside every other route contract, so this modal renders what the route
+// sends instead of keeping its own copy of both shapes.
 
 export interface SecurityCheckProps {
   sessionId: string;
@@ -64,10 +31,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
 
   async function refresh() {
     try {
-      const [s, r] = await Promise.all([
-        fetch(`/api/sessions/${encodeURIComponent(sessionId)}/security-check`).then((x) => x.json()) as Promise<SecurityScanResult>,
-        fetch('/api/security/rules').then((x) => x.json()) as Promise<SecurityRule[]>,
-      ]);
+      const [s, r] = await Promise.all([api.securityCheck(sessionId), api.securityRules()]);
       if (s.error) throw new Error(s.error);
       setScan(s); setRules(r);
     } catch (e) { setError(String((e as Error).message)); }

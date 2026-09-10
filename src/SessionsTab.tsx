@@ -1,6 +1,7 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
-import type { InsightsResult, InsightsSessionRow } from './api.js';
+import type { InsightsResult } from '../shared/results.ts';
+import type { InsightsSessionRow } from '../shared/rows.ts';
 import { useCostMode } from './costMode.tsx';
 import { groupByKey, costOfBucketedCells, tokensOfCells, sumByKeyModel } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
