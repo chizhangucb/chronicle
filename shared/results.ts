@@ -38,11 +38,11 @@ export interface ScanParams {
 export type ScanResult = Partial<Record<SourceId | string, AnnotatedScannedProject[]>>;
 
 /** What the client sends to POST /api/import: a subset of a scanned item, or a
- * hand-typed directory. `logDir`, `directory` and `physicalPath` are optional
- * because the four sources need different ones (a SQLite source has no log
- * directory; a hand-typed import has no scanned item). */
-// The wire payload is a parse target plus the source that owns it — the same
-// shape `Source.parse` takes (shared/types.ts, #308), never a second copy of it.
+ * hand-typed directory. That is exactly a `ParseTarget` (shared/types.ts) plus
+ * the source that owns it — the same shape `Source.parse` takes, never a second
+ * copy of it. Which of the target's fields a payload carries depends on the
+ * source (a SQLite source has no log directory; a hand-typed import has no
+ * scanned item), which is why they are all optional there. */
 export interface ImportPayload extends ParseTarget {
   source: SourceId;
 }

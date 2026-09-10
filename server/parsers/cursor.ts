@@ -587,15 +587,19 @@ export const cursorSource: Source = {
 
   scan: (root: string = cursorUserDir()): ScannedProject[] => scanCursorProjects(root),
 
-  async parse({ logDir, physicalPath }): Promise<ParseResult[]> {
+  // A workspace holds only half a session: the composer bubbles hang off the
+  // global store beside it, so the parse needs the same user dir the scan
+  // walked — `root` carries it, and only falls back to this machine's when the
+  // target does not name one.
+  async parse({ logDir, physicalPath, root }): Promise<ParseResult[]> {
     if (!logDir || !fs.existsSync(logDir)) return [];
-    return parseCursorWorkspace(logDir, cursorUserDir(), physicalPath ?? null);
+    return parseCursorWorkspace(logDir, root ?? cursorUserDir(), physicalPath ?? null);
   },
 
-  // A workspace unit is a directory holding state.vscdb; an Agent-transcript
-  // unit is the JSONL file itself. Reading both spellings (and the WAL sidecar,
-  // where a SQLite write can land without touching the main file) keeps one
-  // signature over the two.
+  // Cursor spells an importable unit three ways: a workspace directory holding
+  // state.vscdb, that store file itself, or an Agent transcript JSONL. Reading
+  // every spelling (with the WAL sidecar, where a SQLite write can land without
+  // touching the main file) keeps one signature over the three.
   mtime: (unit: string): number | null => newestMtimeMs(
     unit,
     unit + '-wal',

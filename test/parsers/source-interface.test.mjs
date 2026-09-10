@@ -128,6 +128,33 @@ describe('codex source', () => {
     assert.equal(parsed[0].events.length, 5);
   });
 
+  test('parse attaches a token_count line\'s usage to the model output before it', async () => {
+    const dir = makeTmpDir();
+    const file = path.join(dir, 'rollout-2026-07-02T09-00-00-def.jsonl');
+    fs.writeFileSync(file, [
+      { timestamp: '2026-07-02T09:00:00.000Z', type: 'session_meta', payload: { id: '0198-def', cwd: '/Users/dev/example-repo' } },
+      { timestamp: '2026-07-02T09:00:01.000Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'ship it' }] } },
+      { timestamp: '2026-07-02T09:00:02.000Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'shipped' }] } },
+      { timestamp: '2026-07-02T09:00:03.000Z', type: 'token_count', payload: { info: { last_token_usage: { input_tokens: 900, output_tokens: 40, cached_input_tokens: 800, cache_write_input_tokens: 50 } } } },
+    ].map((l) => JSON.stringify(l)).join('\n') + '\n');
+
+    const [{ events }] = await codexSource.parse({ logDir: dir });
+
+    const assistant = events.find((e) => e.kind === 'assistant');
+    // Codex counts the cached read inside input_tokens; the column semantics
+    // split it back out, so input is 900 - 800.
+    assert.equal(assistant.input_tokens, 100);
+    assert.equal(assistant.output_tokens, 40);
+    assert.equal(assistant.cache_read_tokens, 800);
+    assert.equal(assistant.cache_w5m_tokens, 50);
+    // The user turn before it is not a model output and carries no usage.
+    assert.equal(events.find((e) => e.kind === 'user').input_tokens, undefined);
+  });
+
+  test('a target naming neither files nor a log dir parses nothing', async () => {
+    assert.deepEqual(await codexSource.parse({}), []);
+  });
+
   test('mtime reads the transcript file, and is null for a path that is not there', () => {
     const file = path.join(CODEX_FIXTURE_ROOT, '2026', '07', '01', 'rollout-2026-07-01T10-00-00-abc.jsonl');
     assert.equal(codexSource.mtime(file), fs.statSync(file).mtime.getTime());
@@ -194,10 +221,38 @@ describe('cursor source', () => {
     assert.equal(chat.events[0].text, 'Why does login fail with OAuth?');
   });
 
-  test('mtime reads the workspace store beside its WAL sidecar, and is null for a path that is not there', () => {
-    const wsDir = path.join(CURSOR_FIXTURE_ROOT, 'workspaceStorage', 'abc123');
-    const dbMtime = fs.statSync(path.join(wsDir, 'state.vscdb')).mtime.getTime();
-    assert.ok(cursorSource.mtime(wsDir) >= dbMtime);
+  test('parse reads the root its target was scanned under, not this machine\'s', async () => {
+    // Point the machine default somewhere empty: only the target's own root can
+    // reach the global store the composer bubbles live in.
+    process.env.CHRONICLE_CURSOR_DIR = makeTmpDir();
+    clearCursorGlobalCache();
+
+    const parsed = await cursorSource.parse({
+      logDir: path.join(CURSOR_FIXTURE_ROOT, 'workspaceStorage', 'abc123'),
+      physicalPath: '/Users/dev/example-repo',
+      root: CURSOR_FIXTURE_ROOT,
+    });
+
+    const composer = parsed.find((p) => p.session.id === 'cursor-composer-comp1');
+    assert.ok(composer, 'expected the composer session from the fixture root');
+    assert.equal(composer.session.first_prompt, 'Refactor the dashboard to use the new chart API');
+    assert.equal(composer.events.length, 5);
+  });
+
+  test('mtime folds in the WAL sidecar a store write can land in, and is null for a path that is not there', () => {
+    // A workspace whose main store is old but whose WAL was just written: the
+    // sync freshness answer has to be the WAL's.
+    const wsDir = path.join(makeTmpDir(), 'abc123');
+    fs.mkdirSync(wsDir);
+    fs.writeFileSync(path.join(wsDir, 'state.vscdb'), 'db');
+    fs.writeFileSync(path.join(wsDir, 'state.vscdb-wal'), 'wal');
+    const old = new Date('2026-01-01T00:00:00.000Z');
+    const fresh = new Date('2026-06-01T00:00:00.000Z');
+    fs.utimesSync(path.join(wsDir, 'state.vscdb'), old, old);
+    fs.utimesSync(wsDir, old, old);
+    fs.utimesSync(path.join(wsDir, 'state.vscdb-wal'), fresh, fresh);
+
+    assert.equal(cursorSource.mtime(wsDir), fresh.getTime());
     assert.equal(cursorSource.mtime(path.join(CURSOR_FIXTURE_ROOT, 'workspaceStorage', 'nope')), null);
   });
 
@@ -249,18 +304,17 @@ describe('opencode source', () => {
 
 describe('the four sources together', () => {
   test('the registry holds one source per coding tool, each answering to its own id', () => {
-    assert.deepEqual(SOURCES.map((s) => s.id), ['claude-code', 'codex', 'cursor', 'opencode']);
-    assert.equal(sourceById('claude-code'), claudeCodeSource);
-    assert.equal(sourceById('codex'), codexSource);
-    assert.equal(sourceById('cursor'), cursorSource);
-    assert.equal(sourceById('opencode'), opencodeSource);
+    assert.deepEqual(SOURCES.map((s) => s.id).sort(), ['claude-code', 'codex', 'cursor', 'opencode']);
+    for (const source of [claudeCodeSource, codexSource, cursorSource, opencodeSource]) {
+      assert.equal(sourceById(source.id), source);
+    }
     // A tool with no parser has no source, rather than a stub that scans nothing.
     assert.equal(sourceById('gemini'), undefined);
   });
 
   test('tail is there for the append-only transcripts and absent for the SQLite stores', () => {
     assert.deepEqual(
-      SOURCES.filter((s) => s.tail).map((s) => s.id),
+      SOURCES.filter((s) => s.tail).map((s) => s.id).sort(),
       ['claude-code', 'codex'],
     );
   });

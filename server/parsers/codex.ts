@@ -44,9 +44,10 @@ interface CodexLine {
   payload?: CodexPayload;
 }
 
-// Every rollout transcript under a Codex sessions root, which nests them by
-// date (<root>/YYYY/MM/DD/rollout-*.jsonl).
-function rolloutFilesIn(baseDir: string): string[] {
+// Every transcript under a Codex sessions root, which nests them by date
+// (<root>/YYYY/MM/DD/rollout-*.jsonl). Any .jsonl counts, not just the
+// rollout-* spelling — a name is not a format.
+function codexTranscriptFiles(baseDir: string): string[] {
   if (!fs.existsSync(baseDir)) return [];
   const files: string[] = [];
   (function walk(dir: string): void {
@@ -61,7 +62,7 @@ function rolloutFilesIn(baseDir: string): string[] {
 
 // Codex CLI writes rollout-*.jsonl files (possibly nested by date).
 export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
-  const files = rolloutFilesIn(baseDir);
+  const files = codexTranscriptFiles(baseDir);
   if (!files.length) return [];
   // Group by cwd sniffed from each file
   const groups = new Map<string, string[]>();
@@ -200,10 +201,12 @@ export const codexSource: Source = {
 
   scan: (root: string = CODEX_SESSIONS_DIR): ScannedProject[] => scanCodexProjects(root),
 
+  // A target with neither files nor a log dir names nothing, so it parses
+  // nothing — the sessions root is where `scan` starts, not a parse fallback.
   async parse({ logDir, files }): Promise<ParseResult[]> {
     const sessionFiles = files?.length
       ? files.filter((f) => fs.existsSync(f))
-      : rolloutFilesIn(logDir || CODEX_SESSIONS_DIR);
+      : logDir ? codexTranscriptFiles(logDir) : [];
     const parsed: ParseResult[] = [];
     for (const f of sessionFiles) parsed.push(await parseCodexSession(f));
     return parsed;

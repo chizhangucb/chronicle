@@ -188,10 +188,13 @@ export const opencodeSource: Source = {
     const dbPath = logDir || OPENCODE_DB;
     if (!fs.existsSync(dbPath)) return [];
     // No directory named means the whole store, the way "no files named" means
-    // the whole log dir on a per-file source.
+    // the whole log dir on a per-file source. A session the store filed under
+    // no directory has no project to import into, so it is left out. Every
+    // caller names its directory and pays for exactly one snapshot; the
+    // whole-store walk costs one more per directory it finds.
     const directories = directory
       ? [directory]
-      : [...new Set(scanOpencodeProjects(dbPath).map((p) => p.directory as string))];
+      : [...new Set(scanOpencodeProjects(dbPath).map((p) => p.directory).filter((d): d is string => !!d))];
     return directories.flatMap((dir) => parseOpencodeSessions(dbPath, dir, sessionIds));
   },
 

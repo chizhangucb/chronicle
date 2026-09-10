@@ -35,8 +35,10 @@ calls. `_shared.ts` holds the helpers they have in common. This is where a new e
 and each also implements the one `Source` interface in `source.ts`: `scan`, `parse` and
 `mtime`, plus `tail` where the store is an append-only transcript (Claude Code and Codex; the
 Cursor and OpenCode stores are SQLite, and live re-reads them instead). `registry.ts` lists the
-four, so a caller looks a source up by id rather than branching on the source string. The
-parser is the only place that knows a tool's native format.
+four for lookup by id. The interface sits beside those entry points, not in front of them yet:
+import, autosync and live still call the per-source functions and still branch on the source
+string, until the contract half of #308 moves them. The parser is the only place that knows a
+tool's native format.
 
 **The core engines:**
 

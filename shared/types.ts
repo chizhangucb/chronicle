@@ -185,6 +185,11 @@ export interface ScannedSession {
 // feeds parse directly (`Source.parse`, server/parsers/source.ts).
 export interface ParseTarget {
   logDir?: string | null;
+  // The source root this target was scanned under, when it is not this
+  // machine's default (a fixture, a hand-picked directory). Read only by a
+  // source whose records reach past the target itself — Cursor's composer
+  // bubbles live in the global store beside the workspace, under that root.
+  root?: string;
   files?: string[];
   directory?: string;
   sessionIds?: string[];
