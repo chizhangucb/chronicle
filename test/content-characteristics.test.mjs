@@ -346,12 +346,15 @@ after(() => teardown());
 // subagentTurns/workflowRuns carry over unchanged (real percentages even for
 // one session).
 describe('computeContent().characteristics — contract', () => {
-  test('all/project scope: result carries exactly the 7 keys from spec §2.5, in order (highContextRel + subagentTurns lead, the old narrative callouts\' framing)', () => {
+  // #206 moved highContextAbs and workflowRuns up so each family's two rows
+  // are adjacent (see the family-adjacency describe at the end of this file);
+  // the leads — highContextRel, then the subagent pair — are unchanged.
+  test('all/project scope: result carries exactly the 7 keys from spec §2.5, in family order (context-pressure pair, subagent pair, then the rest)', () => {
     const r = content.computeContent({ type: 'project', id: p1Id }, rangeOf(null));
     assert.equal(r.characteristicsScope, 'project');
     assert.deepEqual(r.characteristics.map((c) => c.key), [
-      'highContextRel', 'subagentTurns', 'eightHourSessions',
-      'workflowRuns', 'highContextAbs', 'cacheEfficiency', 'autonomousShare',
+      'highContextRel', 'highContextAbs', 'subagentTurns', 'workflowRuns',
+      'eightHourSessions', 'cacheEfficiency', 'autonomousShare',
     ]);
   });
 
@@ -580,5 +583,27 @@ describe('#206: every characteristic carries a distinct `measure` cue', () => {
   test('the two subagent rows are distinguished by measure as well as by the subset cue', () => {
     const r = content.computeContent({ type: 'project', id: p3Id }, rangeOf(null));
     assert.notEqual(findChar(r, 'subagentTurns').measure, findChar(r, 'workflowRuns').measure);
+  });
+});
+
+// ── #206 (DEDUP), the layout half of the cue: two rows measuring the same
+// family used to sit two rows apart (subagentTurns 2nd, workflowRuns 4th),
+// so the reader met each percentage on its own and had nothing to compare it
+// against. Each family's rows are now adjacent, which is what makes the
+// contrast between their `measure` chips — and workflowRuns' "of the subagent
+// usage above" — readable in one glance.
+describe('#206: same-family characteristics sit next to each other', () => {
+  const keysAt = (scope) => content.computeContent(scope, rangeOf(null)).characteristics.map((c) => c.key);
+
+  test('all/project scope: the context-pressure pair leads, the subagent pair follows it', () => {
+    assert.deepEqual(keysAt({ type: 'project', id: p1Id }), [
+      'highContextRel', 'highContextAbs', 'subagentTurns', 'workflowRuns',
+      'eightHourSessions', 'cacheEfficiency', 'autonomousShare',
+    ]);
+  });
+
+  test('session scope: the subagent pair is adjacent there too, in the same parent-then-subset order', () => {
+    const keys = keysAt({ type: 'session', id: 'sWorkflowA' });
+    assert.equal(keys.indexOf('workflowRuns') - keys.indexOf('subagentTurns'), 1);
   });
 });

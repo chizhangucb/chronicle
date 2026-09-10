@@ -321,6 +321,13 @@ function workflowSubsetOfSubagents(wf: { tokens: number }, sub: { tokens: number
 // callouts' framing, merged into their `why` text below) instead of the
 // former alphabetical-ish order; the remaining 5 keep their original math
 // unchanged.
+// #206 (DEDUP): each of the two FAMILIES that can land on near-identical
+// percentages is now adjacent — the two context-pressure shares (relative to
+// each model's window, then against a flat 150k line) and the two subagent
+// shares (every subagent turn, then the workflow-tagged subset of it). Side
+// by side, the contrasting `measure` chips are what the reader compares, and
+// workflowRuns' "of the subagent usage above" points at the row directly
+// above it. The math of every row is unchanged by the reordering.
 function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: number }, sub: { turns: number; tokens: number }): Characteristic[] {
   // workflowRuns/subagentTurns denominator is stats.totalTokens (ALL in-scope
   // sessions) — sidechain fields aren't a "not yet computed" signal like
@@ -346,20 +353,20 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
       countOne: 'session', countMany: 'sessions',
     },
     {
+      key: 'highContextAbs', format: 'percent', value: bucketShare(stats.highAbs), count: stats.highAbs.count, exact: true,
+      measure: 'context pressure · against a flat 150k line',
+      label: 'of usage ran above 150k context tokens',
+      why: "Sessions carrying a large context regardless of the model's window size.",
+      info: "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+      countOne: 'session', countMany: 'sessions',
+    },
+    {
       key: 'subagentTurns', format: 'percent', value: subagentShare, count: sub.turns, exact: true,
       measure: 'delegation · every subagent turn, workflow or not',
       label: 'of usage came from subagent turns',
       why: "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
       info: "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
       countOne: 'subagent turn', countMany: 'subagent turns',
-    },
-    {
-      key: 'eightHourSessions', format: 'percent', value: bucketShare(stats.eightHour), count: stats.eightHour.count, exact: true,
-      measure: 'session length · by agent-active hours',
-      label: 'of usage came from marathon sessions (8h+ active)',
-      why: 'Sessions where the agent was actively working — not just open — for 8 hours or more.',
-      info: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
-      countOne: 'marathon session', countMany: 'marathon sessions',
     },
     {
       key: 'workflowRuns', format: 'percent', value: share(wf.tokens), count: wf.runs, exact: true,
@@ -371,12 +378,12 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
       countOne: 'workflow run', countMany: 'workflow runs',
     },
     {
-      key: 'highContextAbs', format: 'percent', value: bucketShare(stats.highAbs), count: stats.highAbs.count, exact: true,
-      measure: 'context pressure · against a flat 150k line',
-      label: 'of usage ran above 150k context tokens',
-      why: "Sessions carrying a large context regardless of the model's window size.",
-      info: "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
-      countOne: 'session', countMany: 'sessions',
+      key: 'eightHourSessions', format: 'percent', value: bucketShare(stats.eightHour), count: stats.eightHour.count, exact: true,
+      measure: 'session length · by agent-active hours',
+      label: 'of usage came from marathon sessions (8h+ active)',
+      why: 'Sessions where the agent was actively working — not just open — for 8 hours or more.',
+      info: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
+      countOne: 'marathon session', countMany: 'marathon sessions',
     },
     {
       key: 'cacheEfficiency', format: 'percent', value: cacheDenom ? Math.round((stats.cacheRead / cacheDenom) * 100) : 0, count: stats.cacheSessionCount, exact: true,

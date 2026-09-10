@@ -376,8 +376,17 @@ One card, titled **"What your usage says"**, carries the characteristics. The ch
 **scope-tagged** (`ContentResult.characteristicsScope` + per-row
 `Characteristic.format`/`value`/`value2`/`label`/`why`/`info`, all server-supplied so the client
 never switches on a characteristic's `key`):
-- **all/project scope: 7 rows** — `highContextRel` and `subagentTurns` lead, then
-  `eightHourSessions` · `workflowRuns` · `highContextAbs` · `cacheEfficiency` · `autonomousShare`.
+- **all/project scope: 7 rows**, ordered by FAMILY — the two context-pressure shares
+  `highContextRel` · `highContextAbs`, then the two subagent shares `subagentTurns` ·
+  `workflowRuns`, then `eightHourSessions` · `cacheEfficiency` · `autonomousShare`.
+- Every row carries a **`measure` chip** (`.measure`), a short phrase naming which population its
+  number is over, **distinct across every row of a scope's set** — the DEDUP cue that keeps two
+  same-family rows from reading as one stat disagreeing with itself. A row whose population is a
+  strict subset of another's also carries **`subsetOf`** (`.subset`, rendered as "N% of the
+  subagent usage above …"): `workflowRuns` states its share of `subagentTurns`, a separately
+  computed ratio, omitted when the parent measures zero. There is no parallel `contextPressureShare`
+  callout: that number was `highContextRel` restated, so the context-pressure family is resolved by
+  carrying ONE row for it, not by cueing two.
 - **session scope: 6 rows.** The four threshold predicates that always collapse to a meaningless
   0%/100% at N=1 (`eightHourSessions`, `highContextAbs`, `highContextRel`, `autonomousShare`) are
   REPLACED with absolute session facts: `marathonBadge` (real active hours vs the 8h line),
