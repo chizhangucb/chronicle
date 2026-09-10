@@ -6,9 +6,9 @@
 // columns + tags); tool/skill × tokens are CALIBRATED via calibrate.ts and the
 // result carries calibrated:true. rollup='total' only in 5e (ranked bars).
 import { db } from './db.ts';
-import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
+import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
+import { overlapGate, rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head query for
@@ -33,7 +33,7 @@ export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | '
 // records/design/2026-08-11-chronicle-explore-rollups/spec.md.
 export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export interface ExploreQuery {
-  scope: Scope; range: Range;
+  scope: Scope; days: number | null;
   metric: ExploreMetric; group: ExploreGroup; subgroup?: ExploreGroup;
   rollup: ExploreRollup; topN: number;
 }
@@ -173,22 +173,21 @@ function usageRowKey(group: ExploreGroup, c: BucketedUsageCell, projectNameById:
 }
 
 // Precomputed per-session error counts per group value, optionally split across time
-// buckets. One query shape for the ranked rows and the rollup, and the session range,
-// scope clause and minor gate come from the one query context (see
-// SESSION_ERROR_GROUPS). `bucketExpr` is the caller's, so its binds (if any) come
-// first, ahead of the context's own.
+// buckets. One query shape for the ranked rows and the rollup, so the scope, the
+// overlap gate and the minor gate are written once (see SESSION_ERROR_GROUPS).
+// `bucketExpr` is the caller's, so its binds (if any) come first, ahead of the overlap
+// gate's cutoff and the scope's params.
 function sessionErrorRows(
-  group: ExploreGroup, q: QueryContext,
+  group: ExploreGroup, scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] },
   bucketExpr: string | null, bucketBinds: (string|number)[] = [],
 ): { gk: string|number|null; bkt: string; errors: number }[] {
   const bkt = bucketExpr ? `${bucketExpr} AS bkt` : `'' AS bkt`;
-  const w = q.sessionRows;
   return db.prepare(`
     SELECT ${errorGroupCol(group)} AS gk, ${bkt}, SUM(COALESCE(s.error_count, 0)) AS errors
     FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE ${w.sql}
+    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}
     GROUP BY gk, bkt
-  `).all(...bucketBinds, ...w.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
+  `).all(...bucketBinds, cutoff, ...sc.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
 }
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
@@ -201,19 +200,18 @@ interface SessionUsageParsed {
   name: string | null; summary: string | null; first_prompt: string | null;
 }
 // Loads in-scope sessions' metadata (name/summary/first_prompt for label resolution) +
-// raw usage, honoring the SAME scope, minor gate and session range the message
-// queries use (so its session set matches rangedUsage's — a session
+// raw usage, honoring the SAME scope + days + COALESCE(minor,0)=0 gate the message
+// queries use, via overlapGate (so its session set matches rangedUsage's — a session
 // spanning the cutoff isn't dropped here while being included there). Token MAGNITUDE
 // no longer comes from this raw parse (see rangedUsage call sites below); this is now
 // a metadata/label-only loader.
-function loadSessionUsage(q: QueryContext): SessionUsageParsed[] {
-  const w = q.sessionRows;
+function loadSessionUsage(cutoff: string, sc: { sql: string; params: (string|number)[] }, scope: Scope): SessionUsageParsed[] {
   const rows = db.prepare(`
     SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage,
            s.name AS name, s.summary AS summary, s.first_prompt AS first_prompt
     FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE ${w.sql}
-  `).all(...w.params) as unknown as { id: string; project: string; source: string; usage: string|null; name: string|null; summary: string|null; first_prompt: string|null }[];
+    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}
+  `).all(cutoff, ...sc.params) as unknown as { id: string; project: string; source: string; usage: string|null; name: string|null; summary: string|null; first_prompt: string|null }[];
   return rows.map((r) => ({
     id: r.id, project: r.project, source: r.source, models: parseUsage(r.usage),
     name: r.name, summary: r.summary, first_prompt: r.first_prompt,
@@ -285,22 +283,24 @@ function errorGroupCol(g: ExploreGroup): string {
   }
 }
 
-export function computeExplore(query: ExploreQuery): ExploreResult {
-  const q = queryContext(query.scope, query.range);
-  // Session range = OVERLAP (a session whose activity ran INTO the range counts,
-  // not just one that STARTED in it); message range = TIMESTAMP, so message-level
-  // aggregates below only count messages that actually fall in-range (not every
-  // message of a session that merely overlaps it) — see server/scope.ts.
-  const messageWhere = q.messageRows;
+export function computeExplore(q: ExploreQuery): ExploreResult {
+  const cutoff = q.days ? new Date(Date.now() - q.days * 86400000).toISOString() : '';
+  // null (not '') for the windowed-usage primitives — see the insights.ts comment for why.
+  const cutoffIso = q.days ? cutoff : null;
+  const sc = scopeClause(q.scope);
+  // overlapGate (Task 2, the P0 fix — see server/rangeUsage.ts): a session whose activity
+  // ran INTO the window now counts, not just one that STARTED in it. `m.ts >= ?` additionally
+  // restricts message-level aggregates below to messages that actually fall in-range (not
+  // every message of a session that merely overlaps it) — two cutoff binds, both `cutoff`.
   const base = `JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
-    WHERE ${messageWhere.sql}`;
-  const bind = (extra: (string|number)[] = []) => [...messageWhere.params, ...extra];
+    WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND m.ts >= ?`;
+  const bind = (extra: (string|number)[] = []) => [cutoff, ...sc.params, cutoff, ...extra];
   // Token MAGNITUDE for tool/skill is always calibrated (deterministic, metric-
   // independent) so the Detail table's Tokens/$ columns are correct under every
   // metric. The `calibrated` flag below only drives the ≈ badge, so it stays
   // tied to the displayed metric — no ≈ noise when viewing errors/requests.
-  const tokensAreCalibrated = CALIBRATED_GROUPS.includes(query.group);
-  const calibrated = tokensAreCalibrated && (query.metric === 'tokens' || query.metric === 'spend');
+  const tokensAreCalibrated = CALIBRATED_GROUPS.includes(q.group);
+  const calibrated = tokensAreCalibrated && (q.metric === 'tokens' || q.metric === 'spend');
 
   // Per (groupValue, model) exact token + request aggregates. For calibrated
   // groups the token columns are meaningless on those message kinds, so tokens
@@ -312,7 +312,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // group's natural request unit differs (a "request" under model/subagent
   // is an LLM turn, under tool is a tool call, under project/source/hour it's
   // any logged event) — not a bug to unify.
-  const g = groupExpr(query.group);
+  const g = groupExpr(q.group);
   const cellRows = db.prepare(`
     SELECT ${g.col} AS gk, COALESCE(m.model,'') AS model,
            COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
@@ -348,16 +348,15 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // message in the session, and misattributed for tool/skill/subagent since
   // an arbitrary same-session tool_result isn't the one that actually errored
   // for that group value).
-  if (SESSION_ERROR_GROUPS.includes(query.group)) {
-    for (const e of sessionErrorRows(query.group, q, null)) {
+  if (SESSION_ERROR_GROUPS.includes(q.group)) {
+    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, null)) {
       if (e.gk == null) continue;
       const r = rowMap.get(String(e.gk));
       if (r) r.errors = e.errors;
     }
   } else {
-    const errWhere = whereOf(q.sessions(), q.where, q.messages('r'));  // alias r, not m
     const errRows = db.prepare(`
-      SELECT ${errorGroupCol(query.group)} AS gk, substr(r.text,1,200) AS head
+      SELECT ${errorGroupCol(q.group)} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (
         SELECT MIN(u2.id) FROM messages u2
@@ -366,8 +365,8 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
       JOIN sessions s ON s.id = r.session_id
       JOIN projects p ON p.id = s.project_id
       WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
-        AND ${errWhere.sql}
-    `).all(...errWhere.params) as unknown as { gk: string|number|null; head: string }[];
+        AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?
+    `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
     for (const e of errRows) {
       if (e.gk == null || !ERROR_RE.test(e.head)) continue;
       const r = rowMap.get(String(e.gk));
@@ -378,7 +377,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // Active ms per group value (session agent_active_ms attributed to each group
   // value present in the session — an approximation for message-level groups;
   // exact for project/source which are 1:1 with the session).
-  if (query.metric === 'active') {
+  if (q.metric === 'active') {
     const actRows = db.prepare(`
       SELECT ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
       FROM messages m ${base} ${g.where} GROUP BY gk, sid
@@ -404,7 +403,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // Project id → name, needed to key EXACT_USAGE_GROUPS' group='project' rows the same way
   // groupExpr('project') keys cellRows (p.name) — rangedUsage's cells carry projectId,
   // not the name. Only queried when actually needed (group='project').
-  const projectNameById = query.group === 'project'
+  const projectNameById = q.group === 'project'
     ? new Map((db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]).map((p) => [p.id, p.name]))
     : new Map<number, string>();
 
@@ -413,7 +412,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // 'day' (the two calls take identical arguments) instead of paying for a second
   // sessions×messages pass over the same rows.
   let dayBucketedCells: BucketedUsageCell[] | null = null;
-  if (EXACT_USAGE_GROUPS.includes(query.group)) {
+  if (EXACT_USAGE_GROUPS.includes(q.group)) {
     // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; day-
     // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
     // in-range share of per-message tokens — not loadSessionUsage's raw `sessions.usage`
@@ -422,12 +421,12 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // the plain rangedUsage) so tokensByModelByDay can be populated alongside the
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
-    const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+    const bucketedCells = bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, 'day');
     dayBucketedCells = bucketedCells;
     const acc = new Map<string, Record<string, UsageCell>>();
     const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
     for (const c of bucketedCells) {
-      const rowKey = usageRowKey(query.group, c, projectNameById);
+      const rowKey = usageRowKey(q.group, c, projectNameById);
       let byModel = acc.get(rowKey);
       if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
       addCellInto(byModel, c.model, c.cells);
@@ -441,7 +440,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // bucketedUsage doesn't carry those fields (framework-free by design, see its header),
     // so a separate lightweight metadata load resolves them below; magnitude above already
     // came from bucketedCells, this is label-only.
-    if (query.group === 'session') usageRows = loadSessionUsage(q);
+    if (q.group === 'session') usageRows = loadSessionUsage(cutoff, sc, q.scope);
     for (const row of rowMap.values()) {
       const usageCells = acc.get(row.key);
       const dayCells = accByDay.get(row.key);
@@ -459,12 +458,12 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
       // carry per-message input_tokens/output_tokens), and an honest 0 for
       // cursor/opencode (which carry no token telemetry at all, per-message
       // or per-session — nothing to fall back to).
-      if (query.group !== 'session') row.tokensByModel = {};
+      if (q.group !== 'session') row.tokensByModel = {};
     }
     // Only materialize usage-only rows (a model billed but with no per-message
     // rows) when the displayed metric actually reads token magnitude — else
     // they'd show as spurious zero-request/zero-session rows under other metrics.
-    if (query.metric === 'tokens' || query.metric === 'spend') {
+    if (q.metric === 'tokens' || q.metric === 'spend') {
       for (const [k, byModel] of acc) {
         if (!rowMap.has(k)) {
           const dayCells = accByDay.get(k);
@@ -487,7 +486,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // than a second sessions×projects query with the same filters. Covers
   // usage-only rows materialized above too, since usageRows enumerates every
   // in-scope session regardless of whether it has usage.
-  if (query.group === 'session') {
+  if (q.group === 'session') {
     for (const u of usageRows) {
       const r = rowMap.get(u.id);
       if (r) r.label = sessionDisplayName({ id: u.id, name: u.name, summary: u.summary, first_prompt: u.first_prompt }, 'id');
@@ -520,7 +519,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // "narrow Insights Tokens to input+output" decision) SCALED to the in-range share,
     // NOT per-message assistant sums and not the raw unscaled billed cell — so calibrated
     // tool/skill Spend prices off the real in-range billed total at a real blended rate.
-    const rangedCells = rangedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso);
+    const rangedCells = rangedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso);
     const modelSplit = new Map<string, { input: number; output: number }>();
     let billedAll = 0;
     for (const c of rangedCells) {
@@ -558,16 +557,16 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // Rank by a rough magnitude (tokens for token/spend metrics, else requests)
   // so topN + Other folding is stable regardless of the client's final metric.
   const mag = (r: ExploreRow) => {
-    if (query.metric === 'requests') return r.requests;
-    if (query.metric === 'sessions') return r.sessions;
-    if (query.metric === 'errors') return r.errors;
-    if (query.metric === 'active') return r.activeMs;
+    if (q.metric === 'requests') return r.requests;
+    if (q.metric === 'sessions') return r.sessions;
+    if (q.metric === 'errors') return r.errors;
+    if (q.metric === 'active') return r.activeMs;
     return Object.values(r.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   };
   rows.sort((a, b) => mag(b) - mag(a));
-  if (rows.length > query.topN) {
-    const keep = rows.slice(0, query.topN);
-    const rest = rows.slice(query.topN);
+  if (rows.length > q.topN) {
+    const keep = rows.slice(0, q.topN);
+    const rest = rows.slice(q.topN);
     const other: ExploreRow = { key: 'Other', label: 'Other', tokensByModel: {}, tokensByModelByDay: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [], otherCount: rest.length };
     for (const r of rest) {
       other.requests += r.requests; other.errors += r.errors; other.activeMs += r.activeMs;
@@ -589,8 +588,8 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // (the real tokens are calibrated post-hoc above, not summed per-row), so a
   // raw SUM here would render a near-zero, misleading stack. Leave segments
   // [] — the UI renders a single full-width bar when segments is empty.
-  if (query.subgroup && !tokensAreCalibrated) {
-    const sg = groupExpr(query.subgroup);
+  if (q.subgroup && !tokensAreCalibrated) {
+    const sg = groupExpr(q.subgroup);
     const segRows = db.prepare(`
       SELECT ${g.col} AS gk, ${sg.col} AS sk,
              COALESCE(SUM(m.input_tokens),0)+COALESCE(SUM(m.output_tokens),0) AS tokens
@@ -619,16 +618,16 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // ARE the series set.
   let effectiveRollup: ExploreRollup = 'total';
   let buckets: ExploreBucket[] | undefined;
-  if (query.rollup !== 'total') {
-    effectiveRollup = query.rollup === 'hourly' ? 'hourly' : pickRollup(query.rollup, (r) =>
+  if (q.rollup !== 'total') {
+    effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(query, effectiveRollup, rows, { q, messageWhere, base, g, projectNameById, dayBucketedCells });
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells });
   }
 
   return {
-    metric: query.metric, group: query.group, subgroup: query.subgroup ?? null, calibrated, rows,
-    rollup: effectiveRollup, requestedRollup: query.rollup, buckets,
+    metric: q.metric, group: q.group, subgroup: q.subgroup ?? null, calibrated, rows,
+    rollup: effectiveRollup, requestedRollup: q.rollup, buckets,
   };
 }
 
@@ -691,7 +690,8 @@ export function toWire(result: ExploreResult): ExploreWireResult {
 // so the time-series stacks the SAME series the ranked/Detail views show, in the
 // same colors. Non-topN group values fold into 'Other' per bucket.
 interface RollupCtx {
-  q: QueryContext; messageWhere: SqlFragment; base: string; g: { col: string; where: string };
+  cutoff: string; cutoffIso: string | null;
+  sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string };
   // Project id → name, so a usage cell (which carries projectId) can be keyed the way
   // groupExpr('project') keys the ranked rows. Populated only for group='project'.
   projectNameById: Map<number, string>;
@@ -700,13 +700,13 @@ interface RollupCtx {
   // granularity is 'day', since the call would take identical arguments.
   dayBucketedCells: BucketedUsageCell[] | null;
 }
-function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
+function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { q, messageWhere, base, g, projectNameById, dayBucketedCells } = ctx;
-  // `base` (from computeExplore) carries the session range, scope+minor gate and
-  // the message range, in that order — its binds are messageWhere's, plus any
-  // caller-supplied extras.
-  const bind = (extra: (string|number)[] = []): (string|number)[] => [...messageWhere.params, ...extra];
+  const { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells } = ctx;
+  // `base` (from computeExplore) now carries overlapGate + a trailing `AND m.ts >= ?`
+  // placeholder — see the computeExplore `base` comment. Bind order: cutoff (overlap),
+  // sc.params (scope), cutoff again (m.ts), then any caller-supplied extras.
+  const bind = (extra: (string|number)[] = []): (string|number)[] => [cutoff, ...sc.params, cutoff, ...extra];
   const bm = bucketExpr(effective, 'm.ts');
   const bs = bucketExpr(effective, 's.started_at');
   // Billed `sessions.usage` cells for this rollup's granularity, scaled to each
@@ -715,13 +715,12 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
   // in: for a range whose edge splits a session that over-counted the rollup against
   // the ranked rows above (already rangedUsage/bucketedUsage-scaled), so the stacked
   // chart and the total bar disagreed. bucketedUsage's buckets sum to exactly the
-  // ranged cell, so they now agree by construction. The scope clause, minor gate and
-  // token range are the query context's, like every other scan in this file.
+  // ranged cell, so they now agree by construction.
   const grain = USAGE_BUCKET_FOR[effective];
   const usageCells = (): BucketedUsageCell[] =>
     (grain === 'day' && dayBucketedCells)
       ? dayBucketedCells
-      : bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, grain);
+      : bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, grain);
 
   // series identity: topN group values are their own series; everything else
   // (present iff `rows` was folded) collapses to 'Other'.
@@ -736,14 +735,14 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     return c;
   };
 
-  if (query.metric === 'tokens' || query.metric === 'spend') {
-    if (EXACT_USAGE_GROUPS.includes(query.group)) {
+  if (q.metric === 'tokens' || q.metric === 'spend') {
+    if (EXACT_USAGE_GROUPS.includes(q.group)) {
       // model/project/source/session magnitude from sessions.usage, bucketed and scaled
       // to in-range share by the same primitive the ranked rows read.
       for (const c of usageCells()) {
-        addCellInto(cell(c.bucket, seriesKeyFor(usageRowKey(query.group, c, projectNameById))).tokensByModel, c.model, c.cells);
+        addCellInto(cell(c.bucket, seriesKeyFor(usageRowKey(q.group, c, projectNameById))).tokensByModel, c.model, c.cells);
       }
-    } else if (CALIBRATED_GROUPS.includes(query.group)) {
+    } else if (CALIBRATED_GROUPS.includes(q.group)) {
       // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
       // then split across the bucket's real models — the range-total path, partitioned.
       const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
@@ -787,13 +786,13 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
         addCellInto(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite5m: r.cacheWrite5m, cacheWrite1h: r.cacheWrite1h });
       }
     }
-  } else if (query.metric === 'requests') {
+  } else if (q.metric === 'requests') {
     const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).requests += r.c;
-  } else if (query.metric === 'sessions') {
+  } else if (q.metric === 'sessions') {
     const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
-  } else if (query.metric === 'errors' && SESSION_ERROR_GROUPS.includes(query.group)) {
+  } else if (q.metric === 'errors' && SESSION_ERROR_GROUPS.includes(q.group)) {
     // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
     // start, the same placement `metric === 'active'` below uses for the other
     // whole-session precomputed column, agent_active_ms. Bucketing this column by the
@@ -808,28 +807,27 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     // bucketExpr repeats its timestamp argument (the weekly key reads it three times),
     // so the clamp's bind is repeated to match rather than assumed to appear once.
     const clamped = bucketExpr(effective, 'MAX(s.started_at, ?)');
-    const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(q.range.cutoffIso ?? '');
+    const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(cutoff);
     // Only series the ranked rows actually carry: the rows drop a group value with no
     // in-range messages, so crediting it here would draw a bar the table has no line
     // for and break the reconciliation between them.
     const seriesInRows = new Set(rows.map((r) => r.key));
-    for (const e of sessionErrorRows(query.group, q, clamped, clampBinds)) {
+    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, clamped, clampBinds)) {
       if (e.gk == null) continue;
       const sk = seriesKeyFor(String(e.gk));
       if (!seriesInRows.has(sk)) continue;
       cell(String(e.bkt), sk).errors += e.errors;
     }
-  } else if (query.metric === 'errors') {
-    const errCol = errorGroupCol(query.group);
-    const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'));
+  } else if (q.metric === 'errors') {
+    const errCol = errorGroupCol(q.group);
     const br = bucketExpr(effective, 'r.ts');
     const er = db.prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
       JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
-      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${rollupErrWhere.sql}`).all(...rollupErrWhere.params) as unknown as { bkt: string; gk: string|number|null; head: string }[];
+      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?`).all(...bind()) as unknown as { bkt: string; gk: string|number|null; head: string }[];
     for (const e of er) { if (e.gk == null || !ERROR_RE.test(e.head)) continue; cell(String(e.bkt), seriesKeyFor(String(e.gk))).errors++; }
-  } else if (query.metric === 'active') {
+  } else if (q.metric === 'active') {
     const rr = db.prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
       FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string; gk: string|number; sid: string; ms: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).activeMs += r.ms;

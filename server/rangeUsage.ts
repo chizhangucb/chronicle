@@ -43,12 +43,11 @@ export interface BucketedUsageCell extends RangeUsageCell {
   bucket: string;
 }
 
-// The one spelling of "this session is in range": a session whose activity ran INTO
-// the range counts, even if it started earlier — a range always extends to "now", so
-// overlap reduces to "did this session's last known activity happen on or after the
-// cutoff". Returns the bare comparison (no leading `AND`); engines reach it through
-// the query context's session range (server/scope.ts's `sessions()`), which is the
-// only caller outside this file.
+// Replaces the old `COALESCE(s.started_at,'9') >= ?` session-start gate: a session
+// whose activity ran INTO the window counts, even if it started earlier — windows
+// always extend to "now", so overlap reduces to "did this session's last known
+// activity happen on or after the cutoff". Returns the bare comparison (no leading
+// `AND`), matching how the old pattern was spliced directly after `WHERE`.
 export function overlapGate(alias: string): string {
   return `COALESCE(${alias}.ended_at, ${alias}.started_at, '9') >= ?`;
 }

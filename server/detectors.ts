@@ -5,8 +5,9 @@
 // are already derivable client-side from /api/insights; jumbo + long-context
 // need this per-message pass over the messages table.
 import { db } from './db.ts';
-import { queryContext, whereOf, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
+
+const DAY = 86400000;
 
 export interface DetectorCounts {
   /** assistant messages carrying a model in the window — the denominator for
@@ -30,12 +31,12 @@ interface CountRow {
   inputTokens: number | null;
 }
 
-export function computeDetectors(scope: Scope, range: Range): DetectorCounts {
+export function computeDetectors(days: number | null): DetectorCounts {
   const { jumboOutputTokens, longContextTokens } = DEFAULT_SPEND_THRESHOLDS.detectors;
-  const q = queryContext(scope, range);
-  // Message range (timestamp), scope clause and minor gate all come from the
-  // query context — see server/scope.ts.
-  const w = whereOf("AND m.kind = 'assistant' AND m.model IS NOT NULL", q.where, q.messages());
+  const cutoff = days != null ? new Date(Date.now() - days * DAY).toISOString() : null;
+  const gate = cutoff ? 'AND m.ts >= ?' : '';
+  const args: (string | number)[] = [jumboOutputTokens, longContextTokens];
+  if (cutoff) args.push(cutoff);
   const r = db.prepare(
     `SELECT
        COUNT(*) AS assistantRows,
@@ -44,8 +45,8 @@ export function computeDetectors(scope: Scope, range: Range): DetectorCounts {
        SUM(COALESCE(m.cache_read_tokens,0)) AS cacheReadTokens,
        SUM(COALESCE(m.input_tokens,0)) AS inputTokens
      FROM messages m JOIN sessions s ON s.id = m.session_id
-     WHERE ${w.sql}`,
-  ).get(jumboOutputTokens, longContextTokens, ...w.params) as unknown as CountRow;
+     WHERE m.kind = 'assistant' AND m.model IS NOT NULL AND COALESCE(s.minor,0) = 0 ${gate}`,
+  ).get(...args) as unknown as CountRow;
   return {
     assistantRows: r.assistantRows ?? 0,
     jumboRows: r.jumboRows ?? 0,

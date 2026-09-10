@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from 'express';
 import { computeWaste } from '../waste.ts';
-import { rangeOf } from '../scope.ts';
 import { cached } from '../cache.ts';
 
 export function mountWaste(app: Express): void {
@@ -9,7 +8,7 @@ export function mountWaste(app: Express): void {
   app.get('/waste', (req: Request, res: Response) => {
     const days = Number(req.query.days) || null;
     try {
-      res.json(cached(req.originalUrl, () => computeWaste({ type: 'all' }, rangeOf(days))));
+      res.json(cached(req.originalUrl, () => computeWaste(days)));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

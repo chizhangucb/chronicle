@@ -4,7 +4,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
-import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, waste;
 const now = Date.now();
@@ -53,7 +52,7 @@ before(async () => {
 after(async () => { await teardown?.(); });
 
 test('cache churn flags a session that wrote more cache than it read', () => {
-  const w = waste.computeWaste({ type: 'all' }, rangeOf(null));
+  const w = waste.computeWaste(null);
   assert.equal(w.cacheChurn.sessionsFlagged, 1);
   assert.equal(w.cacheChurn.top[0].session, 'churn');
   assert.ok(w.cacheChurn.top[0].writeTokens > w.cacheChurn.top[0].readTokens);
@@ -62,7 +61,7 @@ test('cache churn flags a session that wrote more cache than it read', () => {
 });
 
 test('right-sizing collects the small premium-model turns', () => {
-  const w = waste.computeWaste({ type: 'all' }, rangeOf(null));
+  const w = waste.computeWaste(null);
   const m = w.rightSizing.candidates.find((c) => c.model === MODEL);
   assert.ok(m, 'premium model has small-turn candidates');
   // Two small turns in session churn (output 100 each, ctx < 50k); session B's
@@ -71,7 +70,7 @@ test('right-sizing collects the small premium-model turns', () => {
 });
 
 test('repeated file reads counts a re-read, not the first read', () => {
-  const w = waste.computeWaste({ type: 'all' }, rangeOf(null));
+  const w = waste.computeWaste(null);
   assert.equal(w.rereads.rereadCalls, 1);          // /x.ts read twice → 1 reread
   assert.equal(w.rereads.sessionsAffected, 1);
   assert.equal(w.rereads.topFiles[0].path, '/x.ts');

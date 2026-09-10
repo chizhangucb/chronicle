@@ -498,23 +498,17 @@ and exist only in client state until re-import.
 available at three scopes: all projects (the sidebar's **Insights** page), one project (a
 project's own Overview/Explore/Content/Sessions tabs), and one session (drill into Content
 from a session's Overview). All three scopes share the same underlying engines, parameterized
-by a `Scope` and a `Range`:
+by a `Scope`:
 
 ```ts
 // server/scope.ts
 export type Scope = { type: 'all' | 'project' | 'session'; id?: number | string };
-export interface Range { days: number | null; now: number; cutoffIso: string | null }
 ```
 
-`queryContext(scope, range)` is the one place an engine gets its query fragments. It hands
-over the scope clause, the minor gate — the noise-gate exclusion, applied everywhere *except*
-session scope (a directly-opened session should never disappear just because it's flagged
-minor; the exclusion only matters for aggregates over many sessions) — and the three ranges,
-named for the way each thing falls in range: a session by overlap (`sessions()`), a message by
-its timestamp (`messages()`), billed tokens by their in-range share (`tokens.cutoffIso`, which
-`server/rangeUsage.ts` takes). `whereOf(...)` composes any of them into one `WHERE` body with
-its binds in order. Every engine — including the detectors and waste ones — takes
-`(scope, range)`.
+`scopeClause(scope)` turns that into a SQL `WHERE` fragment the engine queries AND onto — and
+`minorGate(scope)` applies the noise-gate exclusion everywhere *except* session scope (a
+directly-opened session should never disappear just because it's flagged minor; the exclusion
+only matters for aggregates over many sessions).
 
 - **`server/insights.ts`** (`GET /api/insights`) — cross-project aggregation: spend/token/session
   totals, tool and model distributions, error rate, commit counts (via `commitCountSinceAsync`,

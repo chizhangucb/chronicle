@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from 'express';
 import { db, ftsAvailable } from '../db.ts';
-import { queryContext, rangeOf, whereOf } from '../scope.ts';
 
 // ---- Global search (home command palette) ----
 // Empty query → recent sessions ("Recent Access"). Non-empty → FTS5 MATCH over
@@ -80,10 +79,9 @@ export function mountSearch(app: Express): void {
     if (!q) {
       // Minor (noise-gated) sessions don't surface in "Recent Access" — they
       // live in the global minor-sessions bucket until promoted or ignored.
-      // The minor gate is written once, in the query context (server/scope.ts).
-      const recentQ = queryContext(projectId ? { type: 'project', id: projectId } : { type: 'all' }, rangeOf(null));
-      const where = [whereOf(recentQ.where).sql];
-      const params: (string | number)[] = [...recentQ.where.params];
+      const where = ['COALESCE(s.minor, 0) = 0'];
+      const params: (string | number)[] = [];
+      if (projectId) { where.push('s.project_id = ?'); params.push(projectId); }
       // Home ledger shows the last ~50 sessions and lazy-scrolls: the client
       // bumps `offset` by 50 and appends the next page (dedupe by id). Ordering
       // is stable by COALESCE(ended_at, started_at) DESC, so paging never

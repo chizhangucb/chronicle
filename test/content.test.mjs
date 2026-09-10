@@ -1,7 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
-import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, content;
 function rhythmEvents(baseIso, extra = []) {
@@ -67,18 +66,18 @@ before(async () => {
 after(() => teardown());
 
 test('computeContent: composition has the 5 kind categories and shares sum to the calibrated total', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   const keys = r.composition.map((c) => c.key).sort();
   assert.deepEqual(keys, ['assistant', 'thinking', 'tool_result', 'tool_use', 'user'].sort());
   const sum = r.composition.reduce((n, c) => n + c.tokens, 0);
   assert.ok(sum > 0);
 });
 test('computeContent: toolResultsByTool attributes result text to the paired tool_use tool_name', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   assert.ok(r.toolResultsByTool.some((x) => x.key === 'Read' && x.tokens > 0));
 });
 test('computeContent: subagent token share is EXACT (per-message sidechain tokens)', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   const gp = r.subagents.find((x) => x.key === 'general-purpose');
   assert.ok(gp);
   assert.equal(gp.tokens, 390); // 300 input + 90 output, exact
@@ -87,7 +86,7 @@ test('computeContent: subagent token share is EXACT (per-message sidechain token
 // was merged into the characteristics list (see test/content-characteristics.test.mjs)
 // — this just confirms the merged shape never throws on sparse data.
 test('computeContent: characteristicsScope + characteristics never throw on sparse data', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   assert.equal(r.characteristicsScope, 'all');
   assert.ok(Array.isArray(r.characteristics));
   for (const c of r.characteristics) assert.equal(typeof c.value, 'number');
@@ -95,7 +94,7 @@ test('computeContent: characteristicsScope + characteristics never throw on spar
 // Locks Finding 3 (5e-0 review): ContentResult carries an explicit
 // `calibrated` marker so the UI can badge calibrated cells.
 test('computeContent: result carries an explicit calibrated:true contract marker', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   assert.equal(r.calibrated, true);
 });
 
@@ -105,7 +104,7 @@ test('computeContent: result carries an explicit calibrated:true contract marker
 // sDup (added for the 6-0.2 dedup fixture, non-minor so visible under 'all')
 // contributes another 700 (500+200), so the scope='all' total is 2200.
 test('computeContent: calibratedTotalTokens === Σ sessions.usage(input+output), not per-message', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   assert.equal(r.calibratedTotalTokens, 2200); // 1000 input + 500 output (s1) + 500+200 (sDup)
   // composition shares still track that calibrated total (±rounding across buckets).
   const sum = r.composition.reduce((n, c) => n + c.tokens, 0);
@@ -118,7 +117,7 @@ test('computeContent: calibratedTotalTokens === Σ sessions.usage(input+output),
 // total, implying tool-results = 100% of usage. RED→GREEN: the two assertions
 // below FAIL under the pre-fix code (Σ == billed == calibratedTotalTokens).
 test('computeContent: Σ toolResultsByTool ≤ composition tool_result bucket AND < calibratedTotalTokens (not inflated to full billed)', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   const toolSum = r.toolResultsByTool.reduce((n, x) => n + x.tokens, 0);
   const compToolResult = r.composition.find((c) => c.key === 'tool_result')?.tokens ?? 0;
   assert.ok(toolSum > 0, 'expect some tool-result tokens attributed');
@@ -129,7 +128,7 @@ test('computeContent: Σ toolResultsByTool ≤ composition tool_result bucket AN
 // FINDING 1 (reconcile): a small skill slice must render as its true fraction of
 // billed, NOT ~100%. RED→GREEN: fails under the pre-fix code (skillSum == 1500).
 test('computeContent: Σ skills tokens < calibratedTotalTokens when skills are a content subset', () => {
-  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  const r = content.computeContent({ type: 'all' }, null);
   const skillSum = r.skills.reduce((n, s) => n + s.tokens, 0);
   assert.ok(skillSum > 0, 'expect the code-review skill fixture to attribute some tokens');
   assert.ok(skillSum < r.calibratedTotalTokens, `Σ skills ${skillSum} must be < calibratedTotalTokens ${r.calibratedTotalTokens} (old code inflated it to full billed)`);
@@ -138,7 +137,7 @@ test('computeContent: Σ skills tokens < calibratedTotalTokens when skills are a
 test('session-scope Content is populated for a minor session', async () => {
   // sMinor: 4 messages (below the <10 msg noise-gate threshold) → minor=1.
   // Session scope must ignore the minor gate and still return content.
-  const r = content.computeContent({ type: 'session', id: 'sMinor' }, rangeOf(null));
+  const r = content.computeContent({ type: 'session', id: 'sMinor' }, null);
   assert.ok(r.calibratedTotalTokens > 0, 'minor session should still surface billed tokens under session scope');
   assert.ok(r.composition.some((c) => c.tokens > 0), 'composition should be non-empty for a directly-opened minor session');
 });
@@ -149,7 +148,7 @@ test('duplicate tool_use rows do not inflate toolResultsByTool token share', () 
   // join fanned out and double-summed the result's chars. Assert the paired
   // tokens can't exceed the tool_result composition bucket — the invariant
   // that breaks if the duplicate join doubles the char sum.
-  const r = content.computeContent({ type: 'session', id: 'sDup' }, rangeOf(null));
+  const r = content.computeContent({ type: 'session', id: 'sDup' }, null);
   const bash = r.toolResultsByTool.find((x) => x.key === 'Bash');
   const trBucket = r.composition.find((c) => c.key === 'tool_result')?.tokens ?? 0;
   assert.ok((bash?.tokens ?? 0) <= trBucket, 'paired tool-result tokens cannot exceed the tool_result composition bucket');

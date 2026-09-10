@@ -21,7 +21,6 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
-import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, content;
 let p1Id, p2Id, p3Id; // project ids, set in before() — referenced by project-scoped tests below
@@ -347,7 +346,7 @@ after(() => teardown());
 // one session).
 describe('computeContent().characteristics — contract', () => {
   test('all/project scope: result carries exactly the 7 keys from spec §2.5, in order (highContextRel + subagentTurns lead, the old narrative callouts\' framing)', () => {
-    const r = content.computeContent({ type: 'project', id: p1Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p1Id }, null);
     assert.equal(r.characteristicsScope, 'project');
     assert.deepEqual(r.characteristics.map((c) => c.key), [
       'highContextRel', 'subagentTurns', 'eightHourSessions',
@@ -356,7 +355,7 @@ describe('computeContent().characteristics — contract', () => {
   });
 
   test('session scope: characteristicsScope is "session" and the four threshold predicates are gone', () => {
-    const r = content.computeContent({ type: 'session', id: 's8h' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
     assert.equal(r.characteristicsScope, 'session');
     const keys = r.characteristics.map((c) => c.key);
     for (const dropped of ['eightHourSessions', 'highContextAbs', 'highContextRel', 'autonomousShare']) {
@@ -365,14 +364,14 @@ describe('computeContent().characteristics — contract', () => {
   });
 
   test('every characteristic is exact:true (all numerators are session-level or exact sidechain columns, never text-length calibration)', () => {
-    const r = content.computeContent({ type: 'session', id: 's8h' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
     for (const c of r.characteristics) assert.equal(c.exact, true, `${c.key} should be exact`);
   });
 });
 
 describe('session-scope marathonBadge + unattendedRatio (s8h)', () => {
   test('s8h (9h matched-tool-result gap): marathonBadge crosses 8h (~9.0h, warn), unattendedRatio ≈17% (well under 25%, warn)', () => {
-    const r = content.computeContent({ type: 'session', id: 's8h' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
     const marathon = findChar(r, 'marathonBadge');
     assert.equal(marathon.value, 9);
     assert.equal(marathon.count, 1);
@@ -383,7 +382,7 @@ describe('session-scope marathonBadge + unattendedRatio (s8h)', () => {
   });
 
   test('s8h has zero workflow/subagent/cache facts and no peakContextTokens fact (no context_tokens stored)', () => {
-    const r = content.computeContent({ type: 'session', id: 's8h' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 's8h' }, null);
     for (const key of ['workflowRuns', 'subagentTurns', 'cacheEfficiency']) {
       const c = findChar(r, key);
       assert.equal(c.value, 0, `${key} value should be 0`);
@@ -394,7 +393,7 @@ describe('session-scope marathonBadge + unattendedRatio (s8h)', () => {
 
 describe('session-scope peakContextTokens folds the old abs/rel pair into one fact (sHighCtxAbs / sHighCtxRel)', () => {
   test('sHighCtxAbs (200k ctx, 1M window): value=200000 tokens, value2=20% of window (well under the 70% warn line)', () => {
-    const r = content.computeContent({ type: 'session', id: 'sHighCtxAbs' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sHighCtxAbs' }, null);
     const c = findChar(r, 'peakContextTokens');
     assert.equal(c.value, 200_000);
     assert.equal(c.value2, 20);
@@ -402,7 +401,7 @@ describe('session-scope peakContextTokens folds the old abs/rel pair into one fa
   });
 
   test('sHighCtxRel (145k ctx, 200k window): value=145000 tokens, value2=73% of window (past the 70% warn line)', () => {
-    const r = content.computeContent({ type: 'session', id: 'sHighCtxRel' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sHighCtxRel' }, null);
     const c = findChar(r, 'peakContextTokens');
     assert.equal(c.value, 145_000);
     assert.equal(c.value2, 73);
@@ -412,7 +411,7 @@ describe('session-scope peakContextTokens folds the old abs/rel pair into one fa
 
 describe('session-scope cacheEfficiency (sCache)', () => {
   test('cacheRead 9000 / (cacheRead 9000 + input 1000) = exactly 90%', () => {
-    const r = content.computeContent({ type: 'session', id: 'sCache' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sCache' }, null);
     const c = findChar(r, 'cacheEfficiency');
     assert.equal(c.value, 90);
   });
@@ -420,14 +419,14 @@ describe('session-scope cacheEfficiency (sCache)', () => {
 
 describe('workflowRuns + subagentTurns — session scope (sWorkflowA)', () => {
   test('workflowRuns: 450 wf_fixture01 tokens / 1000 session total = 45%, count = 1 distinct workflow', () => {
-    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, null);
     const c = findChar(r, 'workflowRuns');
     assert.equal(c.value, 45);
     assert.equal(c.count, 1);
   });
 
   test('subagentTurns: (450 workflow + 240 direct) = 690 / 1000 session total = 69%, count = 5 turns', () => {
-    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, null);
     const c = findChar(r, 'subagentTurns');
     assert.equal(c.value, 69);
     assert.equal(c.count, 5);
@@ -443,14 +442,14 @@ describe('workflowRuns + subagentTurns — session scope (sWorkflowA)', () => {
 // (`m.kind IN ('assistant','tool_use')`), both read their true share.
 describe('workflowRuns + subagentTurns — bare tool_use turn, no assistant row at all (sWorkflowB)', () => {
   test('workflowRuns: 100 wf_fixture02 tokens (on a tool_use row) / 200 session total = 50%, count = 1', () => {
-    const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, null);
     const c = findChar(r, 'workflowRuns');
     assert.equal(c.value, 50);
     assert.equal(c.count, 1);
   });
 
   test('subagentTurns: same 100 tokens (no direct turns in this session) / 200 session total = 50%, count = 1', () => {
-    const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, rangeOf(null));
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowB' }, null);
     const c = findChar(r, 'subagentTurns');
     assert.equal(c.value, 50);
     assert.equal(c.count, 1);
@@ -459,7 +458,7 @@ describe('workflowRuns + subagentTurns — bare tool_use turn, no assistant row 
 
 describe('workflowRuns + subagentTurns — cross-session aggregation (scope=project p3, sWorkflowA + sWorkflowB)', () => {
   test('workflowRuns counts BOTH wf_fixture01 and wf_fixture02 as distinct runs (one of them tool_use-only) and dilutes the share across both sessions\' totals', () => {
-    const r = content.computeContent({ type: 'project', id: p3Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p3Id }, null);
     const c = findChar(r, 'workflowRuns');
     // Σ workflow tokens = 450 (A) + 100 (B) = 550; Σ session totals = 1000 (A) + 200 (B) = 1200.
     const expectedShare = Math.round((450 + 100) / (1000 + 200) * 100); // 46
@@ -468,7 +467,7 @@ describe('workflowRuns + subagentTurns — cross-session aggregation (scope=proj
   });
 
   test('subagentTurns aggregates ALL sidechain turns (workflow + direct, assistant AND tool_use kind) across both sessions', () => {
-    const r = content.computeContent({ type: 'project', id: p3Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p3Id }, null);
     const c = findChar(r, 'subagentTurns');
     // Σ sidechain tokens = 690 (A: 450 wf + 240 direct) + 100 (B) = 790; Σ totals = 1200.
     const expectedShare = Math.round((690 + 100) / (1000 + 200) * 100); // 66
@@ -487,21 +486,21 @@ describe('workflowRuns + subagentTurns — cross-session aggregation (scope=proj
 // (only session scope replaces them with absolute facts).
 describe('missing-data exclusion (scope=project p2): eightHourSessions/highContextAbs exclude sessions without the underlying column from BOTH sides of the share', () => {
   test('eightHourSessions: denom excludes sNoDurA (null active/engaged) — 1000 (sCtrlA, qualifies) / 4000 (sCtrlA+sCtrlB+sNoCtxB, all have real duration data) = 25%, count = 1', () => {
-    const r = content.computeContent({ type: 'project', id: p2Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'eightHourSessions');
     assert.equal(c.value, 25);
     assert.equal(c.count, 1);
   });
 
   test('highContextAbs: denom excludes sCtrlA/sNoDurA/sNoCtxB (no context_tokens) — 1000 (sCtrlB, qualifies) / 1000 (sCtrlB, the only session WITH context data) = 100%, count = 1', () => {
-    const r = content.computeContent({ type: 'project', id: p2Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'highContextAbs');
     assert.equal(c.value, 100);
     assert.equal(c.count, 1);
   });
 
   test('highContextRel: same denom as highContextAbs (only sCtrlB has context data) — sCtrlB does not clear the relative threshold, so value = 0%, count = 0 (not 0/7000 from an inflated denom, and not skipped/undefined)', () => {
-    const r = content.computeContent({ type: 'project', id: p2Id }, rangeOf(null));
+    const r = content.computeContent({ type: 'project', id: p2Id }, null);
     const c = findChar(r, 'highContextRel');
     assert.equal(c.value, 0);
     assert.equal(c.count, 0);

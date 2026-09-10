@@ -29,9 +29,8 @@ development never touches that path.
   `npm run standalone` identically.
 - **Return token cells, never dollars.** The client prices from `src/models.ts`. A route that
   returns currency has put the price table on the wrong side of the wire.
-- **Take a `Scope` and a `Range`** rather than writing an all-projects, a per-project and a
-  per-session copy of the same query. `queryContext(scope, range)` hands over the scope clause,
-  the minor gate and the range fragments; no engine takes a bare day count.
+- **Take a `Scope`** rather than writing an all-projects, a per-project and a per-session copy
+  of the same query. `scopeClause()` and `minorGate()` do the rest.
 - **Go through `calibrate.ts`** for any per-bucket token estimate, and mark the result `≈`.
 - **Call `invalidateCache()`** from every path that writes.
 - **Read-only on foreign systems.** Copy a SQLite source to temp with its sidecars; never open

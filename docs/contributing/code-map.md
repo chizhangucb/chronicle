@@ -46,7 +46,7 @@ The parser is the only place that knows a tool's native format.
 | `security.ts` | Detectors, custom rules, `scanText()` / `scanSession()` |
 | `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines |
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
-| `scope.ts` | The query context: scope clause, the one minor gate, and the session/message/token ranges |
+| `scope.ts` | `Scope` to SQL, plus `minorGate()` |
 | `cache.ts` | The generation-keyed analytics cache |
 | `noiseGate.ts` | The `minor` session flag |
 | `rangeUsage.ts` | The overlap-based range primitive every ranged route uses |
