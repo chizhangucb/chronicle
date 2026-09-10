@@ -12,6 +12,7 @@
 // everything it runs lives in chizhangucb/software-factory.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import yaml from 'js-yaml';
 import { read } from './helpers/tracked-files.mjs';
 
 const CALLER = '.github/workflows/factory.yml';
@@ -41,4 +42,94 @@ test('no job in the factory caller carries a comment about slots', () => {
       /\bslots?\b/i.test(line) ? [`${CALLER}:${jobs + i + 1}: ${line.trim()}`] : [],
     );
   assert.deepEqual(offenders, [], `a job still talks about slots:\n  ${offenders.join('\n  ')}`);
+});
+
+// --- The run still starts (#331, acceptance criterion 2) -------------------
+//
+// The reason a stray input matters is not tidiness: GitHub validates a
+// reusable workflow's inputs when it PARSES the caller, so one undeclared key
+// stops every job in this file, whatever triggered it. These pins read the
+// caller the way GitHub does -- parsed, per job -- and assert both halves of
+// "the next labelled ticket or PR starts a factory run": nothing is passed
+// that the factory does not declare, and the wiring that carries a label to a
+// job is still there.
+
+// Every input the factory's reusable workflows still declare. `factory_ref` is
+// on all of them; `node_version` on the ones that run the target's tooling;
+// `trusted_author_associations` on dispatch. `per_account_slots` was the
+// fourth and is gone (software-factory#149) -- adding a name back here is a
+// deliberate act, which is the point.
+const DECLARED_INPUTS = new Set(['factory_ref', 'node_version', 'trusted_author_associations']);
+
+// job id -> the substring of `uses:` that says which factory workflow it calls.
+// A caller that loses a job loses the role: no dispatch is no sweep, no
+// update-branch is no auto-merge, no reconciler is nothing to repair a stall.
+const CALLED_WORKFLOWS = {
+  dispatch: 'dispatch.yml',
+  implement: 'agent-implement.yml',
+  review: 'agent-review.yml',
+  'implement-pr': 'agent-implement-pr.yml',
+  gate: 'gate.yml',
+  audit: 'agent-audit.yml',
+  'update-branch': 'update-branch.yml',
+};
+
+const jobs = () => {
+  const parsed = yaml.load(read(CALLER));
+  assert.ok(parsed?.jobs, 'the caller parses to no `jobs:` block');
+  return parsed.jobs;
+};
+
+test('every job passes only inputs the factory still declares', () => {
+  const offenders = Object.entries(jobs()).flatMap(([id, job]) =>
+    Object.keys(job.with ?? {})
+      .filter((input) => !DECLARED_INPUTS.has(input))
+      .map((input) => `${id} -> ${input}`),
+  );
+  assert.deepEqual(
+    offenders,
+    [],
+    `the caller passes an input the factory does not declare, so every job fails at parse time:\n  ${offenders.join('\n  ')}`,
+  );
+});
+
+test('every factory role is still wired, at the ref its factory_ref names', () => {
+  const declared = jobs();
+  assert.deepEqual(
+    Object.keys(declared).sort(),
+    Object.keys(CALLED_WORKFLOWS).sort(),
+    'the caller gained or lost a factory role',
+  );
+  for (const [id, workflow] of Object.entries(CALLED_WORKFLOWS)) {
+    const job = declared[id];
+    const uses = job.uses ?? '';
+    assert.match(
+      uses,
+      new RegExp(`^chizhangucb/software-factory/\\.github/workflows/${workflow.replace('.', '\\.')}@(.+)$`),
+      `${id} no longer calls ${workflow}`,
+    );
+    // factory_ref must equal the ref in `uses:`: the scripts are checked out at
+    // factory_ref, and GitHub does not tell a reusable workflow which ref it
+    // came from. The header of the caller says to change both together.
+    assert.equal(job.with?.factory_ref, uses.split('@').pop(), `${id} pins two different factory refs`);
+  }
+});
+
+test('a labelled ticket and a labelled PR each still reach a job', () => {
+  const declared = jobs();
+  assert.match(
+    declared.implement.if,
+    /event_name == 'issues'.*'labeled'.*'agent:implement'/s,
+    'no job runs when a ticket is labelled agent:implement',
+  );
+  assert.match(
+    declared.review.if,
+    /event_name == 'pull_request_target'.*'agent:review'/s,
+    'no job runs when a PR is labelled agent:review',
+  );
+  assert.match(
+    declared['implement-pr'].if,
+    /event_name == 'pull_request_target'.*'agent:implement'/s,
+    'no job runs when a PR is labelled agent:implement',
+  );
 });
