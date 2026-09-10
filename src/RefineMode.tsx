@@ -322,7 +322,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content className="menu-pop export-pop" side="top" align="end" sideOffset={6}>
-                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(false)}>📄 Export Markdown</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(false)}>⇩ Export Markdown</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(true)}>⌁ Export as Prompt</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
