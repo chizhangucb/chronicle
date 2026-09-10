@@ -570,13 +570,13 @@ function DeleteZone({ session, liveStatus, onDeleted }: DeleteZoneProps): JSX.El
 
   return (
     <div className="card ov-block ov-danger">
-      <div className="ov-block-head"><strong>{t('Source file')}</strong></div>
+      <div className="ov-block-head"><strong>{t('Transcript')}</strong></div>
       <div className="muted small mono-path">{session.file_path}</div>
       {live ? (
-        <div className="muted small" style={{ marginTop: 8 }}>● {t('Session is live — deletion is disabled while the log is being written.')}</div>
+        <div className="muted small" style={{ marginTop: 8 }}>● {t('Session is live — deletion is disabled while the transcript is being written.')}</div>
       ) : confirming ? (
         <div className="ov-confirm">
-          <span className="small">{t('Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.')}</span>
+          <span className="small">{t('Delete the imported copy from Chronicle? The transcript stays on disk and can be re-imported later.')}</span>
           <button className="btn small danger-btn" disabled={busy} onClick={run}>
             {busy ? t('Deleting…') : t('Confirm delete')}
           </button>

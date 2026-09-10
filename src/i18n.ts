@@ -179,12 +179,12 @@ const zh = {
   'calls': '次调用',
   'Total': '共',
   'No tool calls recorded.': '没有记录到工具调用。',
-  'Source file': '源文件',
+  'Transcript': '对话记录',
   'Confirm delete': '确认删除',
   'Cancel': '取消',
   'Deleting…': '删除中…',
   'Delete from Chronicle': '从 Chronicle 删除',
-  'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
+  'Delete the imported copy from Chronicle? The transcript stays on disk and can be re-imported later.':
     '从 Chronicle 删除导入副本？原始日志仍保留在磁盘上，之后可以重新导入。',
   'Estimated context size (~4 characters per token)': '估算的上下文大小（约 4 字符/词元）',
   // Refine mode
@@ -264,7 +264,7 @@ const zh = {
   'Context Window': '上下文窗口',
   'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
     '导出文档的大小（工具调用截断为单行预览）—— 不是模型上下文窗口',
-  'Session is live — deletion is disabled while the log is being written.':
+  'Session is live — deletion is disabled while the transcript is being written.':
     '会话正在直播——日志写入期间禁止删除。',
   // Cost & Usage
   'Cost & Usage': '成本与用量',
@@ -766,12 +766,12 @@ const ja = {
   'calls': '回の呼び出し',
   'Total': '合計',
   'No tool calls recorded.': '記録されたツール呼び出しはありません。',
-  'Source file': 'ソースファイル',
+  'Transcript': 'トランスクリプト',
   'Confirm delete': '削除を確認',
   'Cancel': 'キャンセル',
   'Deleting…': '削除中…',
   'Delete from Chronicle': 'Chronicle から削除',
-  'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
+  'Delete the imported copy from Chronicle? The transcript stays on disk and can be re-imported later.':
     'インポートされたコピーを Chronicle から削除しますか？元のログはディスクに残り、後で再インポートできます。',
   'Estimated context size (~4 characters per token)': '推定コンテキストサイズ（1トークンあたり約4文字）',
   'Compressed Preview': '圧縮プレビュー',
@@ -857,7 +857,7 @@ const ja = {
   'Context Window': 'コンテキストウィンドウ',
   'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
     'エクスポート文書のサイズ（ツール呼び出しは1行プレビューに短縮）— モデルのコンテキストウィンドウではありません',
-  'Session is live — deletion is disabled while the log is being written.':
+  'Session is live — deletion is disabled while the transcript is being written.':
     'セッションはライブ中です — ログの書き込み中は削除が無効になります。',
   // Cost & Usage
   'Cost & Usage': 'コストと使用量',
