@@ -61,6 +61,30 @@ before(async () => {
   db.prepare(`INSERT INTO messages (session_id, seq, ts, kind, model, text, input_tokens, output_tokens, is_sidechain, agent_type)
               VALUES ('sNullTsRollup', ?, NULL, 'assistant', ?, 'an undated sidechain turn, long enough to carry a char share', 90, 30, 1, 'Explore')`)
     .run(maxSeq + 3, MODEL);
+
+  // Not-absent-but-unbucketable, the other half of #334: server/db.ts writes an
+  // imported `timestamp` through verbatim, so a transcript line can carry a
+  // string SQLite cannot read as a date. It passes `AND m.ts IS NOT NULL` and
+  // strftime still returns NULL for it.
+  db.prepare(`INSERT INTO messages (session_id, seq, ts, kind, model, text, input_tokens, output_tokens, is_sidechain, agent_type)
+              VALUES ('sNullTsRollup', ?, 'not-a-date', 'assistant', ?, 'a turn whose timestamp is not a date SQLite can read', 70, 20, 1, 'Explore')`)
+    .run(maxSeq + 4, MODEL);
+  db.prepare(`INSERT INTO messages (session_id, seq, ts, kind, tool_name, tool_input, tool_use_id)
+              VALUES ('sNullTsRollup', ?, 'not-a-date', 'tool_use', 'Glob', '{"pattern":"*.ts"}', 'bts1')`).run(maxSeq + 5);
+  db.prepare(`INSERT INTO messages (session_id, seq, ts, kind, tool_use_id, text)
+              VALUES ('sNullTsRollup', ?, 'not-a-date', 'tool_result', 'bts1', 'Error: no such file')`).run(maxSeq + 6);
+
+  // A session with NO timestamp anywhere: the parsers derive started_at from the
+  // events' timestamps (server/parsers/claudeCode.ts), so all-undated events
+  // leave it NULL. The two rollup scans keyed by `s.started_at` (metric='active'
+  // and the precomputed per-session error counts) bucket off that column, so they
+  // need the same treatment as the m.ts scans.
+  db.prepare(`INSERT INTO sessions (id, project_id, source, file_path, started_at, ended_at, message_count, agent_active_ms, error_count, minor)
+              VALUES ('sNoStartedAt', ?, 'claude-code', '/tmp/sNoStartedAt.jsonl', NULL, NULL, 3, 60000, 2, 0)`).run(p.id);
+  for (let i = 0; i < 3; i++) {
+    db.prepare(`INSERT INTO messages (session_id, seq, ts, kind, tool_name, tool_input, tool_use_id)
+                VALUES ('sNoStartedAt', ?, NULL, 'tool_use', 'Bash', '{"command":"ls"}', ?)`).run(i, `ns${i}`);
+  }
 });
 
 after(() => teardown?.());
@@ -124,3 +148,4 @@ test('the undated message still counts in the ranked rows under All', () => {
   const bashInBuckets = (daily.buckets ?? []).reduce((n, b) => n + (b.series.Bash?.requests ?? 0), 0);
   assert.equal(bashInBuckets, 6);
 });
+

@@ -125,6 +125,10 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
 // the rule; giving it a bucket of its own is not. Call sites: the activity
 // query in server/routes/projects.ts, the rollup in server/explore.ts.
 // Bind-free, so it composes into whereOf(...) or straight into a WHERE body.
+// Necessary, not sufficient: a stored `ts` is whatever the transcript carried
+// (server/db.ts validates nothing), so a non-NULL one can still bucket to NULL.
+// A caller that KEYS its output by the bucket also drops a NULL key: see
+// server/explore.ts's `cell`.
 export function tsNotNull(alias = 'm'): string {
   return `AND ${alias}.ts IS NOT NULL`;
 }
