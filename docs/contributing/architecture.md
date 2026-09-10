@@ -65,10 +65,13 @@ three wiring points, and nothing else. The walkthrough is in
 **The route seam.** Route groups live in `server/routes/` as `mount*` functions called from
 `server/api.ts`. Register once and the endpoint works in dev and standalone identically.
 
-**The scope seam.** `server/scope.ts` turns `{ type: 'all' | 'project' | 'session', id }` into
-a SQL fragment, so one analytics engine serves all three scopes. `minorGate()` applies the
-noise-gate exclusion everywhere except session scope. A new engine takes a `Scope` rather than
-growing three near-copies.
+**The scope seam.** `server/scope.ts` is the query context: `queryContext(scope, range)` hands
+an engine its scope clause, its minor gate and its range fragments together, so one analytics
+engine serves all three scopes and one range dialect. The minor gate is written there and
+nowhere else (it applies everywhere except session scope). The three ranges are exposed by
+name because they differ: a session is in range by overlap (`sessions()`), a message by its
+timestamp (`messages()`), billed tokens by their in-range share (`tokens`). Every engine takes
+`(scope, range)` — never a bare day count — rather than growing near-copies.
 
 **The token/price seam.** The server returns cells; the client prices. See ADR 0005.
 
