@@ -37,6 +37,10 @@ const EXEMPT = new Set([
 const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 const sweepable = tracked.filter((rel) => !EXEMPT.has(rel) && !BINARY.test(rel));
 
+// Prose wraps, and markdown bolds half a sentence, so a claim is matched
+// against the flattened line: emphasis stripped, whitespace collapsed.
+const flatten = (src) => src.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
+
 // Claims that deny the plan-window quota read exists. Each is false as written:
 // the one outbound call is real, on by default, and named on the privacy page.
 const OVERCLAIMS = [
@@ -59,8 +63,14 @@ for (const { claim, re } of OVERCLAIMS) {
     for (const rel of sweepable) {
       let src;
       try { src = read(rel); } catch { continue; }
-      src.split('\n').forEach((line, i) => {
-        if (re.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
+      // Prose wraps, and `outbound\n  network calls (there are none)` is the
+      // same claim as the unwrapped one, so each line is read together with the
+      // one after it and reported at the line the claim starts on.
+      const lines = src.split('\n');
+      lines.forEach((line, i) => {
+        if (re.test(flatten(`${line} ${lines[i + 1] ?? ''}`))) {
+          offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
+        }
       });
     }
     assert.deepEqual(offenders, [], `"${claim}" is claimed again:\n  ${offenders.join('\n  ')}`);
@@ -78,10 +88,6 @@ const PROMISE_SURFACES = [
   'docs/guide/local-service.md',
   'docs/reference/privacy-and-data.md',
 ];
-
-// Prose wraps, and markdown bolds half a sentence, so a claim is matched
-// against the flattened line: emphasis stripped, whitespace collapsed.
-const flatten = (src) => src.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
 
 // ADR 0008, part one: session data never leaves the machine.
 const NEVER_LEAVES = /never leaves (?:your machine|the machine|it\b)/i;

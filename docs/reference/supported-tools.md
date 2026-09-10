@@ -119,7 +119,7 @@ for a free one and prints the port it actually bound.
 
 - [Installation](../guide/installation.md) — the `npx chronicle-cli` install path, CLI flags,
   and requirements.
-- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the outbound
-  network calls (there are none).
+- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the one outbound
+  network call (your own Claude quota, on by default, off in Settings).
 - [How it works](../architecture/how-it-works.md) — the ingestion pipeline and the invisible
   sync engine.
