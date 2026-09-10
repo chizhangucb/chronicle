@@ -1670,6 +1670,12 @@ h4 { margin: 6px 0; }
 .callout { border-left: 2px solid var(--brass); background: var(--bg2); border-radius: 0 6px 6px 0; padding: 9px 12px; margin-bottom: 8px; }
 .callout b { font: 600 13px var(--mono); }
 .callout .why { font: 11.5px var(--sans); color: var(--ink-2); margin-top: 2px; }
+/* #206 (DEDUP): the measure chip and the subset note — the cues that keep two
+   same-family rows (two context-pressure shares, two subagent shares) from
+   reading as one restated stat. Both sit UNDER the bold "N% ..." lead-in, in
+   the mono voice the numbers use, so the distinction is visible at a glance. */
+.callout .measure { display: inline-block; font: 10.5px var(--mono); letter-spacing: 0.03em; color: var(--ink-2); background: var(--bg1); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; margin-top: 4px; }
+.callout .subset { font: 11px var(--mono); color: var(--ink-2); margin-top: 3px; }
 .callout.warn { border-left-color: var(--warn); }
 .minor-filter-notice { margin: 6px 0 14px; }
 .minor-notice-head { display: flex; align-items: center; gap: 6px; }

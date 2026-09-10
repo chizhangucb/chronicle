@@ -57,6 +57,18 @@ function compositionColor(key: string): string {
   return CATEGORICAL_COLORS[(i >= 0 ? i : 0) % CATEGORICAL_COLORS.length];
 }
 
+// #206 (DEDUP): a row whose population nests inside another row's states its
+// share OF that row, so a 45% next to a 69% reads as a part and its whole
+// rather than as one stat disagreeing with itself. Rendered only when the
+// named parent is really in the same list — the cue says "above", so it must
+// never point at a row the operator cannot see. Still key-agnostic: the
+// parent is looked up by the server-supplied key, never switched on.
+function subsetNote(c: Characteristic, all: Characteristic[]): JSX.Element | null {
+  const nested = c.subsetOf;
+  if (!nested || !all.some((p) => p.key === nested.key)) return null;
+  return <div className="subset">{nested.percent}% {nested.phrase}</div>;
+}
+
 export default function ContentTab({ scope, days }: ContentTabProps): JSX.Element {
   const { data: result } = useCachedFetch<ContentResult>(contentUrl(scope.type, scope.id, days ?? undefined));
 
@@ -136,11 +148,13 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               )}
               {' '}<InfoTip text={c.info} />
             </b>
+            <div className="measure">{c.measure}</div>
             <div className="why">
               {c.why}
               {typeof c.count === 'number' && c.count > 0 && c.countOne && c.countMany
                 && ` (${pluralize(c.count, c.countOne, c.countMany)})`}
             </div>
+            {subsetNote(c, result.characteristics)}
           </div>
         ))}
         {!result.characteristics.length && <div className="muted small">No sessions in range.</div>}

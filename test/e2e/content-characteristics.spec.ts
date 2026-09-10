@@ -64,3 +64,34 @@ test('Session Content view renders the 6-row session-facts set, not the 7 all-sc
     await expect(rows.nth(i).locator('button.info-tip')).toHaveCount(1);
   }
 });
+
+// #206 (DEDUP): two rows of this card can land on near-identical percentages
+// for different metrics (the two context-pressure shares; the two subagent
+// shares), so each row carries a `measure` chip naming which population its
+// number is over, and the workflow row states its share OF the subagent row
+// it nests inside. Both cues are server-supplied (server/content.ts) and
+// rendered generically — this probe pins that they reach the page.
+test('every usage-characteristic row renders a distinct measure chip', async ({ page }) => {
+  const projectId = await fixtureProjectId();
+  await page.goto(`${state.baseURL}/project/${projectId}/content`);
+
+  const rows = characteristicRows(page);
+  await expect(rows).toHaveCount(7);
+  const measures = await rows.locator('.measure').allInnerTexts();
+  expect(measures).toHaveLength(7);
+  for (const m of measures) expect(m.trim().length).toBeGreaterThan(0);
+  expect(new Set(measures).size).toBe(measures.length);
+});
+
+test('the workflow row states its share of the subagent usage it nests inside', async ({ page }) => {
+  const projectId = await fixtureProjectId();
+  await page.goto(`${state.baseURL}/project/${projectId}/content`);
+
+  const subsets = characteristicRows(page).locator('.subset');
+  // The seeded fixture may have no subagent usage at all, in which case the
+  // row makes no claim (server omits `subsetOf` rather than inventing a 0%).
+  const count = await subsets.count();
+  for (let i = 0; i < count; i++) {
+    await expect(subsets.nth(i)).toContainText(/^\d+% of the subagent usage above/);
+  }
+});
