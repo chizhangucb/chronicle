@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findClaudeBin, extractJson } from '../server/ask.ts';
-import { resolveDataDir } from '../server/config.ts';
+import { dataDir as DATA_DIR } from '../server/config.ts';
 import {
   askSchemaDoc, validateAskEnvelope, normalizeAskCostMode, toCostMode,
   pickCapture, askClaudeArgs, type AskCapture, type AskCostMode, type AskTurn,
@@ -33,7 +33,6 @@ import {
 
 const RUN_TIMEOUT_MS = 90 * 1000; // short: node:sqlite has no query interrupt, so
                                   // this process timeout is the only DoS bound.
-const DATA_DIR = resolveDataDir();
 
 function flag(argv: string[], name: string): string | undefined {
   const i = argv.indexOf(name);

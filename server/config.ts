@@ -57,10 +57,17 @@ export const dataDir: string = resolveDataDir();
 
 const CONFIG_PATH = join(dataDir, 'config.json');
 
-/** The config as it stands. An absent or unparseable file reads as `{}`, so
- * every caller's `?? default` is what decides a missing key. */
+/** The config as it stands. An absent, unparseable, or non-object file reads as
+ * `{}`, so every caller's `?? default` is what decides a missing key. The
+ * non-object check is not paranoia: a `config.json` holding `null` parses
+ * without throwing, and every `readConfig().key` on the insert path (the noise
+ * gate) and in /settings would then throw on a null dereference. */
 export function readConfig(): ChronicleConfig {
-  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as ChronicleConfig;
+  } catch { return {}; }
 }
 
 /** Merge `patch` over the current config, write it, and hand back the result. */

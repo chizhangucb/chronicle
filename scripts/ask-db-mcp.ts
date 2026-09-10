@@ -27,11 +27,10 @@ import { createInterface } from 'node:readline';
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { type CostMode } from '../shared/pricing.ts';
-import { resolveDataDir } from '../server/config.ts';
+import { dataDir as DATA_DIR } from '../server/config.ts';
 import { sanitizeAskSql, wrapLimited, shapeRows, ASK_MAX_ROWS } from '../server/ask.ts';
 import { buildCostSurface } from '../server/askDb.ts';
 
-const DATA_DIR = resolveDataDir();
 const RUNNER_DIR = process.env.CHRONICLE_ASK_RUNNER_DIR || join(DATA_DIR, 'runner');
 const CAPTURE = join(RUNNER_DIR, 'ask-queries.jsonl');
 const COST_MODE: CostMode =

@@ -18,8 +18,8 @@ export function mountSettings(app: Express): void {
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
       ask: cfg.ask === true,
-      minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
-      minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
     });
@@ -45,8 +45,8 @@ export function mountSettings(app: Express): void {
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
       ask: cfg.ask === true,
-      minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
-      minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
     });

@@ -77,6 +77,13 @@ test('an absent or unparseable config reads as empty', () => {
   assert.deepEqual(config.readConfig(), {});
   fs.writeFileSync(path.join(dir, 'config.json'), '{ not json');
   assert.deepEqual(config.readConfig(), {});
+  // `null` PARSES, so only a non-object check keeps it from reaching callers as
+  // a null every `readConfig().key` would throw on (the noise gate runs on the
+  // insert path). Same for a top-level array.
+  fs.writeFileSync(path.join(dir, 'config.json'), 'null');
+  assert.deepEqual(config.readConfig(), {});
+  fs.writeFileSync(path.join(dir, 'config.json'), '[1,2]');
+  assert.deepEqual(config.readConfig(), {});
 });
 
 // ---- the one module, swept off disk ------------------------------------
