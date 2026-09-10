@@ -131,9 +131,9 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `∴`=ask `※`=reference. `⌂`=Home and `⊘`=safety are
   retired from chrome and appear nowhere in `src/`. Per-surface: `/` home page tabs are text;
   `/projects` rail rows use `⎇`/`⚙`; session rail uses the mode glyphs above.
-  - **Message kinds** (`src/kinds.ts` `KIND_ICON`, the marker on every Playback row): `⊙`=user
-    `✳`=assistant `⋯`=thinking `⇥`=tool call `↩`=tool result `＋`=inserted. Mono like the
-    rest; no carve-out. Guards: `test/kind-icons.test.mjs`, `test/no-colored-emoji.test.mjs`.
+  - **Message kinds** carry a glyph too (`src/kinds.ts` `KIND_ICON`, the marker on every Playback
+    row). Mono like the rest, no carve-out; the set is enumerated with the others in
+    `spec/design-qa-rubric.md`. Guards: `test/kind-icons.test.mjs`, `test/no-colored-emoji.test.mjs`.
 - **Nothing renders above the KPI strip on `/`.** The briefing band, the status band and the
   Settings `homeBands` toggle that hid them are removed; the KPI strip is the FIRST element inside
   the Overview tab body. Guard: `test/e2e/home.spec.ts` — "nothing renders above the KPI strip".
