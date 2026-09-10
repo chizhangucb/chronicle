@@ -88,13 +88,13 @@ const SOURCES = git('ls-files', '--', 'server', 'scripts', 'shared', 'src', 'bin
   .filter((rel) => /\.(?:m?js|tsx?)$/.test(rel));
 const read = (rel) => readSource(path.join(REPO, rel));
 
-// This file is the pin, so it has to spell the pattern it forbids.
+// The one owner. This file sweeps source folders only, so the pin itself (which
+// has to spell the patterns it forbids) is never in the swept set.
 const OWNER = 'server/config.ts';
-const PIN = 'test/config-module.test.mjs';
 
 test('no module outside the config module inlines the data-folder fallback', () => {
   assert.ok(SOURCES.length > 50, `expected a populated source set, got ${SOURCES.length}`);
-  // `CHRONICLE_DATA_DIR ||` / `?? ` — the fallback, not the assignments the CLI
+  // `CHRONICLE_DATA_DIR ||` / `?? `: the fallback, not the assignments the CLI
   // and the test harness make (`process.env.CHRONICLE_DATA_DIR = dir`).
   const FALLBACK = /CHRONICLE_DATA_DIR[^\n]*(?:\|\||\?\?)/;
   const offenders = SOURCES.filter((rel) => rel !== OWNER && FALLBACK.test(read(rel)));
@@ -132,8 +132,4 @@ test('every reader of the folder or the config imports the one module', () => {
     return !IMPORTS_OWNER.test(read(rel));
   });
   assert.deepEqual(missing, [], `these readers do not import ${OWNER}: ${missing.join(', ')}`);
-});
-
-test('the pin itself is the only file allowed to spell these patterns', () => {
-  assert.equal(SOURCES.includes(PIN), false, 'the pin moved into the swept set');
 });

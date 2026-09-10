@@ -8,9 +8,12 @@
 // for db.ts or autosync.ts would close an import cycle. That cycle is why the
 // gate used to carry a private reader.
 //
-// The folder is frozen at import time, because server/db.ts binds its database
-// handle then: a later change to $CHRONICLE_DATA_DIR would move the config
-// without moving the database.
+// Two ways to ask for the folder, and the difference matters. `dataDir` is
+// frozen at import, because server/db.ts binds its database handle then: a later
+// change to $CHRONICLE_DATA_DIR would move the config without moving the
+// database. `resolveDataDir(env)` is the same rule as a pure function, for the
+// callers that are handed an environment rather than reading the process's own:
+// the Ask history path, which takes one so a test can point it somewhere else.
 import fs from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -20,17 +23,17 @@ export interface ChronicleConfig {
   autoSync?: boolean;
   autoSyncPaused?: boolean;
   // Spend-tab Claude Plan windows, default ON (opt-OUT). The
-  // ONE outbound call in Chronicle: reads the user's own Claude quota from
+  // ONE outbound call in Chronicle: reads the operator's own Claude quota from
   // api.anthropic.com (the token's own issuer, like Claude Code). Set false for a
   // fully offline instance. Codex windows are always local (never gated here).
   planWindows?: boolean;
   // Opt-in for /ask: the local claude-CLI-backed metric chat. Default
   // OFF. The `∴ Ask` sidebar entry + the runner are gated on this AND the claude
-  // CLI being present AND a non-demo console (all enforced server-side).
+  // CLI being present AND a non-demo app (all enforced server-side).
   ask?: boolean;
   // Monthly spend budget in USD. The server-visible home for what used
-  // to live only in the Spend tab's localStorage, so BOTH the Spend tab AND the
-  // Spend tab read the SAME number wherever it is shown.
+  // to live only in the Spend tab's localStorage, so every surface that shows
+  // the budget reads the SAME number.
   // null / absent = no budget set. Local app pref, written like the toggles
   // above via /settings.
   monthlyBudget?: number | null;
