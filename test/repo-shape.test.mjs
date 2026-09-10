@@ -196,6 +196,22 @@ test('no file of the retired proxy spine is tracked', () => {
   assert.deepEqual(back, [], `a proxy-spine path is tracked again: ${back}`);
 });
 
+test('the CI gate sets up Node and no other language runtime', () => {
+  // The Python 3.12 step and CHRONICLE_REQUIRE_PYTHON existed for the proxy
+  // guards (issue #188). With those gone, a contributor's install story and
+  // this gate are the same one: Node. The roster suite still shells out to
+  // python3 and still SKIPS without it, which is why the flag goes too --
+  // pinning an interpreter CI does not need is how the last one grew back.
+  const src = ci();
+  assert.equal(/setup-python/.test(src), false, 'the CI gate installs a Python toolchain again');
+  assert.equal(
+    /CHRONICLE_REQUIRE_PYTHON/.test(src),
+    false,
+    'the CI gate sets the require-python flag again',
+  );
+  assert.match(src, /actions\/setup-node/, 'the CI gate no longer sets up Node');
+});
+
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
   assert.ok(ciJobIds().includes('gitleaks'), 'ci.yml declares no `gitleaks` job');
   const src = ci();
