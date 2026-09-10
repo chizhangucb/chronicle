@@ -59,8 +59,8 @@ Default path constants live in each parser (`CLAUDE_PROJECTS_DIR`, `CODEX_SESSIO
 ### Per-tool caveats
 
 - **Cursor and OpenCode share one database across sessions.** Because one file backs many
-  sessions, per-session source-file deletion is disabled for these tools (it's offered only
-  for one-file-per-session sources: Claude Code, Codex).
+  sessions, a sync of one session re-reads the whole database, where a Claude Code or Codex
+  sync re-reads just that session's own transcript file.
 
 ## Known limitations
 
@@ -119,7 +119,7 @@ for a free one and prints the port it actually bound.
 
 - [Installation](../guide/installation.md) — the `npx chronicle-cli` install path, CLI flags,
   and requirements.
-- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the outbound
-  network calls (there are none).
+- [Privacy & data](./privacy-and-data.md) — exactly what is stored locally and the one outbound
+  network call (your own Claude plan windows, on by default, off in Settings).
 - [How it works](../architecture/how-it-works.md) — the ingestion pipeline and the invisible
   sync engine.

@@ -65,6 +65,12 @@ https://github.com/chizhangucb/chronicle/releases
   Every term above stays looked-up-able: the Reference page's **Retired** group defines each
   removed surface and says what, if anything, replaced it.
 
+- **Nothing in Chronicle deletes a source transcript.** The session Overview's "Delete source
+  file" and "Delete everywhere" buttons are gone, and so is the route behind them. Chronicle
+  only ever reads the file your coding tool wrote. "Delete from Chronicle" is unchanged: it
+  removes the imported copy, backs the database up first, and tombstones the session so a
+  later sync does not re-import it, with Undo to take that back.
+
 ### Added
 
 - **A reference for every number on the console.** The Reference page defines every metric
