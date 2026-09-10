@@ -132,72 +132,72 @@
     ],
     "hourlyActivity": [
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 7,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 8,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 9,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 11,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 16,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 20,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 2,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 4,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 6,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 7,
         "count": 9
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 9,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 11,
         "count": 11
       }
@@ -860,72 +860,72 @@
     ],
     "hourlyActivity": [
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 7,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 8,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 9,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 11,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 16,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 20,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 2,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 4,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 6,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 7,
         "count": 9
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 9,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 11,
         "count": 11
       }
@@ -1449,72 +1449,72 @@
     ],
     "hourlyActivity": [
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 7,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 8,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 9,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 11,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 16,
         "count": 1
       },
       {
-        "dow": 3,
+        "dow": "dow+6",
         "hour": 20,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 2,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 4,
         "count": 1
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 6,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 7,
         "count": 9
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 9,
         "count": 4
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 10,
         "count": 2
       },
       {
-        "dow": 4,
+        "dow": "dow+0",
         "hour": 11,
         "count": 11
       }
@@ -2894,7 +2894,7 @@
     "buckets": [
       {
         "bucket": "D-1",
-        "label": "Sep 9",
+        "label": "<label>",
         "series": {
           "g-span": {
             "tokensByModel": {
@@ -2915,7 +2915,7 @@
       },
       {
         "bucket": "D0",
-        "label": "Sep 10",
+        "label": "<label>",
         "series": {
           "g-today": {
             "tokensByModel": {
@@ -3030,7 +3030,7 @@
     "buckets": [
       {
         "bucket": "D-1",
-        "label": "Sep 9",
+        "label": "<label>",
         "series": {
           "g-span": {
             "tokensByModel": {
@@ -3051,7 +3051,7 @@
       },
       {
         "bucket": "D0",
-        "label": "Sep 10",
+        "label": "<label>",
         "series": {
           "g-today": {
             "tokensByModel": {
@@ -3258,8 +3258,8 @@
     "requestedRollup": "weekly",
     "buckets": [
       {
-        "bucket": "D-45",
-        "label": "Jul 27",
+        "bucket": "W-6",
+        "label": "<label>",
         "series": {
           "golden-beta": {
             "tokensByModel": {},
@@ -3271,12 +3271,25 @@
         }
       },
       {
-        "bucket": "D-3",
-        "label": "Sep 7",
+        "bucket": "W-1",
+        "label": "<label>",
         "series": {
           "golden-alpha": {
             "tokensByModel": {},
-            "requests": 28,
+            "requests": 8,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "W0",
+        "label": "<label>",
+        "series": {
+          "golden-alpha": {
+            "tokensByModel": {},
+            "requests": 20,
             "sessions": 0,
             "errors": 0,
             "activeMs": 0
@@ -3341,12 +3354,25 @@
     "requestedRollup": "weekly",
     "buckets": [
       {
-        "bucket": "D-3",
-        "label": "Sep 7",
+        "bucket": "W-1",
+        "label": "<label>",
         "series": {
           "golden-alpha": {
             "tokensByModel": {},
-            "requests": 28,
+            "requests": 8,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "W0",
+        "label": "<label>",
+        "series": {
+          "golden-alpha": {
+            "tokensByModel": {},
+            "requests": 20,
             "sessions": 0,
             "errors": 0,
             "activeMs": 0
@@ -3463,7 +3489,7 @@
     "buckets": [
       {
         "bucket": "D-1H6",
-        "label": "Sep 9 06h",
+        "label": "<label>",
         "series": {
           "codex": {
             "tokensByModel": {},
@@ -3476,7 +3502,7 @@
       },
       {
         "bucket": "D0H6",
-        "label": "Sep 10 06h",
+        "label": "<label>",
         "series": {
           "opencode": {
             "tokensByModel": {},
@@ -3489,7 +3515,7 @@
       },
       {
         "bucket": "D0H9",
-        "label": "Sep 10 09h",
+        "label": "<label>",
         "series": {
           "claude-code": {
             "tokensByModel": {},
@@ -3581,7 +3607,7 @@
     "buckets": [
       {
         "bucket": "D-1H6",
-        "label": "Sep 9 06h",
+        "label": "<label>",
         "series": {
           "codex": {
             "tokensByModel": {},
@@ -3594,7 +3620,7 @@
       },
       {
         "bucket": "D0H9",
-        "label": "Sep 10 09h",
+        "label": "<label>",
         "series": {
           "claude-code": {
             "tokensByModel": {},
@@ -3607,7 +3633,7 @@
       }
     ]
   },
-  "project:7": {
+  "project:30": {
     "project": {
       "id": 1,
       "path": "/tmp/golden-alpha",

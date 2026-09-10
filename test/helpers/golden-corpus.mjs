@@ -2,20 +2,26 @@
 //
 // The golden pins every engine's JSON against the pre-slice commit: the same
 // corpus, the same ranges, the same numbers. Determinism comes from two
-// choices: the anchor is LOCAL NOON of the day the suite runs (so no fixture
-// straddles a local midnight, whatever time of day CI starts), and every
-// timestamp is an offset from that anchor. `normalizeGolden` then rewrites the
-// run's real dates back to anchor-relative markers, so the committed fixture
-// stays valid tomorrow.
+// choices: the anchor is LOCAL NOON OF THE MOST RECENT MONDAY (so no fixture
+// straddles a local midnight whatever time of day CI starts, AND the run's
+// weekday is fixed: a moving weekday moves weekly bucket boundaries and the
+// hour-of-day heatmap's `dow` rows, neither of which a day offset can
+// normalize away), and every timestamp is an offset from that anchor.
+// `normalizeGolden` then rewrites the run's real dates back to anchor-relative
+// markers, so the committed fixture stays valid tomorrow.
 const HOUR = 3600000;
 const DAY = 86400000;
 const MODEL = 'claude-sonnet-5';
 const OPUS = 'claude-opus-5';
 
-// Local noon today — see the file header for why local, not UTC.
+// Local noon on the most recent Monday — see the file header for why local,
+// and why a fixed weekday. At most 6.5 days back, which every range in the
+// matrix clears (the shortest is the project route's 30d, the only case that
+// reads the real clock rather than the pinned anchor).
 export function anchorNow() {
   const d = new Date();
   d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d.getTime();
 }
 
@@ -126,13 +132,44 @@ export function buildCorpus(dbModule, now) {
 // captured today still matches tomorrow: full ISO instants become `+<ms>`
 // offsets, local day/hour bucket keys become `D<n>` / `D<n>H<h>` offsets from
 // the anchor's local day.
+//
+// Three outputs are absolute CALENDAR facts that a plain day offset cannot
+// carry, so they are normalized on their own terms — without them the fixture
+// is only valid on the exact date it was captured:
+//   - a WEEKLY bucket key is the week's Monday, whose distance from the anchor
+//     depends on the anchor's weekday → `W<n>` weeks from the anchor's Monday;
+//   - `dow` (insights' hour-of-day heatmap) is the run day's weekday →
+//     `dow+<n>` days from the anchor's weekday;
+//   - a bucket `label` is an absolute date string ("Sep 9"), a pure function of
+//     the bucket key (shared/bucketLabel.ts, pinned by test/bucket-label.test.mjs)
+//     → collapsed to `<label>`.
 export function normalizeGolden(value, now) {
   // JSON round-trip first: the fixture is JSON, so `undefined` fields and
   // Dates must drop out of the live result the same way they do on the wire.
   value = JSON.parse(JSON.stringify(value));
   const anchorDay = new Date(now);
   anchorDay.setHours(0, 0, 0, 0);
+  const anchorDow = anchorDay.getDay();                 // 0=Sunday, like strftime('%w')
+  const anchorMonday = new Date(anchorDay);
+  anchorMonday.setDate(anchorMonday.getDate() - ((anchorDow + 6) % 7));
   const dayOffset = (y, m, d) => Math.round((new Date(y, m - 1, d).getTime() - anchorDay.getTime()) / DAY);
+  const weekOffset = (y, m, d) => Math.round((new Date(y, m - 1, d).getTime() - anchorMonday.getTime()) / (7 * DAY));
+
+  // Weekly bucket keys are plain `YYYY-MM-DD` strings, indistinguishable from a
+  // daily key on their own, so they are rewritten from the result that knows
+  // its rollup before the generic walk sees them.
+  const markWeeklyBuckets = (v) => {
+    if (Array.isArray(v)) { v.forEach(markWeeklyBuckets); return; }
+    if (!v || typeof v !== 'object') return;
+    if (v.rollup === 'weekly' && Array.isArray(v.buckets)) {
+      for (const b of v.buckets) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b?.bucket ?? '');
+        if (m) b.bucket = `W${weekOffset(+m[1], +m[2], +m[3])}`;
+      }
+    }
+    for (const val of Object.values(v)) markWeeklyBuckets(val);
+  };
+  markWeeklyBuckets(value);
 
   const normString = (s) => {
     let m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})Z$/.exec(s);
@@ -148,10 +185,14 @@ export function normalizeGolden(value, now) {
     if (typeof v === 'string') return normString(v);
     if (Array.isArray(v)) return v.map(walk);
     if (v && typeof v === 'object') {
+      const isBucket = typeof v.bucket === 'string';
       const out = {};
       for (const [k, val] of Object.entries(v)) {
         // Row insert-time metadata is wall-clock noise, not engine output.
-        out[normString(k)] = k === 'created_at' || k === 'imported_at' ? '<insert-time>' : walk(val);
+        if (k === 'created_at' || k === 'imported_at') { out[k] = '<insert-time>'; continue; }
+        if (k === 'label' && isBucket) { out[k] = '<label>'; continue; }
+        if (k === 'dow' && typeof val === 'number') { out[k] = `dow+${(val - anchorDow + 7) % 7}`; continue; }
+        out[normString(k)] = walk(val);
       }
       return out;
     }

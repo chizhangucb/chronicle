@@ -190,7 +190,11 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // internally. Day-bucketed (not the plain rangedUsage()) so the client can
   // price each day's share at that day's rate — see InsightsResult's comment.
   const rangedTokensByModel = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
-  const dailySpend = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+  // dailySpend is the SAME day-bucketed cells under a second name (two fields
+  // of the contract, one query) — recomputing it would scan `messages` twice
+  // for identical rows. Neither field is mutated after this point; both are
+  // read-only on the client and serialize identically.
+  const dailySpend = rangedTokensByModel;
   const hourlySpend = days != null && days <= 2
     ? bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'hour')
     : null;

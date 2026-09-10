@@ -69,7 +69,11 @@ before(async () => {
   mountSessions(app);
   server = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
-  for (const days of [7, null]) {
+  // The only cases that read the REAL clock (the route derives its own range
+  // from Date.now(), not the pinned anchor), so the range has to be wide enough
+  // to clear the anchor's own distance from now (up to 6.5 days) — 30d, not 7d,
+  // or a Sunday-evening run would drop the corpus's oldest in-range messages.
+  for (const days of [30, null]) {
     out[`project:${days}`] = await (await fetch(`${base}/projects/${alpha.id}${days ? `?days=${days}` : ''}`)).json();
   }
 
