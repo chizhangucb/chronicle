@@ -9,6 +9,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore;
 
@@ -44,7 +45,7 @@ before(async () => {
 after(async () => { teardown?.(); });
 
 test('computeExplore(group=model, rollup=total): tokensByModelByDay splits the range total by LOCAL day', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   const sonnet = r.rows.find((row) => row.key === 'claude-sonnet-5');
   assert.ok(sonnet, 'sonnet-5 row must be present');
   assert.ok(sonnet.tokensByModelByDay, 'model group (an EXACT_USAGE_GROUPS group) must carry tokensByModelByDay');

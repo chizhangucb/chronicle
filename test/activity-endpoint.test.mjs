@@ -25,6 +25,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 const DAY = 86400000;
 // Frozen noon-UTC clock (see header): 12:00 keeps every window comfortably wide

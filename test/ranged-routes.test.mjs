@@ -17,6 +17,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 const HOUR = 3600000;
 const iso = (ms) => new Date(ms).toISOString();
@@ -123,7 +124,7 @@ function sumRangeCells(cells) {
 }
 
 test('computeInsights: includes the spanning session (P0 fix) and returns non-zero windowed totals', async () => {
-  const r = await insightsModule.computeInsights(WINDOW_DAYS);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(WINDOW_DAYS));
   assert.equal(r.sessions.length, 2, 'both the spanning session and the fully-in-range session must be in the ranged session list');
   assert.ok(r.sessions.some((s) => s.id === 'spanner'), 'the spanning session must not vanish from the window (the P0 bug)');
   assert.ok(r.rangedTokensByModel.length > 0);
@@ -145,7 +146,7 @@ test('GET /projects/:id?days=1: includes the spanning session and returns non-ze
 
 test('computeExplore(group=model, metric=tokens): non-zero, session-inclusive', () => {
   const r = exploreModule.computeExplore({
-    scope: { type: 'all' }, days: WINDOW_DAYS, metric: 'tokens', group: 'model', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(WINDOW_DAYS), metric: 'tokens', group: 'model', rollup: 'total', topN: 10,
   });
   const row = r.rows.find((x) => x.key === MODEL);
   assert.ok(row, 'the model row must be present');
@@ -154,25 +155,25 @@ test('computeExplore(group=model, metric=tokens): non-zero, session-inclusive', 
 });
 
 test('computeContent(scope=all): non-zero calibrated total', () => {
-  const r = contentModule.computeContent({ type: 'all' }, WINDOW_DAYS);
+  const r = contentModule.computeContent({ type: 'all' }, rangeOf(WINDOW_DAYS));
   assert.ok(r.calibratedTotalTokens > 0, 'Content calibrated total must be non-zero');
   assert.ok(r.composition.some((c) => c.tokens > 0));
 });
 
 test('windowed token totals reconcile EXACTLY across insights/projects/explore/content', async () => {
-  const insightsTotal = sumRangeCells((await insightsModule.computeInsights(WINDOW_DAYS)).rangedTokensByModel);
+  const insightsTotal = sumRangeCells((await insightsModule.computeInsights({ type: 'all' }, rangeOf(WINDOW_DAYS))).rangedTokensByModel);
 
   const res = await fetch(`${baseUrl}/projects/${projectId}?days=${WINDOW_DAYS}`);
   const projectsTotal = sumRangeCells((await res.json()).analytics.rangedTokensByModel);
 
   const exploreResult = exploreModule.computeExplore({
-    scope: { type: 'all' }, days: WINDOW_DAYS, metric: 'tokens', group: 'model', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(WINDOW_DAYS), metric: 'tokens', group: 'model', rollup: 'total', topN: 10,
   });
   const exploreTotal = exploreResult.rows.reduce(
     (n, r) => n + Object.values(r.tokensByModel).reduce((m, c) => m + c.input + c.output, 0), 0,
   );
 
-  const contentTotal = contentModule.computeContent({ type: 'all' }, WINDOW_DAYS).calibratedTotalTokens;
+  const contentTotal = contentModule.computeContent({ type: 'all' }, rangeOf(WINDOW_DAYS)).calibratedTotalTokens;
 
   assert.equal(insightsTotal, projectsTotal, 'insights (global) and projects (scoped to the one project both sessions live in) must agree exactly');
   assert.equal(insightsTotal, exploreTotal, 'insights and explore must agree exactly (both source rangedUsage)');
@@ -185,7 +186,7 @@ test('windowed token totals reconcile EXACTLY across insights/projects/explore/c
 
 test('minor sessions are excluded from windowed KPI queries', async () => {
   // The insights result excludes minor sessions — this is the baseline.
-  const insightsResult = await insightsModule.computeInsights(WINDOW_DAYS);
+  const insightsResult = await insightsModule.computeInsights({ type: 'all' }, rangeOf(WINDOW_DAYS));
   const insightsTotal = sumRangeCells(insightsResult.rangedTokensByModel);
 
   // The projects/:id windowed query must also exclude minor sessions and

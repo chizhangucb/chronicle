@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore;
 
@@ -109,7 +110,7 @@ after(() => teardown());
 // tokens are sourced from usage. sDup (added for the 6-0.2 dedup fixture) also
 // declares sonnet usage 500/200, so the sonnet totals below include it: 1700/900.
 test('computeExplore: group by model tokens come from sessions.usage, not per-message', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, false);
   const sonnet = r.rows.find((x) => x.key === 'claude-sonnet-5');
   assert.ok(sonnet);
@@ -124,7 +125,7 @@ test('computeExplore: group by model tokens come from sessions.usage, not per-me
 // group=project token totals reconcile to Σ that project's sessions.usage.
 // sDup is also project p1 (proj-a), so proj-a includes its 700 (500+200).
 test('computeExplore: group by project token total reconciles to Σ sessions.usage', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'project', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'project', rollup: 'total', topN: 10 });
   const sum = (row) => Object.values(row.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   const a = r.rows.find((x) => x.key === 'proj-a');
   const b = r.rows.find((x) => x.key === 'proj-b');
@@ -136,7 +137,7 @@ test('computeExplore: group by project token total reconciles to Σ sessions.usa
 // group=source token totals reconcile to Σ that source's sessions.usage.
 // sDup is also source 'claude-code', so cc includes its 700 (500+200).
 test('computeExplore: group by source token total reconciles to Σ sessions.usage', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'source', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'source', rollup: 'total', topN: 10 });
   const sum = (row) => Object.values(row.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   const cc = r.rows.find((x) => x.key === 'claude-code');
   const cx = r.rows.find((x) => x.key === 'codex');
@@ -149,19 +150,19 @@ test('computeExplore: group by source token total reconciles to Σ sessions.usag
 // group=model equals Σ all sessions.usage(input+output) in scope (2660,
 // including sDup's 700).
 test('computeExplore: group=model total tokens reconcile to Σ sessions.usage across the scope', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   const total = r.rows.reduce((n, row) => n + Object.values(row.tokensByModel).reduce((m, u) => m + u.input + u.output, 0), 0);
   assert.equal(total, 2660); // (1200+700) + (40+20) + sDup (500+200)
 });
 
 test('computeExplore: scope=project filters to one project', () => {
-  const r = explore.computeExplore({ scope: { type: 'project', id: 1 }, days: null, metric: 'requests', group: 'source', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'project', id: 1 }, range: rangeOf(null), metric: 'requests', group: 'source', rollup: 'total', topN: 10 });
   assert.equal(r.rows.length, 1);
   assert.equal(r.rows[0].key, 'claude-code');
 });
 
 test('computeExplore: group by subagent is EXACT (sidechain agent_type + per-message tokens)', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'subagent', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'subagent', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, false);
   const gp = r.rows.find((x) => x.key === 'general-purpose');
   assert.ok(gp);
@@ -169,7 +170,7 @@ test('computeExplore: group by subagent is EXACT (sidechain agent_type + per-mes
 });
 
 test('computeExplore: group by tool is CALIBRATED', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, true);
   assert.ok(r.rows.some((x) => x.key === 'Bash'));
 });
@@ -182,7 +183,7 @@ test('computeExplore: group by tool is CALIBRATED', () => {
 // assistant turns, all assistant kinds), which proves segments are per-message
 // while the row magnitude is usage-sourced.
 test('computeExplore: subgroup segments are per-message (subdivide the usage bar proportionally)', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', subgroup: 'project', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', subgroup: 'project', rollup: 'total', topN: 10 });
   const sonnet = r.rows.find((x) => x.key === 'claude-sonnet-5');
   const segSum = sonnet.segments.reduce((n, s) => n + s.tokens, 0);
   const rowTokens = Object.values(sonnet.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
@@ -191,7 +192,7 @@ test('computeExplore: subgroup segments are per-message (subdivide the usage bar
 });
 
 test('computeExplore: topN caps rows and folds the rest into an "Other" row', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'model', rollup: 'total', topN: 1 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'requests', group: 'model', rollup: 'total', topN: 1 });
   assert.ok(r.rows.length <= 2);
   assert.ok(r.rows.some((x) => x.key === 'Other') || r.rows.length === 1);
 });
@@ -202,7 +203,7 @@ test('computeExplore: topN caps rows and folds the rest into an "Other" row', ()
 // scope: s1's t2 and sDup's te1 (te1's duplicated tool_use pairs to exactly
 // one result via MIN(id), so it still contributes exactly 1, not 2).
 test('computeExplore: errors for group=tool count only the erroring tool_result, not the ok one', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', group: 'tool', rollup: 'total', topN: 10 });
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.ok(bash);
   assert.equal(bash.errors, 2);
@@ -214,7 +215,7 @@ test('computeExplore: errors for group=tool count only the erroring tool_result,
 // message (17 in this fixture's s1), not once per erroring tool_result.
 // Two erroring results in scope for source='claude-code': s1's t2 + sDup's te1.
 test('computeExplore: errors for group=source are NOT multiplied by session message count', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'source', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', group: 'source', rollup: 'total', topN: 10 });
   const cc = r.rows.find((x) => x.key === 'claude-code');
   assert.ok(cc);
   assert.equal(cc.errors, 2);
@@ -225,7 +226,7 @@ test('computeExplore: errors for group=source are NOT multiplied by session mess
 // collapse into a single ''-keyed cell (costOf('') is null per src/models.ts
 // pricingFor's falsy-model guard).
 test('computeExplore: calibrated tool rows blend tokens across REAL models, never a "" key', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, true);
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.ok(bash);
@@ -238,7 +239,7 @@ test('computeExplore: calibrated tool rows blend tokens across REAL models, neve
 // Locks Finding 5 (5e-0 review): calibrated groups skip subgroup segments
 // entirely (raw per-row token sums would be near-zero and misleading).
 test('computeExplore: calibrated groups (tool/skill) leave segments empty even when subgroup is requested', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', subgroup: 'project', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', subgroup: 'project', rollup: 'total', topN: 10 });
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.ok(bash);
   assert.deepEqual(bash.segments, []);
@@ -255,7 +256,7 @@ test('computeExplore: calibrated groups (tool/skill) leave segments empty even w
 // model names), never that its token VALUES were nonzero, so the bug slipped
 // through review. This asserts the 'Read' row (t3) has real positive tokens.
 test('computeExplore: calibrated tool tokens are nonzero (tool_input counts as char source, not just text)', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
   assert.equal(r.calibrated, true);
   const read = r.rows.find((x) => x.key === 'Read');
   assert.ok(read);
@@ -273,7 +274,7 @@ test('computeExplore: calibrated tool tokens are nonzero (tool_input counts as c
 // 'Read'. Its blended token total therefore equals the base exactly: 2660
 // under usage — a genuine RED-under-old-code lock on a headline Spend path.
 test('computeExplore: calibrated tool base comes from sessions.usage, not per-message', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', rollup: 'total', topN: 10 });
   const read = r.rows.find((x) => x.key === 'Read');
   assert.ok(read);
   const total = Object.values(read.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
@@ -283,38 +284,38 @@ test('computeExplore: calibrated tool base comes from sessions.usage, not per-me
 test('duplicate tool_use rows for one tool_use_id do not double-count errors', () => {
   // sDup has ONE erroring tool_result (te1) but TWO tool_use rows sharing
   // tool_use_id 'te1' — the pairing join must attribute exactly ONE error.
-  const r = explore.computeExplore({ scope: { type: 'session', id: 'sDup' }, days: null, metric: 'errors', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'session', id: 'sDup' }, range: rangeOf(null), metric: 'errors', group: 'tool', rollup: 'total', topN: 10 });
   const bash = r.rows.find((x) => x.key === 'Bash');
   assert.equal(bash?.errors, 1, 'one erroring result paired to a duplicated tool_use must count once, not twice');
 });
 
 test('tool group Detail tokens are calibrated even under a non-token metric', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'tool', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'requests', group: 'tool', rollup: 'total', topN: 10 });
   const anyTokens = r.rows.some((row) => Object.values(row.tokensByModel).some((c) => c.input + c.output > 0));
   assert.ok(anyTokens, 'tool rows must carry calibrated tokensByModel under the requests metric');
   assert.equal(r.calibrated, false, 'the ≈ badge flag stays false when the displayed metric is not token-based');
 });
 
 test('model group Detail tokens come from usage even under a non-token metric', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'model', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', group: 'model', rollup: 'total', topN: 10 });
   const sonnet = r.rows.find((row) => row.key === 'claude-sonnet-5');
   const tok = Object.values(sonnet?.tokensByModel ?? {}).reduce((n, c) => n + c.input + c.output, 0);
   // usage totals across s1(1200/700)+s2(...)+sDup(500/200)+... — assert it
   // matches the tokens-metric result exactly (usage override, not per-message).
-  const rt = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const rt = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   const sonnetT = rt.rows.find((row) => row.key === 'claude-sonnet-5');
   const tokT = Object.values(sonnetT?.tokensByModel ?? {}).reduce((n, c) => n + c.input + c.output, 0);
   assert.equal(tok, tokT, 'model tokensByModel must equal the usage-sourced value regardless of metric');
 });
 
 test("metric:spend returns priceable tokensByModel (calibrated for tool, usage for model)", () => {
-  const tool = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'spend', group: 'tool', rollup: 'total', topN: 10 });
+  const tool = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'spend', group: 'tool', rollup: 'total', topN: 10 });
   assert.equal(tool.calibrated, true, 'spend over tool is calibrated → ≈ badge');
   assert.ok(tool.rows.some((row) => Object.values(row.tokensByModel).some((c) => c.input + c.output > 0)), 'tool spend rows carry non-zero calibrated tokens to price');
 
-  const model = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'spend', group: 'model', rollup: 'total', topN: 10 });
+  const model = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'spend', group: 'model', rollup: 'total', topN: 10 });
   assert.equal(model.calibrated, false, 'spend over model is exact usage, not calibrated');
-  const rt = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const rt = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   assert.deepEqual(
     model.rows.map((r) => r.key).sort(),
     rt.rows.map((r) => r.key).sort(),
@@ -330,14 +331,14 @@ function sumCells(cells) {
 }
 
 test('rollup=total: output unchanged, buckets omitted, rollup fields present', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'total', topN: 10 });
   assert.equal(r.rollup, 'total');
   assert.equal(r.requestedRollup, 'total');
   assert.equal(r.buckets, undefined);
 });
 
 test('rollup=daily: buckets by session started_at, reconcile to the range total', () => {
-  const q = { scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', topN: 10 };
+  const q = { scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', topN: 10 };
   const total = explore.computeExplore({ ...q, rollup: 'total' });
   const daily = explore.computeExplore({ ...q, rollup: 'daily' });
   assert.equal(daily.rollup, 'daily');
@@ -354,7 +355,7 @@ test('rollup=daily: buckets by session started_at, reconcile to the range total'
 });
 
 test('rollup=monthly: same-month sessions collapse into one bucket', () => {
-  const r = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'model', rollup: 'monthly', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'monthly', topN: 10 });
   assert.equal(r.buckets.length, 1);
   assert.equal(r.buckets[0].bucket, '2026-08');
   assert.equal(r.buckets[0].label, 'Aug 2026');
@@ -363,7 +364,7 @@ test('rollup=monthly: same-month sessions collapse into one bucket', () => {
 });
 
 test('rollup calibrated (tool): per-bucket calibration keys off that bucket\'s own chars + billed', () => {
-  const daily = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'tokens', group: 'tool', rollup: 'daily', topN: 10 });
+  const daily = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'tool', rollup: 'daily', topN: 10 });
   assert.equal(daily.calibrated, true);
   // Tool-active days only: Aug 1 (s1: Bash+Read tool_use) and Aug 3 (sDup: Bash);
   // Aug 2 (s2, no tool_use) never appears. Same char-source rule as the range
@@ -379,15 +380,15 @@ test('rollup calibrated (tool): per-bucket calibration keys off that bucket\'s o
 });
 
 test('rollup=daily requests: per-bucket counts reconcile to the range total', () => {
-  const daily = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'source', rollup: 'daily', topN: 10 });
+  const daily = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'requests', group: 'source', rollup: 'daily', topN: 10 });
   const bucketTotal = daily.buckets.reduce((n, b) => n + Object.values(b.series).reduce((m, c) => m + c.requests, 0), 0);
-  const rangeTotal = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'source', rollup: 'total', topN: 10 })
+  const rangeTotal = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'requests', group: 'source', rollup: 'total', topN: 10 })
     .rows.reduce((n, row) => n + row.requests, 0);
   assert.equal(bucketTotal, rangeTotal);
 });
 
 test('rollup: empty scope yields empty buckets, no throw', () => {
-  const r = explore.computeExplore({ scope: { type: 'project', id: 999999 }, days: null, metric: 'tokens', group: 'model', rollup: 'daily', topN: 10 });
+  const r = explore.computeExplore({ scope: { type: 'project', id: 999999 }, range: rangeOf(null), metric: 'tokens', group: 'model', rollup: 'daily', topN: 10 });
   assert.deepEqual(r.buckets, []);
   assert.equal(r.rollup, 'daily');
 });
@@ -466,7 +467,7 @@ test('computeExplore: group=hour (Group=Hour-of-day pivot) buckets in LOCAL time
   process.env.TZ = 'America/Los_Angeles';
   t.after(() => { process.env.TZ = prevTz; });
 
-  const byHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'requests', group: 'hour', rollup: 'total', topN: 24 });
+  const byHour = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'requests', group: 'hour', rollup: 'total', topN: 24 });
   const hourKeys = byHour.rows.map((r) => r.key);
   assert.ok(hourKeys.includes('3'), `expected LOCAL hour '3' (10:00 UTC = 03:00 PDT) among ${JSON.stringify(hourKeys)}`);
   assert.ok(!hourKeys.includes('10'), `must NOT bucket by the raw UTC hour '10', got ${JSON.stringify(hourKeys)}`);
@@ -474,7 +475,7 @@ test('computeExplore: group=hour (Group=Hour-of-day pivot) buckets in LOCAL time
   // errorGroupCol's 'hour' branch is a SEPARATE function, only reached via
   // metric='errors' — s1's and sDup's erroring tool_results are also at
   // 10:00 UTC / 03:00 PDT (see the `before()` fixture above).
-  const errByHour = explore.computeExplore({ scope: { type: 'all' }, days: null, metric: 'errors', group: 'hour', rollup: 'total', topN: 24 });
+  const errByHour = explore.computeExplore({ scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', group: 'hour', rollup: 'total', topN: 24 });
   const errHourKeys = errByHour.rows.filter((r) => r.errors > 0).map((r) => r.key);
   assert.ok(errHourKeys.includes('3'), `expected LOCAL hour '3' among erroring rows, got ${JSON.stringify(errHourKeys)}`);
   assert.ok(!errHourKeys.includes('10'), `must NOT bucket errors by the raw UTC hour '10', got ${JSON.stringify(errHourKeys)}`);

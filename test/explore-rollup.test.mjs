@@ -6,6 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore, otherProjectId;
 
@@ -171,7 +172,7 @@ after(() => teardown());
 
 test('rollup=hourly, days=7 returns 168 hourly buckets — no silent daily coercion', () => {
   const r = explore.computeExplore({
-    scope: { type: 'all' }, days: 7, metric: 'requests', group: 'source', rollup: 'hourly', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(7), metric: 'requests', group: 'source', rollup: 'hourly', topN: 10,
   });
   assert.equal(r.requestedRollup, 'hourly');
   assert.equal(r.rollup, 'hourly'); // must NOT be coarsened to 'daily'
@@ -196,7 +197,7 @@ test('rollup=hourly, days=7 returns 168 hourly buckets — no silent daily coerc
 // to draw on instead of a synthetic fixture.
 test('rollup Other segment: per-bucket series sum (topN + Other) reconciles to the bucket total, within 1%', () => {
   const r = explore.computeExplore({
-    scope: { type: 'project', id: otherProjectId }, days: null, metric: 'requests', group: 'tool', rollup: 'daily', topN: 3,
+    scope: { type: 'project', id: otherProjectId }, range: rangeOf(null), metric: 'requests', group: 'tool', rollup: 'daily', topN: 3,
   });
   assert.equal(r.buckets?.length, 2);
   const otherRow = r.rows.find((x) => x.key === 'Other');
@@ -226,7 +227,7 @@ test('rollup Other segment: per-bucket series sum (topN + Other) reconciles to t
 // (for row-click navigation) and labeled with its resolved display name.
 test('computeExplore: group=session, metric=spend ranks fixture sessions by token cost, with resolved names', () => {
   const r = explore.computeExplore({
-    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(null), metric: 'spend', group: 'session', rollup: 'total', topN: 10,
   });
   const sessRows = ['sSessA', 'sSessB', 'sSessC'].map((id) => r.rows.find((x) => x.key === id));
   assert.ok(sessRows.every(Boolean), 'expected all three fixture sessions as rows keyed by session id');
@@ -255,7 +256,7 @@ test('computeExplore: group=session, metric=spend ranks fixture sessions by toke
 // session's own sessions.usage row, so the result is never marked calibrated.
 test('computeExplore: group=session tokens are exact (not calibrated)', () => {
   const r = explore.computeExplore({
-    scope: { type: 'all' }, days: null, metric: 'tokens', group: 'session', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'session', rollup: 'total', topN: 10,
   });
   assert.equal(r.calibrated, false);
 });
@@ -267,7 +268,7 @@ test('computeExplore: group=session tokens are exact (not calibrated)', () => {
 // 6 assistant turns x (10 in, 5 out) = 60/30, matching rhythmEvents' fixture.
 test('computeExplore: group=session falls back to per-message tokens when sessions.usage is absent (codex-like)', () => {
   const r = explore.computeExplore({
-    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(null), metric: 'spend', group: 'session', rollup: 'total', topN: 10,
   });
   const d = r.rows.find((x) => x.key === 'sSessD');
   assert.ok(d, 'expected sSessD as a row');
@@ -282,7 +283,7 @@ test('computeExplore: group=session falls back to per-message tokens when sessio
 // fabricating a number, while Requests still reflects the real message count.
 test('computeExplore: group=session stays honestly 0 tokens when a source has no token telemetry at all (cursor/opencode-like)', () => {
   const r = explore.computeExplore({
-    scope: { type: 'all' }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+    scope: { type: 'all' }, range: rangeOf(null), metric: 'spend', group: 'session', rollup: 'total', topN: 10,
   });
   const e = r.rows.find((x) => x.key === 'sSessE');
   assert.ok(e, 'expected sSessE as a row');
@@ -296,7 +297,7 @@ test('computeExplore: group=session stays honestly 0 tokens when a source has no
 test('computeExplore: group=session respects scope=project', () => {
   const proj3Id = dbModule.db.prepare("SELECT project_id FROM sessions WHERE id = 'sSessA'").get().project_id;
   const r = explore.computeExplore({
-    scope: { type: 'project', id: proj3Id }, days: null, metric: 'spend', group: 'session', rollup: 'total', topN: 10,
+    scope: { type: 'project', id: proj3Id }, range: rangeOf(null), metric: 'spend', group: 'session', rollup: 'total', topN: 10,
   });
   // proj3 now also holds sSessD (codex) and sSessE (cursor) — the code-review
   // fallback fixtures — so 5 sessions, not 3.
