@@ -126,21 +126,12 @@ export function isSubscriptionCovered(model: string | null | undefined): boolean
   return false;
 }
 
-// A single model's aggregated token usage, as read from `sessions.usage`
-// (parsed JSON) or built up client-side. Diverges from shared `ModelUsage`
-// (`{input,output,cacheWrite5m,cacheWrite1h,cacheRead}`): this module must also
-// accept the LEGACY shape (`cacheWrite`, pre-TTL-split imports), which the
-// shared contract deliberately excludes since new imports never write it. Kept
-// as a local, honest type rather than force-fitting `@shared`'s `Usage`.
-export interface ModelUsageInput {
-  input?: number | null;
-  output?: number | null;
-  cacheWrite5m?: number | null;
-  cacheWrite1h?: number | null;
-  /** Legacy pre-TTL-split field; treated as a 5-minute-tier write. */
-  cacheWrite?: number | null;
-  cacheRead?: number | null;
-}
+// A single model's token usage as PRICED: the shared cell, or any partial of
+// it (a bag built up client-side), including the LEGACY `cacheWrite` key that
+// pre-TTL-split imports carry. That is exactly `shared/usage.ts`'s RawUsageCell
+// — the raw shape `parseUsage` normalizes — so it is imported, not re-declared.
+import type { RawUsageCell } from './usage.ts';
+export type ModelUsageInput = RawUsageCell;
 
 export interface CostBreakdown {
   input: number;

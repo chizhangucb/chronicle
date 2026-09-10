@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
-import type { Event, ModelUsage, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
+import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
+import type { UsageCell } from '../../shared/usage.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
 
 export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
@@ -310,7 +311,7 @@ export function parseClaudeLine(o: ClaudeLine): Event[] {
   return events;
 }
 
-function newUsageAgg(): ModelUsage {
+function newUsageAgg(): UsageCell {
   return { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
 }
 
@@ -318,7 +319,7 @@ function newUsageAgg(): ModelUsage {
 // 1-hour cache writes are billed at different rates, so they stay split; a log
 // that reports an unsplit `cache_creation_input_tokens` was billed at the 5m
 // rate, so it lands in that tier.
-function usageCells(u: ClaudeUsage): ModelUsage {
+function usageCells(u: ClaudeUsage): UsageCell {
   const cc = u.cache_creation;
   const split = !!cc && (cc.ephemeral_5m_input_tokens != null || cc.ephemeral_1h_input_tokens != null);
   return {
@@ -353,7 +354,7 @@ function usageCells(u: ClaudeUsage): ModelUsage {
 // SUM(messages token columns) == sessions.usage.
 interface CallSlot {
   model: string;
-  cells: ModelUsage;
+  cells: UsageCell;
   event: Event | null;
 }
 
@@ -372,7 +373,7 @@ function hasRunIdentity(e: Event): boolean {
   return e.is_sidechain === 1 && (e.agent_id != null || e.workflow_id != null);
 }
 
-function stampEventUsage(e: Event, c: ModelUsage): void {
+function stampEventUsage(e: Event, c: UsageCell): void {
   e.input_tokens = c.input;
   e.output_tokens = c.output;
   e.cache_read_tokens = c.cacheRead;
@@ -450,8 +451,8 @@ function claimCall(reg: CallRegistry, key: string, e: Event): void {
 // 0.0286% of billed tokens — always a call whose only content was an empty
 // `thinking` block. So the invariant is "SUM(messages) <= sessions.usage, equal
 // except for content-less calls", not a strict equality.
-function foldCallsByModel(reg: CallRegistry): Map<string, ModelUsage> {
-  const byModel = new Map<string, ModelUsage>();
+function foldCallsByModel(reg: CallRegistry): Map<string, UsageCell> {
+  const byModel = new Map<string, UsageCell>();
   for (const slot of reg.slots.values()) {
     const agg = byModel.get(slot.model) || newUsageAgg();
     agg.input += slot.cells.input;

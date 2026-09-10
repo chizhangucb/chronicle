@@ -15,6 +15,7 @@ import { overlapGate, rangedUsage } from './rangeUsage.ts';
 // table stays client-only in src/models.ts — see that file's comment). This
 // replaces a former hand-inlined copy that had to be kept in sync manually.
 import { contextWindowFor } from '../shared/contextWindows.ts';
+import { parseUsage } from '../shared/usage.ts';
 
 // Named thresholds for the usage-characteristics block (spec §2.5, reshaped
 // by feedback-round D4). Every "share" at all/project scope is a TOKEN share
@@ -248,10 +249,9 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
     single: null,
   };
   for (const s of sessions) {
-    let usage: Record<string, { input?: number; output?: number; cacheRead?: number }> = {};
-    if (s.usage) { try { usage = JSON.parse(s.usage) as Record<string, { input?: number; output?: number; cacheRead?: number }>; } catch { usage = {}; } }
+    const usage = parseUsage(s.usage);
     const models = Object.keys(usage);
-    const tok = models.reduce((n, mdl) => n + (usage[mdl].input ?? 0) + (usage[mdl].output ?? 0), 0);
+    const tok = models.reduce((n, mdl) => n + usage[mdl].input + usage[mdl].output, 0);
     stats.totalTokens += tok;
 
     // agent_active_ms / engaged_ms: NULL means "not computed for this
@@ -281,9 +281,9 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
     }
 
     let sessCacheRead = 0;
-    for (const mdl of models) sessCacheRead += usage[mdl].cacheRead ?? 0;
+    for (const mdl of models) sessCacheRead += usage[mdl].cacheRead;
     if (sessCacheRead > 0) stats.cacheSessionCount++;
-    const sessCacheInput = models.reduce((n, mdl) => n + (usage[mdl].input ?? 0), 0);
+    const sessCacheInput = models.reduce((n, mdl) => n + usage[mdl].input, 0);
     stats.cacheRead += sessCacheRead;
     stats.cacheInput += sessCacheInput;
 

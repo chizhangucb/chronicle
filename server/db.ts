@@ -6,7 +6,8 @@ import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from './errors.ts';
 import { invalidateCache } from './cache.ts';
-import type { Event, SessionInput, Project, ModelUsage } from '../shared/types.ts';
+import type { Event, SessionInput, Project } from '../shared/types.ts';
+import { parseUsage, totalTokens, type UsageByModel } from '../shared/usage.ts';
 import { resolveDataDir } from './dataDir.ts';
 
 export type ProjectRow = Project;
@@ -304,7 +305,7 @@ function collapseRepeatedUsageBackfill(): void {
         FROM messages m JOIN sessions s ON s.id = m.session_id
        WHERE s.source = 'claude-code' AND m.input_tokens IS NOT NULL
        ORDER BY m.session_id, m.seq`).all() as unknown as UsageRow[];
-    const rebuilt = new Map<string, Record<string, ModelUsage>>();
+    const rebuilt = new Map<string, UsageByModel>();
     const drop: number[] = [];
     let prevSession = '';
     let prevSig = '';
@@ -328,8 +329,6 @@ function collapseRepeatedUsageBackfill(): void {
       agg.cacheWrite5m += r.cache_w5m_tokens;
       agg.cacheWrite1h += r.cache_w1h_tokens;
     }
-    const cellTotal = (u: Record<string, ModelUsage>): number => Object.values(u)
-      .reduce((n, c) => n + c.input + c.output + c.cacheRead + c.cacheWrite5m + c.cacheWrite1h, 0);
     db.exec('BEGIN');
     try {
       const setUsage = db.prepare('UPDATE sessions SET usage = ?, usage_source = ? WHERE id = ?');
@@ -342,12 +341,11 @@ function collapseRepeatedUsageBackfill(): void {
         // No per-message token rows at all (an import predating those columns):
         // there is nothing to re-derive from, so leave the inflated value and
         // SAY SO rather than silently zeroing real spend.
-        if (!next || cellTotal(next) === 0) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
-        let prevTotal = 0;
-        try { prevTotal = cellTotal(JSON.parse(s.usage) as Record<string, ModelUsage>); } catch { prevTotal = 0; }
+        if (!next || totalTokens(next) === 0) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
+        const prevTotal = totalTokens(parseUsage(s.usage));
         // Never rewrite UPWARD. The message lane is a subset of what the old
         // accumulator summed, so a larger result means an assumption broke.
-        if (prevTotal > 0 && cellTotal(next) > prevTotal) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
+        if (prevTotal > 0 && totalTokens(next) > prevTotal) { setUsage.run(s.usage, 'unverified', s.id); unverified++; continue; }
         setUsage.run(JSON.stringify(next), 'rederived', s.id);
         rederived++;
       }

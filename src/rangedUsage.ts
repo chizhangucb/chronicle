@@ -13,14 +13,7 @@
 // pricing (never flatten different models' tokens into one bag first) since
 // each model has its own $/token rate.
 import { costOf, type ModelUsageInput, type CostMode } from './models.ts';
-
-export interface UsageCell {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite5m: number;
-  cacheWrite1h: number;
-}
+import { addCell, emptyCell, type UsageCell } from '../shared/usage.ts';
 
 export interface RangeCell {
   sessionId: string;
@@ -32,19 +25,6 @@ export interface RangeCell {
 
 export interface BucketedCell extends RangeCell {
   bucket: string;
-}
-
-function emptyCell(): UsageCell {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
-}
-function addCell(a: UsageCell, b: UsageCell): UsageCell {
-  return {
-    input: a.input + b.input,
-    output: a.output + b.output,
-    cacheRead: a.cacheRead + b.cacheRead,
-    cacheWrite5m: a.cacheWrite5m + b.cacheWrite5m,
-    cacheWrite1h: a.cacheWrite1h + b.cacheWrite1h,
-  };
 }
 
 // Sums cells into ONE UsageCell per model, ignoring every other dimension

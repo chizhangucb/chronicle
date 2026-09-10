@@ -4,6 +4,7 @@
 // `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
 // level — cast it once per call to the shape the route actually sends.
 import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import type { UsageByModel, UsageCell } from '../shared/usage.ts';
 import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
 
 // Mutating methods carry the per-boot write token. Every write in
@@ -399,7 +400,7 @@ export interface RangeUsageCell {
   projectId: number;
   model: string;
   source: string;
-  cells: { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number };
+  cells: UsageCell;
 }
 export interface BucketedUsageCell extends RangeUsageCell {
   bucket: string;
@@ -433,8 +434,7 @@ export interface InsightsResult {
 // ---- Home dashboard activity feed — mirrors server/activity.ts ----
 // Every token figure is a per-model CELL; the client prices it via
 // models.ts costOf (the price table stays client-side — hard constraint).
-export interface ActivityTokenCell { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number; }
-export type ActivityTokensByModel = Record<string, ActivityTokenCell>;
+export type ActivityTokensByModel = UsageByModel;
 export interface ActivitySessionLite {
   id: string; name: string; projectName: string; source: string;
   live: boolean; endedAt: string | null;
@@ -469,6 +469,10 @@ export interface ActivityResult {
 // keep them in sync if the server types change.
 
 export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+// Explore alone answers with `cw5m`/`cw1h` rather than the shared cell's
+// `cacheWrite5m`/`cacheWrite1h` — a frozen wire name, renamed server-side at
+// the response boundary (server/explore.ts's toWire). Everything else on this
+// page reads the shared UsageCell.
 export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
 export interface ExploreRow {
   key: string; label: string;
