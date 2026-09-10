@@ -28,8 +28,9 @@ import { findClaudeBin, extractJson } from '../server/ask.ts';
 import { dataDir as DATA_DIR } from '../server/config.ts';
 import {
   askSchemaDoc, validateAskEnvelope, normalizeAskCostMode, toCostMode,
-  pickCapture, askClaudeArgs, type AskCapture, type AskCostMode, type AskTurn,
+  pickCapture, askClaudeArgs, type AskCapture,
 } from '../server/ask.ts';
+import type { AskCostMode, AskTurn } from '../shared/results.ts';
 
 const RUN_TIMEOUT_MS = 90 * 1000; // short: node:sqlite has no query interrupt, so
                                   // this process timeout is the only DoS bound.

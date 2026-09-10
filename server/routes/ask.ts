@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { readConfig } from '../config.ts';
 import {
   findClaudeBin, readAskHistory, appendAskTurn, normalizeAskCostMode,
-  type AskTurn,
 } from '../ask.ts';
+import type { AskTurn } from '../../shared/results.ts';
 
 // /ask routes. The `∴ Ask` metric chat: a local claude-CLI-backed
 // runner with exactly one read-only SELECT-only tool over chronicle.db. Gated,

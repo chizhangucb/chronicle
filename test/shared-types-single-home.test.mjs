@@ -81,6 +81,8 @@ const RESULT_TYPES = [
   { name: 'PlanWindowsResult', home: 'shared/results.ts' },
   { name: 'SecurityScanResult', home: 'shared/results.ts' },
   { name: 'ImportResult', home: 'shared/results.ts' },
+  { name: 'AskTurn', home: 'shared/results.ts' },
+  { name: 'AskCostMode', home: 'shared/results.ts' },
   { name: 'RangeUsageCell', home: 'shared/usage.ts' },
   { name: 'BucketedUsageCell', home: 'shared/usage.ts' },
   { name: 'ExploreWireResult', home: 'shared/explore.ts' },

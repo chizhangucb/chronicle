@@ -17,6 +17,10 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { resolveDataDir } from './config.ts';
 import type { CostMode } from '../shared/pricing.ts';
+// The cost basis and the persisted turn are the /ask wire shapes: declared once
+// in shared/results.ts (#345), read from there by the route, the runner and the
+// client alike.
+import type { AskCostMode, AskTurn } from '../shared/results.ts';
 
 // ---- caps (result-size, review #5/#8) ------------------------------------
 export const ASK_MAX_ROWS = 500;       // rows returned to the model / stored
@@ -24,8 +28,8 @@ export const ASK_CELL_MAX = 2000;      // chars per cell before truncation
 export const ASK_RESP_MAX_BYTES = 256 * 1024; // hard cap on one tool response
 
 // ---- cost basis ----------------------------------------------------------
-// The UI/user speak "list"/"billed"; the price core speaks "theoretical"/"real".
-export type AskCostMode = 'list' | 'billed';
+// The UI/user speak "list"/"billed" (`AskCostMode`, shared/results.ts); the
+// price core speaks "theoretical"/"real".
 export function toCostMode(m: AskCostMode): CostMode {
   return m === 'billed' ? 'real' : 'theoretical';
 }
@@ -224,21 +228,8 @@ export function askClaudeArgs(prompt: string, cfgPath: string, model?: string): 
 }
 
 // ---- a persisted conversation turn ---------------------------------------
-export interface AskTurn {
-  id: string;
-  ts: string;               // ISO
-  question: string;
-  costBasis: AskCostMode;
-  ok: boolean;
-  prose: string;
-  sql: string | null;
-  columns: string[];
-  rows: unknown[][];
-  rowCount: number;
-  truncated: boolean;
-  note?: string;
-  error?: string;           // set when ok === false
-}
+// `AskTurn` is declared in shared/results.ts: the route answers with it and
+// AskPage renders it, so it has one home like every other result shape.
 
 // ---- claude CLI presence (server-side; routes can't import scripts/**) ----
 // Importable by the route (which gates /ask on CLI presence) and by the
