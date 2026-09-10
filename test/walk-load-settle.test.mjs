@@ -108,6 +108,25 @@ test('a page too busy to answer the scan still fails inside the budget', async (
   assert.ok(Date.now() - started < 2_000, 'the budget has to cover an unanswered scan');
 });
 
+test('a scan the page rejects is retried, not a crashed walk', async () => {
+  // A re-render or a late redirect can destroy the execution context under an
+  // in-flight evaluate(). That is a scan to take again, not a reason to lose
+  // the cell — and the rejection must never escape as an unhandled one, which
+  // would take the whole walk process down with it.
+  const page = fakePage({ settlesAfter: 1 });
+  const realEvaluate = page.evaluate;
+  let calls = 0;
+  page.evaluate = async (...args) => {
+    if (++calls === 1) throw new Error('Execution context was destroyed, most likely because of a navigation');
+    return realEvaluate(...args);
+  };
+
+  const settle = await waitForLoadSettle(page, { timeoutMs: 2_000, pollMs: 1 });
+
+  assert.equal(settle.settled, true);
+  assert.ok(calls > 1, 'the rejected scan has to be taken again');
+});
+
 test('a network that never goes idle is a disclosed note, not a failed capture', async () => {
   // A live session's SSE stream (or a polling surface) can hold a request open
   // for the whole walk: `networkidle` would never fire there, and refusing to

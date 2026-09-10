@@ -289,8 +289,11 @@ const SETTLE_TIMEOUT_MS = 12_000;
 // have to be captured. The DOM scan is the authority.
 const NETWORK_IDLE_BUDGET_MS = 5_000;
 const SETTLE_POLL_MS = 150;
-// Sentinel for "the page never answered the scan" — see waitForLoadSettle.
+// Sentinels for the two ways a scan comes back with nothing to read: the page
+// never answered inside the budget, or the scan itself threw (a navigation
+// destroyed the execution context under it). See waitForLoadSettle.
 const UNANSWERED_SCAN = Symbol('unanswered-scan');
+const UNREADABLE_SCAN = Symbol('unreadable-scan');
 // The client's loading placeholders, ALL of them: "Loading…" is the common
 // one, but a session shell reads "Loading session…" (src/SessionView.tsx) and
 // the code panel "Loading snapshot…" (src/CodePanel.tsx). Matching only the
@@ -371,14 +374,25 @@ async function waitForLoadSettle(page, {
     // remaining budget turns that into the same loud errored cell as a page
     // that answers but never settles.
     const remaining = Math.max(0, timeoutMs - (Date.now() - started));
+    // The rejection is folded into the value rather than left to escape: once
+    // the race is lost, nothing is awaiting this promise, and a late rejection
+    // with no handler (a context destroyed by the next navigation, a closed
+    // context at the end of the cell) would take the whole walk process down.
+    // A rejected scan is just a scan to take again, inside the same budget.
+    const scanPromise = page.evaluate(collectLoadingOffenders, scanArgs).catch(() => UNREADABLE_SCAN);
+    let timer;
     const scan = await Promise.race([
-      page.evaluate(collectLoadingOffenders, scanArgs),
-      new Promise((resolve) => setTimeout(() => resolve(UNANSWERED_SCAN), remaining + 1)),
+      scanPromise,
+      new Promise((resolve) => { timer = setTimeout(() => resolve(UNANSWERED_SCAN), remaining + 1); }),
     ]);
+    clearTimeout(timer);
+
     const blocking = scan === UNANSWERED_SCAN
       ? [{ tag: 'html', class: '', text: 'Loading… (the page never answered the settle scan)' }]
-      : scan?.blocking ?? [];
-    const tolerated = scan === UNANSWERED_SCAN ? [] : scan?.tolerated ?? [];
+      : scan === UNREADABLE_SCAN
+        ? [{ tag: 'html', class: '', text: 'Loading… (the scan could not be read on this page)' }]
+        : scan?.blocking ?? [];
+    const tolerated = scan === UNANSWERED_SCAN || scan === UNREADABLE_SCAN ? [] : scan?.tolerated ?? [];
     if (blocking.length === 0) {
       if (tolerated.length) {
         notes?.push(`captured with ${tolerated.length} disclosed placeholder(s) still loading: ${describeOffenders(tolerated)}`);
