@@ -1,13 +1,16 @@
 // server/planWindows.ts — the subscription rate windows the plans
 // meter, one card per ACCOUNT. Two sources:
-//  - Claude (subscription.ts): OUTBOUND, OPT-IN-OFF. Reads Claude Code's
-//    OAuth token (Keychain / ~/.claude/.credentials.json) and calls
-//    api.anthropic.com/api/oauth/usage — the token's own issuer, exactly as
-//    Claude Code does — for the 5h / 7d / top-tier windows. Runs ONLY when the
-//    `planWindows` Settings flag is on. Token read, used once, never stored.
+//  - Claude (subscription.ts): OUTBOUND, OPT-OUT, DEFAULT ON. Reads Claude
+//    Code's OAuth token (Keychain / ~/.claude/.credentials.json) and calls
+//    api.anthropic.com/api/oauth/usage — the operator's own token, to that
+//    token's own issuer, for the operator's own 5h / 7d / top-tier quota,
+//    exactly as Claude Code does. The ONE outbound call in Chronicle (ADR
+//    0008): absent config reads as ON, and the `planWindows` Settings toggle
+//    turns it off for a fully offline instance. Token read, used once, never
+//    stored.
 //  - Codex (spend-codex.ts): LOCAL, no network. Reads the newest `rate_limits`
 //    payload from ~/.codex/sessions rollout logs (primary/secondary windows).
-//    Always available (no opt-in — it never leaves the machine).
+//    Always available (nothing to toggle — it never leaves the machine).
 // The accounts array is adaptive: today the local stores expose one Claude
 // account + one Codex account; more cards appear if more become readable.
 import { spawnSync } from 'node:child_process';
@@ -22,14 +25,14 @@ const FETCH_TIMEOUT_MS = 15_000;
 export interface AccountWindow { label: string; utilization: number; resetsAt: string | null }
 export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[] }
 export interface PlanWindowsResult {
-  /** Claude opt-in state — false means we never went outbound. */
+  /** Claude toggle state (default ON) — false means we never went outbound. */
   claudeEnabled: boolean;
-  /** true when Claude opt-in is on but no readable credential was found. */
+  /** true when the Claude toggle is on but no readable credential was found. */
   claudeUnauthed: boolean;
   accounts: PlanAccount[];
 }
 
-// ---- Claude (outbound, opt-in) ----
+// ---- Claude (outbound, opt-out, default on) ----
 function readClaudeToken(home: string = homedir()): string | null {
   if (platform() === 'darwin') {
     const out = spawnSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { encoding: 'utf8', timeout: 3_000 });
@@ -80,7 +83,7 @@ async function fetchClaude(token: string): Promise<PlanAccount | null> {
   } catch { return null; }
 }
 
-// ---- Codex (local, no opt-in) ----
+// ---- Codex (local, nothing to toggle) ----
 const CODEX_DIR = join(homedir(), '.codex', 'sessions');
 function walkJsonl(dir: string, out: string[] = [], depth = 0): string[] {
   if (depth > 6) return out;

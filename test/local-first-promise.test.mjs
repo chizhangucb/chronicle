@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -114,3 +115,118 @@ for (const rel of PROMISE_SURFACES) {
     );
   });
 }
+
+// --- The code that makes the call ------------------------------------------
+//
+// `readConfig().planWindows !== false` means the quota read is opt-OUT: absent
+// config reads as on. Both comment sites described it as opt-in-off, so the
+// module documented the opposite of what it does.
+
+const MODULE = 'server/planWindows.ts';
+const ROUTE = 'server/routes/planWindows.ts';
+
+/** Every comment line in a source file, `//` and `/* *​/` alike, trimmed. */
+const commentsOf = (rel) => {
+  const lines = read(rel).split('\n');
+  const out = [];
+  let block = false;
+  for (const [i, line] of lines.entries()) {
+    const t = line.trim();
+    if (block) {
+      out.push({ n: i + 1, text: t });
+      if (t.includes('*/')) block = false;
+    } else if (t.startsWith('//')) {
+      out.push({ n: i + 1, text: t });
+    } else if (t.startsWith('/*')) {
+      out.push({ n: i + 1, text: t });
+      if (!t.includes('*/')) block = true;
+    }
+  }
+  return out;
+};
+
+for (const rel of [MODULE, ROUTE]) {
+  test(`${rel} documents the quota read as opt-out, not opt-in`, () => {
+    const offenders = commentsOf(rel)
+      .filter(({ text }) => /opt-?in/i.test(text))
+      .map(({ n, text }) => `${rel}:${n}: ${text.slice(0, 100)}`);
+    assert.deepEqual(
+      offenders,
+      [],
+      `the quota read is opt-out in the code and opt-in in the comments:\n  ${offenders.join('\n  ')}`,
+    );
+  });
+
+  test(`${rel} says the quota read defaults to on`, () => {
+    const src = flatten(commentsOf(rel).map(({ text }) => text).join(' '));
+    assert.match(src, /opt-?out/i, `${rel} never calls the quota read opt-out`);
+    assert.match(src, /default(?:s to)? on\b/i, `${rel} never says the quota read defaults to on`);
+  });
+}
+
+// --- The default the wording describes -------------------------------------
+//
+// The wording is only precise if it matches what ships, so the same pin covers
+// both: absent config reads as ON, `planWindows: false` goes nowhere at all,
+// and the Settings row that flips it is still there. #300 changed neither the
+// toggle nor the default, and this is what would notice if a later change did.
+
+// `server/autosync.ts` resolves the data folder once, at import time, so each
+// case runs in its OWN node process with its own CHRONICLE_DATA_DIR. Same
+// reason the child stubs fetch: no case of this may reach api.anthropic.com,
+// on any machine, whether or not the person running it has a credential on
+// disk. The child reports the fetch attempts it swallowed.
+const CHILD = `
+globalThis.fetch = (url) => {
+  calls.push(String(url));
+  return Promise.resolve({ ok: false, status: 401, json: async () => ({}) });
+};
+const { computePlanWindows } = await import(REPO + '/server/planWindows.ts');
+const result = await computePlanWindows();
+process.stdout.write(JSON.stringify({ result, calls }));
+`;
+
+const planWindowsUnder = (config) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-planwindows-'));
+  if (config !== null) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config));
+  try {
+    const env = { ...process.env, CHRONICLE_DATA_DIR: dir };
+    delete env.CHRONICLE_DEMO;
+    const out = execFileSync(
+      process.execPath,
+      ['--input-type=module', '-e', `const calls = [];\nconst REPO = ${JSON.stringify(REPO)};\n${CHILD}`],
+      { encoding: 'utf8', env, cwd: REPO },
+    );
+    return JSON.parse(out);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test('the quota read is ON for a config that never mentions it', () => {
+  const { result } = planWindowsUnder(null);
+  assert.equal(result.claudeEnabled, true, 'a fresh install has the quota read off');
+});
+
+test('the quota read stays ON for a config that sets other keys', () => {
+  const { result } = planWindowsUnder({ autoSync: true, ask: true });
+  assert.equal(result.claudeEnabled, true, 'an unrelated Settings write turned the quota read off');
+});
+
+test('planWindows:false turns the quota read off and goes nowhere', () => {
+  const { result, calls } = planWindowsUnder({ planWindows: false });
+  assert.equal(result.claudeEnabled, false);
+  assert.equal(result.claudeUnauthed, false, 'a switched-off read must not report an auth problem');
+  assert.deepEqual(calls, [], 'a switched-off quota read still went outbound');
+});
+
+test('Settings still renders the quota-read toggle, defaulted on', () => {
+  const app = flatten(read('src/App.tsx'));
+  assert.match(app, /planWindows: true/, 'the Settings fallback no longer defaults the toggle on');
+  assert.match(
+    app,
+    /checked=\{settings\.planWindows !== false\}/,
+    'the Settings toggle no longer reads absent config as on',
+  );
+  assert.match(app, /On by default/, 'the Settings copy no longer says the read is on by default');
+});
