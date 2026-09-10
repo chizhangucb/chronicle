@@ -67,6 +67,9 @@ test('parseCodexSession: maps rollout event types to the normalized kind set, in
     'User wants a healthcheck route; check framework first.',
   );
   assert.equal(assistantEvt.text, 'Added GET /api/health returning 200.');
+  // The fixture opens with the turn context a current Codex rollout writes, so
+  // its model outputs carry that model (#198).
+  assert.equal(assistantEvt.model, 'gpt-5-codex');
 
   // function_call -> tool_use: tool_name falls back to payload.name, tool_input
   // is the raw (still-JSON-encoded) `arguments` string as Codex wrote it.
@@ -139,7 +142,7 @@ test('parseCodexSession: the turn context model lands on every model output of t
   assert.equal(modelOf('assistant'), 'gpt-5-codex');
   assert.equal(modelOf('thinking'), 'gpt-5-codex');
   assert.equal(modelOf('tool_use'), 'gpt-5-codex');
-  // A user turn is the operator's, not the model's — it carries no model.
+  // A user message is the operator's, not the model's — it carries no model.
   assert.equal(modelOf('user'), undefined);
 });
 
@@ -189,4 +192,28 @@ test('parseCodexSession: a transcript that records no tokens carries no usage ag
   const { session } = await parseCodexSession(file);
 
   assert.equal(session.usage, null);
+});
+
+test('parseCodexSession: a model recorded on the session meta counts too, whichever line carries it', async () => {
+  // Codex has carried the field on more than one line type across versions;
+  // the model is the payload's own `model`, wherever the transcript puts it.
+  const file = writeRollout([
+    { timestamp: '2026-07-02T09:00:00.000Z', type: 'session_meta', payload: { id: '0198-def', cwd: '/Users/dev/example-repo', model: 'gpt-5.6-terra' } },
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.equal(events.find((e) => e.kind === 'assistant').model, 'gpt-5.6-terra');
+});
+
+test('parseCodexSession: a transcript that records no model anywhere leaves its rows unmodeled', async () => {
+  // Older Codex versions record no model at all. Inventing one would price a
+  // guess, so those rows stay honestly unmodeled (and unpriced).
+  const file = writeRollout([META, USER('ship it', '2026-07-02T09:00:02.000Z'), ASSISTANT('shipped', '2026-07-02T09:00:03.000Z')]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.equal(events.find((e) => e.kind === 'assistant').model, null);
 });

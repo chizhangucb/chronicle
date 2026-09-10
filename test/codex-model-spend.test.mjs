@@ -81,12 +81,12 @@ test('the Spend tab provider stack shows an openai series for Codex spend', asyn
   const series = PROVIDER_ORDER.filter((p) => present.has(p));
   assert.deepEqual(series, ['openai']);
 
-  // And the series carries real dollars, not a $0 stack: 6 turns x
-  // (1M input + 100k output + 100k cache read) at the Codex list rate
-  // ($2/$12 per 1M, cache read $0.20 per 1M) = 6 x (2 + 1.2 + 0.02).
+  // And the series carries real dollars, not the $0 stack an unpriceable NULL
+  // model produced (the figure itself is the price table's business, pinned in
+  // test/models.test.mjs — this asserts the tokens reach it at all).
   const byProvider = groupByKey(result.rangedTokensByModel, (c) => providerOf(c.model));
   const openaiSpend = costOfCells(sumByModel(byProvider.get('openai')));
-  assert.ok(Math.abs(openaiSpend - 19.32) < 0.01, `expected ~$19.32 of openai spend, got ${openaiSpend}`);
+  assert.ok(openaiSpend > 0, `expected nonzero openai spend, got ${openaiSpend}`);
 });
 
 test('Codex tokens are subscription-covered, not silently free: list price > 0, billed 0', async () => {
