@@ -193,6 +193,47 @@ test('no proxy-spine file is tracked', () => {
   assert.deepEqual(back, [], `the proxy spine is tracked again: ${back}`);
 });
 
+test('the roster refresher keeps its Python', () => {
+  // The removal is the spine, not every interpreter in the repo. The roster
+  // refresher shared a folder with the proxy in an older layout and nothing
+  // else, so a deletion that took it along would be a deletion that read the
+  // layout instead of the reason.
+  assert.ok(
+    tracked.includes('scripts/refresh_roster.py'),
+    'the roster refresher went with the spine',
+  );
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.match(
+    pkg.scripts?.['refresh-roster'] ?? '',
+    /^python3 /,
+    'npm run refresh-roster no longer runs the refresher under python3',
+  );
+});
+
+// The proxy spine, spelled every way a doc could send a reader after it: the
+// folder, the template dir, the installer, and the CI flag that pinned its
+// guards. `proxy` on its own is not a hit -- the Reference page's Retired group
+// still describes the proxy lane the shrink removed, which is the ONE place
+// spec/surface-contract.md allows a removed surface to be named.
+const SPINE_POINTERS = /litellm|launchd|install-jobs|CHRONICLE_REQUIRE_PYTHON/i;
+
+// One file, exempted the way WORD_EXEMPT exempts a word: the dated design audit
+// records F15 as the finding this removal came from, and spec #294 is cut from
+// its findings and cites them by number, so the entry cannot be edited out.
+const SPINE_RECORD = 'docs/agents/design-audit-2026-09-04.md';
+
+test('no owned doc points a reader at the proxy spine', () => {
+  const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
+  const offenders = docs.flatMap((rel) =>
+    rel === SPINE_RECORD
+      ? []
+      : fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').flatMap((line, i) =>
+          SPINE_POINTERS.test(line) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
+        ),
+  );
+  assert.deepEqual(offenders, [], `a doc still points at the spine:\n  ${offenders.join('\n  ')}`);
+});
+
 test('CI sets up Node and no second toolchain', () => {
   // The Python setup step and its require-python flag existed for the proxy
   // guards and nothing else. A contributor reads the workflow to learn what a
