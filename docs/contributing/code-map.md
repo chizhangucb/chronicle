@@ -38,6 +38,7 @@ The parser is the only place that knows a tool's native format.
 
 | Module | Owns |
 | --- | --- |
+| `config.ts` | The data folder path, and the read and write of `config.json` |
 | `db.ts` | The schema, `replaceSession()`, tombstones, the FTS5 index |
 | `git.ts` | Every Git query. Read-only, `execFile`, no libgit2 |
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
