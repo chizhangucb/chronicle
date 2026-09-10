@@ -106,6 +106,15 @@ export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string):
   return bucketKeyExpr(USAGE_BUCKET_FOR[rollup], ts);
 }
 
+// The guard a query KEYED by a message timestamp needs on top of the message
+// range. The range is `AND <alias>.ts >= ?` when bounded and NOTHING under All
+// (server/scope.ts), so under All a message with no timestamp — allowed by
+// `shared/types.ts` and written through by server/db.ts — survives to the GROUP
+// BY and keys a bucket with SQL NULL, which reaches the client as the literal
+// string `"null"`. Same guard, same reason, as server/routes/projects.ts's
+// activity query.
+const tsNotNull = (alias: string): string => `AND ${alias}.ts IS NOT NULL`;
+
 // Pure cap-coarsening: from the requested rollup, return the finest rollup whose
 // bucket count fits the cap. `countFor` is called at most 3 times (monthly is
 // terminal — never coarsened further). Exported for unit testing without a DB.
@@ -709,6 +718,14 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
   const bind = (extra: (string|number)[] = []): (string|number)[] => [...messageWhere.params, ...extra];
   const bm = bucketExpr(effective, 'm.ts');
   const bs = bucketExpr(effective, 's.started_at');
+  // A query KEYED by a message timestamp carries its own NULL guard on top of
+  // the message range (#334): under All the range filters nothing, so an
+  // untimestamped row reaches the GROUP BY and its NULL bucket key draws a
+  // `"null"` bar. `mBase` is `base` plus that guard, for every scan below keyed
+  // by `bm`; the `bs`-keyed scans (started_at) keep plain `base`, since dropping
+  // a session's undated messages there would change WHICH SESSIONS the scan
+  // sees, not just how they bucket.
+  const mBase = `${base} ${tsNotNull('m')}`;
   // Billed `sessions.usage` cells for this rollup's granularity, scaled to each
   // bucket's share of the session's per-message tokens (#306). This replaces the old
   // started_at scan, which placed a session's WHOLE billed cell on the bucket it began
@@ -748,7 +765,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       // then split across the bucket's real models — the range-total path, partitioned.
       const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
         COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
-        FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
+        FROM messages m ${mBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
       // The per-bucket billed base is the same in-range-scaled cell set the exact
       // branch reads, so a calibrated tool/skill bucket prices off the range's real
       // billed total rather than a spanning session's whole history.
@@ -781,17 +798,17 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       const mrows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
         COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
         COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cacheWrite1h
-        FROM messages m ${base} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string; gk: string|number; model: string })[];
+        FROM messages m ${mBase} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string; gk: string|number; model: string })[];
       for (const r of mrows) {
         if (!r.model) continue;
         addCellInto(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite5m: r.cacheWrite5m, cacheWrite1h: r.cacheWrite1h });
       }
     }
   } else if (query.metric === 'requests') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${mBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).requests += r.c;
   } else if (query.metric === 'sessions') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${mBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
   } else if (query.metric === 'errors' && SESSION_ERROR_GROUPS.includes(query.group)) {
     // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
@@ -821,7 +838,10 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     }
   } else if (query.metric === 'errors') {
     const errCol = errorGroupCol(query.group);
-    const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'));
+    // Keyed by the erroring tool_result's own timestamp, so it carries the same
+    // NULL guard `mBase` carries above (#334) — an undated failing tool_result
+    // would otherwise draw its errors on a `"null"` bar.
+    const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'), tsNotNull('r'));
     const br = bucketExpr(effective, 'r.ts');
     const er = db.prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
       FROM messages r
