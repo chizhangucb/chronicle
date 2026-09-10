@@ -103,6 +103,23 @@ before(async () => {
     ],
   );
 
+  // --- rounding-drift fixture (#306) ---
+  // Three in-range messages of one token each against a billed cell that does NOT
+  // divide by three: rounding each bucket independently gives 33+33+33 = 99, one
+  // token short of the 100 the same session's rangedUsage cell reports. The buckets
+  // must sum back to the cell exactly, so Explore's stacked chart cannot disagree
+  // with its own total bar.
+  replaceSession(
+    { id: 'drift1', project_id: proj.id, source: 'claude-code', file_path: '/tmp/drift1.jsonl',
+      started_at: '2026-08-01T00:00:00.000Z', ended_at: '2026-08-01T06:00:00.000Z',
+      usage: JSON.stringify({ 'model-a': { input: 100, output: 10, cacheRead: 1, cacheWrite5m: 0, cacheWrite1h: 0 } }) },
+    [
+      { kind: 'assistant', ts: '2026-08-01T01:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-08-01T02:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-08-01T03:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+    ],
+  );
+
   // --- coarse bucket fixture (#306) ---
   // Two messages five weeks apart, in different calendar months, so the week and
   // month buckets are distinct under ANY host timezone (no local offset moves a
@@ -318,4 +335,46 @@ test('bucketedUsage: a coarse bucket carries the summed in-range share of the da
   assert.equal(july.cells.input, 25, 'billed input 100 * 10/40');
   assert.equal(june.cells.output, 30, 'billed output 40 * 30/40');
   assert.equal(july.cells.output, 10, 'billed output 40 * 10/40');
+});
+
+// ---------------------------------------------------------------------------
+// bucketedUsage: reconciliation with rangedUsage (#306) — the property Explore's
+// total bar and stacked chart rest on.
+// ---------------------------------------------------------------------------
+
+const sumCells = (cells) => cells.reduce((acc, c) => ({
+  input: acc.input + c.cells.input,
+  output: acc.output + c.cells.output,
+  cacheRead: acc.cacheRead + c.cells.cacheRead,
+  cacheWrite5m: acc.cacheWrite5m + c.cells.cacheWrite5m,
+  cacheWrite1h: acc.cacheWrite1h + c.cells.cacheWrite1h,
+}), { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+
+test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage cell, at every granularity', () => {
+  const { bucketedUsage, rangedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-08-01T00:30:00.000Z'; // inside drift1's span, before every message
+  const ranged = rangedUsage(db, 'AND s.id = ?', ['drift1'], cutoff);
+  assert.equal(ranged.length, 1);
+  // Every per-message token is in-range, so the ranged cell is the full billed cell.
+  assert.deepEqual(ranged[0].cells, { input: 100, output: 10, cacheRead: 1, cacheWrite5m: 0, cacheWrite1h: 0 });
+  for (const bucket of ['hour', 'day', 'week', 'month']) {
+    const cells = bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, bucket);
+    assert.deepEqual(sumCells(cells), ranged[0].cells, `${bucket} buckets must sum to the ranged cell`);
+  }
+  // The hour granularity really did split the session — otherwise the equality above
+  // would hold trivially on a single bucket.
+  assert.equal(bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, 'hour').length, 3);
+});
+
+test('bucketedUsage: buckets sum to the ranged cell when the cutoff splits the session', () => {
+  const { bucketedUsage, rangedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  // scale1: two messages before this cutoff, two at/after it — the range edge cuts
+  // the session in half, which is the case Explore's rollup used to over-count.
+  const cutoff = '2026-02-02T00:00:00.000Z';
+  const ranged = rangedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['scale1'], cutoff, 'day');
+  assert.equal(ranged[0].cells.input, 50);
+  assert.deepEqual(sumCells(cells), ranged[0].cells);
 });

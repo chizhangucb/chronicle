@@ -23,7 +23,7 @@
 // the query) and its binds. This module never imports scope.ts, so it stays testable
 // standalone with a bare in-memory-style temp DB.
 import type { DatabaseSync } from 'node:sqlite';
-import { parseUsage, type UsageCell } from '../shared/usage.ts';
+import { emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 
 export interface RangeUsageCell {
   sessionId: string;
@@ -59,6 +59,18 @@ function scaleCell(cell: UsageCell, ratio: number): UsageCell {
     cacheRead: Math.round(cell.cacheRead * ratio),
     cacheWrite5m: Math.round(cell.cacheWrite5m * ratio),
     cacheWrite1h: Math.round(cell.cacheWrite1h * ratio),
+  };
+}
+
+// Difference of two cumulative cells — the per-bucket slice in bucketedUsage's
+// running-remainder distribution below.
+function subtractCell(a: UsageCell, b: UsageCell): UsageCell {
+  return {
+    input: a.input - b.input,
+    output: a.output - b.output,
+    cacheRead: a.cacheRead - b.cacheRead,
+    cacheWrite5m: a.cacheWrite5m - b.cacheWrite5m,
+    cacheWrite1h: a.cacheWrite1h - b.cacheWrite1h,
   };
 }
 
@@ -241,8 +253,8 @@ export function rangedUsage(
 // Same cells as rangedUsage, additionally split across LOCAL-time buckets in
 // proportion to each bucket's share of the model's WHOLE-session per-message total (not
 // its in-range total) — summing a session-model's bucketed cells back together
-// reproduces rangedUsage's own scaled cell for that session-model (up to per-bucket
-// rounding drift, same caveat calibrateByBucket has). A `cutoffIso` of null buckets the
+// reproduces rangedUsage's own scaled cell for that session-model EXACTLY, because the
+// per-bucket rounding runs cumulatively (see the loop below). A `cutoffIso` of null buckets the
 // session's entire history (there is no window to restrict to); every real caller
 // (insights.ts's dailySpend/hourlySpend, Task 2) passes a real cutoff.
 export function bucketedUsage(
@@ -291,9 +303,24 @@ export function bucketedUsage(
       }
       const perBucket = buckets.get(s.sessionId)?.get(model);
       if (!perBucket) continue; // whole>0 but nothing fell in-range: no bucket to attribute to
-      for (const [bkey, bsum] of perBucket) {
-        const ratio = Math.max(0, Math.min(1, bsum / wholeTotal));
-        out.push({ sessionId: s.sessionId, projectId: s.projectId, model, source: s.source, bucket: bkey, cells: scaleCell(cell, ratio) });
+      // Cumulative (running-remainder) rounding, not per-bucket rounding: each
+      // bucket's cell is the difference between the scaled cell at the cumulative
+      // in-range share up to and including it, and the same at the share before it.
+      // Rounding each bucket on its own would drift — three equal buckets of a billed
+      // 100 come out 33+33+33 = 99 — and the drift lands exactly where the operator
+      // reads it, as a stacked chart that does not add up to its own total bar. This
+      // way the buckets sum to scaleCell(cell, inRangeShare), which IS rangedUsage's
+      // cell for the same session and model, at every granularity.
+      let cumulative = 0;
+      let emitted = emptyCell();
+      for (const [bkey, bsum] of [...perBucket].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) {
+        cumulative += bsum;
+        const running = scaleCell(cell, Math.max(0, Math.min(1, cumulative / wholeTotal)));
+        out.push({
+          sessionId: s.sessionId, projectId: s.projectId, model, source: s.source, bucket: bkey,
+          cells: subtractCell(running, emitted),
+        });
+        emitted = running;
       }
     }
   }
