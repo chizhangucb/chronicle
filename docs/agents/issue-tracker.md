@@ -36,4 +36,4 @@ Back-to-back POSTs drop edges silently: space them about three seconds apart, an
 
 A wayfinder ticket answers a question and closes. Work the answer uncovered is named in that comment, and reaches the tracker through the handoff: `/to-spec` collapses the cleared map into a plan, `/to-tickets` slices it into tickets carrying acceptance criteria and blocking edges, `/implement` builds each one. Straight to `/implement` only where the effort turned out small.
 
-Triage sits outside this path (see `triage-labels.md`). [#183](https://github.com/chizhangucb/chronicle/issues/183) asked for one `needs-triage` issue per audit finding and produced 20 unshaped tickets, six of them keep/drop questions wearing `ready-for-agent`.
+Triage sits outside this path (see `triage-labels.md`).
