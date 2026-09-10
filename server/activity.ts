@@ -14,6 +14,7 @@ import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './rangeUsage.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
+import { addCellInto, emptyCell, parseUsage, totalTokens, USAGE_FIELDS, type UsageByModel, type UsageCell } from '../shared/usage.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -22,17 +23,6 @@ const RECENT_CAP = 10;
 // The trailing complete-days window the "Today" burn baseline medians over.
 const MEDIAN_DAYS = 14;
 
-// Per-model token cell — the shape of a `sessions.usage` entry, normalized so
-// the client's costOf reads it directly (legacy `cacheWrite` folded to 5m).
-export interface TokenCell {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite5m: number;
-  cacheWrite1h: number;
-}
-export type TokensByModel = Record<string, TokenCell>;
-
 export interface ActivitySessionLite {
   id: string;
   name: string;              // resolved display name (name → summary → first_prompt → id)
@@ -40,28 +30,28 @@ export interface ActivitySessionLite {
   source: string;
   live: boolean;
   endedAt: string | null;
-  tokensByModel: TokensByModel;  // client prices via costOf
+  tokensByModel: UsageByModel;  // client prices via costOf
   errorCount: number;
 }
 
 export interface ActivityBurn {
-  rangeSpendTokensByModel: TokensByModel;
+  rangeSpendTokensByModel: UsageByModel;
   // Day-bucketed (LOCAL calendar day) breakdown of rangeSpendTokensByModel —
   // lets the client price the Burn tile's current-window spend per day at that day's
   // rate (e.g. Sonnet 5's intro window) instead of one flat rate for the whole window.
   // This is the figure the audit found overstated ~50% during the intro window, so
   // it's the one burn.* field worth day-bucketing; baselineTokensByModel/
   // topSessionTokensByModel stay flat (see their own comments below for why).
-  rangeSpendTokensByModelByDay: Record<string, TokensByModel>;
+  rangeSpendTokensByModelByDay: Record<string, UsageByModel>;
   // Today → 14-day daily median (a statistical "typical day" construct with no single
   // real date to price at); Nd → prior-Nd totals (a comparison anchor, not the live spend
   // figure this fix targets — deliberately left flat, see server/activity.ts note).
-  baselineTokensByModel: TokensByModel;
+  baselineTokensByModel: UsageByModel;
   topSessionId: string | null;
   topSessionName: string | null;
   // Price-free-proxy magnitude (see header) — left flat/unscaled by the same existing
   // design as the rest of this field, day-bucketing not attempted for one session's usage.
-  topSessionTokensByModel: TokensByModel;
+  topSessionTokensByModel: UsageByModel;
   // 2c: per-day per-dimension token CELLS over a lookback window, so the
   // client can price (at the toggled mode) → CostedDay[] → the shared
   // computeAnomaly (movers + flagged days). Server ships cells, not dollars.
@@ -75,9 +65,9 @@ export interface ActivityBurn {
 // sessions.usage). skill/agent/mcp movers are a later refinement (calibrated).
 export interface AnomalyDayCells {
   day: string;
-  byModel: TokensByModel;
-  byProject: Record<string, TokensByModel>;
-  bySource: Record<string, TokensByModel>;
+  byModel: UsageByModel;
+  byProject: Record<string, UsageByModel>;
+  bySource: Record<string, UsageByModel>;
 }
 
 export interface ActivityResult {
@@ -100,49 +90,9 @@ interface SessionRowLite {
   error_count: number | null;
 }
 
-// Parse a `sessions.usage` blob into normalized cells (legacy `cacheWrite`
-// → cacheWrite5m, matching src/models.ts costOf's own fallback).
-function parseUsage(json: string | null): TokensByModel {
-  if (!json) return {};
-  let raw: Record<string, Record<string, number | null | undefined>>;
-  try { raw = JSON.parse(json); } catch { return {}; }
-  const out: TokensByModel = {};
-  for (const [model, u] of Object.entries(raw)) {
-    if (!u || typeof u !== 'object') continue;
-    out[model] = {
-      input: u.input || 0,
-      output: u.output || 0,
-      cacheRead: u.cacheRead || 0,
-      cacheWrite5m: (u.cacheWrite5m ?? u.cacheWrite ?? 0) || 0,
-      cacheWrite1h: u.cacheWrite1h || 0,
-    };
-  }
-  return out;
-}
-
-const FIELDS = ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h'] as const;
-
-function emptyCell(): TokenCell {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
-}
-
 // Merge a session's cells into an accumulator (per-model, per-field sum).
-function addUsage(acc: TokensByModel, cells: TokensByModel): void {
-  for (const [model, cell] of Object.entries(cells)) {
-    const cur = acc[model] ?? (acc[model] = emptyCell());
-    for (const f of FIELDS) cur[f] += cell[f];
-  }
-}
-
-function cellTotal(cell: TokenCell): number {
-  let n = 0;
-  for (const f of FIELDS) n += cell[f];
-  return n;
-}
-function totalTokens(cells: TokensByModel): number {
-  let n = 0;
-  for (const cell of Object.values(cells)) n += cellTotal(cell);
-  return n;
+function addUsage(acc: UsageByModel, cells: UsageByModel): void {
+  for (const [model, cell] of Object.entries(cells)) addCellInto(acc, model, cell);
 }
 
 function median(nums: number[]): number {
@@ -154,7 +104,7 @@ function median(nums: number[]): number {
 
 // Sum per-session usage over a started_at window [from, to) (either bound may
 // be null = unbounded), respecting the minor gate.
-function sumRange(from: string | null, to: string | null): TokensByModel {
+function sumRange(from: string | null, to: string | null): UsageByModel {
   const where = ['COALESCE(s.minor,0)=0'];
   const params: string[] = [];
   if (from != null) { where.push('s.started_at >= ?'); params.push(from); }
@@ -162,7 +112,7 @@ function sumRange(from: string | null, to: string | null): TokensByModel {
   const rows = db.prepare(
     `SELECT s.usage FROM sessions s WHERE ${where.join(' AND ')}`,
   ).all(...params) as unknown as { usage: string | null }[];
-  const acc: TokensByModel = {};
+  const acc: UsageByModel = {};
   for (const r of rows) addUsage(acc, parseUsage(r.usage));
   return acc;
 }
@@ -171,7 +121,7 @@ function sumRange(from: string | null, to: string | null): TokensByModel {
 // daily token totals. Each field is medianed independently across the 14 days
 // (missing days count as 0), yielding a priceable "typical day" cell per model
 // — the client prices it for the baseline spend figure.
-function medianBaseline(now: number): TokensByModel {
+function medianBaseline(now: number): UsageByModel {
   const nowDate = new Date(now);
   const todayMidnight = Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), nowDate.getUTCDate());
   const dayStr = (d: number) => new Date(todayMidnight - d * DAY).toISOString().slice(0, 10);
@@ -185,7 +135,7 @@ function medianBaseline(now: number): TokensByModel {
   ).all(from, to) as unknown as { day: string; usage: string | null }[];
 
   // day → model → summed cell
-  const byDay = new Map<string, TokensByModel>();
+  const byDay = new Map<string, UsageByModel>();
   for (const r of rows) {
     const acc = byDay.get(r.day) ?? {};
     addUsage(acc, parseUsage(r.usage));
@@ -195,10 +145,10 @@ function medianBaseline(now: number): TokensByModel {
   const models = new Set<string>();
   for (const m of byDay.values()) for (const model of Object.keys(m)) models.add(model);
 
-  const out: TokensByModel = {};
+  const out: UsageByModel = {};
   for (const model of models) {
     const cell = emptyCell();
-    for (const f of FIELDS) {
+    for (const f of USAGE_FIELDS) {
       cell[f] = median(days.map((day) => byDay.get(day)?.[model]?.[f] ?? 0));
     }
     out[model] = cell;
@@ -265,15 +215,15 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   // rangeCutoff is already null for "All" (extends-to-now semantics match bucketedUsage's
   // cutoffIso===null "All window" signal exactly), so no extra mapping is needed.
   const bucketedCells = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], rangeCutoff, 'day');
-  const rangeSpendTokensByModel: TokensByModel = {};
-  const rangeSpendTokensByModelByDay: Record<string, TokensByModel> = {};
+  const rangeSpendTokensByModel: UsageByModel = {};
+  const rangeSpendTokensByModelByDay: Record<string, UsageByModel> = {};
   for (const c of bucketedCells) {
-    addUsage(rangeSpendTokensByModel, { [c.model]: c.cells });
+    addCellInto(rangeSpendTokensByModel, c.model, c.cells);
     const dayAcc = rangeSpendTokensByModelByDay[c.bucket] ?? (rangeSpendTokensByModelByDay[c.bucket] = {});
-    addUsage(dayAcc, { [c.model]: c.cells });
+    addCellInto(dayAcc, c.model, c.cells);
   }
 
-  let baselineTokensByModel: TokensByModel;
+  let baselineTokensByModel: UsageByModel;
   if (days != null && days <= 1) {
     baselineTokensByModel = medianBaseline(now);                       // Today → 14-day daily median
   } else if (rangeMs != null) {
@@ -296,7 +246,7 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
      FROM sessions s JOIN projects p ON p.id = s.project_id
      WHERE COALESCE(s.minor,0)=0${rangeCutoff != null ? ` AND ${overlapGate('s')}` : ''}`,
   ).all(...(rangeCutoff != null ? [rangeCutoff] : [])) as unknown as SessionRowLite[];
-  let top: { row: SessionRowLite; cells: TokensByModel; tokens: number } | null = null;
+  let top: { row: SessionRowLite; cells: UsageByModel; tokens: number } | null = null;
   for (const r of winRows) {
     const cells = parseUsage(r.usage);
     const tokens = totalTokens(cells);
@@ -318,10 +268,10 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], anomalyCutoff, 'day')) {
     let d = anomDayMap.get(c.bucket);
     if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
-    addUsage(d.byModel, { [c.model]: c.cells });
+    addCellInto(d.byModel, c.model, c.cells);
     const pk = projName.get(c.projectId) ?? String(c.projectId);
-    addUsage(d.byProject[pk] ?? (d.byProject[pk] = {}), { [c.model]: c.cells });
-    addUsage(d.bySource[c.source] ?? (d.bySource[c.source] = {}), { [c.model]: c.cells });
+    addCellInto(d.byProject[pk] ?? (d.byProject[pk] = {}), c.model, c.cells);
+    addCellInto(d.bySource[c.source] ?? (d.bySource[c.source] = {}), c.model, c.cells);
   }
   const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
   const nowD = new Date(now);

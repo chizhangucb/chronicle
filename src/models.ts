@@ -24,7 +24,7 @@ export type {
   Price,
   PriceWindow,
   CostMode,
-  ModelUsageInput,
+  RawUsageCell,
   CostBreakdown,
   CacheWriteByTtl,
   PriceFn,

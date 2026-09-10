@@ -1,0 +1,4047 @@
+{
+  "/insights": {
+    "sessions": [
+      {
+        "id": "g-broken",
+        "project_id": 2,
+        "project_name": "golden-orchard",
+        "source": "opencode",
+        "name": null,
+        "summary": null,
+        "first_prompt": null,
+        "started_at": "2026-02-09T16:00:00.000Z",
+        "ended_at": "2026-02-09T18:00:00.000Z",
+        "message_count": 30,
+        "agent_active_ms": 5400000,
+        "engaged_ms": 10800000,
+        "context_tokens": null,
+        "usage": "{not json"
+      },
+      {
+        "id": "g-nousage",
+        "project_id": 2,
+        "project_name": "golden-orchard",
+        "source": "cursor",
+        "name": null,
+        "summary": null,
+        "first_prompt": null,
+        "started_at": "2026-02-09T06:00:00.000Z",
+        "ended_at": "2026-02-09T08:00:00.000Z",
+        "message_count": 33,
+        "agent_active_ms": 6000000,
+        "engaged_ms": 12000000,
+        "context_tokens": null,
+        "usage": null
+      },
+      {
+        "id": "g-legacy",
+        "project_id": 1,
+        "project_name": "golden-atlas",
+        "source": "codex",
+        "name": null,
+        "summary": null,
+        "first_prompt": null,
+        "started_at": "2026-02-08T12:00:00.000Z",
+        "ended_at": "2026-02-08T15:00:00.000Z",
+        "message_count": 30,
+        "agent_active_ms": 5400000,
+        "engaged_ms": 10800000,
+        "context_tokens": 60000,
+        "usage": "{\"gpt-5\":{\"input\":9000,\"output\":2200,\"cacheRead\":30000,\"cacheWrite\":1500}}"
+      },
+      {
+        "id": "g-modern",
+        "project_id": 1,
+        "project_name": "golden-atlas",
+        "source": "claude-code",
+        "name": null,
+        "summary": null,
+        "first_prompt": null,
+        "started_at": "2026-02-07T12:00:00.000Z",
+        "ended_at": "2026-02-07T16:00:00.000Z",
+        "message_count": 36,
+        "agent_active_ms": 6600000,
+        "engaged_ms": 13200000,
+        "context_tokens": 120000,
+        "usage": "{\"claude-sonnet-5\":{\"input\":12000,\"output\":3400,\"cacheRead\":88000,\"cacheWrite5m\":5100,\"cacheWrite1h\":900},\"claude-opus-4-8\":{\"input\":4000,\"output\":1200,\"cacheRead\":21000,\"cacheWrite5m\":700,\"cacheWrite1h\":0}}"
+      }
+    ],
+    "toolDist": [
+      {
+        "name": "Bash",
+        "count": 27
+      },
+      {
+        "name": "Read",
+        "count": 16
+      }
+    ],
+    "kindDist": [
+      {
+        "kind": "assistant",
+        "count": 43
+      },
+      {
+        "kind": "tool_result",
+        "count": 43
+      },
+      {
+        "kind": "tool_use",
+        "count": 43
+      }
+    ],
+    "modelDist": [
+      {
+        "model": "claude-sonnet-5",
+        "count": 23
+      },
+      {
+        "model": "gpt-5",
+        "count": 10
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "count": 10
+      }
+    ],
+    "modelDistFixed": [],
+    "errors": 12,
+    "errorsByProject": [
+      {
+        "project_id": 1,
+        "head_count": 22,
+        "error_count": 6
+      },
+      {
+        "project_id": 2,
+        "head_count": 21,
+        "error_count": 6
+      }
+    ],
+    "commits": 0,
+    "dailyActivity": [],
+    "hourlyActivity": [],
+    "projects": [
+      {
+        "id": 1,
+        "name": "golden-atlas"
+      },
+      {
+        "id": 2,
+        "name": "golden-orchard"
+      }
+    ],
+    "rangedTokensByModel": [
+      {
+        "sessionId": "g-modern",
+        "projectId": 1,
+        "model": "claude-sonnet-5",
+        "source": "claude-code",
+        "bucket": "2026-02-07",
+        "cells": {
+          "input": 12000,
+          "output": 3400,
+          "cacheRead": 88000,
+          "cacheWrite5m": 5100,
+          "cacheWrite1h": 900
+        }
+      },
+      {
+        "sessionId": "g-modern",
+        "projectId": 1,
+        "model": "claude-opus-4-8",
+        "source": "claude-code",
+        "bucket": "2026-02-07",
+        "cells": {
+          "input": 4000,
+          "output": 1200,
+          "cacheRead": 21000,
+          "cacheWrite5m": 700,
+          "cacheWrite1h": 0
+        }
+      },
+      {
+        "sessionId": "g-legacy",
+        "projectId": 1,
+        "model": "gpt-5",
+        "source": "codex",
+        "bucket": "2026-02-08",
+        "cells": {
+          "input": 9000,
+          "output": 2200,
+          "cacheRead": 30000,
+          "cacheWrite5m": 1500,
+          "cacheWrite1h": 0
+        }
+      }
+    ],
+    "dailySpend": [
+      {
+        "sessionId": "g-modern",
+        "projectId": 1,
+        "model": "claude-sonnet-5",
+        "source": "claude-code",
+        "bucket": "2026-02-07",
+        "cells": {
+          "input": 12000,
+          "output": 3400,
+          "cacheRead": 88000,
+          "cacheWrite5m": 5100,
+          "cacheWrite1h": 900
+        }
+      },
+      {
+        "sessionId": "g-modern",
+        "projectId": 1,
+        "model": "claude-opus-4-8",
+        "source": "claude-code",
+        "bucket": "2026-02-07",
+        "cells": {
+          "input": 4000,
+          "output": 1200,
+          "cacheRead": 21000,
+          "cacheWrite5m": 700,
+          "cacheWrite1h": 0
+        }
+      },
+      {
+        "sessionId": "g-legacy",
+        "projectId": 1,
+        "model": "gpt-5",
+        "source": "codex",
+        "bucket": "2026-02-08",
+        "cells": {
+          "input": 9000,
+          "output": 2200,
+          "cacheRead": 30000,
+          "cacheWrite5m": 1500,
+          "cacheWrite1h": 0
+        }
+      }
+    ],
+    "hourlySpend": null
+  },
+  "/explore?metric=spend&group=model&rollup=total": {
+    "metric": "spend",
+    "group": "model",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "claude-sonnet-5",
+        "label": "claude-sonnet-5",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cw5m": 5100,
+            "cw1h": 900
+          }
+        },
+        "requests": 23,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-07": {
+            "claude-sonnet-5": {
+              "input": 12000,
+              "output": 3400,
+              "cacheRead": 88000,
+              "cw5m": 5100,
+              "cw1h": 900
+            }
+          }
+        }
+      },
+      {
+        "key": "gpt-5",
+        "label": "gpt-5",
+        "tokensByModel": {
+          "gpt-5": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cw5m": 1500,
+            "cw1h": 0
+          }
+        },
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-08": {
+            "gpt-5": {
+              "input": 9000,
+              "output": 2200,
+              "cacheRead": 30000,
+              "cw5m": 1500,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "claude-opus-4-8",
+        "label": "claude-opus-4-8",
+        "tokensByModel": {
+          "claude-opus-4-8": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cw5m": 700,
+            "cw1h": 0
+          }
+        },
+        "tokensByModelByDay": {
+          "2026-02-07": {
+            "claude-opus-4-8": {
+              "input": 4000,
+              "output": 1200,
+              "cacheRead": 21000,
+              "cw5m": 700,
+              "cw1h": 0
+            }
+          }
+        },
+        "requests": 0,
+        "sessions": 0,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "gemini-2.5-pro",
+        "label": "gemini-2.5-pro",
+        "tokensByModel": {},
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "total",
+    "requestedRollup": "total"
+  },
+  "/explore?metric=tokens&group=session&rollup=daily": {
+    "metric": "tokens",
+    "group": "session",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "g-modern",
+        "label": "g-modern",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cw5m": 5100,
+            "cw1h": 900
+          },
+          "claude-opus-4-8": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cw5m": 700,
+            "cw1h": 0
+          }
+        },
+        "requests": 36,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-07": {
+            "claude-sonnet-5": {
+              "input": 12000,
+              "output": 3400,
+              "cacheRead": 88000,
+              "cw5m": 5100,
+              "cw1h": 900
+            },
+            "claude-opus-4-8": {
+              "input": 4000,
+              "output": 1200,
+              "cacheRead": 21000,
+              "cw5m": 700,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "g-legacy",
+        "label": "g-legacy",
+        "tokensByModel": {
+          "gpt-5": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cw5m": 1500,
+            "cw1h": 0
+          }
+        },
+        "requests": 30,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-08": {
+            "gpt-5": {
+              "input": 9000,
+              "output": 2200,
+              "cacheRead": 30000,
+              "cw5m": 1500,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "g-broken",
+        "label": "g-broken",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 3000,
+            "output": 1500,
+            "cacheRead": 9000,
+            "cw5m": 3000,
+            "cw1h": 0
+          }
+        },
+        "requests": 30,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "g-nousage",
+        "label": "g-nousage",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1980,
+            "output": 990,
+            "cacheRead": 5940,
+            "cw5m": 1980,
+            "cw1h": 0
+          }
+        },
+        "requests": 33,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "daily",
+    "requestedRollup": "daily",
+    "buckets": [
+      {
+        "bucket": "2026-02-07",
+        "label": "Feb 7",
+        "series": {
+          "g-modern": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 12000,
+                "output": 3400,
+                "cacheRead": 88000,
+                "cw5m": 5100,
+                "cw1h": 900
+              },
+              "claude-opus-4-8": {
+                "input": 4000,
+                "output": 1200,
+                "cacheRead": 21000,
+                "cw5m": 700,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08",
+        "label": "Feb 8",
+        "series": {
+          "g-legacy": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 9000,
+                "output": 2200,
+                "cacheRead": 30000,
+                "cw5m": 1500,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/explore?metric=errors&group=tool&rollup=total": {
+    "metric": "errors",
+    "group": "tool",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "Bash",
+        "label": "Bash",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 7535,
+            "output": 2135,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          },
+          "claude-opus-4-8": {
+            "input": 2512,
+            "output": 753,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 5651,
+            "output": 1381,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          }
+        },
+        "requests": 27,
+        "sessions": 4,
+        "errors": 8,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "Read",
+        "label": "Read",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 4465,
+            "output": 1265,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          },
+          "claude-opus-4-8": {
+            "input": 1488,
+            "output": 447,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 3349,
+            "output": 819,
+            "cacheRead": 0,
+            "cw5m": 0,
+            "cw1h": 0
+          }
+        },
+        "requests": 16,
+        "sessions": 4,
+        "errors": 4,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "total",
+    "requestedRollup": "total"
+  },
+  "/explore?metric=spend&group=project&subgroup=source&rollup=weekly": {
+    "metric": "spend",
+    "group": "project",
+    "subgroup": "source",
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "golden-atlas",
+        "label": "golden-atlas",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cw5m": 5100,
+            "cw1h": 900
+          },
+          "claude-opus-4-8": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cw5m": 700,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cw5m": 1500,
+            "cw1h": 0
+          }
+        },
+        "requests": 66,
+        "sessions": 2,
+        "errors": 6,
+        "activeMs": 0,
+        "segments": [
+          {
+            "key": "claude-code",
+            "label": "claude-code",
+            "tokens": 7200
+          },
+          {
+            "key": "codex",
+            "label": "codex",
+            "tokens": 3750
+          }
+        ],
+        "tokensByModelByDay": {
+          "2026-02-07": {
+            "claude-sonnet-5": {
+              "input": 12000,
+              "output": 3400,
+              "cacheRead": 88000,
+              "cw5m": 5100,
+              "cw1h": 900
+            },
+            "claude-opus-4-8": {
+              "input": 4000,
+              "output": 1200,
+              "cacheRead": 21000,
+              "cw5m": 700,
+              "cw1h": 0
+            }
+          },
+          "2026-02-08": {
+            "gpt-5": {
+              "input": 9000,
+              "output": 2200,
+              "cacheRead": 30000,
+              "cw5m": 1500,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "golden-orchard",
+        "label": "golden-orchard",
+        "tokensByModel": {},
+        "requests": 63,
+        "sessions": 2,
+        "errors": 6,
+        "activeMs": 0,
+        "segments": [
+          {
+            "key": "opencode",
+            "label": "opencode",
+            "tokens": 4500
+          },
+          {
+            "key": "cursor",
+            "label": "cursor",
+            "tokens": 2970
+          }
+        ]
+      }
+    ],
+    "rollup": "weekly",
+    "requestedRollup": "weekly",
+    "buckets": [
+      {
+        "bucket": "2026-02-02",
+        "label": "Feb 2",
+        "series": {
+          "golden-atlas": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 12000,
+                "output": 3400,
+                "cacheRead": 88000,
+                "cw5m": 5100,
+                "cw1h": 900
+              },
+              "claude-opus-4-8": {
+                "input": 4000,
+                "output": 1200,
+                "cacheRead": 21000,
+                "cw5m": 700,
+                "cw1h": 0
+              },
+              "gpt-5": {
+                "input": 9000,
+                "output": 2200,
+                "cacheRead": 30000,
+                "cw5m": 1500,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/explore?metric=spend&group=source&rollup=monthly": {
+    "metric": "spend",
+    "group": "source",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "claude-code",
+        "label": "claude-code",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cw5m": 5100,
+            "cw1h": 900
+          },
+          "claude-opus-4-8": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cw5m": 700,
+            "cw1h": 0
+          }
+        },
+        "requests": 36,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-07": {
+            "claude-sonnet-5": {
+              "input": 12000,
+              "output": 3400,
+              "cacheRead": 88000,
+              "cw5m": 5100,
+              "cw1h": 900
+            },
+            "claude-opus-4-8": {
+              "input": 4000,
+              "output": 1200,
+              "cacheRead": 21000,
+              "cw5m": 700,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "codex",
+        "label": "codex",
+        "tokensByModel": {
+          "gpt-5": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cw5m": 1500,
+            "cw1h": 0
+          }
+        },
+        "requests": 30,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": [],
+        "tokensByModelByDay": {
+          "2026-02-08": {
+            "gpt-5": {
+              "input": 9000,
+              "output": 2200,
+              "cacheRead": 30000,
+              "cw5m": 1500,
+              "cw1h": 0
+            }
+          }
+        }
+      },
+      {
+        "key": "cursor",
+        "label": "cursor",
+        "tokensByModel": {},
+        "requests": 33,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "opencode",
+        "label": "opencode",
+        "tokensByModel": {},
+        "requests": 30,
+        "sessions": 1,
+        "errors": 3,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "monthly",
+    "requestedRollup": "monthly",
+    "buckets": [
+      {
+        "bucket": "2026-02",
+        "label": "Feb 2026",
+        "series": {
+          "claude-code": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 12000,
+                "output": 3400,
+                "cacheRead": 88000,
+                "cw5m": 5100,
+                "cw1h": 900
+              },
+              "claude-opus-4-8": {
+                "input": 4000,
+                "output": 1200,
+                "cacheRead": 21000,
+                "cw5m": 700,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "codex": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 9000,
+                "output": 2200,
+                "cacheRead": 30000,
+                "cw5m": 1500,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/explore?metric=tokens&group=hour&rollup=daily": {
+    "metric": "tokens",
+    "group": "hour",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "12",
+        "label": "12",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "13",
+        "label": "13",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "14",
+        "label": "14",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "15",
+        "label": "15",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 250,
+            "output": 125,
+            "cacheRead": 750,
+            "cw5m": 250,
+            "cw1h": 0
+          }
+        },
+        "requests": 12,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "16",
+        "label": "16",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "17",
+        "label": "17",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "18",
+        "label": "18",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "6",
+        "label": "6",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "7",
+        "label": "7",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "8",
+        "label": "8",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "Other",
+        "label": "Other",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 360,
+            "output": 180,
+            "cacheRead": 1080,
+            "cw5m": 360,
+            "cw1h": 0
+          },
+          "gemini-2.5-pro": {
+            "input": 300,
+            "output": 150,
+            "cacheRead": 900,
+            "cw5m": 300,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": [],
+        "otherCount": 2
+      }
+    ],
+    "rollup": "daily",
+    "requestedRollup": "daily",
+    "buckets": [
+      {
+        "bucket": "2026-02-07",
+        "label": "Feb 7",
+        "series": {
+          "12": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "13": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "14": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "15": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08",
+        "label": "Feb 8",
+        "series": {
+          "12": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "13": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "14": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "15": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 250,
+                "output": 125,
+                "cacheRead": 750,
+                "cw5m": 250,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09",
+        "label": "Feb 9",
+        "series": {
+          "6": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "7": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "8": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "16": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "17": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "18": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "Other": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 360,
+                "output": 180,
+                "cacheRead": 1080,
+                "cw5m": 360,
+                "cw1h": 0
+              },
+              "gemini-2.5-pro": {
+                "input": 300,
+                "output": 150,
+                "cacheRead": 900,
+                "cw5m": 300,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/explore?metric=spend&group=subagent&rollup=daily": {
+    "metric": "spend",
+    "group": "subagent",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [],
+    "rollup": "daily",
+    "requestedRollup": "daily",
+    "buckets": []
+  },
+  "/explore?metric=spend&group=provider&rollup=hourly": {
+    "metric": "spend",
+    "group": "provider",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "anthropic",
+        "label": "anthropic",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 6780,
+            "output": 3390,
+            "cacheRead": 20340,
+            "cw5m": 6780,
+            "cw1h": 0
+          }
+        },
+        "requests": 23,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "google",
+        "label": "google",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 3000,
+            "output": 1500,
+            "cacheRead": 9000,
+            "cw5m": 3000,
+            "cw1h": 0
+          }
+        },
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "openai",
+        "label": "openai",
+        "tokensByModel": {
+          "gpt-5": {
+            "input": 2500,
+            "output": 1250,
+            "cacheRead": 7500,
+            "cw5m": 2500,
+            "cw1h": 0
+          }
+        },
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "hourly",
+    "requestedRollup": "hourly",
+    "buckets": [
+      {
+        "bucket": "2026-02-07T12",
+        "label": "Feb 7 12h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T13",
+        "label": "Feb 7 13h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T14",
+        "label": "Feb 7 14h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T15",
+        "label": "Feb 7 15h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T12",
+        "label": "Feb 8 12h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T13",
+        "label": "Feb 8 13h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T14",
+        "label": "Feb 8 14h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T15",
+        "label": "Feb 8 15h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 250,
+                "output": 125,
+                "cacheRead": 750,
+                "cw5m": 250,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T06",
+        "label": "Feb 9 06h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T07",
+        "label": "Feb 9 07h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T08",
+        "label": "Feb 9 08h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T09",
+        "label": "Feb 9 09h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 360,
+                "output": 180,
+                "cacheRead": 1080,
+                "cw5m": 360,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T16",
+        "label": "Feb 9 16h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T17",
+        "label": "Feb 9 17h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T18",
+        "label": "Feb 9 18h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T19",
+        "label": "Feb 9 19h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 300,
+                "output": 150,
+                "cacheRead": 900,
+                "cw5m": 300,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/content": {
+    "composition": [
+      {
+        "key": "tool_result",
+        "tokens": 7892
+      },
+      {
+        "key": "tool_use",
+        "tokens": 0
+      },
+      {
+        "key": "user",
+        "tokens": 0
+      },
+      {
+        "key": "assistant",
+        "tokens": 23908
+      },
+      {
+        "key": "thinking",
+        "tokens": 0
+      }
+    ],
+    "toolResultsByTool": [
+      {
+        "key": "Bash",
+        "tokens": 5185
+      },
+      {
+        "key": "Read",
+        "tokens": 2708
+      }
+    ],
+    "skills": [
+      {
+        "key": "review",
+        "count": 10,
+        "tokens": 0
+      }
+    ],
+    "subagents": [],
+    "characteristicsScope": "all",
+    "characteristics": [
+      {
+        "key": "highContextRel",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "warn": false,
+        "label": "of usage ran past 70% of the model's context window",
+        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
+        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
+        "countOne": "session",
+        "countMany": "sessions"
+      },
+      {
+        "key": "subagentTurns",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "label": "of usage came from subagent turns",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "countOne": "subagent turn",
+        "countMany": "subagent turns"
+      },
+      {
+        "key": "eightHourSessions",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "label": "of usage came from marathon sessions (8h+ active)",
+        "why": "Sessions where the agent was actively working — not just open — for 8 hours or more.",
+        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "countOne": "marathon session",
+        "countMany": "marathon sessions"
+      },
+      {
+        "key": "workflowRuns",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "label": "of usage ran inside a multi-agent workflow",
+        "why": "Tokens spent on groups of subagents launched together to divide one task.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "countOne": "workflow run",
+        "countMany": "workflow runs"
+      },
+      {
+        "key": "highContextAbs",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "label": "of usage ran above 150k context tokens",
+        "why": "Sessions carrying a large context regardless of the model's window size.",
+        "info": "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+        "countOne": "session",
+        "countMany": "sessions"
+      },
+      {
+        "key": "cacheEfficiency",
+        "format": "percent",
+        "value": 85,
+        "count": 2,
+        "exact": true,
+        "label": "of input tokens were served from cache",
+        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
+        "countOne": "session with cache activity",
+        "countMany": "sessions with cache activity"
+      },
+      {
+        "key": "autonomousShare",
+        "format": "percent",
+        "value": 0,
+        "count": 0,
+        "exact": true,
+        "label": "of usage ran mostly unattended",
+        "why": "Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.",
+        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "countOne": "session",
+        "countMany": "sessions"
+      }
+    ],
+    "calibratedTotalTokens": 31800,
+    "calibrated": true
+  },
+  "/activity": {
+    "live": [],
+    "recent": [],
+    "burn": {
+      "rangeSpendTokensByModel": {
+        "claude-sonnet-5": {
+          "input": 12000,
+          "output": 3400,
+          "cacheRead": 88000,
+          "cacheWrite5m": 5100,
+          "cacheWrite1h": 900
+        },
+        "claude-opus-4-8": {
+          "input": 4000,
+          "output": 1200,
+          "cacheRead": 21000,
+          "cacheWrite5m": 700,
+          "cacheWrite1h": 0
+        },
+        "gpt-5": {
+          "input": 9000,
+          "output": 2200,
+          "cacheRead": 30000,
+          "cacheWrite5m": 1500,
+          "cacheWrite1h": 0
+        }
+      },
+      "rangeSpendTokensByModelByDay": {
+        "2026-02-07": {
+          "claude-sonnet-5": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cacheWrite5m": 5100,
+            "cacheWrite1h": 900
+          },
+          "claude-opus-4-8": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cacheWrite5m": 700,
+            "cacheWrite1h": 0
+          }
+        },
+        "2026-02-08": {
+          "gpt-5": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cacheWrite5m": 1500,
+            "cacheWrite1h": 0
+          }
+        }
+      },
+      "baselineTokensByModel": {},
+      "topSessionId": "g-modern",
+      "topSessionName": "g-modern",
+      "topSessionTokensByModel": {
+        "claude-sonnet-5": {
+          "input": 12000,
+          "output": 3400,
+          "cacheRead": 88000,
+          "cacheWrite5m": 5100,
+          "cacheWrite1h": 900
+        },
+        "claude-opus-4-8": {
+          "input": 4000,
+          "output": 1200,
+          "cacheRead": 21000,
+          "cacheWrite5m": 700,
+          "cacheWrite1h": 0
+        }
+      },
+      "anomalyDays": [
+        {
+          "day": "2026-02-07",
+          "byModel": {
+            "claude-sonnet-5": {
+              "input": 12000,
+              "output": 3400,
+              "cacheRead": 88000,
+              "cacheWrite5m": 5100,
+              "cacheWrite1h": 900
+            },
+            "claude-opus-4-8": {
+              "input": 4000,
+              "output": 1200,
+              "cacheRead": 21000,
+              "cacheWrite5m": 700,
+              "cacheWrite1h": 0
+            }
+          },
+          "byProject": {
+            "golden-atlas": {
+              "claude-sonnet-5": {
+                "input": 12000,
+                "output": 3400,
+                "cacheRead": 88000,
+                "cacheWrite5m": 5100,
+                "cacheWrite1h": 900
+              },
+              "claude-opus-4-8": {
+                "input": 4000,
+                "output": 1200,
+                "cacheRead": 21000,
+                "cacheWrite5m": 700,
+                "cacheWrite1h": 0
+              }
+            }
+          },
+          "bySource": {
+            "claude-code": {
+              "claude-sonnet-5": {
+                "input": 12000,
+                "output": 3400,
+                "cacheRead": 88000,
+                "cacheWrite5m": 5100,
+                "cacheWrite1h": 900
+              },
+              "claude-opus-4-8": {
+                "input": 4000,
+                "output": 1200,
+                "cacheRead": 21000,
+                "cacheWrite5m": 700,
+                "cacheWrite1h": 0
+              }
+            }
+          }
+        },
+        {
+          "day": "2026-02-08",
+          "byModel": {
+            "gpt-5": {
+              "input": 9000,
+              "output": 2200,
+              "cacheRead": 30000,
+              "cacheWrite5m": 1500,
+              "cacheWrite1h": 0
+            }
+          },
+          "byProject": {
+            "golden-atlas": {
+              "gpt-5": {
+                "input": 9000,
+                "output": 2200,
+                "cacheRead": 30000,
+                "cacheWrite5m": 1500,
+                "cacheWrite1h": 0
+              }
+            }
+          },
+          "bySource": {
+            "codex": {
+              "gpt-5": {
+                "input": 9000,
+                "output": 2200,
+                "cacheRead": 30000,
+                "cacheWrite5m": 1500,
+                "cacheWrite1h": 0
+              }
+            }
+          }
+        }
+      ],
+      "today": "2026-02-10"
+    }
+  },
+  "/detectors": {
+    "assistantRows": 43,
+    "jumboRows": 0,
+    "longContextRows": 0,
+    "cacheReadTokens": 36840,
+    "inputTokens": 12280
+  },
+  "/waste": {
+    "cacheChurn": {
+      "sessionsFlagged": 0,
+      "top": []
+    },
+    "rightSizing": {
+      "candidates": [
+        {
+          "model": "claude-sonnet-5",
+          "messages": 23,
+          "input": 6780,
+          "output": 3390,
+          "cacheRead": 20340,
+          "cw5m": 6780,
+          "cw1h": 0
+        },
+        {
+          "model": "gemini-2.5-pro",
+          "messages": 10,
+          "input": 3000,
+          "output": 1500,
+          "cacheRead": 9000,
+          "cw5m": 3000,
+          "cw1h": 0
+        },
+        {
+          "model": "gpt-5",
+          "messages": 10,
+          "input": 2500,
+          "output": 1250,
+          "cacheRead": 7500,
+          "cw5m": 2500,
+          "cw1h": 0
+        }
+      ]
+    },
+    "rereads": {
+      "rereadCalls": 0,
+      "sessionsAffected": 0,
+      "estWastedTokens": 0,
+      "topFiles": []
+    }
+  },
+  "/projects/1": {
+    "project": {
+      "id": 1,
+      "path": "/tmp/golden-atlas",
+      "name": "golden-atlas",
+      "created_at": "<seeded>"
+    },
+    "sessions": [
+      {
+        "id": "g-legacy",
+        "source": "codex",
+        "started_at": "2026-02-08T12:00:00.000Z",
+        "ended_at": "2026-02-08T15:00:00.000Z",
+        "message_count": 30,
+        "first_prompt": null,
+        "name": null,
+        "summary": null,
+        "context_tokens": 60000,
+        "usage": "{\"gpt-5\":{\"input\":9000,\"output\":2200,\"cacheRead\":30000,\"cacheWrite\":1500}}",
+        "agent_active_ms": 5400000,
+        "char_count": 902,
+        "liveCandidate": false,
+        "ongoing": false
+      },
+      {
+        "id": "g-modern",
+        "source": "claude-code",
+        "started_at": "2026-02-07T12:00:00.000Z",
+        "ended_at": "2026-02-07T16:00:00.000Z",
+        "message_count": 36,
+        "first_prompt": null,
+        "name": null,
+        "summary": null,
+        "context_tokens": 120000,
+        "usage": "{\"claude-sonnet-5\":{\"input\":12000,\"output\":3400,\"cacheRead\":88000,\"cacheWrite5m\":5100,\"cacheWrite1h\":900},\"claude-opus-4-8\":{\"input\":4000,\"output\":1200,\"cacheRead\":21000,\"cacheWrite5m\":700,\"cacheWrite1h\":0}}",
+        "agent_active_ms": 6600000,
+        "char_count": 1066,
+        "liveCandidate": false,
+        "ongoing": false
+      }
+    ],
+    "git": {
+      "isRepo": false
+    },
+    "analytics": {
+      "toolDist": [
+        {
+          "name": "Bash",
+          "count": 14
+        },
+        {
+          "name": "Read",
+          "count": 8
+        }
+      ],
+      "kindDist": [
+        {
+          "kind": "assistant",
+          "count": 22
+        },
+        {
+          "kind": "tool_result",
+          "count": 22
+        },
+        {
+          "kind": "tool_use",
+          "count": 22
+        }
+      ],
+      "activity": [
+        {
+          "day": "2026-02-07",
+          "count": 36
+        },
+        {
+          "day": "2026-02-08",
+          "count": 30
+        }
+      ],
+      "errors": 6,
+      "rangedTokensByModel": [
+        {
+          "sessionId": "g-modern",
+          "projectId": 1,
+          "model": "claude-sonnet-5",
+          "source": "claude-code",
+          "bucket": "2026-02-07",
+          "cells": {
+            "input": 12000,
+            "output": 3400,
+            "cacheRead": 88000,
+            "cacheWrite5m": 5100,
+            "cacheWrite1h": 900
+          }
+        },
+        {
+          "sessionId": "g-modern",
+          "projectId": 1,
+          "model": "claude-opus-4-8",
+          "source": "claude-code",
+          "bucket": "2026-02-07",
+          "cells": {
+            "input": 4000,
+            "output": 1200,
+            "cacheRead": 21000,
+            "cacheWrite5m": 700,
+            "cacheWrite1h": 0
+          }
+        },
+        {
+          "sessionId": "g-legacy",
+          "projectId": 1,
+          "model": "gpt-5",
+          "source": "codex",
+          "bucket": "2026-02-08",
+          "cells": {
+            "input": 9000,
+            "output": 2200,
+            "cacheRead": 30000,
+            "cacheWrite5m": 1500,
+            "cacheWrite1h": 0
+          }
+        }
+      ],
+      "commits": 0
+    }
+  },
+  "/sessions/minor": [
+    {
+      "id": "g-minor",
+      "project_id": 2,
+      "source": "claude-code",
+      "name": null,
+      "summary": null,
+      "first_prompt": null,
+      "message_count": 3,
+      "agent_active_ms": 0,
+      "started_at": "2026-02-10T02:00:00.000Z",
+      "project_name": "golden-orchard"
+    }
+  ],
+  "/sessions/g-modern/messages": {
+    "session": {
+      "id": "g-modern",
+      "project_id": 1,
+      "source": "claude-code",
+      "file_path": "/tmp/g-modern.jsonl",
+      "started_at": "2026-02-07T12:00:00.000Z",
+      "ended_at": "2026-02-07T16:00:00.000Z",
+      "message_count": 36,
+      "first_prompt": null,
+      "context_tokens": 120000,
+      "name": null,
+      "summary": null,
+      "usage": "{\"claude-sonnet-5\":{\"input\":12000,\"output\":3400,\"cacheRead\":88000,\"cacheWrite5m\":5100,\"cacheWrite1h\":900},\"claude-opus-4-8\":{\"input\":4000,\"output\":1200,\"cacheRead\":21000,\"cacheWrite5m\":700,\"cacheWrite1h\":0}}",
+      "sidechain_count": 0,
+      "imported_at": "<seeded>",
+      "agent_active_ms": 6600000,
+      "engaged_ms": 13200000,
+      "minor": 0,
+      "result_count": 12,
+      "error_count": 3,
+      "usage_source": "exact"
+    },
+    "project": {
+      "id": 1,
+      "path": "/tmp/golden-atlas",
+      "name": "golden-atlas",
+      "created_at": "<seeded>"
+    },
+    "messages": [
+      {
+        "id": 1,
+        "session_id": "g-modern",
+        "seq": 0,
+        "uuid": null,
+        "ts": "2026-02-07T12:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 0 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-0",
+        "request_id": "req-1770465600000-0"
+      },
+      {
+        "id": 2,
+        "session_id": "g-modern",
+        "seq": 1,
+        "uuid": null,
+        "ts": "2026-02-07T12:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770465600000-0",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": "review",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 3,
+        "session_id": "g-modern",
+        "seq": 2,
+        "uuid": null,
+        "ts": "2026-02-07T12:00:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-0",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 4,
+        "session_id": "g-modern",
+        "seq": 3,
+        "uuid": null,
+        "ts": "2026-02-07T12:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 1 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-1",
+        "request_id": "req-1770465600000-1"
+      },
+      {
+        "id": 5,
+        "session_id": "g-modern",
+        "seq": 4,
+        "uuid": null,
+        "ts": "2026-02-07T12:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770465600000-1",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 6,
+        "session_id": "g-modern",
+        "seq": 5,
+        "uuid": null,
+        "ts": "2026-02-07T12:20:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-1",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 7,
+        "session_id": "g-modern",
+        "seq": 6,
+        "uuid": null,
+        "ts": "2026-02-07T12:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 2 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-2",
+        "request_id": "req-1770465600000-2"
+      },
+      {
+        "id": 8,
+        "session_id": "g-modern",
+        "seq": 7,
+        "uuid": null,
+        "ts": "2026-02-07T12:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-2.ts\"}",
+        "tool_use_id": "tu-1770465600000-2",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 9,
+        "session_id": "g-modern",
+        "seq": 8,
+        "uuid": null,
+        "ts": "2026-02-07T12:40:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 2",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-2",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 10,
+        "session_id": "g-modern",
+        "seq": 9,
+        "uuid": null,
+        "ts": "2026-02-07T13:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 3 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-3",
+        "request_id": "req-1770465600000-3"
+      },
+      {
+        "id": 11,
+        "session_id": "g-modern",
+        "seq": 10,
+        "uuid": null,
+        "ts": "2026-02-07T13:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-3.ts\"}",
+        "tool_use_id": "tu-1770465600000-3",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 12,
+        "session_id": "g-modern",
+        "seq": 11,
+        "uuid": null,
+        "ts": "2026-02-07T13:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 3",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-3",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 13,
+        "session_id": "g-modern",
+        "seq": 12,
+        "uuid": null,
+        "ts": "2026-02-07T13:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 4 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-4",
+        "request_id": "req-1770465600000-4"
+      },
+      {
+        "id": 14,
+        "session_id": "g-modern",
+        "seq": 13,
+        "uuid": null,
+        "ts": "2026-02-07T13:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770465600000-4",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 15,
+        "session_id": "g-modern",
+        "seq": 14,
+        "uuid": null,
+        "ts": "2026-02-07T13:20:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-4",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 16,
+        "session_id": "g-modern",
+        "seq": 15,
+        "uuid": null,
+        "ts": "2026-02-07T13:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 5 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-5",
+        "request_id": "req-1770465600000-5"
+      },
+      {
+        "id": 17,
+        "session_id": "g-modern",
+        "seq": 16,
+        "uuid": null,
+        "ts": "2026-02-07T13:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770465600000-5",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": "review",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 18,
+        "session_id": "g-modern",
+        "seq": 17,
+        "uuid": null,
+        "ts": "2026-02-07T13:40:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 5",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-5",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 19,
+        "session_id": "g-modern",
+        "seq": 18,
+        "uuid": null,
+        "ts": "2026-02-07T14:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 6 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-6",
+        "request_id": "req-1770465600000-6"
+      },
+      {
+        "id": 20,
+        "session_id": "g-modern",
+        "seq": 19,
+        "uuid": null,
+        "ts": "2026-02-07T14:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-2.ts\"}",
+        "tool_use_id": "tu-1770465600000-6",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 21,
+        "session_id": "g-modern",
+        "seq": 20,
+        "uuid": null,
+        "ts": "2026-02-07T14:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 6",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-6",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 22,
+        "session_id": "g-modern",
+        "seq": 21,
+        "uuid": null,
+        "ts": "2026-02-07T14:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 7 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-7",
+        "request_id": "req-1770465600000-7"
+      },
+      {
+        "id": 23,
+        "session_id": "g-modern",
+        "seq": 22,
+        "uuid": null,
+        "ts": "2026-02-07T14:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-3.ts\"}",
+        "tool_use_id": "tu-1770465600000-7",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 24,
+        "session_id": "g-modern",
+        "seq": 23,
+        "uuid": null,
+        "ts": "2026-02-07T14:20:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 7",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-7",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 25,
+        "session_id": "g-modern",
+        "seq": 24,
+        "uuid": null,
+        "ts": "2026-02-07T14:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 8 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-8",
+        "request_id": "req-1770465600000-8"
+      },
+      {
+        "id": 26,
+        "session_id": "g-modern",
+        "seq": 25,
+        "uuid": null,
+        "ts": "2026-02-07T14:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770465600000-8",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 27,
+        "session_id": "g-modern",
+        "seq": 26,
+        "uuid": null,
+        "ts": "2026-02-07T14:40:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-8",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 28,
+        "session_id": "g-modern",
+        "seq": 27,
+        "uuid": null,
+        "ts": "2026-02-07T15:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 9 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-9",
+        "request_id": "req-1770465600000-9"
+      },
+      {
+        "id": 29,
+        "session_id": "g-modern",
+        "seq": 28,
+        "uuid": null,
+        "ts": "2026-02-07T15:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770465600000-9",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 30,
+        "session_id": "g-modern",
+        "seq": 29,
+        "uuid": null,
+        "ts": "2026-02-07T15:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 9",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-9",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 31,
+        "session_id": "g-modern",
+        "seq": 30,
+        "uuid": null,
+        "ts": "2026-02-07T15:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 10 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-10",
+        "request_id": "req-1770465600000-10"
+      },
+      {
+        "id": 32,
+        "session_id": "g-modern",
+        "seq": 31,
+        "uuid": null,
+        "ts": "2026-02-07T15:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-2.ts\"}",
+        "tool_use_id": "tu-1770465600000-10",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": "review",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 33,
+        "session_id": "g-modern",
+        "seq": 32,
+        "uuid": null,
+        "ts": "2026-02-07T15:20:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 10",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-10",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 34,
+        "session_id": "g-modern",
+        "seq": 33,
+        "uuid": null,
+        "ts": "2026-02-07T15:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 11 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "claude-sonnet-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 400,
+        "output_tokens": 200,
+        "cache_read_tokens": 1200,
+        "cache_w5m_tokens": 400,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770465600000-11",
+        "request_id": "req-1770465600000-11"
+      },
+      {
+        "id": 35,
+        "session_id": "g-modern",
+        "seq": 34,
+        "uuid": null,
+        "ts": "2026-02-07T15:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-3.ts\"}",
+        "tool_use_id": "tu-1770465600000-11",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 36,
+        "session_id": "g-modern",
+        "seq": 35,
+        "uuid": null,
+        "ts": "2026-02-07T15:40:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 11",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770465600000-11",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      }
+    ],
+    "commits": [],
+    "git": {
+      "isRepo": false
+    },
+    "liveCandidate": false
+  },
+  "/sessions/g-legacy/messages": {
+    "session": {
+      "id": "g-legacy",
+      "project_id": 1,
+      "source": "codex",
+      "file_path": "/tmp/g-legacy.jsonl",
+      "started_at": "2026-02-08T12:00:00.000Z",
+      "ended_at": "2026-02-08T15:00:00.000Z",
+      "message_count": 30,
+      "first_prompt": null,
+      "context_tokens": 60000,
+      "name": null,
+      "summary": null,
+      "usage": "{\"gpt-5\":{\"input\":9000,\"output\":2200,\"cacheRead\":30000,\"cacheWrite\":1500}}",
+      "sidechain_count": 0,
+      "imported_at": "<seeded>",
+      "agent_active_ms": 5400000,
+      "engaged_ms": 10800000,
+      "minor": 0,
+      "result_count": 10,
+      "error_count": 3,
+      "usage_source": null
+    },
+    "project": {
+      "id": 1,
+      "path": "/tmp/golden-atlas",
+      "name": "golden-atlas",
+      "created_at": "<seeded>"
+    },
+    "messages": [
+      {
+        "id": 37,
+        "session_id": "g-legacy",
+        "seq": 0,
+        "uuid": null,
+        "ts": "2026-02-08T12:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 0 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-0",
+        "request_id": "req-1770552000000-0"
+      },
+      {
+        "id": 38,
+        "session_id": "g-legacy",
+        "seq": 1,
+        "uuid": null,
+        "ts": "2026-02-08T12:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770552000000-0",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": "review",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 39,
+        "session_id": "g-legacy",
+        "seq": 2,
+        "uuid": null,
+        "ts": "2026-02-08T12:00:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-0",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 40,
+        "session_id": "g-legacy",
+        "seq": 3,
+        "uuid": null,
+        "ts": "2026-02-08T12:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 1 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-1",
+        "request_id": "req-1770552000000-1"
+      },
+      {
+        "id": 41,
+        "session_id": "g-legacy",
+        "seq": 4,
+        "uuid": null,
+        "ts": "2026-02-08T12:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770552000000-1",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 42,
+        "session_id": "g-legacy",
+        "seq": 5,
+        "uuid": null,
+        "ts": "2026-02-08T12:20:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-1",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 43,
+        "session_id": "g-legacy",
+        "seq": 6,
+        "uuid": null,
+        "ts": "2026-02-08T12:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 2 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-2",
+        "request_id": "req-1770552000000-2"
+      },
+      {
+        "id": 44,
+        "session_id": "g-legacy",
+        "seq": 7,
+        "uuid": null,
+        "ts": "2026-02-08T12:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-2.ts\"}",
+        "tool_use_id": "tu-1770552000000-2",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 45,
+        "session_id": "g-legacy",
+        "seq": 8,
+        "uuid": null,
+        "ts": "2026-02-08T12:40:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 2",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-2",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 46,
+        "session_id": "g-legacy",
+        "seq": 9,
+        "uuid": null,
+        "ts": "2026-02-08T13:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 3 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-3",
+        "request_id": "req-1770552000000-3"
+      },
+      {
+        "id": 47,
+        "session_id": "g-legacy",
+        "seq": 10,
+        "uuid": null,
+        "ts": "2026-02-08T13:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-3.ts\"}",
+        "tool_use_id": "tu-1770552000000-3",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 48,
+        "session_id": "g-legacy",
+        "seq": 11,
+        "uuid": null,
+        "ts": "2026-02-08T13:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 3",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-3",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 49,
+        "session_id": "g-legacy",
+        "seq": 12,
+        "uuid": null,
+        "ts": "2026-02-08T13:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 4 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-4",
+        "request_id": "req-1770552000000-4"
+      },
+      {
+        "id": 50,
+        "session_id": "g-legacy",
+        "seq": 13,
+        "uuid": null,
+        "ts": "2026-02-08T13:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770552000000-4",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 51,
+        "session_id": "g-legacy",
+        "seq": 14,
+        "uuid": null,
+        "ts": "2026-02-08T13:20:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-4",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 52,
+        "session_id": "g-legacy",
+        "seq": 15,
+        "uuid": null,
+        "ts": "2026-02-08T13:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 5 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-5",
+        "request_id": "req-1770552000000-5"
+      },
+      {
+        "id": 53,
+        "session_id": "g-legacy",
+        "seq": 16,
+        "uuid": null,
+        "ts": "2026-02-08T13:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770552000000-5",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": "review",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 54,
+        "session_id": "g-legacy",
+        "seq": 17,
+        "uuid": null,
+        "ts": "2026-02-08T13:40:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 5",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-5",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 55,
+        "session_id": "g-legacy",
+        "seq": 18,
+        "uuid": null,
+        "ts": "2026-02-08T14:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 6 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-6",
+        "request_id": "req-1770552000000-6"
+      },
+      {
+        "id": 56,
+        "session_id": "g-legacy",
+        "seq": 19,
+        "uuid": null,
+        "ts": "2026-02-08T14:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-2.ts\"}",
+        "tool_use_id": "tu-1770552000000-6",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 57,
+        "session_id": "g-legacy",
+        "seq": 20,
+        "uuid": null,
+        "ts": "2026-02-08T14:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 6",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-6",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 58,
+        "session_id": "g-legacy",
+        "seq": 21,
+        "uuid": null,
+        "ts": "2026-02-08T14:20:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 7 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-7",
+        "request_id": "req-1770552000000-7"
+      },
+      {
+        "id": 59,
+        "session_id": "g-legacy",
+        "seq": 22,
+        "uuid": null,
+        "ts": "2026-02-08T14:20:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-3.ts\"}",
+        "tool_use_id": "tu-1770552000000-7",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 60,
+        "session_id": "g-legacy",
+        "seq": 23,
+        "uuid": null,
+        "ts": "2026-02-08T14:20:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 7",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-7",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 61,
+        "session_id": "g-legacy",
+        "seq": 24,
+        "uuid": null,
+        "ts": "2026-02-08T14:40:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 8 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-8",
+        "request_id": "req-1770552000000-8"
+      },
+      {
+        "id": 62,
+        "session_id": "g-legacy",
+        "seq": 25,
+        "uuid": null,
+        "ts": "2026-02-08T14:40:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Bash",
+        "tool_input": "{\"file_path\":\"/demo/src/file-0.ts\"}",
+        "tool_use_id": "tu-1770552000000-8",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 63,
+        "session_id": "g-legacy",
+        "seq": 26,
+        "uuid": null,
+        "ts": "2026-02-08T14:40:00.000Z",
+        "kind": "tool_result",
+        "text": "Error: command failed with exit code 1",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-8",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 64,
+        "session_id": "g-legacy",
+        "seq": 27,
+        "uuid": null,
+        "ts": "2026-02-08T15:00:00.000Z",
+        "kind": "assistant",
+        "text": "assistant reply 9 over the fixture corpus",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": null,
+        "model": "gpt-5",
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": 250,
+        "output_tokens": 125,
+        "cache_read_tokens": 750,
+        "cache_w5m_tokens": 250,
+        "cache_w1h_tokens": 0,
+        "message_id": "msg-1770552000000-9",
+        "request_id": "req-1770552000000-9"
+      },
+      {
+        "id": 65,
+        "session_id": "g-legacy",
+        "seq": 28,
+        "uuid": null,
+        "ts": "2026-02-08T15:00:00.000Z",
+        "kind": "tool_use",
+        "text": null,
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/demo/src/file-1.ts\"}",
+        "tool_use_id": "tu-1770552000000-9",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      },
+      {
+        "id": 66,
+        "session_id": "g-legacy",
+        "seq": 29,
+        "uuid": null,
+        "ts": "2026-02-08T15:00:00.000Z",
+        "kind": "tool_result",
+        "text": "ok 9",
+        "tool_name": null,
+        "tool_input": null,
+        "tool_use_id": "tu-1770552000000-9",
+        "model": null,
+        "is_sidechain": 0,
+        "agent_type": null,
+        "workflow_id": null,
+        "agent_id": null,
+        "agent_desc": null,
+        "skill": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_w5m_tokens": null,
+        "cache_w1h_tokens": null,
+        "message_id": null,
+        "request_id": null
+      }
+    ],
+    "commits": [],
+    "git": {
+      "isRepo": false
+    },
+    "liveCandidate": false
+  }
+}

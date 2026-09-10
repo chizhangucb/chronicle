@@ -15,7 +15,7 @@
 // `.tsx` call sites in this file's siblings (OverviewMode.tsx, ProjectDetail.tsx,
 // which only ever run through Vite/tsc and use `../models.js`), this import
 // must point at the real `.ts` file.
-import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
+import { costOf, type RawUsageCell, type CostMode } from '../models.ts';
 import { isErrorHead } from '../../shared/errors.ts';
 import type { TimedMessage } from '../../shared/durations.ts';
 export interface StatMessage extends TimedMessage {
@@ -93,7 +93,7 @@ function toolMixSorted(messages: StatMessage[]): { name: string; count: number }
 // per-model total evenly across that model's assistant turns in chronological
 // order — an approximation (real spend is lumpier), good enough for the
 // trend shape the chart is showing. `usageByModel` is the parsed
-// `session.usage` JSON (Record<model, ModelUsageInput>).
+// `session.usage` JSON (Record<model, RawUsageCell>).
 //
 // Day-bucketed pricing: a session that straddles a rate change (e.g. Sonnet 5's intro
 // window) must price each day's share of turns at that day's rate before
@@ -102,7 +102,7 @@ function toolMixSorted(messages: StatMessage[]): { name: string; count: number }
 // share of that model's turn count, then price each bucket at its own day.
 function cumulativeCostSeries(
   messages: StatMessage[],
-  usageByModel: Record<string, ModelUsageInput>,
+  usageByModel: Record<string, RawUsageCell>,
   mode: CostMode = 'theoretical',
 ): { t: string; cumCost: number }[] {
   const turnsByModel = new Map<string, StatMessage[]>();
@@ -123,7 +123,7 @@ function cumulativeCostSeries(
     }
     for (const [day, dayTurns] of turnsByDay) {
       const share = dayTurns.length / turns.length;
-      const dayUsage: ModelUsageInput = {
+      const dayUsage: RawUsageCell = {
         input: (usage.input ?? 0) * share,
         output: (usage.output ?? 0) * share,
         cacheWrite5m: (usage.cacheWrite5m ?? usage.cacheWrite ?? 0) * share,

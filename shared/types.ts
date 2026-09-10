@@ -100,20 +100,10 @@ export interface Event {
 // ─────────────────────────────────────────────────────────────────────────────
 // Usage (per-model token aggregation)
 
-// Per-model token totals aggregated by the parser. 5-minute and 1-hour cache
-// writes are billed at different rates, so they stay split (see claudeCode.js
-// usageByModel and src/models.js).
-export interface ModelUsage {
-  input: number;
-  output: number;
-  cacheWrite5m: number;
-  cacheWrite1h: number;
-  cacheRead: number;
-}
-
-// The `sessions.usage` map, keyed by model id. Stored on the session as a JSON
-// string (JSON.stringify of this object).
-export type Usage = Record<string, ModelUsage>;
+// The token cell and the `sessions.usage` map live in `shared/usage.ts`, beside
+// the one parse of that JSON; re-exported here so the event-model contract still
+// names them (see shared/usage.ts for the cell itself).
+export type { UsageCell, UsageByModel } from './usage.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sessions & projects
@@ -142,7 +132,7 @@ export interface ParsedSession {
   first_prompt: string | null;
   summary?: string | null;
   context_tokens?: number | null;
-  // JSON-stringified `Usage`, or null when a source records no token usage.
+  // JSON-stringified `UsageByModel`, or null when a source records no token usage.
   usage?: string | null;
   skipped?: number;
 }

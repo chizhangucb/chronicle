@@ -71,12 +71,13 @@ wrapped. The `use*.ts` hooks own polled and streamed server state.
 ## `shared/`
 
 `types.ts` is the cross-boundary contract: the normalized event model (`Kind`, `Event`,
-`Usage`, `Session`). The server imports it relatively; the client imports it via the `@shared`
-alias. Alongside it: `pricing.ts` (the shared cost arithmetic), `contextWindows.ts`,
-`provider.ts`, `bucketLabel.ts`, `synthetic.ts`, `spend/` (budget, anomaly, thresholds), and
-the three the client used to copy by hand — `errors.ts` (the tool-result error heuristic),
-`durations.ts` (agent-active and engaged time, with their two gap caps) and `sessionName.ts`
-(the session display name, whose fallback presentation is a parameter).
+`Session`). The server imports it relatively; the client imports types via the `@shared` alias
+and values relatively. Alongside it: `usage.ts` (the one token cell, `parseUsage` and `addCell`
+every surface reads a session's usage through), `pricing.ts` (the shared cost arithmetic),
+`contextWindows.ts`, `provider.ts`, `bucketLabel.ts`, `synthetic.ts`, `spend/` (budget, anomaly,
+thresholds), and the three the client used to copy by hand — `errors.ts` (the tool-result error
+heuristic), `durations.ts` (agent-active and engaged time, with their two gap caps) and
+`sessionName.ts` (the session display name, whose fallback presentation is a parameter).
 
 Something belongs in `shared/` when both sides must agree on it, and only then.
 

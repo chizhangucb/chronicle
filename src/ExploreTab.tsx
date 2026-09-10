@@ -65,7 +65,7 @@ function rowTokens(row: ExploreCell): number {
 
 // Client-side pricing (never a server call, never a hardcoded price — see
 // CLAUDE.md § Cost is computed locally). Sums costOf(model, …) per model
-// cell, mapping ModelUsageCell's cw5m/cw1h field names to ModelUsageInput's
+// cell, mapping ModelUsageCell's cw5m/cw1h field names to RawUsageCell's
 // cacheWrite5m/cacheWrite1h; costOf returns null for unpriced models, which
 // contributes 0 rather than poisoning the sum.
 //

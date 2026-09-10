@@ -6,7 +6,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { api, projectUrl, projectsUrl, type BucketedUsageCell } from './api.js';
-import { costOf, type ModelUsageInput, type CostMode } from './models.js';
+import { costOf, type CostMode } from './models.js';
+import { parseUsage, type UsageByModel } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
@@ -82,13 +83,11 @@ export interface ProjectDetailData {
 
 // Session-list scale UX (v0.2): sort + source filter + windowed rendering.
 const SESSION_WINDOW = 100;
-// `usage` is JSON-stringified per-model token totals (see @shared/types.ts
-// Usage) — parsed once here and reused by every KPI/ranking that sums cost
-// or tokens across the session list (Step 3/6 of the 5d-3 brief).
-function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null {
-  try {
-    return s.usage ? (JSON.parse(s.usage) as Record<string, ModelUsageInput> | null) : null;
-  } catch { return null; }
+// `usage` is JSON-stringified per-model token totals (shared/usage.ts) —
+// parsed once here and reused by every KPI/ranking that sums cost or tokens
+// across the session list (Step 3/6 of the 5d-3 brief).
+function sessionUsage(s: ProjectSession): UsageByModel {
+  return parseUsage(s.usage);
 }
 // Prices at the session's own start day when known — a session
 // straddling a rate change (e.g. Sonnet 5's intro window) still prices at
@@ -97,7 +96,6 @@ function sessionUsage(s: ProjectSession): Record<string, ModelUsageInput> | null
 // the prior flat/latest-rate pricing for every OTHER session in range.
 function sessionCost(s: ProjectSession, mode: CostMode = 'theoretical'): number {
   const usage = sessionUsage(s);
-  if (!usage) return 0;
   const day = s.started_at ? dayKeyOf(new Date(s.started_at)) : undefined;
   return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day, mode) ?? 0), 0);
 }
