@@ -12,7 +12,10 @@
 //      both handles actually spread the props.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextWidthForKey, RESIZE_STEP } from '../src/useResizable.ts';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readSource } from './helpers/read-source.mjs';
+import { nextWidthForKey, RESIZE_STEP, useResizable } from '../src/useResizable.ts';
 
 // The sidebar's real bounds (App.tsx), used as the worked example throughout.
 const SIDEBAR = { min: 160, max: 320, edge: 'right' };
@@ -45,5 +48,143 @@ test('a width outside the bounds is pulled back inside rather than stepped past'
 test('keys that are not a horizontal arrow are left to the browser', () => {
   for (const key of ['ArrowUp', 'ArrowDown', 'Enter', ' ', 'Tab', 'a']) {
     assert.equal(nextWidthForKey(key, 200, SIDEBAR), null, `${key} must not resize`);
+  }
+});
+
+// --- Seam 2: what the handle element itself carries -------------------------
+//
+// `handleProps` is rendered through React's server renderer rather than
+// asserted as a literal object: it is the same call path App.tsx and
+// SessionView.tsx take, and it is the only way to see the hook's real starting
+// width (read from storage) reach `aria-valuenow`.
+
+/** Minimal `window.localStorage` stand-in, the only browser API the hook uses. */
+function fakeWindow(entries = {}) {
+  const store = new Map(Object.entries(entries));
+  return {
+    localStorage: {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => { store.set(k, String(v)); },
+      removeItem: (k) => { store.delete(k); },
+    },
+    read: (k) => (store.has(k) ? store.get(k) : null),
+  };
+}
+
+/** Mount `useResizable` once and hand back what it returned. */
+async function mount(options, win) {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const previous = globalThis.window;
+  globalThis.window = win;
+  let captured;
+  function Probe() { captured = useResizable(options); return null; }
+  try {
+    renderToStaticMarkup(createElement(Probe));
+  } finally {
+    globalThis.window = previous;
+  }
+  return captured;
+}
+
+/** A key press on the focused handle. */
+function press(handleProps, key, win) {
+  const previous = globalThis.window;
+  globalThis.window = win;
+  let prevented = false;
+  try {
+    handleProps.onKeyDown({ key, preventDefault: () => { prevented = true; } });
+  } finally {
+    globalThis.window = previous;
+  }
+  return prevented;
+}
+
+const SIDEBAR_OPTIONS = {
+  storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right',
+};
+
+test('the handle is focusable and announces itself as a vertical separator', async () => {
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, fakeWindow());
+  assert.equal(handleProps.tabIndex, 0);
+  assert.equal(handleProps.role, 'separator');
+  assert.equal(handleProps['aria-orientation'], 'vertical');
+});
+
+test('the handle exposes its bounds and its current width as aria values', async () => {
+  const win = fakeWindow({ 'chronicle.sidebarW': '240' });
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, win);
+  assert.equal(handleProps['aria-valuemin'], 160);
+  assert.equal(handleProps['aria-valuemax'], 320);
+  // Not the fallback: the value tracks the width the pane actually has.
+  assert.equal(handleProps['aria-valuenow'], 240);
+});
+
+test('arrow keys resize the pane and the announced value follows', async () => {
+  const win = fakeWindow({ 'chronicle.sidebarW': '240' });
+  const first = await mount(SIDEBAR_OPTIONS, win);
+  assert.equal(press(first.handleProps, 'ArrowRight', win), true, 'a handled key is consumed');
+  assert.equal(win.read('chronicle.sidebarW'), '256');
+  press(first.handleProps, 'ArrowRight', win);
+  assert.equal(win.read('chronicle.sidebarW'), '272', 'presses accumulate off the live width');
+
+  // The next reader of the pane sees the new width, aria value included.
+  const second = await mount(SIDEBAR_OPTIONS, win);
+  assert.equal(second.width, 272);
+  assert.equal(second.handleProps['aria-valuenow'], 272);
+});
+
+test('arrow keys stop at the same bounds the pointer drag clamps to', async () => {
+  const win = fakeWindow({ 'chronicle.sidebarW': '312' });
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, win);
+  press(handleProps, 'ArrowRight', win);
+  press(handleProps, 'ArrowRight', win);
+  assert.equal(win.read('chronicle.sidebarW'), '320', 'never past max');
+
+  const low = fakeWindow({ 'chronicle.sidebarW': '168' });
+  const atFloor = await mount(SIDEBAR_OPTIONS, low);
+  press(atFloor.handleProps, 'ArrowLeft', low);
+  press(atFloor.handleProps, 'ArrowLeft', low);
+  assert.equal(low.read('chronicle.sidebarW'), '160', 'never past min');
+});
+
+test('keys the handle does not answer are left to the browser', async () => {
+  const win = fakeWindow({ 'chronicle.sidebarW': '240' });
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, win);
+  assert.equal(press(handleProps, 'Tab', win), false, 'Tab must still move focus');
+  assert.equal(win.read('chronicle.sidebarW'), '240', 'and must not resize');
+});
+
+// --- Seam 3: the handles on the page ----------------------------------------
+//
+// Read off disk (the same reason page-width.test.mjs does): a `touch-action`
+// declaration and a JSX spread are invisible to a module import, and both are
+// exactly the kind of thing a later edit drops without noticing.
+
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
+const css = readSource(path.join(SRC, 'styles.css'), { minBytes: 1000 });
+
+/** Every element a `useResizable` handle renders as. */
+const HANDLES = ['.drag-handle', '.pane-handle'];
+
+test('a handle opts out of touch panning so a touch drag resizes instead of scrolling', () => {
+  for (const cls of HANDLES) {
+    const rule = new RegExp(`\\${cls} \\{[^}]*touch-action:\\s*none`);
+    assert.match(css, rule, `${cls} must set touch-action: none or a touch drag never starts`);
+  }
+});
+
+test('a focused handle is visibly focused', () => {
+  // Focusable with no focus ring is a keyboard trap in all but name.
+  assert.match(css, /\.drag-handle:focus-visible[^{]*\{[^}]*outline/);
+});
+
+test('both handles take their wiring from the hook rather than hand-rolling it', () => {
+  for (const [file, cls] of [['App.tsx', 'drag-handle'], ['SessionView.tsx', 'pane-handle']]) {
+    const src = readSource(path.join(SRC, file));
+    const tag = src.match(new RegExp(`<div className="${cls}"[^>]*>`));
+    assert.ok(tag, `${file} must still render the ${cls} element`);
+    assert.match(tag[0], /\{\.\.\.\w+\.handleProps\}/,
+      `${file}'s handle must spread handleProps, not re-declare role/aria/handlers`);
   }
 });

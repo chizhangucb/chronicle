@@ -13,6 +13,13 @@ import type React from 'react';
 // cursor moves left. Width is derived from the drag DELTA off the width at
 // pointerdown, so it never needs the element's box offset.
 //
+// The handle is not pointer-only: `handleProps` also makes it focusable and
+// answers the horizontal arrow keys through the same clamp as the drag, and
+// carries the `aria-valuenow`/`min`/`max` trio a screen reader reads off a
+// `separator`. Touch is the drag path plus one CSS line — `.drag-handle` /
+// `.pane-handle` set `touch-action: none` (styles.css) so the browser does not
+// claim the touch as a pan and `pointercancel` the drag before it starts.
+//
 // The drag uses POINTER events with pointer capture (not mouse events) so the
 // teardown is robust to three otherwise-uncovered exit paths:
 //   1. Release OUTSIDE the OS window (multi-monitor, over the taskbar, a fast
@@ -26,9 +33,28 @@ import type React from 'react';
 
 export type ResizeEdge = 'left' | 'right';
 
+/**
+ * Everything the handle element needs, spread onto it by the call site
+ * (`<div className="drag-handle" aria-label="…" {...handleProps} />`). Kept as
+ * ONE object so the pointer drag, the keyboard drag and the aria values the
+ * screen reader reads out can never be wired up on one handle and forgotten on
+ * the other — which is exactly how the keyboard path went missing.
+ */
+export interface ResizeHandleProps {
+  role: 'separator';
+  'aria-orientation': 'vertical';
+  'aria-valuenow': number;
+  'aria-valuemin': number;
+  'aria-valuemax': number;
+  /** Focusable, so the handle is reachable by Tab at all. */
+  tabIndex: 0;
+  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void;
+}
+
 export interface Resizable {
   width: number;
-  onHandlePointerDown: (e: React.PointerEvent<HTMLElement>) => void;
+  handleProps: ResizeHandleProps;
   // Restores `fallback` and clears the persisted override (so a later
   // `fallback` tuning in code takes effect on next load, rather than baking
   // today's fallback into storage). Additive — existing callers (App.tsx's
@@ -162,5 +188,30 @@ export function useResizable({ storageKey, fallback, min, max, edge }: Resizable
     }
   }, [fallback, min, max, storageKey]);
 
-  return { width, onHandlePointerDown, reset };
+  // Keyboard drag: same geometry, same clamp, same persistence as the pointer
+  // drag above — a press is just a one-step drag that commits immediately
+  // (there is no "release" to defer the localStorage write to).
+  const onHandleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    const next = nextWidthForKey(e.key, latest.current, { min, max, edge });
+    if (next === null) return; // not ours: Tab still moves focus, arrows still scroll
+    e.preventDefault();
+    latest.current = next;
+    setWidth(next);
+    writeStored(storageKey, next);
+  }, [storageKey, min, max, edge]);
+
+  return {
+    width,
+    handleProps: {
+      role: 'separator',
+      'aria-orientation': 'vertical',
+      'aria-valuenow': width,
+      'aria-valuemin': min,
+      'aria-valuemax': max,
+      tabIndex: 0,
+      onPointerDown: onHandlePointerDown,
+      onKeyDown: onHandleKeyDown,
+    },
+    reset,
+  };
 }

@@ -424,6 +424,30 @@ test('double-clicking the divider resets the split to its default and clears the
   expect(Math.abs(convAfterReload - convReset), 'reset split must still be the default after a reload').toBeLessThan(5);
 });
 
+test('the divider resizes from the keyboard and announces the width it lands on', async ({ page }) => {
+  // #201: the handle was pointer-only, so a keyboard or screen-reader operator
+  // could not move the split at all. Driven through real focus + real key
+  // presses because that is the whole point of the fix.
+  await gotoFixturePlayback(page);
+  const handle = page.locator('.pane-handle');
+  await handle.focus();
+  await expect(handle).toBeFocused();
+
+  const min = Number(await handle.getAttribute('aria-valuemin'));
+  const before = Number(await handle.getAttribute('aria-valuenow'));
+  const convBefore = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  const after = Number(await handle.getAttribute('aria-valuenow'));
+  expect(after, 'ArrowRight must widen the chat pane').toBeGreaterThan(before);
+  const convAfter = await page.locator('.conv-pane').evaluate((el) => el.getBoundingClientRect().width);
+  expect(convAfter - convBefore, 'the announced width must be the width actually rendered').toBeGreaterThan(20);
+
+  // The keyboard stops where the drag stops: hold ArrowLeft well past the floor.
+  for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowLeft');
+  expect(Number(await handle.getAttribute('aria-valuenow')), 'arrow keys must clamp at the same min the drag does').toBe(min);
+});
+
 test('dragging the divider down to its floor does not reopen the clipping bug', async ({ page }) => {
   // Regression guard for a bug caught in self-review: `.conv-pane`'s base
   // rule carries an explicit `min-width: 360px` (for the non-grid subagent
