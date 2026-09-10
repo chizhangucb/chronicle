@@ -9,7 +9,7 @@
 // modules and suites, and the unmounted route, are swept by the retired
 // vocabulary registry (test/helpers/retired-vocabulary.mjs, read by
 // test/repo-shape.test.mjs), and the route is asserted live at 404 in
-// test/removed-routes.test.mjs. That sweep matches quoted route prefixes and
+// test/removed-surfaces.test.mjs. That sweep matches quoted route prefixes and
 // import statements, so it does not see a client call built from
 // `/api/...`, a css block, a boot-time call, or prose. Those are what this
 // file holds, alongside the one thing no source read can answer: the migration

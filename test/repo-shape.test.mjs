@@ -188,7 +188,7 @@ test('CI declares a gitleaks job, pinned by version and checksum', () => {
 // Exempt, deliberately:
 //   - CHANGELOG.md: history is allowed to name what was.
 //   - the removal pins themselves (this file, the vocabulary registry it reads,
-//     and the suites that assert a retired route, CLI subcommand or env knob is
+//     and the suite that asserts a retired route, CLI subcommand or env knob is
 //     gone): a pin cannot forbid a word without spelling it.
 //   - package-lock.json: generated, and its base64 integrity hashes contain
 //     arbitrary letter runs.
@@ -198,8 +198,7 @@ const VOCAB_EXEMPT = new Set([
   'package-lock.json',
   'test/repo-shape.test.mjs',
   'test/helpers/retired-vocabulary.mjs',
-  'test/removed-routes.test.mjs',
-  'test/cli-removed-inputs.test.mjs',
+  'test/removed-surfaces.test.mjs',
 ]);
 
 // The ONE surviving literal, exempted BY VALUE rather than by file: this exact
@@ -304,7 +303,7 @@ test('no tracked file mounts or fetches a route the shrink removed', () => {
         new RegExp(`['"\`]${prefix.replace(/\//g, '\\/')}`).test(src),
       ).map((prefix) => `${rel} -> ${prefix}`),
     // It lists every removed route in order to assert each one 404s.
-    { skip: (rel) => rel === 'test/removed-routes.test.mjs' },
+    { skip: (rel) => rel === 'test/removed-surfaces.test.mjs' },
   );
   assert.deepEqual(offenders, [], `a retired route is referenced again:\n  ${offenders.join('\n  ')}`);
 });

@@ -142,13 +142,12 @@ constant; readability is solved on the TEXT, not by moving the frame.
   database views and the retired CLI subcommand. Their routes are unmounted (404), their nav items are gone, and no
   Settings row, env knob or config key reads them. Nothing on this page describes them; they are
   named only in the Reference `Retired` group and in the CHANGELOG. Guards:
-  `test/removed-routes.test.mjs`, `test/routes-after-contract-views.test.mjs`,
-  `test/cli-removed-inputs.test.mjs`, `test/repo-shape.test.mjs`.
+  `test/removed-surfaces.test.mjs`, `test/repo-shape.test.mjs`.
 - **Playback layers no confidence score on a message.** Spec #294 deleted the heuristic
   read-to-change analysis: a Playback row shows its kind, its timestamp and its body, and
   nothing scores what drove it. The engine and its per-session route are gone with the chip,
   so opening a session issues no request for either. Guards:
-  `test/removed-routes.test.mjs`, `test/repo-shape.test.mjs`.
+  `test/removed-surfaces.test.mjs`, `test/repo-shape.test.mjs`.
 - **Explore's total bar and its stacked time chart report the same number.** A rollup bucket holds
   a session's billed usage in proportion to the messages that fall in it, and a session on the
   range edge contributes only its in-range share, exactly as it already did to the ranked rows. So
@@ -395,10 +394,10 @@ Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude
 | Enumerable / shape fact | Guarding test |
 |---|---|
 | Sidebar `sb-top` = exactly Insights + Projects, no Home entry, no `⌂`, on every install and in every mode | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
-| Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
-| The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
+| Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-surfaces.test.mjs` |
+| The contract database views and their version pragma are gone; the surviving routes still answer | `test/removed-surfaces.test.mjs` |
 | The local record of which surface was looked at is gone: no table on an upgraded data folder, no route, no client call, no Settings block; WAL stays on for the SQLite-backed parsers | `test/view-log-removed.test.mjs` |
-| The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
+| The CLI has no retired subcommand and reads no external-checkout path input | `test/removed-surfaces.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |
 | Chronicle is English only: no `src/i18n.ts`, no `t()` call site, no zh/ja string in any tracked file, no switcher control in the top bar and no persisted locale key; the date/hour/weekday call sites still format on `en-US` | `test/languages-removed.test.mjs` |

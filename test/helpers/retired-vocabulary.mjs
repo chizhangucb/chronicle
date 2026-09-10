@@ -66,7 +66,7 @@ export const RETIRED_PHRASES = [
 
 /** Route prefixes a removal unmounted. A tracked file that mounts or fetches
  *  one has re-grown a surface (routes are pinned live in
- *  test/removed-routes.test.mjs; this is the source-level pin).
+ *  test/removed-surfaces.test.mjs; this is the source-level pin).
  *
  *  `/view-log` is the shrink's neighbour rather than its work: the local record
  *  of which Chronicle surface was looked at is gone, table included. */
