@@ -87,6 +87,17 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
+      # We have two kinds of test, and the gate runs each changed test file with
+      # one command. Handed the default `node --test`, a browser spec dies on
+      # import before a single test reports (#320, #335), so the command routes:
+      # scripts/ci/factory-test-command.sh sends a spec to the browser suite and
+      # everything else to `node --test`.
+      test_command: ./scripts/ci/factory-test-command.sh
+      # This REPLACES the gate's default `npm ci` rather than running after it,
+      # so `npm ci &&` is load-bearing: without it both checkouts have no
+      # node_modules. Run once per checkout, which is why the browser install
+      # belongs here and not in test_command, which runs once per file.
+      install_command: npm ci && npx playwright install --with-deps chromium
   audit:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged
     uses: chizhangucb/software-factory/.github/workflows/agent-audit.yml@main
