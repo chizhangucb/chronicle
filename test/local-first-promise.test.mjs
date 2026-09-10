@@ -4,8 +4,8 @@
 // has no server of its own, and the one outbound call sends the operator's own
 // token to its own issuer for the operator's own plan windows, on by default
 // and off in Settings. Everything an operator reads has to say that same
-// thing, so a
-// surface that drops the plan-window exception trips CI instead of shipping.
+// thing, so a surface that drops the plan-window exception trips CI instead
+// of shipping.
 //
 // Reads the tracked corpus through test/helpers/tracked-files.mjs, the same
 // reader test/repo-shape.test.mjs sweeps, so gitignored build output can never
@@ -57,22 +57,35 @@ test('the sweep reaches the README, the marketing site and the docs', () => {
   }
 });
 
+// The corpus is flattened ONCE, not once per claim: every claim sweeps every
+// tracked file, so re-reading and re-flattening the repo per claim is the same
+// work N times over. `self` is the line alone; `pair` is the line joined to the
+// one after it, because prose wraps and `outbound\n  network calls (there are
+// none)` is the same claim as the unwrapped one.
+const CORPUS = sweepable.flatMap((rel) => {
+  let src;
+  try { src = read(rel); } catch { return []; }
+  const lines = src.split('\n');
+  const self = lines.map(flatten);
+  return [{
+    rel,
+    self,
+    pair: lines.map((line, i) => flatten(`${line} ${lines[i + 1] ?? ''}`)),
+    text: lines.map((line) => line.trim().slice(0, 100)),
+  }];
+});
+
 for (const { claim, re } of OVERCLAIMS) {
   test(`no tracked file claims "${claim}"`, () => {
-    // Per LINE, so the failure names the line a reader has to go fix.
+    // Per LINE, so the failure names the line a reader has to go fix. A claim
+    // that sits wholly on the NEXT line is left to that line's own turn,
+    // otherwise every such offender is reported twice.
     const offenders = [];
-    for (const rel of sweepable) {
-      let src;
-      try { src = read(rel); } catch { continue; }
-      // Prose wraps, and `outbound\n  network calls (there are none)` is the
-      // same claim as the unwrapped one, so each line is read together with the
-      // one after it and reported at the line the claim starts on.
-      const lines = src.split('\n');
-      lines.forEach((line, i) => {
-        if (re.test(flatten(`${line} ${lines[i + 1] ?? ''}`))) {
-          offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
-        }
-      });
+    for (const { rel, self, pair, text } of CORPUS) {
+      for (let i = 0; i < self.length; i++) {
+        const startsHere = re.test(self[i]) || (re.test(pair[i]) && !re.test(self[i + 1] ?? ''));
+        if (startsHere) offenders.push(`${rel}:${i + 1}: ${text[i]}`);
+      }
     }
     assert.deepEqual(offenders, [], `"${claim}" is claimed again:\n  ${offenders.join('\n  ')}`);
   });
@@ -148,7 +161,12 @@ for (const rel of PROMISE_SURFACES) {
 const MODULE = 'server/planWindows.ts';
 const ROUTE = 'server/routes/planWindows.ts';
 
-/** Every comment line in a source file, `//` and `/* *​/` alike, trimmed. */
+// A comment that TRAILS code (`const on = cfg.x !== false; // opt-in`) is the
+// easiest kind to leave stale, so it is swept too. The `[^:]` guard is what
+// keeps `'https://api.anthropic.com/...'` from reading as one.
+const TRAILING = /(?:^|[^:])(\/\/.*)$/;
+
+/** Every comment in a source file, `//`, trailing `//` and `/* *​/` alike, trimmed. */
 const commentsOf = (rel) => {
   const lines = read(rel).split('\n');
   const out = [];
@@ -163,6 +181,9 @@ const commentsOf = (rel) => {
     } else if (t.startsWith('/*')) {
       out.push({ n: i + 1, text: t });
       if (!t.includes('*/')) block = true;
+    } else {
+      const trailing = TRAILING.exec(t);
+      if (trailing) out.push({ n: i + 1, text: trailing[1] });
     }
   }
   return out;
@@ -191,7 +212,6 @@ for (const rel of [MODULE, ROUTE]) {
       `the plan-window read is opt-out in the code and opt-in in the comments:\n  ${offenders.join('\n  ')}`,
     );
   });
-
 }
 
 // Whole-comment sweeps catch a stray line anywhere in the file; these two pin

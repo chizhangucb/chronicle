@@ -22,5 +22,5 @@ export const tracked = git('ls-files').split('\n').filter(Boolean);
 
 export const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
-/** Read as utf8 these are noise, and none of them carries prose. */
+/** Binary files: read as utf8 they are noise, and none of them carries prose. */
 export const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
