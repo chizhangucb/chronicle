@@ -52,7 +52,7 @@ The parser is the only place that knows a tool's native format.
 | `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines. `insights.ts` also serves the project page's aggregates (`computeScopedAggregates`) |
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
 | `scope.ts` | The query context: scope clause, the one minor gate, and the session/message/token ranges |
-| `cache.ts` | The generation-keyed analytics cache |
+| `cache.ts` | The one server cache: generation-keyed, with an optional per-entry TTL |
 | `noiseGate.ts` | The `minor` session flag |
 | `rangeUsage.ts` | The overlap-based range primitive every ranged route uses |
 | `ask.ts`, `askDb.ts` | `/ask`: the pure guard and envelope logic, and the cost surface |
