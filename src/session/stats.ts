@@ -6,8 +6,9 @@
 // `Message.kind: string` at call sites, so this local `StatMessage` mirrors
 // @shared's `Event` fields but keeps `kind` as `string` (a `Kind` value is
 // still assignable to it, since `Kind` is a subtype of `string`) — the honest
-// common shape both callers satisfy. shared/durations.ts's `TimedMessage` is
-// the same shape narrowed to the four fields the duration math reads.
+// common shape both callers satisfy — it extends shared/durations.ts's
+// `TimedMessage`, which is that shape narrowed to the fields the shared
+// duration math reads, rather than restating those fields.
 // stats.ts is executed directly by node (unit tests import it as `.ts`, and
 // node's strip-only loader takes import specifiers literally — it does NOT
 // rewrite `.js` → `.ts` the way Vite's bundler resolution does). So unlike the
@@ -16,13 +17,10 @@
 // must point at the real `.ts` file.
 import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
 import { isErrorHead } from '../../shared/errors.ts';
-export interface StatMessage {
-  kind: string;
-  ts?: string | null;
-  text?: string | null;
+import type { TimedMessage } from '../../shared/durations.ts';
+export interface StatMessage extends TimedMessage {
   tool_name?: string | null;
   tool_input?: string | null;
-  tool_use_id?: string | null;
   model?: string | null;
   seq?: number;
   // Sidechain (subagent) rows — see subagentRuns()/subagentRunCount() below.

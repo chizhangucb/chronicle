@@ -10,9 +10,9 @@ import { sessionDisplayName } from '../shared/sessionName.ts';
 
 const ID = '3f2a1b9c-7d4e-4a11-9f00-abcdef123456';
 
-test('sessionDisplayName: precedence is user-set name, then summary, then first prompt', () => {
-  const row = { id: ID, name: 'Renamed by me', summary: 'Tool summary', first_prompt: 'fix the parser' };
-  assert.equal(sessionDisplayName(row, 'id'), 'Renamed by me');
+test('sessionDisplayName: precedence is the operator-set name, then summary, then first prompt', () => {
+  const row = { id: ID, name: 'Renamed by hand', summary: 'Tool summary', first_prompt: 'fix the parser' };
+  assert.equal(sessionDisplayName(row, 'id'), 'Renamed by hand');
   assert.equal(sessionDisplayName({ ...row, name: null }, 'id'), 'Tool summary');
   assert.equal(sessionDisplayName({ ...row, name: null, summary: null }, 'id'), 'fix the parser');
 });

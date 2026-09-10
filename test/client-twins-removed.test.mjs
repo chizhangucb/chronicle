@@ -54,17 +54,22 @@ test('the server-side homes of the moved functions are gone', () => {
   }
 });
 
-test('the error regex is written once, and no gap cap is written inline anywhere', () => {
+test('the error regex is written once, and the two gap caps are named constants', () => {
   const regexHits = SOURCES.filter(({ text }) => /tool_use_error\|exit code/.test(text)).map(({ rel }) => rel);
   assert.deepEqual(regexHits, ['shared/errors.ts'], 'the error regex should be written only in shared/errors.ts');
 
-  // Both caps are named constants (ACTIVE_GAP_CAP_MS, ENGAGED_GAP_CAP_MS), so
-  // an inline clamp like `Math.min(gap, 10 * 60 * 1000)` is a twin's literal
-  // however it is spelled. Matched as a clamp rather than as a bare number,
-  // since a ten-minute number is also a git timeout and a live-window bound
-  // and neither of those is duration math.
-  const inlineCaps = SOURCES.filter(({ text }) => /Math\.min\([^)]*60 \* 1000\)/.test(text)).map(({ rel }) => rel);
-  assert.deepEqual(inlineCaps, [], 'a duration cap belongs in a named constant in shared/durations.ts');
+  // The caps are ACTIVE_GAP_CAP_MS and ENGAGED_GAP_CAP_MS (their values are
+  // pinned in test/durations.test.mjs); the math clamps against the names, so
+  // a bare cap literal is a twin's spelling of one.
+  const durations = SOURCES.find(({ rel }) => rel === 'shared/durations.ts').text;
+  assert.match(durations, /Math\.min\(gap, ACTIVE_GAP_CAP_MS\)/);
+  assert.match(durations, /Math\.min\(gap, ENGAGED_GAP_CAP_MS\)/);
+
+  // The twins' own names, which is what a reinstated copy would be called.
+  for (const name of ['activeDurationMs', 'engagedDurationMs', 'isErrorResult(text']) {
+    const hits = SOURCES.filter(({ text }) => text.includes(name)).map(({ rel }) => rel);
+    assert.deepEqual(hits, [], `${name} was a client twin and should not come back`);
+  }
 });
 
 test('the client twin gotcha is gone from the published docs', () => {

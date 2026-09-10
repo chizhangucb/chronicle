@@ -6,9 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SYNTHETIC_USER_RE, isHumanPrompt, agentActiveMs, engagedMs,
-  ACTIVE_GAP_CAP_MS, ENGAGED_GAP_CAP_MS,
+  isHumanPrompt, agentActiveMs, engagedMs, ACTIVE_GAP_CAP_MS, ENGAGED_GAP_CAP_MS,
 } from '../shared/durations.ts';
+import { SYNTHETIC_USER_RE } from '../shared/synthetic.ts';
 
 const MIN = 60 * 1000;
 const T0 = '2026-01-01T00:00:00.000Z';

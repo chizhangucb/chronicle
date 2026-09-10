@@ -9,14 +9,12 @@
 // Relative-import value module (never @shared), same B3 rule as
 // shared/pricing.ts and shared/errors.ts.
 
-import { SYNTHETIC_USER_RE, isSyntheticUserText } from './synthetic.ts';
-
-// SYNTHETIC_USER_RE lives in shared/synthetic.ts (one definition shared with
-// the parsers' first-prompt derivation). It folds cross-session
-// (agent-to-agent IPC) messages in: a gap INTO one is not subtracted as
-// human-think time — an injected IPC message isn't a human typing — so it
-// counts as active (capped) like any other synthetic turn.
-export { SYNTHETIC_USER_RE };
+// "Not a human turn" is shared/synthetic.ts's one definition, the same one the
+// parsers derive a first prompt with. It folds cross-session (agent-to-agent
+// IPC) messages in: a gap INTO one is not subtracted as human-think time — an
+// injected IPC message isn't a human typing — so it counts as active (capped)
+// like any other synthetic turn.
+import { isSyntheticUserText } from './synthetic.ts';
 
 // The common shape both callers satisfy: a parsed `Event` (kind: Kind, a
 // subtype of string) and a stored message row (src/api.ts `Message`, whose

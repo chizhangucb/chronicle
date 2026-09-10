@@ -12,7 +12,7 @@
 import { isSyntheticUserText } from './synthetic.ts';
 
 // How the last rung of the fallback chain is presented. The precedence above
-// it (name → summary → first prompt) is the same either way; this is the only
+// it (operator-set name → summary → first prompt) is the same either way; this is the only
 // thing the two former twins disagreed about.
 //   'id'    — the whole session id, the stable handle a server row is keyed
 //             on and what an engine's row label needs.
@@ -41,7 +41,7 @@ export function sessionDisplayName(s: NamedSession, presentation: NamePresentati
   const fp = s.first_prompt && !isSyntheticUserText(s.first_prompt) ? s.first_prompt : null;
   const named = (s.name && s.name.trim()) || (s.summary && s.summary.trim()) || fp;
   if (named) return named;
-  const id = s.id == null ? '' : String(s.id);
+  const id = s.id ? String(s.id) : '';
   if (presentation === 'id') return id;
   return id ? `Session ${id.slice(0, ID_LABEL_CHARS)}` : 'Session';
 }
