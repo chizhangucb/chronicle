@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { cached } from './cache.ts';
 import { resolveDataDir } from './config.ts';
 import type { CostMode } from '../shared/pricing.ts';
 // The cost basis and the persisted turn are what /ask answers with, so they
@@ -247,17 +248,15 @@ function probeClaudeBin(env: NodeJS.ProcessEnv): string | null {
 
 // Cached: /ask/status is an unauthenticated GET that a poll loop could hammer,
 // and each probe spawns `which`. The CLI doesn't appear/disappear mid-session,
-// so a short TTL memo is safe. Only the default-env call is cached (tests pass a
-// custom env and must not be memoized).
-let claudeBinCache: { at: number; bin: string | null } | null = null;
+// so a short TTL memo is safe — it goes through the one server cache
+// (server/cache.ts) with that TTL rather than a map of its own. A `null` (no
+// CLI installed) is memoized too: the poll loop hits that case hardest. Only
+// the default-env call is cached (tests pass a custom env and must not be
+// memoized).
 const CLAUDE_BIN_TTL_MS = 60 * 1000;
 export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env !== process.env) return probeClaudeBin(env);
-  const now = Date.now();
-  if (claudeBinCache && now - claudeBinCache.at < CLAUDE_BIN_TTL_MS) return claudeBinCache.bin;
-  const bin = probeClaudeBin(env);
-  claudeBinCache = { at: now, bin };
-  return bin;
+  return cached('ask:claude-bin', () => probeClaudeBin(env), CLAUDE_BIN_TTL_MS);
 }
 
 /** Pull the JSON object out of a headless run's stdout: the CLI may fence it,
