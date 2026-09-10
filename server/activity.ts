@@ -13,7 +13,6 @@
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './rangeUsage.ts';
-import { isSyntheticUserText } from '../shared/synthetic.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 
 const DAY = 86400000;
