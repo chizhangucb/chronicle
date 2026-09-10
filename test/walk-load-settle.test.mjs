@@ -14,7 +14,7 @@
 // than the shape of the code under it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, WIDTHS } from './e2e/walk.mjs';
+import { waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS } from './e2e/walk.mjs';
 
 /**
  * A Playwright `Page` stand-in. `settlesAfter` is how many DOM scans still
@@ -279,4 +279,26 @@ test(`a full walk shoots every cell settled — ${WALK_CELLS} of ${WALK_CELLS}`,
     [],
     'every cell must be a real rendered page, not a "Loading…" state',
   );
+});
+
+// ---- What the report says about the settle -----------------------------------
+
+test('walk-report.json counts the settle, so a mid-load walk is readable', async () => {
+  // A reviewer opening the report has to be able to tell "every cell is a real
+  // page" from "three cells timed out still loading" without opening 42 PNGs.
+  const stuck = fakePage({ settlesAfter: Infinity });
+  const stuckReport = { ok: false, slug: 'insights-spend-1024' };
+  await capturePage(stuck, { slug: 'insights-spend', async setup() {} }, {
+    width: 1024, screenshotPath: '/tmp/x.png', settleTimeoutMs: 20, settlePollMs: 5,
+  }).catch((err) => { stuckReport.error = err.message; stuckReport.settle = err.settle; });
+
+  const summary = summarize([
+    { ok: true, settle: { settled: true, networkIdle: true, tolerated: [] } },
+    { ok: true, settle: { settled: true, networkIdle: false, tolerated: [{ tag: 'div', class: 'muted small pad8', text: 'Loading…' }] } },
+    stuckReport,
+  ]);
+
+  assert.deepEqual(summary.loadSettle, { settled: 2, toleratedLoading: 1, neverSettled: 1 });
+  assert.equal(stuckReport.settle.settled, false, 'the failed cell carries its own settle verdict');
+  assert.deepEqual(stuckReport.settle.blocking.map((o) => o.text), ['Loading…']);
 });

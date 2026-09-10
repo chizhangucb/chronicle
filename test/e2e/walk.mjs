@@ -11,8 +11,14 @@
 //   <slug>-<width>.png    full-page screenshot
 //   <slug>-<width>.json   per-page probe report (overflow / popover clip /
 //                         tabular-nums coverage / console errors)
-// plus one aggregate `walk-report.json` (pass/fail counts per probe, and the
-// full per-page list) in the same --out directory.
+// plus one aggregate `walk-report.json` (pass/fail counts per probe, the load-
+// settle tally, and the full per-page list) in the same --out directory.
+//
+// Every capture is gated on a LOAD SETTLE (see waitForLoadSettle below): the
+// page's network goes quiet and no "Loading…" placeholder is left before the
+// probes read it and the PNG is taken, so a cell is always a real rendered
+// page. The gate is bounded — a page still loading at the deadline is an
+// errored cell in the report, never a mid-load screenshot and never a hang.
 //
 // Usage:
 //   npm run walk -- --base http://localhost:4173 --out /tmp/chronicle-walk/
@@ -356,7 +362,11 @@ async function waitForLoadSettle(page, {
       return { settled: true, networkIdle, waitedMs: Date.now() - started, tolerated };
     }
     if (Date.now() - started >= timeoutMs) {
-      throw new Error(`load never settled: still showing "Loading…" after ${timeoutMs}ms — ${describeOffenders(blocking)}`);
+      const err = new Error(`load never settled: still showing "Loading…" after ${timeoutMs}ms — ${describeOffenders(blocking)}`);
+      // The verdict rides on the error so the cell's own JSON records WHAT was
+      // still loading, not just that the cell errored.
+      err.settle = { settled: false, networkIdle, waitedMs: Date.now() - started, blocking, tolerated };
+      throw err;
     }
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
@@ -569,8 +579,18 @@ function summarize(pages) {
     popoverClip: { pass: 0, fail: 0, notTestable: 0 },
     tabularNums: { pass: 0, fail: 0 },
   };
+  // The load-settle tally (#205): how many cells were shot on a fully rendered
+  // page, how many were shot with a DISCLOSED region still loading (the
+  // external plan-window read), and how many never settled inside the budget
+  // and were reported instead of shot.
+  const loadSettle = { settled: 0, toleratedLoading: 0, neverSettled: 0 };
   let renderedOk = 0;
   for (const p of pages) {
+    if (p.settle?.settled === false) loadSettle.neverSettled++;
+    else if (p.settle?.settled) {
+      loadSettle.settled++;
+      if (p.settle.tolerated?.length) loadSettle.toleratedLoading++;
+    }
     if (!p.ok) continue;
     renderedOk++;
     for (const key of Object.keys(byProbe)) {
@@ -583,7 +603,7 @@ function summarize(pages) {
       byProbe[key][probe.pass ? 'pass' : 'fail']++;
     }
   }
-  return { totalPages: pages.length, renderedOk, renderedError: pages.length - renderedOk, byProbe };
+  return { totalPages: pages.length, renderedOk, renderedError: pages.length - renderedOk, loadSettle, byProbe };
 }
 
 async function main() {
@@ -639,6 +659,7 @@ async function main() {
           renderedCount++;
         } catch (err) {
           pageReport.error = err instanceof Error ? err.message : String(err);
+          if (err?.settle) pageReport.settle = err.settle;
         }
         pageReport.consoleErrors = consoleErrors;
         if (settleNotes.length) pageReport.settleNotes = settleNotes;
@@ -664,6 +685,11 @@ async function main() {
 
   console.log(`[walk] wrote ${pages.length} page report(s) + walk-report.json to ${out}`);
   console.log(`[walk] rendered ${renderedCount}/${pages.length} pages`);
+  const ls = report.summary.loadSettle;
+  console.log(`[walk] load settle: ${ls.settled}/${pages.length} settled (${ls.toleratedLoading} with a disclosed loading region), ${ls.neverSettled} never settled`);
+  if (ls.neverSettled > 0) {
+    console.error(`[walk] ${ls.neverSettled} page(s) never finished loading inside the settle budget — see \`error\` in walk-report.json`);
+  }
 
   if (renderedCount === 0) {
     console.error('[walk] FATAL: zero (route, width) pairs rendered — see walk-report.json for errors');
@@ -681,4 +707,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, WIDTHS };
+export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS };
