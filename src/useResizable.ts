@@ -48,6 +48,30 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+/** Pixels one arrow-key press moves the handle. */
+export const RESIZE_STEP = 16;
+
+/**
+ * The width a horizontal arrow key leaves behind, or `null` when the key is
+ * not one the handle answers (the caller then leaves it to the browser, so
+ * Tab, Enter and vertical scrolling keep working while the handle has focus).
+ *
+ * Shares `clamp` and the caller's `min`/`max` with the pointer drag on
+ * purpose: the keyboard must not be able to reach a width the drag cannot.
+ * Direction follows `edge` the same way the drag's delta does — a `'right'`
+ * handle (panel on the LEFT) grows on ArrowRight, a `'left'` handle grows on
+ * ArrowLeft.
+ */
+export function nextWidthForKey(
+  key: string,
+  width: number,
+  { min, max, edge, step = RESIZE_STEP }: { min: number; max: number; edge: ResizeEdge; step?: number },
+): number | null {
+  if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null;
+  const towardsGrowth = (key === 'ArrowRight') === (edge === 'right');
+  return clamp(width + (towardsGrowth ? step : -step), min, max);
+}
+
 function readStored(key: string, fallback: number, min: number, max: number): number {
   if (typeof window === 'undefined') return fallback;
   try {
