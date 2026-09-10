@@ -2,8 +2,8 @@
 //
 // A second demo may still be running out of yesterday's directory, and on
 // Windows an open database file is enough on its own. Whatever the reason, the
-// seed that just built a working console must not fail over a tree it failed
-// to tidy up.
+// seed that just built a working demo must not fail over a tree it failed to
+// tidy up, and must go on to sweep the stale dirs it can still reach.
 //
 // Its own file because server/db.ts binds its handle to CHRONICLE_DATA_DIR at
 // import time: one real seed per process, so this cannot share the process
@@ -23,6 +23,12 @@ test('a stale demo dir that cannot be removed leaves the seed successful', async
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-prunetest-'));
   const locked = path.join(root, 'chronicle-demo-0-2000-01-01');
+  // Registered before the locking, so a failing assert cannot strand an
+  // unreadable directory in the temp dir forever.
+  t.after(() => {
+    try { fs.chmodSync(locked, 0o700); } catch { /* never got locked */ }
+    fs.rmSync(root, { recursive: true, force: true });
+  });
   fs.mkdirSync(locked);
   fs.writeFileSync(path.join(locked, 'chronicle.db'), 'x');
   fs.chmodSync(locked, 0o000); // unreadable, so removing it raises EACCES
@@ -39,7 +45,4 @@ test('a stale demo dir that cannot be removed leaves the seed successful', async
   assert.ok(fs.existsSync(path.join(today, '.seed-complete')), 'the seed did not complete');
   assert.ok(fs.existsSync(locked), 'the locked dir went after all, so the failure was never exercised');
   assert.equal(fs.existsSync(other), false, 'one failure stopped the sweep reaching the next stale dir');
-
-  fs.chmodSync(locked, 0o700);
-  fs.rmSync(root, { recursive: true, force: true });
 });

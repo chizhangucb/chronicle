@@ -32,7 +32,19 @@ const DONE_MARKER = '.seed-complete';
 
 /** The exact prefix every demo cache dir carries. Load-bearing: it is the only
  *  thing that tells a dead cache apart from a stranger's temp dir. */
-const DIR_PREFIX = 'chronicle-demo-';
+const DEMO_DIR_PREFIX = 'chronicle-demo-';
+
+/** Every symlink in `p` resolved, falling back to a plain resolve when the path
+ *  does not exist. macOS hands out a /var/folders temp dir that really lives
+ *  under /private/var, so comparing strings against os.tmpdir() is not enough
+ *  to tell "inside the temp dir" from "outside" it. */
+function realPath(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
 
 function todayKey(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -41,47 +53,49 @@ function todayKey(now = new Date()): string {
 /** The data directory a demo server should run against. Stable per day so the
  *  cache can be reused; under the OS temp dir so ~/.chronicle is untouched. */
 export function demoDataDir(now = new Date()): string {
-  return path.join(os.tmpdir(), `${DIR_PREFIX}${DEMO_CORPUS_VERSION}-${todayKey(now)}`);
+  return path.join(os.tmpdir(), `${DEMO_DIR_PREFIX}${DEMO_CORPUS_VERSION}-${todayKey(now)}`);
 }
 
 /**
- * Remove the demo caches `keep` has replaced: its siblings carrying the demo
+ * Remove the demo caches `keepDir` has replaced: its siblings carrying the demo
  * prefix, one per earlier day or corpus version.
  *
- * This deletes trees the operator did not name, so it is deliberately timid:
- * it works only inside the OS temp dir, only on names starting with the exact
- * demo prefix, and only on real directories (a symlink is left where it lies
- * rather than followed to whatever it points at). Every removal that fails is
- * swallowed: a second demo still holding yesterday's dir open is a reason to
- * leave it alone, never a reason to fail the seed that just succeeded.
+ * This deletes trees the operator did not name, and ADR 0008 says the data
+ * folder is the only place Chronicle writes, so the sweep is deliberately
+ * timid: only inside the OS temp dir, only names starting with the exact demo
+ * prefix, only real directories (a symlink is left where it lies rather than
+ * followed to whatever it points at), and every failure swallowed. A second
+ * demo still holding yesterday's dir open is a reason to leave that dir alone,
+ * never a reason to fail the seed that just succeeded.
  *
- * Returns the directories actually removed.
+ * Returns the directories actually removed, oldest name first.
  */
-export function pruneStaleDemoDirs(keep: string): string[] {
-  const kept = path.resolve(keep);
-  const root = path.dirname(kept);
-  const tmp = path.resolve(os.tmpdir());
+export function pruneStaleDemoDirs(keepDir: string): string[] {
+  const kept = path.resolve(keepDir);
+  const root = realPath(path.dirname(kept));
+  const tmp = realPath(os.tmpdir());
   if (root !== tmp && !root.startsWith(tmp + path.sep)) return [];
 
-  const removed: string[] = [];
-  let entries;
+  let stale: string[];
   try {
-    entries = fs.readdirSync(root, { withFileTypes: true });
+    stale = fs.readdirSync(root, { withFileTypes: true })
+      // withFileTypes does not follow links, so a symlink to a directory
+      // reports isDirectory() false and is skipped rather than deleted through.
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(DEMO_DIR_PREFIX))
+      .map((entry) => entry.name)
+      .filter((name) => name !== path.basename(kept))
+      .sort(); // A fixed sweep order, so one unremovable dir fails the same way every run.
   } catch {
-    return removed;
+    return [];
   }
-  for (const entry of entries) {
-    // withFileTypes does not follow links, so a symlink to a directory reports
-    // isDirectory() false and is skipped here rather than deleted through.
-    if (!entry.isDirectory() || !entry.name.startsWith(DIR_PREFIX)) continue;
-    const dir = path.join(root, entry.name);
-    if (dir === kept) continue;
+
+  const removed: string[] = [];
+  for (const name of stale) {
+    const dir = path.join(root, name);
     try {
       fs.rmSync(dir, { recursive: true, force: true });
       removed.push(dir);
-    } catch {
-      // Locked, in use, or not ours to delete. Not the seed's problem.
-    }
+    } catch { /* locked, in use, or not ours to delete: not the seed's problem */ }
   }
   return removed;
 }
