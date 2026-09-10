@@ -114,6 +114,14 @@ https://github.com/chizhangucb/chronicle/releases
   say "window" now says "range". *Window* is left to mean only a plan window or a context
   window, so the two are never confused on the Spend tab.
 
+- **"What your usage says" no longer reads as one stat arguing with itself.** Two rows of
+  that card could land on near-identical percentages for different metrics — the share of
+  usage from subagent turns beside the share that ran inside a multi-agent workflow, which
+  is a subset of it. Rows are now grouped by family, each carries a chip naming which
+  population its number is over, and the workflow row states its share of the subagent
+  usage above it. Every percentage is the same measurement it was; only what the card says
+  about them is new.
+
 - **Explore's stacked chart now agrees with its own total.** On a range whose edge cuts
   through a session, the time chart used to draw that session's whole billed usage on the
   bar it started in while the ranked rows showed only the share inside the range, so the

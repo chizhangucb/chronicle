@@ -607,3 +607,29 @@ describe('#206: same-family characteristics sit next to each other', () => {
     assert.equal(keys.indexOf('workflowRuns') - keys.indexOf('subagentTurns'), 1);
   });
 });
+
+// ── #206 (DEDUP), the other half of the family: the Content tab once ran a
+// `contextPressureShare` callout beside the `highContextRel` row, showing the
+// same number twice. It is not cued, it is GONE — the callout was literally
+// highRel's own share and denominator (see server/content.ts's merge note),
+// so the family is resolved by carrying ONE row for it. This pins that no
+// second row ever restates it again, and that the subset percentage — the
+// only number #206 adds — is backed by the two shares already on the card.
+describe('#206: no row restates another row\'s number', () => {
+  test('no scope carries a contextPressureShare row beside highContextRel', () => {
+    for (const scope of [{ type: 'project', id: p1Id }, { type: 'session', id: 'sWorkflowA' }, { type: 'all' }]) {
+      const keys = content.computeContent(scope, rangeOf(null)).characteristics.map((c) => c.key);
+      assert.ok(!keys.includes('contextPressureShare'), `${scope.type} scope restates highContextRel as a second row`);
+    }
+  });
+
+  test('the subset percentage is the two shares on the card divided by each other, not a third source', () => {
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null));
+    const child = findChar(r, 'workflowRuns');
+    const parent = findChar(r, 'subagentTurns');
+    assert.ok(child.value <= parent.value, 'a subset can never be a bigger share than its parent');
+    // 45% of usage is workflow, 69% is subagent -> the workflow row is 65% of
+    // the subagent row (45/69 = 65.2%), within a point of the rounded shares.
+    assert.ok(Math.abs(child.subsetOf.percent - (child.value / parent.value) * 100) <= 1);
+  });
+});
