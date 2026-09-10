@@ -57,7 +57,6 @@ const AUTONOMOUS_ENGAGED_RATIO = 0.25;
 // only by session-scope `peakContextTokens`, "N tokens (M% of window)").
 // Declared in shared/results.ts (#307) so src/ContentTab.tsx renders the very
 // contract this engine writes.
-export type { CharacteristicFormat, Characteristic, ContentResult } from '../shared/results.ts';
 import type { Characteristic, ContentResult } from '../shared/results.ts';
 
 export function computeContent(scope: Scope, range: Range): ContentResult {

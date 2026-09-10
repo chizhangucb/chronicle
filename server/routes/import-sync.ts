@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, replaceSession, type ProjectRow, type SessionRow } from '../db.ts';
+import { db, upsertProject, replaceSession } from '../db.ts';
+import type { ProjectRow, SessionRow } from '../../shared/rows.ts';
 import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts';
 import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';

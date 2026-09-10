@@ -13,8 +13,7 @@
 //
 // Framework-free, like the rest of `shared/`: relative imports only.
 import type { Project, ScannedProject, ScannedSession, SourceId } from './types.ts';
-import type { UsageByModel } from './usage.ts';
-import type { BucketedUsageCell } from './usage.ts';
+import type { BucketedUsageCell, UsageByModel } from './usage.ts';
 import type {
   Commit, DayCount, InsightsSessionRow, KindCount, MessageRow, MinorSessionRow,
   ProjectErrorCount, ProjectSessionSummary, RepoInfo, SearchResultItem, SessionRow, ToolCount,

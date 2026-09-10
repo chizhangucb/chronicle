@@ -8,7 +8,8 @@
 import { db } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
+import { rangedUsage, bucketedUsage, bucketKeyExpr } from './rangeUsage.ts';
+import type { BucketedUsageCell, UsageBucket } from '../shared/usage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head query for
@@ -29,10 +30,6 @@ export { bucketLabel };
 // shared/explore.ts (#307); the client reads them from there. This engine's
 // in-memory row/cell extend the same bases in the shared token-cell dialect,
 // so a field can only be added to both at once.
-export type {
-  ExploreMetric, ExploreGroup, ExploreRollup,
-  ExploreWireCell, ExploreWireRow, ExploreWireCellSet, ExploreWireBucket, ExploreWireResult,
-} from '../shared/explore.ts';
 import type {
   ExploreCellBase, ExploreGroup, ExploreMetric, ExploreRollup, ExploreRowBase,
   ExploreWireCell, ExploreWireCellSet, ExploreWireBucket, ExploreWireResult, ExploreWireRow,

@@ -2,20 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { pluralize } from './format.js';
 import Modal from './Modal.tsx';
-import type { ScannedProject, ScannedSession, SourceId } from '../shared/types.ts';
-
-// scan<Tool>Projects() results, as annotated by the server's `annotateScan`
-// (server/routes/import-sync.ts) with an `imported` flag per project/session
-// (not part of the shared ScannedProject/ScannedSession contract, which
-// describes the raw scanner output before that annotation).
-interface AnnotatedSession extends ScannedSession {
-  imported: boolean;
-}
-interface AnnotatedProject extends ScannedProject {
-  imported: boolean;
-  sessions?: AnnotatedSession[];
-}
-type Scan = Partial<Record<SourceId, AnnotatedProject[]>>;
+import type { SourceId } from '../shared/types.ts';
+// The scan the wizard walks, what it POSTs to /api/import and what it gets
+// back: shared/results.ts declares all three (#307), so the wizard reads the
+// contract server/routes/import-sync.ts writes.
+import type {
+  AnnotatedScannedProject, AnnotatedScannedSession, ImportPayload, ImportProjectAgg,
+  ImportResult, ScanResult,
+} from '../shared/results.ts';
 
 interface SourceInfo {
   key: SourceId;
@@ -40,13 +34,13 @@ interface Unit {
   imported: boolean;
 }
 
-const projKey = (item: AnnotatedProject) => `${item.source}|${item.logDir}|${item.directory || item.physicalPath || item.name}`;
+const projKey = (item: AnnotatedScannedProject) => `${item.source}|${item.logDir}|${item.directory || item.physicalPath || item.name}`;
 const sessKey = (pk: string, sid: string) => `${pk}##${sid}`;
-const granular = (item: AnnotatedProject): item is AnnotatedProject & { sessions: AnnotatedSession[] } =>
+const granular = (item: AnnotatedScannedProject): item is AnnotatedScannedProject & { sessions: AnnotatedScannedSession[] } =>
   Array.isArray(item.sessions) && item.sessions.length > 0;
 // Selectable units of a project: one per session when we can enumerate them,
 // otherwise the whole project is a single unit.
-const unitsOf = (item: AnnotatedProject): Unit[] => (granular(item)
+const unitsOf = (item: AnnotatedScannedProject): Unit[] => (granular(item)
   ? item.sessions.map((s) => ({ key: sessKey(projKey(item), s.id), imported: s.imported }))
   : [{ key: projKey(item), imported: item.imported }]);
 
@@ -55,7 +49,7 @@ interface Badge {
   text: string;
 }
 
-function badgeOf(item: AnnotatedProject): Badge {
+function badgeOf(item: AnnotatedScannedProject): Badge {
   if (granular(item)) {
     const done = item.sessions.filter((s) => s.imported).length;
     if (done === item.sessions.length) return { kind: 'imported', text: 'Imported' };
@@ -65,12 +59,8 @@ function badgeOf(item: AnnotatedProject): Badge {
   return item.imported ? { kind: 'imported', text: 'Imported' } : { kind: 'new', text: 'NEW' };
 }
 
-// What this wizard POSTs to /api/import and what it gets back, declared once
-// in shared/results.ts (#307) alongside every other route contract.
-import type { ImportPayload, ImportProjectAgg, ImportResult } from '../shared/results.ts';
-
 interface ImportJob {
-  item: AnnotatedProject;
+  item: AnnotatedScannedProject;
   payload: ImportPayload;
   count: number;
   status: 'pending' | 'importing' | 'done' | 'failed';
@@ -85,10 +75,10 @@ export interface ImportWizardProps {
 
 export default function ImportWizard({ onClose, onImported }: ImportWizardProps) {
   const [step, setStep] = useState(1);
-  const [scan, setScan] = useState<Scan | null>(null);
+  const [scan, setScan] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<SourceId | null>(null);
-  const [extraItems, setExtraItems] = useState<AnnotatedProject[]>([]); // from "Select Directory Manually"
+  const [extraItems, setExtraItems] = useState<AnnotatedScannedProject[]>([]); // from "Select Directory Manually"
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -100,7 +90,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
     api.scan().then(setScan).catch((e: Error) => setError(String(e.message)));
   }, []);
 
-  const items = useMemo<AnnotatedProject[]>(() => {
+  const items = useMemo<AnnotatedScannedProject[]>(() => {
     if (!scan || !source) return [];
     const base = scan[source] || [];
     const seen = new Set(base.map(projKey));
@@ -129,10 +119,10 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
         if (sess?.length) return { ...i, sessions: sess, _sessionMatch: true };
         return null;
       })
-      .filter((i): i is AnnotatedProject & { _sessionMatch?: boolean } => Boolean(i));
+      .filter((i): i is AnnotatedScannedProject & { _sessionMatch?: boolean } => Boolean(i));
   }, [items, query]);
 
-  function selectAllNew(list: AnnotatedProject[] = items) {
+  function selectAllNew(list: AnnotatedScannedProject[] = items) {
     setSelected(new Set(list.flatMap(unitsOf).filter((u) => !u.imported).map((u) => u.key)));
   }
   function chooseSource(key: SourceId) {
@@ -150,7 +140,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
       return next;
     });
   }
-  function toggleProject(item: AnnotatedProject) {
+  function toggleProject(item: AnnotatedScannedProject) {
     const units = unitsOf(item).map((u) => u.key);
     setSelected((prev) => {
       const next = new Set(prev);
@@ -166,7 +156,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
     setRescanning(true);
     setError(null);
     try {
-      const fresh: Scan = await api.scan();
+      const fresh: ScanResult = await api.scan();
       setScan(fresh);
       // Keep only selections that still exist; newly-appeared NEW sessions get selected.
       const freshItems = (source && fresh[source]) || [];
@@ -181,7 +171,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
     if (!dirForm?.trim() || !source) return;
     setError(null);
     try {
-      const result: Scan = await api.scan({ source, dir: dirForm.trim() });
+      const result: ScanResult = await api.scan({ source, dir: dirForm.trim() });
       const found = result[source] || [];
       if (!found.length) { setError('No importable sessions found in that directory'); return; }
       setExtraItems((prev) => [...prev, ...found]);
@@ -279,7 +269,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                 <div className="wiz-source-section muted small">◎ Local</div>
                 <div className="wiz-source-grid">
                   {SOURCES.filter((s) => (scan[s.key] || []).length).map((s) => {
-                    const list = scan[s.key] as AnnotatedProject[];
+                    const list = scan[s.key] as AnnotatedScannedProject[];
                     const sessions = list.reduce((n, i) => n + (i.sessionCount || 0), 0);
                     return (
                       <button key={s.key} className="wiz-source-card" onClick={() => chooseSource(s.key)}>

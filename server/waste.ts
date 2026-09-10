@@ -10,7 +10,6 @@ import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
 // Declared in shared/results.ts (#307): the client prices these cells, so both
 // sides read one contract.
-export type { ModelCacheCells, ChurnSession, RightSizingModel, RereadFile, WasteResult } from '../shared/results.ts';
 import type { ChurnSession, ModelCacheCells, RereadFile, RightSizingModel, WasteResult } from '../shared/results.ts';
 
 interface ChurnRow { session_id: string; project: string; writeTok: number; readTok: number }

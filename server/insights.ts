@@ -18,14 +18,13 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
-import { bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
+import { bucketedUsage } from './rangeUsage.ts';
+import type { BucketedUsageCell } from '../shared/usage.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 
 // The row and result shapes live in shared/ (#307) — shared/rows.ts for the
 // session row and the count rows, shared/results.ts for the result — so the
 // client reads the contract this engine writes instead of retyping it.
-export type { InsightsSessionRow, ToolCount, KindCount, DayCount, ProjectErrorCount } from '../shared/rows.ts';
-export type { InsightsResult, ScopedAggregates } from '../shared/results.ts';
 import type { DayCount, InsightsSessionRow, KindCount, ProjectErrorCount, ToolCount } from '../shared/rows.ts';
 import type { InsightsResult, ScopedAggregates } from '../shared/results.ts';
 

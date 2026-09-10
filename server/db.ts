@@ -13,7 +13,6 @@ import { dataDir } from './config.ts';
 // Row shapes live in shared/rows.ts (#307), so the client reads the same
 // `sessions`/`messages` contract the server writes. Re-exported here because
 // every server query that selects these columns already names this module.
-export type { ProjectRow, SessionRow, MessageRow } from '../shared/rows.ts';
 import type { ProjectRow } from '../shared/rows.ts';
 
 // The folder comes from the one config module (server/config.ts); db.ts is

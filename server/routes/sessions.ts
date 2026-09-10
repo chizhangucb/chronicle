@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
-import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
+import { db, tombstoneSession, removeTombstone } from '../db.ts';
+import type { MessageRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { invalidateCache } from '../cache.ts';

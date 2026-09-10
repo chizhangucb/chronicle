@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
-import { db, type ProjectRow } from '../db.ts';
+import { db } from '../db.ts';
+import type { ProjectRow } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 
 export function mountGit(app: Express): void {

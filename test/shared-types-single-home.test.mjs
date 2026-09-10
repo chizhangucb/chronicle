@@ -45,9 +45,13 @@ const ROW_TYPES = [
   { name: 'RepoInfo', home: 'shared/rows.ts' },
 ];
 
+// Where a name can be reached from: a declaration, or a re-export, which is a
+// second home wearing the first one's clothes (a module that re-exports a
+// shared type gives a caller two spellings of the same import).
 function declarationsOf(name) {
   return SOURCES
-    .filter(({ text }) => new RegExp(`(?:^|\\n)\\s*(?:export )?(?:interface ${name}\\b|type ${name}\\b\\s*=)`).test(text))
+    .filter(({ text }) => new RegExp(`(?:^|\\n)\\s*(?:export )?(?:interface ${name}\\b|type ${name}\\b\\s*=)`).test(text)
+      || new RegExp(`export type \\{[^}]*\\b${name}\\b[^}]*\\} from`).test(text))
     .map(({ rel }) => rel);
 }
 
@@ -96,7 +100,7 @@ test('both sides import the shared homes', () => {
   // same file: a shared/ home with only server importers (or only client ones)
   // would be a move, not a consolidation.
   for (const home of ['shared/rows.ts', 'shared/results.ts', 'shared/explore.ts']) {
-    const importers = SOURCES.filter(({ rel, text }) => rel !== home && text.includes(path.basename(home)));
+    const importers = SOURCES.filter(({ rel, text }) => rel !== home && new RegExp(`from '[^']*${path.basename(home)}'`).test(text));
     assert.ok(importers.some(({ rel }) => rel.startsWith('server/')), `${home} has no server importer`);
     assert.ok(importers.some(({ rel }) => rel.startsWith('src/')), `${home} has no client importer`);
   }
@@ -117,8 +121,11 @@ test('every export of the fetch module has an importer', () => {
   const exported = [...API.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1]);
   assert.ok(exported.length > 0);
   for (const name of exported) {
+    // An importer, not a mention: the name has to arrive through an import of
+    // the module, not appear in someone's comment.
     const importers = SOURCES
-      .filter(({ rel, text }) => rel !== 'src/api.ts' && new RegExp(`\\b${name}\\b`).test(text))
+      .filter(({ rel, text }) => rel !== 'src/api.ts'
+        && new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from '[^']*api\\.(?:js|ts)'`, 's').test(text))
       .map(({ rel }) => rel);
     assert.notDeepEqual(importers, [], `api.ts exports ${name} with no importer`);
   }

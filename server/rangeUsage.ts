@@ -27,7 +27,6 @@ import { emptyCell, parseUsage, type BucketedUsageCell, type RangeUsageCell, typ
 
 // The three shapes this primitive answers with live in shared/usage.ts (#307):
 // the client prices them, so it reads the same contract the server ships.
-export type { RangeUsageCell, UsageBucket, BucketedUsageCell } from '../shared/usage.ts';
 
 // The one spelling of "this session is in range": a session whose activity ran INTO
 // the range counts, even if it started earlier — a range always extends to "now", so

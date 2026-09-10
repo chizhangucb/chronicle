@@ -8,7 +8,6 @@ const execFileAsync = promisify(execFile);
 // The two shapes this module answers with live in shared/rows.ts (#307): the
 // client renders them (CodePanel's commit list, the project page's repo badge)
 // and must read the same contract the server sends.
-export type { RepoInfo, Commit } from '../shared/rows.ts';
 import type { Commit, RepoInfo } from '../shared/rows.ts';
 
 export interface FileAtResult {

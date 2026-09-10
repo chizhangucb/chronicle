@@ -10,7 +10,6 @@ import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
 // Declared in shared/results.ts (#307): the client derives and grades the rates
 // from these counts, so both sides read one contract.
-export type { DetectorCounts } from '../shared/results.ts';
 import type { DetectorCounts } from '../shared/results.ts';
 
 interface CountRow {

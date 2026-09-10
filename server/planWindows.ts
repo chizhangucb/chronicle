@@ -24,7 +24,6 @@ const FETCH_TIMEOUT_MS = 15_000;
 
 // Declared in shared/results.ts (#307), so the Spend tab's plan-window card
 // reads the shape this module answers with.
-export type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
 import type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
 
 // ---- Claude (outbound, opt-out, default on) ----

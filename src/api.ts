@@ -44,11 +44,11 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// Exported for `useCachedFetch.ts` (Task 5, client SWR layer): the hook takes
-// a plain URL string, not an `api.*` call, so it needs the same fetch+error-
-// message-extraction behavior every `api.*` function already gets from `j`
-// — reusing it (rather than a bare `fetch`) keeps error shape identical to
-// pre-hook code (e.g. ProjectDetail's rename/associate error banners).
+// Exported for `useCachedFetch.ts` (the client's stale-while-revalidate
+// layer): the hook takes a plain URL string, not an `api.*` call, so it needs
+// the same fetch + error-message extraction every `api.*` function gets from
+// `j` — reusing it (rather than a bare `fetch`) keeps the error shape identical
+// on both paths (e.g. ProjectDetail's rename/associate error banners).
 export const fetchJson = j;
 
 // ---- Pure URL builders ----

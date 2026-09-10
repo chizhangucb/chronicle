@@ -27,7 +27,6 @@ const MEDIAN_DAYS = 14;
 
 // The feed's shapes live in shared/results.ts (#307); the Home dashboard reads
 // them straight from there instead of keeping a hand-typed mirror.
-export type { ActivitySessionLite, ActivityBurn, AnomalyDayCells, ActivityResult } from '../shared/results.ts';
 import type { ActivityBurn, ActivityResult, ActivitySessionLite, AnomalyDayCells } from '../shared/results.ts';
 
 interface SessionRowLite {

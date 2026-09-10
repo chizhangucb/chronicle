@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
+import { db, upsertProject, tombstoneSessionsForProject } from '../db.ts';
+import type { ProjectRow } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';

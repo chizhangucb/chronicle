@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Response } from 'express';
-import { db, type SessionRow } from './db.ts';
+import { db } from './db.ts';
+import type { SessionRow } from '../shared/rows.ts';
 import { parseClaudeLine } from './parsers/claudeCode.ts';
 import { parseOpencodeSessions } from './parsers/opencode.ts';
 import { parseCursorWorkspace, parseAgentTranscriptJsonl } from './parsers/cursor.ts';

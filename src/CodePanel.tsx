@@ -3,7 +3,6 @@ import { diffLines, type Change } from 'diff';
 import { api } from './api.js';
 import type { GitFileResult, GitTreeResult } from '../shared/results.ts';
 // The message-to-snapshot mapping SessionView passes down as `commit`.
-export type { Commit } from '../shared/rows.ts';
 import type { Commit } from '../shared/rows.ts';
 
 // The successful (non-`noRepo`) halves of the shared GitTreeResult/GitFileResult
