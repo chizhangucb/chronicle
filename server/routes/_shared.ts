@@ -5,9 +5,9 @@ import { db, snapshotDb } from '../db.ts';
 
 export const CHRONICLE_DIR = process.env.CHRONICLE_DATA_DIR || path.join(os.homedir(), '.chronicle');
 
-// Delete the ORIGINAL log file on disk (explicit user request only, permanent —
-// the UI double-confirms). Restricted to sources where one file == one session;
-// shared stores (OpenCode/Cursor DBs) would lose other sessions.
+// The sources where one transcript file == one session, so a re-parse can be
+// scoped to that single file. Shared stores (OpenCode/Cursor DBs) hold many
+// sessions per file and have to be re-parsed whole.
 export const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
 
 // Snapshot the whole DB before destructive deletes (project or session removal).
