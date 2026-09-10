@@ -76,7 +76,7 @@ drag-resizable when expanded. Contents, top to bottom:
   across the app prices at the selected mode. `List price` = metered list price; `Billed` = what Chi
   pays, so subscription-covered models (Claude tiers, gpt-5.6 / Codex) read ~$0. The active mode is
   ALWAYS visibly labeled next to spend figures so no number silently changes meaning.
-- Search (`⌕`, ⌘K) · "+ Import Sessions" · language dropdown (EN / 中文 / 日本語) — all every-route.
+- Search (`⌕`, ⌘K) · "+ Import Sessions" — both every-route.
 - NO "← Projects" back link anywhere (real URL routes; browser back/forward).
 - **⌘J** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled (so the
   shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
@@ -385,6 +385,7 @@ Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |
+| Chronicle is English only: no `src/i18n.ts`, no `t()` call site, no zh/ja string in any tracked file, no switcher control in the top bar and no persisted locale key; the date/hour/weekday call sites still format on `en-US` | `test/languages-removed.test.mjs` |
 | No launchd or cron template ships in the published tarball | `test/repo-shape.test.mjs` — "the published package ships no job template" |
 | The retired vocabulary appears in no tracked source, config, spec or doc (CHANGELOG and the removal pins excepted); no retired route prefix or deleted module returns | `test/repo-shape.test.mjs` — the vocabulary-sweep pins |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |

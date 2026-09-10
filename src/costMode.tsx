@@ -9,7 +9,6 @@
 // Default is theoretical so nothing silently changes meaning without the toggle.
 import React, { createContext, useContext, useMemo, useState, type JSX, type ReactNode } from 'react';
 import type { CostMode } from './models.ts';
-import { t } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 
 const STORAGE_KEY = 'chronicle.costMode';
@@ -51,16 +50,16 @@ export function useCostMode(): CostModeState {
 export function CostModeToggle(): JSX.Element {
   const { mode, setMode } = useCostMode();
   return (
-    <div className="cost-mode-toggle" role="group" aria-label={t('Cost basis')}>
+    <div className="cost-mode-toggle" role="group" aria-label="Cost basis">
       {/* The COST prefix label is removed — the control
           reads just "List price | Billed". The aria-label carries the meaning. */}
       <button type="button" className={`cm-opt ${mode === 'theoretical' ? 'on' : ''}`}
         aria-pressed={mode === 'theoretical'} onClick={() => setMode('theoretical')}>
-        {t('List price')}
+        List price
       </button>
       <button type="button" className={`cm-opt ${mode === 'real' ? 'on' : ''}`}
         aria-pressed={mode === 'real'} onClick={() => setMode('real')}>
-        {t('Billed')}
+        Billed
       </button>
       <InfoTip def="spend.cost-basis" />
     </div>

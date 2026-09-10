@@ -1,31 +1,12 @@
 <script setup>
-import { useData } from 'vitepress';
-import { computed } from 'vue';
-
-// Captions localize with the active locale. Keep in sync across en/zh/ja.
-const CAPTIONS = {
-  en: [
-    'Click any message in your session',
-    'Chronicle rewinds your code to that exact moment',
-    'Toggle the diff to see what changed',
-    'Scrub the timeline like a video',
-  ],
-  zh: [
-    '点击会话中的任意一条消息',
-    'Chronicle 把代码回退到那一刻的真实状态',
-    '切换 Diff，查看这一步改动了什么',
-    '像拖动视频进度条一样拖动时间线',
-  ],
-  ja: [
-    'セッション内の任意のメッセージをクリック',
-    'その瞬間の正確なコード状態に巻き戻します',
-    '差分に切り替えて変更点を確認',
-    '動画のようにタイムラインをスクラブ',
-  ],
-};
-
-const { lang } = useData();
-const caps = computed(() => CAPTIONS[String(lang.value).slice(0, 2)] || CAPTIONS.en);
+// Chronicle is English only (#295) — the captions are plain English strings,
+// with no locale lookup behind them.
+const caps = [
+  'Click any message in your session',
+  'Chronicle rewinds your code to that exact moment',
+  'Toggle the diff to see what changed',
+  'Scrub the timeline like a video',
+];
 </script>
 
 <template>

@@ -622,7 +622,7 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
    failure path — alert silently no-ops in embedded browsers). */
 .menu-err { color: var(--danger); }
 
-/* Topbar right cluster + language dropdown */
+/* Topbar right cluster */
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 /* Sync status, click-to-sync-now — passive text promoted to a ghost
    button; shows on every page via App.tsx's topbar (previously /projects only). */
@@ -632,13 +632,6 @@ input[type="checkbox"] { accent-color: var(--brass); width: 15px; height: 15px; 
 }
 .sync-btn:hover:not(:disabled) { background: var(--bg2); border-color: var(--border); }
 .sync-btn:disabled { cursor: default; }
-.lang-select {
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  background: var(--bg2); color: var(--ink); border: 1px solid var(--border);
-  border-radius: 999px; padding: 4px 14px; font-size: 12.5px; font-family: var(--mono); outline: none;
-}
-.lang-select:hover, .lang-select[data-state="open"] { border-color: var(--border-strong); }
-.lang-select .car { color: var(--ink-3); font-size: 10px; }
 
 /* Cost basis toggle (real/theoretical) — topbar */
 .cost-mode-toggle {

@@ -36,22 +36,6 @@ with `base: '/docs/'` and `srcDir: 'docs'`; `scripts/assemble.mjs` places its bu
 `dist/docs` and copies the landing (`index.html` + `assets/`) to `dist/` root. Vercel serves
 `dist`.
 
-## Translations (i18n)
-
-The docs ship in **English (`/docs`), 简体中文 (`/docs/zh`), and 日本語 (`/docs/ja`)** — a
-language switcher is configured via `locales` in `.vitepress/config.mjs` (with translated
-nav/sidebar labels + UI strings). Content lives in `../docs`:
-
-- `../docs/*` — **English, the source of truth.** The changelog page is generated from the
-  repo's `CHANGELOG.md` at build time.
-- `../docs/zh/**`, `../docs/ja/**` — committed translations, mirroring the English structure.
-  `<Walkthrough />` localizes its own captions (see the component).
-
-> **Maintenance:** English is authoritative. When you edit an English page, the `zh`/`ja`
-> counterparts **drift until re-translated** — update `docs/<lang>/<same-path>.md` (and, for a
-> release, `docs/zh/changelog.md` + `docs/ja/changelog.md`). Keep code, paths, links, and
-> product names verbatim across all three.
-
 ## Local development
 
 ```bash
@@ -98,17 +82,6 @@ stays as a fallback (and the workflow can be run on demand from the **Actions** 
 **One-time setup:** add a `VERCEL_TOKEN` repository secret (Vercel → Account Settings → Tokens →
 Create, then `gh secret set VERCEL_TOKEN --repo chizhangucb/chronicle`). The org/project IDs the
 CLI needs are inlined in the workflow (they're identifiers, not secrets).
-
-### Changelog translations (auto)
-
-`scripts/translate-changelog.mjs` (called by `npm run content`) keeps the zh/ja changelog in
-sync automatically. For each version, it uses the committed `docs/<lang>/changelog.md` block if
-one exists, and otherwise translates the English entry on the fly via **OpenRouter** (free
-`nvidia/nemotron-3-ultra-550b-a55b:free`). Set an **`OPENROUTER_API_KEY`** repo secret to enable
-it (`gh secret set OPENROUTER_API_KEY --repo chizhangucb/chronicle`); without the key, or if the
-API call fails, a new version falls back to English with a "translation pending" note and the
-build still succeeds. Committed translations always win, so hand-editing `docs/zh|ja/changelog.md`
-for quality still works — it's just no longer required before a release.
 
 ## Domain & DNS
 

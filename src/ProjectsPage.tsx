@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
@@ -86,7 +85,7 @@ function ProjectMenu({ project, onRefresh }: ProjectMenuProps) {
     <span className="project-menu" onClick={(e) => e.stopPropagation()}>
       <DropdownMenu.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmRemove(false); setRenaming(false); setErr(null); } }}>
         <DropdownMenu.Trigger asChild>
-          <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title={t('Project options')}>
+          <button className={`btn tiny ghost gear ${syncing ? 'spin' : ''}`} title="Project options">
             {syncing ? '◌' : '⚙'}
           </button>
         </DropdownMenu.Trigger>
@@ -100,32 +99,32 @@ function ProjectMenu({ project, onRefresh }: ProjectMenuProps) {
                   onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenaming(false); }} />
                 {err && <span className="menu-err small">{err}</span>}
                 <div className="menu-confirm-actions">
-                  <button className="btn tiny ghost" disabled={savingName} onClick={() => setRenaming(false)}>{t('Cancel')}</button>
-                  <button className="btn tiny primary" disabled={savingName} onClick={saveRename}>{savingName ? t('Loading…') : `✓ ${t('Rename')}`}</button>
+                  <button className="btn tiny ghost" disabled={savingName} onClick={() => setRenaming(false)}>Cancel</button>
+                  <button className="btn tiny primary" disabled={savingName} onClick={saveRename}>{savingName ? 'Loading…' : `✓ Rename`}</button>
                 </div>
               </div>
             ) : confirmRemove ? (
               <div className="menu-confirm">
                 <span className="muted small">
-                  {t('Remove')} "{project.name}" {t('from Chronicle? Your source logs and project folder are not touched.')}
+                  Remove "{project.name}" from Chronicle? Your source logs and project folder are not touched.
                 </span>
                 <div className="menu-confirm-actions">
                   <button className="btn tiny ghost" disabled={removing} onClick={() => setConfirmRemove(false)}>
-                    {t('Cancel')}
+                    Cancel
                   </button>
                   <button className="btn tiny danger-btn" disabled={removing} onClick={() => run('remove')}>
-                    {removing ? t('Removing…') : `⌫ ${t('Remove')}`}
+                    {removing ? 'Removing…' : `⌫ Remove`}
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ {t('Sync Update')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={(e) => { e.preventDefault(); setNameDraft(project.name); setErr(null); setRenaming(true); }}>✎ {t('Rename')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => run('sync')}>⟳ Sync Update</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={(e) => { e.preventDefault(); setNameDraft(project.name); setErr(null); setRenaming(true); }}>✎ Rename</DropdownMenu.Item>
                 <DropdownMenu.Separator className="menu-sep" />
                 <DropdownMenu.Item className="menu-item danger" onSelect={(e) => { e.preventDefault(); setConfirmRemove(true); }}>
-                  ⌫ {t('Remove from Chronicle')}
-                  <span className="muted small">{t("(won't delete source project)")}</span>
+                  ⌫ Remove from Chronicle
+                  <span className="muted small">(won't delete source project)</span>
                 </DropdownMenu.Item>
                 {err && <div className="menu-err small" style={{ padding: '6px 8px' }}>{err}</div>}
               </>
@@ -143,10 +142,10 @@ export function WelcomeEmpty({ onImport }: { onImport: () => void }) {
   return (
     <div className="page center empty-state">
       <div className="empty-icon">◷</div>
-      <h2>{t('Welcome to Chronicle')}</h2>
+      <h2>Welcome to Chronicle</h2>
       <p className="muted">Import your AI coding sessions and time-travel through how your code came to be.<br />
         Everything stays on this machine — local-first, offline, read-only on your logs.</p>
-      <button className="btn primary lg" onClick={onImport}>{t('Import your first project')}</button>
+      <button className="btn primary lg" onClick={onImport}>Import your first project</button>
       <DemoOffer />
     </div>
   );
@@ -170,7 +169,7 @@ function DemoOffer() {
   if (!status.available) {
     return (
       <p className="muted small demo-offer">
-        {t('Want to see the product first?')} <code>npx chronicle-cli --demo</code>
+        Want to see the product first? <code>npx chronicle-cli --demo</code>
       </p>
     );
   }
@@ -197,9 +196,9 @@ function DemoOffer() {
           } catch { setStarting(false); }
         }}
       >
-        {starting ? t('Building the demo…') : t('Explore with sample data')}
+        {starting ? 'Building the demo…' : 'Explore with sample data'}
       </button>
-      <span className="muted small">{t('A synthetic console, so you can see every surface before importing anything. Your own data is untouched.')}</span>
+      <span className="muted small">A synthetic console, so you can see every surface before importing anything. Your own data is untouched.</span>
     </div>
   );
 }
@@ -315,24 +314,24 @@ function ProjectCommandBarControls({ api }: { api: UseProjectSelect }) {
   if (api.confirming) {
     return (
       <>
-        <span className="muted small">{t('Remove these from Chronicle? Source logs and folders are not touched.')}</span>
-        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.removing}>{t('Cancel')}</button>
+        <span className="muted small">Remove these from Chronicle? Source logs and folders are not touched.</span>
+        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.removing}>Cancel</button>
         <button className="btn danger-btn" disabled={api.removing} onClick={api.removeSelected}>
-          {api.removing ? t('Removing…') : `⌫ ${t('Remove')} (${api.selectedCount})`}
+          {api.removing ? 'Removing…' : `⌫ Remove (${api.selectedCount})`}
         </button>
       </>
     );
   }
   return (
     <>
-      <span className="muted small">{api.selectedCount} {t('projects selected')}</span>
-      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allSelected ? t('Clear') : t('Select all')}</button>
-      <button className="btn ghost" onClick={api.exitSelect}>{t('Cancel')}</button>
+      <span className="muted small">{api.selectedCount} projects selected</span>
+      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allSelected ? 'Clear' : 'Select all'}</button>
+      <button className="btn ghost" onClick={api.exitSelect}>Cancel</button>
       <button className="btn ghost" disabled={!api.selectedCount || api.syncing} onClick={api.syncSelected}>
-        {api.syncing ? `◌ ${t('Syncing…')}` : `⟳ ${t('Sync')} (${api.selectedCount})`}
+        {api.syncing ? `◌ Syncing…` : `⟳ Sync (${api.selectedCount})`}
       </button>
       <button className="btn danger-btn" disabled={!api.selectedCount} onClick={api.requestRemove}>
-        ⌫ {t('Remove')} ({api.selectedCount})
+        ⌫ Remove ({api.selectedCount})
       </button>
     </>
   );
@@ -408,7 +407,7 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
               the right rail is full-bleed chrome rather than a second
               content column). */}
           <div className="home-search">
-            ⌕ <input placeholder={t('Filter sessions… (title, project, content)')} value={query}
+            ⌕ <input placeholder="Filter sessions… (title, project, content)" value={query}
               onChange={(e) => setQuery(e.target.value)} />
             <span className="kbd">⌘K</span>
           </div>
@@ -427,9 +426,9 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
         </div>
         <aside className="right-rail">
           <div className="right-rail-head">
-            <span className="eyebrow">{t('Projects')} · {projects.length}</span>
+            <span className="eyebrow">Projects · {projects.length}</span>
             {!projSelect.selectMode && (
-              <button className="btn tiny ghost" onClick={projSelect.enterSelect}>☑ {t('Select')}</button>
+              <button className="btn tiny ghost" onClick={projSelect.enterSelect}>☑ Select</button>
             )}
           </div>
           <div className="projects-list">
@@ -441,7 +440,7 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
                   {projSelect.selectMode && (
                     <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={projSelect.isSelected(p.id)}
-                        onChange={() => projSelect.toggle(p.id)} aria-label={t('Select project')} />
+                        onChange={() => projSelect.toggle(p.id)} aria-label="Select project" />
                     </div>
                   )}
                   <div className="rail-proj-main">
@@ -449,7 +448,7 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
                       <span>
                         <span className="pdot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />
                         {p.name}
-                        {p.live && <span className="live-dot on" title={t('A session in this project is live')} aria-hidden="true" />}
+                        {p.live && <span className="live-dot on" title="A session in this project is live" aria-hidden="true" />}
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="c num">{p.session_count}</span>
@@ -457,7 +456,7 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
                       </span>
                     </div>
                     <div className="meta">
-                      {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>{t('needs association')}</span>}
+                      {p.git?.isRepo ? <span className="git">⎇ {p.git.branch}</span> : <span>needs association</span>}
                       {p.last_active && <><span>·</span><span>{formatRelativeTime(p.last_active)}</span></>}
                     </div>
                   </div>

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState, type JSX } from 'react';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 import { api } from '../api.js';
-import { t } from '../i18n.js';
 import InfoTip from '../InfoTip.tsx';
 import { fmtMoney, pluralize } from '../format.ts';
 import { CATEGORICAL_COLORS } from '../colors.js';
@@ -58,10 +57,10 @@ function SessionIdChip({ id }: { id: string }): JSX.Element {
     setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <span className="session-id-chip" title={t('Session ID')}>
+    <span className="session-id-chip" title="Session ID">
       <span className="mono-path small">{id}</span>
       <button className={`btn tiny ${copied ? 'ok-btn' : ''}`} onClick={copy}>
-        {copied ? `✓ ${t('Copied!')}` : `⧉ ${t('Copy')}`}
+        {copied ? '✓ Copied!' : '⧉ Copy'}
       </button>
     </span>
   );
@@ -169,7 +168,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       .slice(0, 12)
       .map((m) => ({
         seq: m.seq, ts: m.ts,
-        label: m.kind === 'user' ? t('User Prompt') : (FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || t('Tool')),
+        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
     // Files touched: Edit/Write tool calls, tallied by file_path (same field
@@ -286,14 +285,14 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
   const errorPct = stats.toolResultCount > 0 ? Math.round((stats.errors / stats.toolResultCount) * 100) : 0;
   // Visible cost-mode label so the number never silently changes meaning.
-  const modeNote = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
+  const modeNote = mode === 'real' ? 'billed ~$0 under subscription' : 'list price';
 
   const compSegments = [
-    { key: 'output', label: t('output'), value: costAgg.costOutput, color: CATEGORICAL_COLORS[0] },
-    { key: 'cw5m', label: t('cache write 5m'), value: costAgg.cw5mCost, color: CATEGORICAL_COLORS[1] },
-    { key: 'cw1h', label: t('cache write 1h'), value: costAgg.cw1hCost, color: CATEGORICAL_COLORS[2] },
-    { key: 'cacheRead', label: t('cache read'), value: costAgg.cacheReadCost, color: CATEGORICAL_COLORS[3] },
-    { key: 'input', label: t('input'), value: costAgg.costInput, color: CATEGORICAL_COLORS[4] },
+    { key: 'output', label: 'output', value: costAgg.costOutput, color: CATEGORICAL_COLORS[0] },
+    { key: 'cw5m', label: 'cache write 5m', value: costAgg.cw5mCost, color: CATEGORICAL_COLORS[1] },
+    { key: 'cw1h', label: 'cache write 1h', value: costAgg.cw1hCost, color: CATEGORICAL_COLORS[2] },
+    { key: 'cacheRead', label: 'cache read', value: costAgg.cacheReadCost, color: CATEGORICAL_COLORS[3] },
+    { key: 'input', label: 'input', value: costAgg.costInput, color: CATEGORICAL_COLORS[4] },
   ].filter((s) => s.value > 0);
 
   return (
@@ -308,63 +307,63 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditing(false); }} />
             <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
             <button className="btn tiny ghost" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={() => setEditing(false)}>✕</button>
-            {session.name && <span className="muted small">{t('Leave blank to reset to default')}</span>}
+            {session.name && <span className="muted small">Leave blank to reset to default</span>}
             {nameErr && <span className="menu-err small">{nameErr}</span>}
           </>
         ) : (
           <>
             <h3 className="ov-title">▤ {sessionDisplayName(session)}</h3>
-            {live && <span className="live-dot on" title={t('This session is live')} aria-hidden="true" />}
-            <button className="btn tiny ghost" onClick={startRename}>✎ {t('Rename')}</button>
+            {live && <span className="live-dot on" title="This session is live" aria-hidden="true" />}
+            <button className="btn tiny ghost" onClick={startRename}>✎ Rename</button>
             <InfoTip def="session.rename" />
           </>
         )}
       </div>
       <div className="ov-title-row">
-        <span className="muted small">{t('Session Statistics')}{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</span>
+        <span className="muted small">Session Statistics{session.started_at ? ` — ${new Date(session.started_at).toLocaleString()}` : ''}</span>
         <SessionIdChip id={session.id} />
       </div>
 
       <div className="kpis">
-        <div className="kpi"><div className="l">{t('Cost')} <span className="lbl" title={modeNote}>· {modeNote}</span> <InfoTip def="session.cost" /></div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} {t('models')}</div></div>
-        <div className="kpi"><div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} ${t('in')} · ${fmtTokNum(costAgg.totalOut)} ${t('out')}`}>{fmtTokNum(costAgg.totalIn)} {t('in')} · {fmtTokNum(costAgg.totalOut)} {t('out')}</div></div>
-        <div className="kpi"><div className="l">{t('Agent active')} <InfoTip def="overview.agent-active" /></div>
-          <div className="v">{fmtDur(activeMs)}</div><div className="s">{t('of')} {dur} {t('total')}</div></div>
-        <div className="kpi"><div className="l">{t('Engaged')} <InfoTip def="session.engaged" /></div>
-          <div className="v">{fmtDur(engagedMs)}</div><div className="s">{t('your attention')}</div></div>
-        <div className="kpi"><div className="l">{t('Messages')} <InfoTip def="overview.messages" /></div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} {t('prompts')}</div></div>
+        <div className="kpi"><div className="l">Cost <span className="lbl" title={modeNote}>· {modeNote}</span> <InfoTip def="session.cost" /></div><div className="v">{fmtMoney(costAgg.totalCost, 0)}</div><div className="s">{costAgg.modelCount} models</div></div>
+        <div className="kpi"><div className="l">Tokens <InfoTip def="overview.tokens" /></div><div className="v">{fmtTokNum(costAgg.totalTokens)}</div><div className="s" title={`${fmtTokNum(costAgg.totalIn)} in · ${fmtTokNum(costAgg.totalOut)} out`}>{fmtTokNum(costAgg.totalIn)} in · {fmtTokNum(costAgg.totalOut)} out</div></div>
+        <div className="kpi"><div className="l">Agent active <InfoTip def="overview.agent-active" /></div>
+          <div className="v">{fmtDur(activeMs)}</div><div className="s">of {dur} total</div></div>
+        <div className="kpi"><div className="l">Engaged <InfoTip def="session.engaged" /></div>
+          <div className="v">{fmtDur(engagedMs)}</div><div className="s">your attention</div></div>
+        <div className="kpi"><div className="l">Messages <InfoTip def="overview.messages" /></div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} prompts</div></div>
         <div className={`kpi ${stats.errors > 0 ? 'warn drill' : ''}`}
           role={stats.errors > 0 ? 'button' : undefined}
           tabIndex={stats.errors > 0 ? 0 : undefined}
-          title={stats.errors > 0 ? t('View erroring tool calls in Playback') : undefined}
+          title={stats.errors > 0 ? 'View erroring tool calls in Playback' : undefined}
           onClick={stats.errors > 0 ? () => onOpenErrors?.() : undefined}
           onKeyDown={stats.errors > 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenErrors?.(); } } : undefined}>
-          <div className="l">{t('Errors')}</div><div className="v">{stats.errors}</div><div className="s">{errorPct}% {t('of results')}</div>
+          <div className="l">Errors</div><div className="v">{stats.errors}</div><div className="s">{errorPct}% of results</div>
         </div>
         {ctxPctRounded !== null && (
-          <div className="kpi"><div className="l">{t('Peak context')}</div><div className="v">{ctxPctRounded}%</div><div className="s">{fmtCtx(ctxWindow || 0)} {t('window')}</div></div>
+          <div className="kpi"><div className="l">Peak context</div><div className="v">{ctxPctRounded}%</div><div className="s">{fmtCtx(ctxWindow || 0)} window</div></div>
         )}
         {costAgg.cacheHitPct !== null && (
-          <div className="kpi"><div className="l">{t('Cache hit')}</div><div className="v">{costAgg.cacheHitPct}%</div><div className="s">{t('read / (read+in)')}</div></div>
+          <div className="kpi"><div className="l">Cache hit</div><div className="v">{costAgg.cacheHitPct}%</div><div className="s">read / (read+in)</div></div>
         )}
       </div>
 
       {onOpenContent && (
         <button type="button" className="ov-content-link" onClick={onOpenContent}>
-          {t('See what filled the context →')}
+          See what filled the context →
         </button>
       )}
 
       {ctxPct !== null && (
         <div className="card ov-block ctx-block">
           <div className="ctx-head">
-            <strong>{t('Context Window')}</strong>
+            <strong>Context Window</strong>
             <span className="muted small">{model}</span>
             <span className={`ctx-pct ${ctxLevel}`}>
               {fmtCtx(session.context_tokens || 0)} / {fmtCtx(ctxWindow || 0)} · {Math.round(ctxPct)}%
             </span>
           </div>
-          <div className="ctx-bar" title={t('Context window size at the last message (real usage from the session log)')}>
+          <div className="ctx-bar" title="Context window size at the last message (real usage from the session log)">
             <span className={`ctx-fill ${ctxLevel}`} style={{ width: `${Math.min(100, ctxPct)}%` }} />
           </div>
         </div>
@@ -372,7 +371,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 
       <div className="grid">
         <div className="card">
-          <h3>{t('Cost over session')}</h3>
+          <h3>Cost over session</h3>
           {costAgg.totalCost > 0 ? (
             <ResponsiveContainer width="100%" height={120}>
               <AreaChart data={costSeries}>
@@ -394,25 +393,25 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                     : p.label;
                   return <ChartTooltip {...p} label={label} formatValue={(v) => fmtMoney(v, 2)} />;
                 }} />
-                <Area type="stepAfter" dataKey="cumCost" name={t('Cost')} stroke={CATEGORICAL_COLORS[0]} fill={CATEGORICAL_COLORS[0]} fillOpacity={0.12} />
+                <Area type="stepAfter" dataKey="cumCost" name="Cost" stroke={CATEGORICAL_COLORS[0]} fill={CATEGORICAL_COLORS[0]} fillOpacity={0.12} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="muted small">{t('No cost data for this session.')}</div>
+            <div className="muted small">No cost data for this session.</div>
           )}
         </div>
 
         <div className="card">
-          <h3>{t('Tool mix')}</h3>
+          <h3>Tool mix</h3>
           {toolMix.length > 0 ? toolMix.slice(0, 6).map((row, i) => (
             <div className="hbar" key={row.name}><span className="n" title={FRIENDLY_CALL[row.name] ?? row.name}>{FRIENDLY_CALL[row.name] ?? row.name}</span>
               <div className="track"><div className="fill" style={{ width: `${(row.count / maxToolCount) * 100}%`, background: CATEGORICAL_COLORS[i % 5] }} /></div>
               <span className="v num">{row.count}</span></div>
-          )) : <div className="muted small">{t('No tool calls recorded.')}</div>}
+          )) : <div className="muted small">No tool calls recorded.</div>}
         </div>
 
         <div className="card">
-          <h3>{t('Cost composition')}{costAgg.totalCost > 0 ? ` · ${fmtMoney(costAgg.totalCost, 0)}` : ''}</h3>
+          <h3>Cost composition{costAgg.totalCost > 0 ? ` · ${fmtMoney(costAgg.totalCost, 0)}` : ''}</h3>
           {costAgg.totalCost > 0 ? (
             <>
               <div className="comp-bar">
@@ -425,34 +424,34 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
                   <span key={s.key}><span className="swatch" style={{ background: s.color }} />{s.label} {fmtMoney(s.value, 0)}</span>
                 ))}
               </div>
-              <h3>{t('Cache behavior')}</h3>
-              <div className="cost-row"><span>{t('read')}</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · {fmtMoney(costAgg.cacheReadCost, 2)}</b></div>
-              <div className="cost-row"><span>{t('write')} <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · {fmtMoney(costAgg.cw5mCost, 2)}</b></div>
+              <h3>Cache behavior</h3>
+              <div className="cost-row"><span>read</span><b className="num">{fmtTokNum(costAgg.totalCacheRead)} · {fmtMoney(costAgg.cacheReadCost, 2)}</b></div>
+              <div className="cost-row"><span>write <span className="ttl">5m</span></span><b className="num">{fmtTokNum(costAgg.cw5m)} · {fmtMoney(costAgg.cw5mCost, 2)}</b></div>
               {costAgg.cw1h > 0 && (
-                <div className="cost-row"><span>{t('write')} <span className="ttl">1h</span></span><b className="num">{fmtTokNum(costAgg.cw1h)} · {fmtMoney(costAgg.cw1hCost, 2)}</b></div>
+                <div className="cost-row"><span>write <span className="ttl">1h</span></span><b className="num">{fmtTokNum(costAgg.cw1h)} · {fmtMoney(costAgg.cw1hCost, 2)}</b></div>
               )}
             </>
           ) : (
-            <div className="muted small">{t('No cost data for this session.')}</div>
+            <div className="muted small">No cost data for this session.</div>
           )}
         </div>
       </div>
 
       {usageRows.length > 0 && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <h3>{t('Token usage by model')}</h3>
+          <h3>Token usage by model</h3>
           <table className="tbl">
             <thead>
               <tr>
-                <th>{t('Model')}</th>
-                <th>{t('Input')}</th>
-                <th>{t('Output')}</th>
-                <th>{t('Cache read')}</th>
-                <th title={t('5-minute TTL cache write')}>{t('Cache write 5m')}</th>
-                <th title={t('1-hour TTL cache write')}>{t('Cache write 1h')}</th>
-                <th>{t('Hit rate')} <InfoTip def="overview.cache-hit" /></th>
-                <th>{t('Msgs')} <InfoTip def="overview.messages" /></th>
-                <th>{t('Cost')}</th>
+                <th>Model</th>
+                <th>Input</th>
+                <th>Output</th>
+                <th>Cache read</th>
+                <th title="5-minute TTL cache write">Cache write 5m</th>
+                <th title="1-hour TTL cache write">Cache write 1h</th>
+                <th>Hit rate <InfoTip def="overview.cache-hit" /></th>
+                <th>Msgs <InfoTip def="overview.messages" /></th>
+                <th>Cost</th>
               </tr>
             </thead>
             <tbody>
@@ -476,7 +475,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
             </tbody>
             <tfoot>
               <tr>
-                <td>{t('Session total')}</td>
+                <td>Session total</td>
                 <td>{fmtTokNum(costAgg.totalIn)}</td>
                 <td>{fmtTokNum(costAgg.totalOut)}</td>
                 <td>{fmtTokNum(costAgg.totalCacheRead)}</td>
@@ -488,47 +487,47 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
               </tr>
             </tfoot>
           </table>
-          <div className="muted small" style={{ marginTop: 6 }}>{t('Estimated from token counts')} · {modeNote}</div>
+          <div className="muted small" style={{ marginTop: 6 }}>Estimated from token counts · {modeNote}</div>
         </div>
       )}
 
       <div className="two">
         <div className="card">
-          <h3>{t('Conversation timeline')}</h3>
+          <h3>Conversation timeline</h3>
           {stats.timeline.map((e) => (
             <div key={e.seq} className="trow">
               <span className="k num">{e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
               <span className="t" title={`${e.label}${e.preview ? ` — ${e.preview}` : ''}`}>{e.label}{e.preview ? ` — ${e.preview}` : ''}</span>
             </div>
           ))}
-          {!stats.timeline.length && <div className="muted small">{t('No tool calls recorded.')}</div>}
+          {!stats.timeline.length && <div className="muted small">No tool calls recorded.</div>}
         </div>
 
         <div className="card">
-          <h3>{t('Files touched')} · {stats.filesTouchedCount}</h3>
+          <h3>Files touched · {stats.filesTouchedCount}</h3>
           {stats.filesTouched.map((f) => (
             <div key={f.path} className="trow">
               <span className="k num">{f.count}Δ</span>
               <span className="t" title={f.path}>{f.path}</span>
             </div>
           ))}
-          {!stats.filesTouched.length && <div className="muted small">{t('No files touched.')}</div>}
+          {!stats.filesTouched.length && <div className="muted small">No files touched.</div>}
         </div>
 
         {subagents.length > 0 && (
           <div className="card">
-            <h3>{t('Subagents')} · {subagentRunTotal}
+            <h3>Subagents · {subagentRunTotal}
               <InfoTip def="session.subagents" />
             </h3>
             {subagents.map((r) => (
               <div key={r.agentType} className="trow subagent-row"
                 role="button" tabIndex={0}
-                title={t('Open the run list for this subagent type')}
+                title="Open the run list for this subagent type"
                 onClick={() => onOpenSubagent?.(r.agentType)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSubagent?.(r.agentType); } }}>
                 <span className="t" title={r.agentType}>{r.agentType}</span>
-                <span className="k num">{pluralize(r.runCount, t('run'), t('runs'))}</span>
-                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)} {t('tok')}</b>
+                <span className="k num">{pluralize(r.runCount, 'run', 'runs')}</span>
+                <b className="num">{fmtTokNum(r.inputTokens + r.outputTokens)} tok</b>
                 <span className="subagent-arrow">→</span>
               </div>
             ))}
@@ -570,22 +569,22 @@ function DeleteZone({ session, liveStatus, onDeleted }: DeleteZoneProps): JSX.El
 
   return (
     <div className="card ov-block ov-danger">
-      <div className="ov-block-head"><strong>{t('Transcript')}</strong></div>
+      <div className="ov-block-head"><strong>Transcript</strong></div>
       <div className="muted small mono-path">{session.file_path}</div>
       {live ? (
-        <div className="muted small" style={{ marginTop: 8 }}>● {t('Session is live — deletion is disabled while the transcript is being written.')}</div>
+        <div className="muted small" style={{ marginTop: 8 }}>● Session is live — deletion is disabled while the transcript is being written.</div>
       ) : confirming ? (
         <div className="ov-confirm">
-          <span className="small">{t('Delete the imported copy from Chronicle? The transcript stays on disk and can be re-imported later.')}</span>
+          <span className="small">Delete the imported copy from Chronicle? The transcript stays on disk and can be re-imported later.</span>
           <button className="btn small danger-btn" disabled={busy} onClick={run}>
-            {busy ? t('Deleting…') : t('Confirm delete')}
+            {busy ? 'Deleting…' : 'Confirm delete'}
           </button>
-          <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(false)}>{t('Cancel')}</button>
+          <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
         </div>
       ) : (
         <div className="ov-actions">
           <button className="btn small danger-btn" onClick={() => setConfirming(true)}>
-            ⌫ {t('Delete from Chronicle')}
+            ⌫ Delete from Chronicle
           </button>
         </div>
       )}

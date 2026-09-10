@@ -1,5 +1,4 @@
 import React, { useState, type JSX, type ReactNode } from 'react';
-import { t } from '../i18n.js';
 import { KIND_ICON, KIND_LABEL } from '../kinds.ts';
 import { summarizeToolInput } from './stats.js';
 import type { DisplayKind, Event } from '@shared/types.ts';
@@ -25,7 +24,7 @@ const KIND_CLS: Record<DisplayKind, string> = {
 };
 interface KindMeta { icon: string; label: string; cls: string; }
 const KIND_META: Record<string, KindMeta> = Object.fromEntries(
-  (Object.keys(KIND_CLS) as DisplayKind[]).map((k) => [k, { icon: KIND_ICON[k], label: t(KIND_LABEL[k]), cls: KIND_CLS[k] }]),
+  (Object.keys(KIND_CLS) as DisplayKind[]).map((k) => [k, { icon: KIND_ICON[k], label: KIND_LABEL[k], cls: KIND_CLS[k] }]),
 );
 
 export default function MessageRow({ m, selected, keyword, onClick }: MessageRowProps): JSX.Element {

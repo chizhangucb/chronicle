@@ -1,7 +1,6 @@
 import { type JSX } from 'react';
 import { type InsightsResult } from '../api.js';
 import { useCostMode } from '../costMode.tsx';
-import { t } from '../i18n.js';
 import InfoTip from '../InfoTip.tsx';
 
 
@@ -26,13 +25,13 @@ export function ProvenanceStrip({ insights, syncText }: {
   const sources = [...counts.entries()].map(([source, sessions]) => ({ source, sessions })).sort((a, b) => b.sessions - a.sessions);
   return (
     <div className="provenance-strip">
-      <span className="prov-label">{t('sources')}</span>
+      <span className="prov-label">sources</span>
       <span className="prov-items">
         {sources.length
           ? sources.map((s) => <span key={s.source} className="prov-item">{s.source} <b>{s.sessions}</b></span>)
-          : <span className="muted">{t('no imported sessions')}</span>}
+          : <span className="muted">no imported sessions</span>}
         <span className="prov-item">{syncText}</span>
-        <span className="prov-item">{mode === 'real' ? t('billed') : t('list price')}</span>
+        <span className="prov-item">{mode === 'real' ? 'billed' : 'list price'}</span>
         <InfoTip def="overview.provenance" />
       </span>
     </div>

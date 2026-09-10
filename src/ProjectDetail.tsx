@@ -6,7 +6,6 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { api, projectUrl, projectsUrl, type BucketedUsageCell } from './api.js';
-import { t } from './i18n.js';
 import { costOf, type ModelUsageInput, type CostMode } from './models.js';
 import { useCostMode } from './costMode.tsx';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
@@ -412,7 +411,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
         ) : (
           <>
             <h2><span className="pdot" style={{ '--project-color': projectColor } as React.CSSProperties} />{project.name}</h2>
-            <button className="btn tiny ghost" title={t('Rename project')} onClick={startRename}>✎</button>
+            <button className="btn tiny ghost" title="Rename project" onClick={startRename}>✎</button>
           </>
         )}
         <span className="muted">{project.path}</span>
@@ -429,10 +428,10 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
       {confirmUnlink && (
         <div className="inline-confirm">
-          <span className="muted small">{confirmUnlink} — {t('Unlink into its own project?')}</span>
+          <span className="muted small">{confirmUnlink} — Unlink into its own project?</span>
           <div style={{ display: 'flex', gap: 'var(--gap-2)' }}>
-            <button className="btn tiny ghost" onClick={() => setConfirmUnlink(null)}>{t('Cancel')}</button>
-            <button className="btn tiny danger-btn" onClick={() => unlink(confirmUnlink)}>⛓✕ {t('Unlink')}</button>
+            <button className="btn tiny ghost" onClick={() => setConfirmUnlink(null)}>Cancel</button>
+            <button className="btn tiny danger-btn" onClick={() => unlink(confirmUnlink)}>⛓✕ Unlink</button>
           </div>
         </div>
       )}
@@ -450,10 +449,10 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       {/* ---- 5e-4: project sub-tabs — reuses .tabs/.tab from 5e-1, not redefined ---- */}
       <div className="ctlrow">
         <div className="tabs">
-          <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>{t('Overview')}</button>
-          <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => selectTab('explore')}>{t('Explore')}</button>
-          <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>{t('Content')}</button>
-          <button type="button" className={`tab ${tab === 'sessions' ? 'on' : ''}`} onClick={() => selectTab('sessions')}>{t('Sessions')}</button>
+          <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>Overview</button>
+          <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => selectTab('explore')}>Explore</button>
+          <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>Content</button>
+          <button type="button" className={`tab ${tab === 'sessions' ? 'on' : ''}`} onClick={() => selectTab('sessions')}>Sessions</button>
         </div>
       </div>
 
@@ -462,49 +461,49 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
       {tab === 'overview' && <><div className="kpis">
         <div className="kpi">
-          <div className="l">{t('Sessions')}</div>
+          <div className="l">Sessions</div>
           <div className="v">{fmtInt(sessions.length)}</div>
-          <div className="s">{fmtInt(stats.activeDays)} {t('Active Days')}</div>
+          <div className="s">{fmtInt(stats.activeDays)} Active Days</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Cost')} <InfoTip def="projects.cost" /></div>
+          <div className="l">Cost <InfoTip def="projects.cost" /></div>
           <div className="v">{fmtMoney(stats.totalCost, 0)}</div>
-          <div className="s">{fmtInt(stats.modelCount)} {t('models')}</div>
+          <div className="s">{fmtInt(stats.modelCount)} models</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
+          <div className="l">Tokens <InfoTip def="overview.tokens" /></div>
           <div className="v">{fmtTok(stats.totalTokens)}</div>
-          <div className="s" title={`${t('Input')} ${fmtTok(stats.totalIn)} · ${t('Output')} ${fmtTok(stats.totalOut)}`}>{t('Input')} {fmtTok(stats.totalIn)} · {t('Output')} {fmtTok(stats.totalOut)}</div>
+          <div className="s" title={`Input ${fmtTok(stats.totalIn)} · Output ${fmtTok(stats.totalOut)}`}>Input {fmtTok(stats.totalIn)} · Output {fmtTok(stats.totalOut)}</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Agent Active')} <InfoTip def="overview.agent-active" /></div>
+          <div className="l">Agent Active <InfoTip def="overview.agent-active" /></div>
           <div className="v">{fmtDur(stats.activeMs)}</div>
-          <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} ${t('avg/session')}`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} {t('avg/session')}</div>
+          <div className="s" title={`${fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} avg/session`}>{fmtDur(sessions.length ? stats.activeMs / sessions.length : 0)} avg/session</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Messages')} <InfoTip def="overview.messages" /></div>
+          <div className="l">Messages <InfoTip def="overview.messages" /></div>
           <div className="v">{fmtInt(stats.messages)}</div>
-          <div className="s">{fmtInt(stats.userPrompts)} {t('prompts')}</div>
+          <div className="s">{fmtInt(stats.userPrompts)} prompts</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Tool Calls')}</div>
+          <div className="l">Tool Calls</div>
           <div className="v">{fmtInt(stats.toolCalls)}</div>
-          <div className="s">{fmtInt(sessions.length ? Math.round(stats.toolCalls / sessions.length) : 0)} {t('avg/session')}</div>
+          <div className="s">{fmtInt(sessions.length ? Math.round(stats.toolCalls / sessions.length) : 0)} avg/session</div>
         </div>
         <div className={`kpi ${stats.errors ? 'warn' : ''}`}>
-          <div className="l">{t('Errors')}</div>
+          <div className="l">Errors</div>
           <div className="v">{fmtInt(stats.errors)}</div>
-          <div className="s">{stats.errorRate.toFixed(1)}% {t('Error Rate')}</div>
+          <div className="s">{stats.errorRate.toFixed(1)}% Error Rate</div>
         </div>
         <div className="kpi">
-          <div className="l">{t('Commits')} <InfoTip def="overview.commits" /></div>
+          <div className="l">Commits <InfoTip def="overview.commits" /></div>
           <div className="v">{fmtInt(data.analytics.commits)}</div>
-          <div className="s">{t('in range')}</div>
+          <div className="s">in range</div>
         </div>
       </div>
 
       <div className="card trend-card">
-        <h3>{t('Daily cost & sessions')}</h3>
+        <h3>Daily cost &amp; sessions</h3>
         {stats.trend.length ? (
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={stats.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
@@ -525,18 +524,18 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                   `<V extends number>` prop type reflects the real runtime shape. */}
               <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} hideTotal formatValue={(v: number) => (Number.isInteger(v) ? String(v) : fmtMoney(v, 2))} />} />
               <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'var(--mono)' }} />
-              <Bar yAxisId="cost" dataKey="cost" name={t('Cost')} fill={CATEGORICAL_COLORS[0]} radius={[3, 3, 0, 0]} />
-              <Line yAxisId="sessions" type="monotone" dataKey="count" name={t('Sessions')} stroke={CATEGORICAL_COLORS[1]} strokeWidth={2} dot={false} />
+              <Bar yAxisId="cost" dataKey="cost" name="Cost" fill={CATEGORICAL_COLORS[0]} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="sessions" type="monotone" dataKey="count" name="Sessions" stroke={CATEGORICAL_COLORS[1]} strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <div className="muted small pad8">{t('No activity in this time range.')}</div>
+          <div className="muted small pad8">No activity in this time range.</div>
         )}
       </div>
 
       <div className="pd-charts">
         <div className="card">
-          <h3>{t('Source mix')}</h3>
+          <h3>Source mix</h3>
           {stats.sources.length ? (
             <div className="donut-wrap" style={{ marginTop: 10 }}>
               {/* Reflows with the card: ResponsiveContainer (fixed height, width
@@ -564,15 +563,15 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                     <span className="muted">{Math.round((n / Math.max(1, sessions.length)) * 100)}%</span>
                   </div>
                 ))}
-                <div className="muted small" style={{ marginTop: 6 }}>{t('Total')} {fmtInt(sessions.length)} {t('sessions')}</div>
+                <div className="muted small" style={{ marginTop: 6 }}>Total {fmtInt(sessions.length)} sessions</div>
               </div>
             </div>
           ) : (
-            <div className="muted small pad8">{t('No activity in this time range.')}</div>
+            <div className="muted small pad8">No activity in this time range.</div>
           )}
         </div>
         <div className="card">
-          <h3>{t('Call Ranking')}</h3>
+          <h3>Call Ranking</h3>
           <div style={{ marginTop: 10 }}>
             {stats.ranking.map(([label, n], i) => (
               <div key={label} className="hbar">
@@ -581,11 +580,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                 <span className="v num">{fmtInt(n)}</span>
               </div>
             ))}
-            {!stats.ranking.length && <div className="muted small">{t('No tool calls recorded.')}</div>}
+            {!stats.ranking.length && <div className="muted small">No tool calls recorded.</div>}
           </div>
         </div>
         <div className="card">
-          <h3>{t('Cost by model')}</h3>
+          <h3>Cost by model</h3>
           <div style={{ marginTop: 10 }}>
             {stats.costByModel.map(([model, cost], i) => (
               <div key={model} className="hbar">
@@ -594,7 +593,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                 <span className="v num">{fmtMoney(cost, 2)}</span>
               </div>
             ))}
-            {!stats.costByModel.length && <div className="muted small">{t('No cost data recorded.')}</div>}
+            {!stats.costByModel.length && <div className="muted small">No cost data recorded.</div>}
           </div>
         </div>
       </div>
@@ -602,14 +601,14 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       {/* Overview teaser: the 5 most-recent sessions + a jump to the full list
           (which lives ONLY under the Sessions tab — PROJ-06). */}
       <div className="session-head">
-        <h3 className="page-title">{t('Recent sessions')}</h3>
+        <h3 className="page-title">Recent sessions</h3>
         {liveSession && (
-          <span className="pill live-pill live clickable" title={t('Open the live session')}
+          <span className="pill live-pill live clickable" title="Open the live session"
             onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
         )}
         {sessions.length > 0 && (
           <button className="btn small ghost" style={{ marginLeft: 'auto' }} onClick={() => selectTab('sessions')}>
-            {t('View all')} {fmtInt(sessions.length)} →
+            View all {fmtInt(sessions.length)} →
           </button>
         )}
       </div>
@@ -625,13 +624,13 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             </div>
           </div>
         ))}
-        {!recent5.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
+        {!recent5.length && <div className="muted small pad8">No sessions in this time range.</div>}
       </div></>}
       {tab === 'sessions' && <>
       <div className="session-head">
-        <h3 className="page-title">{t('Sessions')}</h3>
+        <h3 className="page-title">Sessions</h3>
         {liveSession && (
-          <span className="pill live-pill live clickable" title={t('Open the live session')}
+          <span className="pill live-pill live clickable" title="Open the live session"
             onClick={() => onOpenSession(liveSession.id)}>● LIVE</span>
         )}
         <div className="filter-chips" style={{ marginLeft: 'auto' }}>
@@ -641,10 +640,10 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
                 onClick={() => setSourceFilter(sourceFilter === src ? null : src)}>{src}</button>
             ))}
           <select className="chip" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-            <option value="recent">{t('Recent')}</option>
-            <option value="cost">{t('Cost')}</option>
-            <option value="duration">{t('Duration')}</option>
-            <option value="messages">{t('Messages')}</option>
+            <option value="recent">Recent</option>
+            <option value="cost">Cost</option>
+            <option value="duration">Duration</option>
+            <option value="messages">Messages</option>
           </select>
           {sessionSelect.Bar}
         </div>
@@ -665,14 +664,14 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
               <div className="session-meta muted small">
                 {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
                 {!s.liveCandidate && s.ongoing && (
-                  <span className="pill ongoing-pill" title={t('The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh')}>◔ {t('ongoing')}</span>
+                  <span className="pill ongoing-pill" title="The source log was written to in the last 10 minutes — stats are “so far”, auto-sync keeps this fresh">◔ ongoing</span>
                 )}
                 <span className="pill src-pill">{s.source}</span>
                 <span>{fmtInt(s.message_count)} messages</span>
                 {s.context_tokens && s.context_tokens > 0 ? (
-                  <span title={t('Context window size at the last message (real usage from the session log)')}>⧉ {fmtTok(s.context_tokens)} ctx</span>
+                  <span title="Context window size at the last message (real usage from the session log)">⧉ {fmtTok(s.context_tokens)} ctx</span>
                 ) : s.char_count && s.char_count > 0 && (
-                  <span title={t('Estimated content size (~4 characters per token) — re-import for real context usage')}>⧉ ~{fmtTokens(s.char_count)} tokens</span>
+                  <span title="Estimated content size (~4 characters per token) — re-import for real context usage">⧉ ~{fmtTokens(s.char_count)} tokens</span>
                 )}
                 {s.started_at && <span>{new Date(s.started_at).toLocaleString()}</span>}
                 {s.started_at && s.ended_at && <span>{duration(s.started_at, s.ended_at)}</span>}
@@ -685,7 +684,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
             ↓ {fmtInt(sortedSessions.length - listLimit)} more sessions
           </button>
         )}
-        {!sortedSessions.length && <div className="muted small pad8">{t('No sessions in this time range.')}</div>}
+        {!sortedSessions.length && <div className="muted small pad8">No sessions in this time range.</div>}
       </div>
       </>}
       {sessionSelect.Toast}
@@ -732,14 +731,14 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
           {current
             ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
             : '◫ '}
-          {current?.name || t('Projects')} <span className="muted">▾</span>
+          {current?.name || 'Projects'} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
-          <input autoFocus className="search picker-search" placeholder={t('Search projects or sessions')}
+          <input autoFocus className="search picker-search" placeholder="Search projects or sessions"
             value={q} onChange={(e) => setQ(e.target.value)} />
-          {projects === null && <div className="muted small pad8">{t('Loading…')}</div>}
+          {projects === null && <div className="muted small pad8">Loading…</div>}
           {list.map((p) => (
             <button key={p.id} className="menu-item picker-item"
               onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
@@ -749,13 +748,13 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
                   <span className="pdot" style={{ '--project-color': itemColors.get(Number(p.id)) } as React.CSSProperties} />{p.name}
                 </span>
                 <span className="muted small">
-                  {p.session_count} {t('sessions')}
+                  {p.session_count} sessions
                   {p.last_active && ` · ${ago(p.last_active)}`}
                 </span>
               </span>
             </button>
           ))}
-          {projects && !list.length && <div className="muted small pad8">{t('No projects match.')}</div>}
+          {projects && !list.length && <div className="muted small pad8">No projects match.</div>}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -795,14 +794,14 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
       <Popover.Trigger asChild>
         <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current) : undefined}
           onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
-          ▤ {current ? title(current) : t('Select session')} <span className="muted">▾</span>
+          ▤ {current ? title(current) : 'Select session'} <span className="muted">▾</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
-          <input autoFocus className="search picker-search" placeholder={t('Search Sessions')}
+          <input autoFocus className="search picker-search" placeholder="Search Sessions"
             value={q} onChange={(e) => setQ(e.target.value)} />
-          {loading && <div className="muted small pad8">{t('Loading…')}</div>}
+          {loading && <div className="muted small pad8">Loading…</div>}
           {list.map((s) => (
             <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
               <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
@@ -812,7 +811,7 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
               </span>
             </button>
           ))}
-          {!loading && !list.length && <div className="muted small pad8">{t('No sessions match.')}</div>}
+          {!loading && !list.length && <div className="muted small pad8">No sessions match.</div>}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -821,7 +820,7 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
 
 function ago(ts: string): string {
   const d = Math.round((Date.now() - +new Date(ts)) / 86400000);
-  return d === 0 ? t('today') : d === 1 ? t('1 day ago') : `${d} ${t('days ago')}`;
+  return d === 0 ? 'today' : d === 1 ? '1 day ago' : `${d} days ago`;
 }
 
 function fmtDur(ms: number): string {

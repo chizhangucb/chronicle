@@ -1,6 +1,5 @@
 import React, { type JSX } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { t } from '../i18n.ts';
 import type { ExploreQueryParams } from '../api.ts';
 
 // PivotState mirrors ExploreQueryParams' metric/group/subgroup/topN, plus a
@@ -38,25 +37,25 @@ interface Option<T extends string | number> {
 // between the pivot chip and the rest of the page).
 export function metricOptions(): Option<PivotMetric>[] {
   return [
-    { key: 'spend', label: t('Spend ($)') },
-    { key: 'tokens', label: t('Tokens') },
-    { key: 'requests', label: t('Requests') },
-    { key: 'active', label: t('Active time') },
-    { key: 'sessions', label: t('Sessions') },
-    { key: 'errors', label: t('Errors') },
+    { key: 'spend', label: 'Spend ($)' },
+    { key: 'tokens', label: 'Tokens' },
+    { key: 'requests', label: 'Requests' },
+    { key: 'active', label: 'Active time' },
+    { key: 'sessions', label: 'Sessions' },
+    { key: 'errors', label: 'Errors' },
   ];
 }
 
 export function groupOptions(): Option<PivotGroup>[] {
   return [
-    { key: 'model', label: t('Model') },
-    { key: 'project', label: t('Project') },
-    { key: 'source', label: t('Source') },
-    { key: 'tool', label: t('Tool') },
-    { key: 'skill', label: t('Skill') },
-    { key: 'subagent', label: t('Subagent') },
-    { key: 'hour', label: t('Hour') },
-    { key: 'session', label: t('Session') },
+    { key: 'model', label: 'Model' },
+    { key: 'project', label: 'Project' },
+    { key: 'source', label: 'Source' },
+    { key: 'tool', label: 'Tool' },
+    { key: 'skill', label: 'Skill' },
+    { key: 'subagent', label: 'Subagent' },
+    { key: 'hour', label: 'Hour' },
+    { key: 'session', label: 'Session' },
   ];
 }
 
@@ -67,24 +66,23 @@ function subgroupOptions(): Option<PivotSubgroup>[] {
   // way the top-level group=session row label is) — stacking a bar by raw
   // session UUIDs would put unreadable ids in the segment legend, a DISTINCT/
   // AFFORD regression. Task 16 only asked for Session as a top-level Group.
-  return [{ key: 'none', label: t('None') }, ...groupOptions().filter((o) => o.key !== 'session')];
+  return [{ key: 'none', label: 'None' }, ...groupOptions().filter((o) => o.key !== 'session')];
 }
 
 function rollupOptions(): Option<PivotRollup>[] {
   return [
-    { key: 'total', label: t('Total') },
-    { key: 'hourly', label: t('Hourly') },
-    { key: 'daily', label: t('Daily') },
-    { key: 'weekly', label: t('Weekly') },
-    { key: 'monthly', label: t('Monthly') },
+    { key: 'total', label: 'Total' },
+    { key: 'hourly', label: 'Hourly' },
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
   ];
 }
 
 const TOPN_OPTIONS: Option<number>[] = [5, 10, 20, 50].map((n) => ({ key: n, label: String(n) }));
 
 // One pivot chip: a Radix DropdownMenu styled as `.pv` (label eyebrow +
-// current value + caret). Markup/pattern copied from App.tsx's language
-// switcher so styling matches exactly.
+// current value + caret).
 function PvChip<T extends string | number>({
   label, options, current, onSelect, disabled, disabledTitle,
 }: {
@@ -134,19 +132,19 @@ function PvChip<T extends string | number>({
 export default function PivotControls({ value, onChange }: PivotControlsProps): JSX.Element {
   return (
     <div className="pivot">
-      <PvChip label={t('Metric')} options={metricOptions()} current={value.metric}
+      <PvChip label="Metric" options={metricOptions()} current={value.metric}
         onSelect={(metric) => onChange({ ...value, metric })} />
-      <span className="pv-sep">{t('by')}</span>
-      <PvChip label={t('Group')} options={groupOptions()} current={value.group}
+      <span className="pv-sep">by</span>
+      <PvChip label="Group" options={groupOptions()} current={value.group}
         onSelect={(group) => onChange({ ...value, group })} />
-      <PvChip label={t('Subgroup')} options={subgroupOptions()} current={value.subgroup}
+      <PvChip label="Subgroup" options={subgroupOptions()} current={value.subgroup}
         onSelect={(subgroup) => onChange({ ...value, subgroup })}
-        disabled={value.rollup !== 'total'} disabledTitle={t('Not available with time rollups')} />
-      <PvChip label={t('Rollup')} options={rollupOptions()} current={value.rollup}
+        disabled={value.rollup !== 'total'} disabledTitle="Not available with time rollups" />
+      <PvChip label="Rollup" options={rollupOptions()} current={value.rollup}
         onSelect={(rollup) => onChange({ ...value, rollup })} />
-      <PvChip label={t('Top')} options={TOPN_OPTIONS} current={value.topN}
+      <PvChip label="Top" options={TOPN_OPTIONS} current={value.topN}
         onSelect={(topN) => onChange({ ...value, topN })} />
-      <span className="pv add" title={t('More filters coming soon')}>{t('+ Filter')}</span>
+      <span className="pv add" title="More filters coming soon">+ Filter</span>
     </div>
   );
 }

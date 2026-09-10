@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import { sessionDisplayName } from './ProjectDetail.jsx';
 import Modal from './Modal.tsx';
 
@@ -62,13 +61,13 @@ interface SearchData {
 function relTime(ts: string | null | undefined): string {
   if (!ts) return '';
   const s = Math.max(0, (Date.now() - Number(new Date(ts))) / 1000);
-  if (s < 60) return t('just now');
+  if (s < 60) return 'just now';
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} ${t(m === 1 ? 'minute ago' : 'minutes ago')}`;
+  if (m < 60) return `${m} ${m === 1 ? 'minute ago' : 'minutes ago'}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ${t(h === 1 ? 'hour ago' : 'hours ago')}`;
+  if (h < 24) return `${h} ${h === 1 ? 'hour ago' : 'hours ago'}`;
   const d = Math.floor(h / 24);
-  return d === 1 ? t('1 day ago') : `${d} ${t('days ago')}`;
+  return d === 1 ? '1 day ago' : `${d} days ago`;
 }
 
 function searchHighlight(text: string, q: string): React.ReactNode {
@@ -132,33 +131,33 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
   }, [active]);
 
   return (
-    <Modal onClose={onClose} className="search-modal" title={t('Search session content…')} onKeyDown={onKey}>
+    <Modal onClose={onClose} className="search-modal" title="Search session content…" onKeyDown={onKey}>
         <div className="search-input-row">
           <span className="search-mag">⌕</span>
-          <input ref={inputRef} className="search-input" placeholder={t('Search session content…')}
+          <input ref={inputRef} className="search-input" placeholder="Search session content…"
             value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn ghost tiny" onClick={onClose}>✕</button>
         </div>
         <div className="search-filters">
           <span className="search-tabs">
             {SEARCH_SCOPES.map((s) => (
-              <button key={s.key} className={`chip ${scope === s.key ? 'on' : ''}`} title={t(s.title)} onClick={() => setScope(s.key)}>
-                <span className="search-tab-icon">{s.icon}</span> {t(s.label)}
+              <button key={s.key} className={`chip ${scope === s.key ? 'on' : ''}`} title={s.title} onClick={() => setScope(s.key)}>
+                <span className="search-tab-icon">{s.icon}</span> {s.label}
               </button>
             ))}
           </span>
           <span className="search-selects">
             <select className="chip range-select" value={days} onChange={(e) => setDays(e.target.value)}>
-              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>⧖ {t(r.label)}</option>)}
+              {SEARCH_RANGES.map((r) => <option key={r.key} value={r.key}>⧖ {r.label}</option>)}
             </select>
             <select className="chip range-select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">◫ {t('All Projects')}</option>
+              <option value="">◫ All Projects</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </span>
         </div>
         <div className="search-results" ref={listRef}>
-          {data.recent && <div className="search-section muted small">{t('Recent Access')}</div>}
+          {data.recent && <div className="search-section muted small">Recent Access</div>}
           {results.map((r, i) => (
             <button key={r.id} data-idx={i} className={`search-row ${i === active ? 'active' : ''}`}
               onMouseEnter={() => setActive(i)} onClick={() => open(r)}>
@@ -172,17 +171,17 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
                 {r.snippet && <span className="search-row-snippet muted small" title={r.snippet}>{searchHighlight(r.snippet, debounced)}</span>}
               </span>
               <span className="search-row-meta muted small">
-                {r.matchCount > 0 && <span className="search-row-count">{r.matchCount} {t(r.matchCount === 1 ? 'match' : 'matches')}</span>}
+                {r.matchCount > 0 && <span className="search-row-count">{r.matchCount} {r.matchCount === 1 ? 'match' : 'matches'}</span>}
                 <span>{relTime(r.ts)}</span>
               </span>
             </button>
           ))}
           {!loading && !results.length && (
-            <div className="muted small pad8 center">{t('No results found')}</div>
+            <div className="muted small pad8 center">No results found</div>
           )}
         </div>
         <div className="search-footer muted small">
-          <span>↑ ↓ {t('Navigate')}</span><span>↵ {t('Select')}</span><span>Esc {t('Close')}</span>
+          <span>↑ ↓ Navigate</span><span>↵ Select</span><span>Esc Close</span>
         </div>
     </Modal>
   );

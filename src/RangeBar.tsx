@@ -1,5 +1,4 @@
 import React from 'react';
-import { t } from './i18n.js';
 
 // The ONE time-range vocabulary for every range toggle in the app
 // (D10, Task 17 — feedback-round). Before this, the home page at `/` range toggle
@@ -51,11 +50,11 @@ export interface RangeBarProps {
 export default function RangeBar({ value, onChange, className, style }: RangeBarProps): React.JSX.Element {
   return (
     <div className={`rangebar${className ? ` ${className}` : ''}`} style={style}
-      role="tablist" aria-label={t('Time range')} title={t('Time range')}>
+      role="tablist" aria-label="Time range" title="Time range">
       {RANGE_OPTIONS.map((opt) => (
         <button key={opt.key} type="button" role="tab" aria-selected={value === opt.key}
           className={value === opt.key ? 'on' : ''} onClick={() => onChange(opt.key)}>
-          {t(opt.label)}
+          {opt.label}
         </button>
       ))}
     </div>

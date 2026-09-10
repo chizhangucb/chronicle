@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { formatRelativeTime } from './relativeTime.js';
-import { t } from './i18n.js';
 
 const POLL_MS = 15000;
 
@@ -21,7 +20,7 @@ export interface SyncStatusText {
 // per-project "Sync Update" were the power-user escape hatches); Task 17 adds
 // a click-to-sync-now affordance in the topbar on top of that.
 export function useSyncStatus(): SyncStatusText {
-  const [state, setState] = useState<Omit<SyncStatusText, 'runNow'>>({ text: t('never synced'), running: false, failed: false });
+  const [state, setState] = useState<Omit<SyncStatusText, 'runNow'>>({ text: 'never synced', running: false, failed: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -32,11 +31,11 @@ export function useSyncStatus(): SyncStatusText {
         const failed = !s.running && s.lastResult != null && s.lastResult.ok === false;
         let text: string;
         if (s.running) {
-          text = t('syncing…');
+          text = 'syncing…';
         } else if (failed) {
-          text = `${t('sync failed')} ${formatRelativeTime(s.lastRun)}`;
+          text = `sync failed ${formatRelativeTime(s.lastRun)}`;
         } else {
-          text = `${t('synced')} ${formatRelativeTime(s.lastRun)}`;
+          text = `synced ${formatRelativeTime(s.lastRun)}`;
         }
         setState({
           text,
@@ -53,12 +52,12 @@ export function useSyncStatus(): SyncStatusText {
   }, []);
 
   function runNow() {
-    setState((s) => ({ ...s, text: t('syncing…'), running: true }));
+    setState((s) => ({ ...s, text: 'syncing…', running: true }));
     api.runAutosync().finally(() => {
       api.autosyncStatus().then((s) => {
         const failed = !s.running && s.lastResult != null && s.lastResult.ok === false;
         setState({
-          text: s.running ? t('syncing…') : failed ? `${t('sync failed')} ${formatRelativeTime(s.lastRun)}` : `${t('synced')} ${formatRelativeTime(s.lastRun)}`,
+          text: s.running ? 'syncing…' : failed ? `sync failed ${formatRelativeTime(s.lastRun)}` : `synced ${formatRelativeTime(s.lastRun)}`,
           running: s.running,
           failed,
         });

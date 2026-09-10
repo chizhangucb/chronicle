@@ -373,13 +373,24 @@ async function probePopoverClip(page, width) {
         note: `.info-bubble opened but became unmeasurable before its box could be read: ${boxError ?? 'boundingBox returned null'} (likely a live-data re-render racing the probe)`,
       };
     } else {
+      // The ruler is the page's OWN width, not the width the caller asked
+      // for. `src/InfoTip.tsx` clamps the bubble against `window.innerWidth`,
+      // so that is the only number a "did it stay inside the viewport" check
+      // can honestly measure against — the same source `probeOverflow` above
+      // already reads. The walk builds every context at `viewport: { width }`
+      // before probing, so the two agree on every real walk and no walk result
+      // moves; `width` remains the fallback if the page reports no width at
+      // all. Measuring a page against a width it is not scores a tip that sits
+      // well inside the viewport as clipped, which is a harness artifact and
+      // not a UI defect — the outcome test/e2e/walk-probes.spec.ts pins.
+      const viewportWidth = (await page.evaluate(() => window.innerWidth)) || width;
       const insideLeft = bubbleBox.x >= -0.5;
-      const insideRight = bubbleBox.x + bubbleBox.width <= width + 0.5;
+      const insideRight = bubbleBox.x + bubbleBox.width <= viewportWidth + 0.5;
       const opensDown = bubbleBox.y >= triggerBox.y + triggerBox.height - 1;
       result = {
         present: true,
         pass: insideLeft && insideRight && opensDown,
-        triggerBox, bubbleBox, insideLeft, insideRight, opensDown,
+        viewportWidth, triggerBox, bubbleBox, insideLeft, insideRight, opensDown,
       };
     }
   }

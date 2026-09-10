@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useState, type JSX } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Link } from 'wouter';
 import { getDefinition, type DefVars } from './reference/definitions.js';
-import { t } from './i18n.js';
 
 export interface InfoTipProps {
   /**
@@ -72,7 +71,7 @@ export default function InfoTip({ def, vars, text }: InfoTipProps): JSX.Element 
   // should ever be shown.
   const definition = def ? getDefinition(def) : undefined;
   const body = definition
-    ? [t(definition.plain({ vars })), definition.good ? `${t('Good looks like')}: ${t(definition.good({ vars }))}` : null]
+    ? [definition.plain({ vars }), definition.good ? `Good looks like: ${definition.good({ vars })}` : null]
         .filter(Boolean).join(' ')
     : (text ?? '');
   const [open, setOpen] = useState(false);
@@ -148,7 +147,7 @@ export default function InfoTip({ def, vars, text }: InfoTipProps): JSX.Element 
             <div className="info-bubble">
               {body}
               {definition ? (
-                <Link className="info-more" href={`/reference#def-${definition.id}`}>{t('full definition')} →</Link>
+                <Link className="info-more" href={`/reference#def-${definition.id}`}>full definition →</Link>
               ) : null}
             </div>
           </div>

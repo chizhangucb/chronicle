@@ -1,6 +1,5 @@
 import React, { useMemo, type JSX } from 'react';
 import { contentUrl, type Characteristic, type ContentResult } from './api.ts';
-import { t } from './i18n.ts';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { shakespeareMultiple } from './insights/stats.ts';
 import { pluralize } from './format.ts';
@@ -66,7 +65,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
   // "0.224…d" here — the same bug class the range/float-day-leak fix
   // already covered in ExploreTab's card title, just missed in this file's
   // composition footer (caught live by test/e2e/range-matrix.spec.ts).
-  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
+  const rangeLabel = days == null ? 'All' : days < 1 ? 'Today' : `${Math.round(days)}d`;
 
   // Composition bar widths are the share OF THE COMPOSITION LIST ITSELF (sums
   // to 100%), matching content.html's rows (74/12/7/5/2 = ~100). Task 14
@@ -111,7 +110,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
     return { rows, max, more: result.subagents.length - rows.length };
   }, [result]);
 
-  if (!result) return <div className="muted pad8">{t('Loading…')}</div>;
+  if (!result) return <div className="muted pad8">Loading…</div>;
 
   // D4: the old separate narrative-callouts card is gone — its framing now
   // lives in the top rows' `why` text, in ONE merged "What your usage says"
@@ -122,11 +121,11 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
   return (
     <>
       <div className="card">
-        <h3>{t('What your usage says')}</h3>
+        <h3>What your usage says</h3>
         {result.characteristics.map((c) => (
           <div className={`callout${c.warn ? ' warn' : ''}`} key={c.key}>
             <b>
-              {formatValue(c)} {t(c.label)}
+              {formatValue(c)} {c.label}
               {typeof c.value2 === 'number' && ` (${c.value2}%)`}
               {!c.exact && (
                 <>
@@ -134,38 +133,38 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
                   <InfoTip def="spend.token-attribution" />
                 </>
               )}
-              {' '}<InfoTip text={t(c.info)} />
+              {' '}<InfoTip text={c.info} />
             </b>
             <div className="why">
-              {t(c.why)}
+              {c.why}
               {typeof c.count === 'number' && c.count > 0 && c.countOne && c.countMany
-                && ` (${pluralize(c.count, t(c.countOne), t(c.countMany))})`}
+                && ` (${pluralize(c.count, c.countOne, c.countMany)})`}
             </div>
           </div>
         ))}
-        {!result.characteristics.length && <div className="muted small">{t('No sessions in range.')}</div>}
+        {!result.characteristics.length && <div className="muted small">No sessions in range.</div>}
       </div>
 
       <div className="card">
-        <h3>{t('Token composition · what fills the context')}</h3>
+        <h3>Token composition · what fills the context</h3>
         {compositionRows.map((c) => {
           const share = compositionTotal ? (c.tokens / compositionTotal) * 100 : 0;
           return (
             <div className="rank" key={c.key}>
-              <span className="n" title={t(COMPOSITION_LABELS[c.key] ?? c.key)}>{t(COMPOSITION_LABELS[c.key] ?? c.key)}</span>
+              <span className="n" title={COMPOSITION_LABELS[c.key] ?? c.key}>{COMPOSITION_LABELS[c.key] ?? c.key}</span>
               <div className="track"><i style={{ width: `${share}%`, background: compositionColor(c.key) }} /></div>
               <span className="v">{fmtTok(c.tokens)}</span>
               <span className="p">{share.toFixed(1)}%</span>
             </div>
           );
         })}
-        <div className="note">{t('Shares from message text length, scaled to billed totals. Everything computed locally.')}</div>
+        <div className="note">Shares from message text length, scaled to billed totals. Everything computed locally.</div>
       </div>
 
       <div className="grid3">
         <div className="card">
           <h3>
-            {t('Tool results by tool')}
+            Tool results by tool
             {result.calibrated && (
               <>
                 {' ≈'}
@@ -185,11 +184,11 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               </div>
             );
           })}
-          {!toolResultsTop.rows.length && <div className="muted small">{t('No sessions in range.')}</div>}
+          {!toolResultsTop.rows.length && <div className="muted small">No sessions in range.</div>}
         </div>
         <div className="card">
           <h3>
-            {t('Skills')}
+            Skills
             {result.calibrated && (
               <>
                 {' ≈'}
@@ -204,12 +203,12 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               <span className="v">×{s.count}</span>
             </div>
           ))}
-          {skillsView.more > 0 && <div className="muted small">{t('+{n} more').replace('{n}', String(skillsView.more))}</div>}
-          {!skillsView.rows.length && <div className="muted small">{t('No sessions in range.')}</div>}
+          {skillsView.more > 0 && <div className="muted small">+{skillsView.more} more</div>}
+          {!skillsView.rows.length && <div className="muted small">No sessions in range.</div>}
         </div>
         <div className="card">
           <h3>
-            {t('Subagents')}
+            Subagents
           </h3>
           {subagentsView.rows.map((s, i) => (
             <div className="rank nopct" key={s.key}>
@@ -218,16 +217,14 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               <span className="v">×{s.runs}</span>
             </div>
           ))}
-          {subagentsView.more > 0 && <div className="muted small">{t('+{n} more').replace('{n}', String(subagentsView.more))}</div>}
-          {!subagentsView.rows.length && <div className="muted small">{t('No sessions in range.')}</div>}
+          {subagentsView.more > 0 && <div className="muted small">+{subagentsView.more} more</div>}
+          {!subagentsView.rows.length && <div className="muted small">No sessions in range.</div>}
         </div>
       </div>
 
       <div className="fun">
-        {t('Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.')
-          .replace('{range}', rangeLabel)
-          .replace('{total}', result.calibratedTotalTokens.toLocaleString())
-          .replace('{n}', String(shakespeareMultiple(result.calibratedTotalTokens)))}
+        Calibrated tokens {rangeLabel}: {result.calibratedTotalTokens.toLocaleString()} — about{' '}
+        {shakespeareMultiple(result.calibratedTotalTokens)}× the complete works of Shakespeare.
       </div>
     </>
   );
