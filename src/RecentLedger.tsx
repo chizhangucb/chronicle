@@ -5,7 +5,8 @@ import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
 import InfoTip from './InfoTip.js';
 import { projectColorMap } from './colors.js';
-import { costOf, type ModelUsageInput, type CostMode } from './models.js';
+import { costOf, type CostMode } from './models.js';
+import { parseUsage } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
 import { fmtDur } from './session/stats.js';
@@ -29,14 +30,10 @@ const RECENT_PAGE = 50;
 // Prices at the session's own ts day when known — same documented
 // single-day-per-session boundary as ProjectDetail.tsx's sessionCost.
 function rowCost(s: SearchResultItem, mode: CostMode = 'theoretical'): number | null {
-  if (!s.usage) return null;
-  try {
-    const usage = JSON.parse(s.usage) as Record<string, ModelUsageInput> | null;
-    if (!usage) return null;
-    const day = s.ts ? dayKeyOf(new Date(s.ts)) : undefined;
-    const costs = Object.entries(usage).map(([m, u]) => costOf(m, u, day, mode)).filter((c): c is number => c != null);
-    return costs.length ? costs.reduce((a, b) => a + b, 0) : null;
-  } catch { return null; }
+  const usage = parseUsage(s.usage);
+  const day = s.ts ? dayKeyOf(new Date(s.ts)) : undefined;
+  const costs = Object.entries(usage).map(([m, u]) => costOf(m, u, day, mode)).filter((c): c is number => c != null);
+  return costs.length ? costs.reduce((a, b) => a + b, 0) : null;
 }
 
 function costLabel(s: SearchResultItem, mode: CostMode): string {
