@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { agentActiveMs, engagedMs } from './durations.ts';
+import { agentActiveMs, engagedMs } from '../shared/durations.ts';
 import { isMinorSession } from './noiseGate.ts';
 import { isErrorHead } from '../shared/errors.ts';
 import { invalidateCache } from './cache.ts';

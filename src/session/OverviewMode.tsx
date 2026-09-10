@@ -10,9 +10,12 @@ import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
-  FRIENDLY_CALL, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
-  fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput, subagentRuns, subagentRunCount,
+  FRIENDLY_CALL, isErrorResult, toolMixSorted, cumulativeCostSeries,
+  fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
+// The one agent-active / engaged computation, the same one the server runs at
+// import — a live session and a stored session must report the same numbers.
+import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
 import type { PlaybackMessage } from './MessageRow.tsx';
 import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
 import type { ModelUsage } from '@shared/types.ts';
@@ -194,10 +197,10 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const dur = durationMs === null ? '—' : fmtDur(durationMs);
   // Stored at import since v0.2 (sidechains included); client fallback for
   // older imports and live-only sessions.
-  const fallbackActiveMs = useMemo(() => activeDurationMs(data.messages), [data.messages]);
-  const fallbackEngagedMs = useMemo(() => engagedDurationMs(data.messages), [data.messages]);
+  const fallbackActiveMs = useMemo(() => agentActiveMs(data.messages), [data.messages]);
+  const fallbackEngagedMs = useMemo(() => engagedMs(data.messages), [data.messages]);
   const activeMs = session.agent_active_ms ?? fallbackActiveMs;
-  const engagedMs = session.engaged_ms ?? fallbackEngagedMs;
+  const engagedTimeMs = session.engaged_ms ?? fallbackEngagedMs;
 
   // Context-window usage bar: real usage vs the model's window (static table).
   const model = useMemo(() => {
@@ -330,7 +333,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="kpi"><div className="l">Agent active <InfoTip def="overview.agent-active" /></div>
           <div className="v">{fmtDur(activeMs)}</div><div className="s">of {dur} total</div></div>
         <div className="kpi"><div className="l">Engaged <InfoTip def="session.engaged" /></div>
-          <div className="v">{fmtDur(engagedMs)}</div><div className="s">your attention</div></div>
+          <div className="v">{fmtDur(engagedTimeMs)}</div><div className="s">your attention</div></div>
         <div className="kpi"><div className="l">Messages <InfoTip def="overview.messages" /></div><div className="v">{messages.length}</div><div className="s">{stats.promptCount} prompts</div></div>
         <div className={`kpi ${stats.errors > 0 ? 'warn drill' : ''}`}
           role={stats.errors > 0 ? 'button' : undefined}

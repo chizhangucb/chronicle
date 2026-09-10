@@ -6,7 +6,8 @@
 // `Message.kind: string` at call sites, so this local `StatMessage` mirrors
 // @shared's `Event` fields but keeps `kind` as `string` (a `Kind` value is
 // still assignable to it, since `Kind` is a subtype of `string`) — the honest
-// common shape both callers satisfy.
+// common shape both callers satisfy. shared/durations.ts's `TimedMessage` is
+// the same shape narrowed to the four fields the duration math reads.
 // stats.ts is executed directly by node (unit tests import it as `.ts`, and
 // node's strip-only loader takes import specifiers literally — it does NOT
 // rewrite `.js` → `.ts` the way Vite's bundler resolution does). So unlike the
@@ -14,7 +15,6 @@
 // which only ever run through Vite/tsc and use `../models.js`), this import
 // must point at the real `.ts` file.
 import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
-import { SYNTHETIC_USER_RE, isSyntheticUserText } from '../../shared/synthetic.ts';
 import { isErrorHead } from '../../shared/errors.ts';
 export interface StatMessage {
   kind: string;
@@ -163,43 +163,6 @@ function fmtDur(ms: number | null | undefined): string {
   return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
 }
 
-// SYNTHETIC_USER_RE is defined once in shared/synthetic.ts and reused here (the
-// client-side active-time fallback) + by the server parsers/duration math, so
-// the "not a human turn" rule can never drift between them. Background-task
-// completions, system reminders, command wrappers, interrupt markers, and
-// cross-session IPC messages all carry role=user; the pause before one is NOT
-// the human thinking, so it must not be subtracted from active time.
-function isHumanPrompt(m: StatMessage): boolean {
-  return m.kind === 'user' && !isSyntheticUserText(m.text);
-}
-
-// Client-side fallback for sessions imported before v0.2 (which stored
-// agent_active_ms / engaged_ms at import — server/durations.js is the canonical
-// implementation; keep the rules in sync). Agent Active: exclude gaps into a
-// genuine human prompt; count tool_result gaps (matched to a prior tool_use) in
-// FULL; cap every other gap at 10 minutes. Engaged: every gap, 90-minute cap.
-function activeDurationMs(messages: StatMessage[]): number {
-  const seq = messages
-    .filter((m) => m.ts)
-    .map((m) => ({ m, t: new Date(m.ts as string).getTime() }))
-    .filter((r) => Number.isFinite(r.t))
-    .sort((a, b) => a.t - b.t);
-  const seenToolUse = new Set<string>();
-  let sum = 0;
-  for (let i = 0; i < seq.length; i++) {
-    const { m } = seq[i];
-    if (i > 0) {
-      const g = seq[i].t - seq[i - 1].t;
-      if (g > 0 && !isHumanPrompt(m)) {
-        const matchedResult = m.kind === 'tool_result' && !!m.tool_use_id && seenToolUse.has(m.tool_use_id);
-        sum += matchedResult ? g : Math.min(g, 10 * 60 * 1000);
-      }
-    }
-    if (m.kind === 'tool_use' && m.tool_use_id) seenToolUse.add(m.tool_use_id);
-  }
-  return sum;
-}
-
 export interface SubagentTypeGroup {
   agentType: string;
   // Distinct RUNS (agent_id) of this type — what the D3 drill-in row shows
@@ -315,17 +278,6 @@ function subagentRunCount(messages: StatMessage[]): number {
   return ids.size > 0 ? ids.size : subagentRuns(messages).length;
 }
 
-function engagedDurationMs(messages: StatMessage[]): number {
-  const ts = messages.map((m) => (m.ts ? new Date(m.ts).getTime() : NaN))
-    .filter(Number.isFinite).sort((a, b) => a - b);
-  let sum = 0;
-  for (let i = 1; i < ts.length; i++) {
-    const g = ts[i] - ts[i - 1];
-    if (g > 0) sum += Math.min(g, 90 * 60 * 1000);
-  }
-  return sum;
-}
-
 export {
   summarizeToolInput,
   FRIENDLY_CALL,
@@ -336,10 +288,6 @@ export {
   fmtCtx,
   fmtTokNum,
   fmtDur,
-  SYNTHETIC_USER_RE,
-  isHumanPrompt,
-  activeDurationMs,
-  engagedDurationMs,
   subagentRuns,
   subagentRunCount,
   subagentRunList,
