@@ -23,11 +23,23 @@ process.env.CHRONICLE_DATA_DIR = data;
 
 let server, baseUrl;
 
+// A session that really exists in the temp database. The causality pin below
+// asks for it BY THIS ID so the 404 can only mean "route unmounted": a stubbed
+// or re-added route that 404s unknown sessions (the shape every other
+// `/sessions/:id/...` route uses) would still answer for a seeded one.
+const SEEDED_SESSION = 'removed-routes-session-1';
+
 before(async () => {
   // Dynamic, and after CHRONICLE_DATA_DIR is set above: the sessions router
   // pulls server/db.ts, which opens <dir>/chronicle.db at import time.
   const { mountSettings } = await import('../server/routes/settings.ts');
   const { mountSessions } = await import('../server/routes/sessions.ts');
+  const { db, upsertProject } = await import('../server/db.ts');
+  const project = upsertProject('/proj');
+  db.prepare(
+    `INSERT INTO sessions (id, project_id, source, file_path, message_count)
+     VALUES (?, ?, 'claude-code', '/proj/session.jsonl', 0)`,
+  ).run(SEEDED_SESSION, project.id);
   const app = express();
   app.use(express.json());
   mountSettings(app);
@@ -70,7 +82,7 @@ const GONE = [
   // Context causality (#298): the heuristic read-to-change read is gone, so
   // the sessions router must not answer for it. Its neighbours on the same
   // router are asserted below, so an unmounted sessions router cannot pass.
-  ['GET', '/sessions/any-session/causality'],
+  ['GET', `/sessions/${SEEDED_SESSION}/causality`],
 ];
 
 test('every removed route is unmounted (404)', async () => {

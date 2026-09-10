@@ -262,9 +262,12 @@ const WORD_EXEMPT = new Map([
 
 // The glossary's `_Avoid_:` lines are the one place a retired word or phrase is
 // supposed to appear: CONTEXT.md cannot say which one lost without naming it.
-// Same principle as VOCAB_EXEMPT above, scoped to the line rather than the file,
-// so every other line of the glossary is swept normally.
-const stripAvoidLine = (line) => (/^_Avoid_:/.test(line.trim()) ? '' : line);
+// Same principle as VOCAB_EXEMPT above, scoped to the ONE file AND to the line
+// inside it, so every other line of the glossary is swept normally and no other
+// file can hide a retired word behind an `_Avoid_:` prefix.
+const GLOSSARY = 'CONTEXT.md';
+const stripAvoidLine = (rel, line) =>
+  (rel === GLOSSARY && /^_Avoid_:/.test(line.trim()) ? '' : line);
 
 for (const { word, re } of RETIRED_WORDS) {
   test(`no tracked file outside the CHANGELOG names "${word}"`, () => {
@@ -272,7 +275,7 @@ for (const { word, re } of RETIRED_WORDS) {
     const offenders = sweep(
       (rel, src) =>
         src.split('\n').flatMap((line, i) =>
-          re.test(stripAvoidLine(stripSchemaLiterals(line)))
+          re.test(stripAvoidLine(rel, stripSchemaLiterals(line)))
             ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
             : [],
         ),
@@ -286,7 +289,7 @@ for (const { phrase, re } of RETIRED_PHRASES) {
   test(`no tracked file outside the CHANGELOG says "${phrase}"`, () => {
     const offenders = sweep((rel, src) =>
       src.split('\n').flatMap((line, i) =>
-        re.test(stripAvoidLine(stripSchemaLiterals(line)))
+        re.test(stripAvoidLine(rel, stripSchemaLiterals(line)))
           ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
           : [],
       ),
