@@ -93,7 +93,8 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
-      # The strongest model the subscription serves (see docs/pipeline.md#audit).
+      # The strongest model the subscription serves (software-factory's docs/pipeline.md#audit;
+      # verified on account 1 only, so a rotation onto another account is unverified).
       audit_model: claude-fable-5-1
   update-branch:
     if: >-
