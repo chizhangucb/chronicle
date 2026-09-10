@@ -193,11 +193,15 @@ test('CI declares a gitleaks job, pinned by version and checksum', () => {
 //   - the removal pins themselves (this file, the vocabulary registry it reads,
 //     and the suites that assert a retired route, CLI subcommand or env knob is
 //     gone): a pin cannot forbid a word without spelling it.
+//   - docs/agents/design-audit-2026-09-04.md: a dated audit record. Like the
+//     CHANGELOG it names what was, and the specs cut from its findings cite it
+//     by finding number, so a finding cannot be edited out of it.
 //   - package-lock.json: generated, and its base64 integrity hashes contain
 //     arbitrary letter runs.
 //   - binary files: read as utf8 they are noise, and none carries prose.
 const VOCAB_EXEMPT = new Set([
   'CHANGELOG.md',
+  'docs/agents/design-audit-2026-09-04.md',
   'package-lock.json',
   'test/repo-shape.test.mjs',
   'test/helpers/retired-vocabulary.mjs',

@@ -4,7 +4,7 @@
 //
 // One shared temp DB for the whole file (module caching means a second
 // withTempDb() call in the same file would NOT rebind to a fresh dir — see
-// test/helpers.mjs and test/causality.test.mjs for the same pattern), so
+// test/helpers.mjs and test/insights.test.mjs for the same pattern), so
 // each test below uses its own session/project ids to stay independent.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

@@ -17,7 +17,6 @@ attribution is Claude Code-specific, and remote access is not built yet.
 | Message filtering | ✅ | ✅ | ✅ | ✅ |
 | Content redaction | ✅ | ✅ | ✅ | ✅ |
 | Tool call viewing | ✅ | ✅ | ✅ | ✅ |
-| Context Causality | ✅ | ✅ | ✅ | ✅ |
 | Git history matching | ✅ | ✅ | ✅ | ✅ |
 | Live streaming | ✅ | ✅ | ✅ | ✅ |
 | Auto-sync | ✅ | ✅ | ✅ | ✅ |

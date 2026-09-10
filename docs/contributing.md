@@ -64,7 +64,7 @@ plain JS (`dist-server/`) so the published npm package doesn't require Node to s
 - **Plain React + one `styles.css`.** There is no UI framework and no chart library beyond
   Recharts wrapped in `src/charts/ChartWrapper.tsx` for the newer views — match the existing
   style rather than introducing a new one.
-- **Everything heavy is heuristic and local.** Causality, redaction, cost accounting, and
+- **Everything heavy is heuristic and local.** Redaction, cost accounting, and
   Insights aggregation run entirely on-device with no LLM calls. Preserve that offline
   guarantee — never add a network dependency to a core feature.
 - **Read-only on foreign systems.** SQLite sources are copied to a temp location (including
@@ -97,7 +97,7 @@ checkout is still on that branch — switch back to `main`.
 There is no full end-to-end test runner wired up beyond `npm test` (parser unit tests against
 fixtures in `test/fixtures/`). Beyond that, features are verified end-to-end against real
 data. The fastest end-to-end check is to **import Chronicle's own Claude Code session and click
-around** — time-travel, causality, and Insights all work on Chronicle's own construction
+around** — time-travel, playback, and Insights all work on Chronicle's own construction
 history.
 
 When you add a new source tool, follow the walkthrough in

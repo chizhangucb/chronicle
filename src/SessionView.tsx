@@ -6,7 +6,7 @@ import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
 import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
-import { type PlaybackMessage, type MessageCausality } from './session/MessageRow.tsx';
+import { type PlaybackMessage } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
 import { errorDrillIn, subagentRunList, fmtTokNum, fmtDur } from './session/stats.ts';
@@ -16,10 +16,10 @@ import type { ProjectDetail, ProjectSessionSummary } from './api.js';
 import type { DeletedEntry } from './SessionSelect.tsx';
 
 // ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
-// Duplicated from server/db.ts + server/git.ts + server/causality.ts rather than
-// imported: tsconfig.client.json's program only includes src/**  + shared/**, so
-// it cannot see server/**. See the task report for the suggested shared-type
-// addition (a client-usable Session/Project/CausalityResult contract).
+// Duplicated from server/db.ts + server/git.ts rather than imported:
+// tsconfig.client.json's program only includes src/**  + shared/**, so it
+// cannot see server/**. See the task report for the suggested shared-type
+// addition (a client-usable Session/Project contract).
 
 // Full `sessions` row shape (mirrors server/db.ts SessionRow). `source` is a
 // plain `string` (not the narrower `SourceId` union) to match the canonical
@@ -62,20 +62,6 @@ export interface RepoInfo {
   isRepo: boolean;
   commitCount?: number;
   branch?: string | null;
-}
-
-// Mirrors server/causality.ts's (unexported) ChangeRecord/CausalityResult.
-export interface CausalityChange {
-  seq: number;
-  ts: string | null;
-  file: string;
-  tool: string | null;
-  sources: MessageCausality['sources'];
-}
-export interface CausalityData {
-  changes: CausalityChange[];
-  readCount: number;
-  mentioned: Record<number, (string | null)[]>;
 }
 
 export interface SessionData {
@@ -176,7 +162,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const [subagentType, setSubagentType] = useState<string | null>(null);
   const [subagentRunId, setSubagentRunId] = useState<string | null>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
-  const [causality, setCausality] = useState<CausalityData | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>('off');
   const [newCount, setNewCount] = useState(0);
   const [syncingSession, setSyncingSession] = useState(false);
@@ -205,12 +190,6 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       const firstUser = d.messages.find((m) => m.kind === 'user');
       setSelectedSeq(firstUser ? firstUser.seq : d.messages[0]?.seq ?? null);
     }).catch((e: Error) => setError(String(e.message)));
-  }, [sessionId]);
-
-  // FR-CC: background causality analysis (local heuristic, no LLM)
-  useEffect(() => {
-    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/causality`)
-      .then((r) => r.json()).then(setCausality).catch(() => {});
   }, [sessionId]);
 
   // FR-LS-2: auto-activate live watching when the session file was recently written
@@ -467,7 +446,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
                 setNewCount(0);
               }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
             )}
-            messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
+            messages={visible} selectedSeq={selectedSeq} keyword={debounced}
             onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
           <div className="pane-handle" role="separator" aria-orientation="vertical"
             aria-label={t('Resize chat / code panels')} tabIndex={0} title={t('Drag to resize · double-click to reset')}
@@ -553,7 +532,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         </div>
         <div className="panes">
           <WindowedConvPane className="subagent-conv" messages={subagentMessages} selectedSeq={selectedSeq}
-            keyword="" causality={causality} onSelect={selectMessage}
+            keyword="" onSelect={selectMessage}
             emptyText={t('No messages match the current filter.')} />
         </div>
       </>}

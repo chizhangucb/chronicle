@@ -3,17 +3,17 @@
 What Chronicle stores, where it stores it, and the exact outbound network calls it makes.
 
 Chronicle is local-first by design, not by configuration. Parsing, storage, viewing,
-time-travel, causality analysis, and redaction all happen on-device, and there is no cloud
+time-travel, and redaction all happen on-device, and there is no cloud
 backend to opt out of. This page is the honest accounting: the guarantees, what actually
 leaves your machine, and where your data physically lives.
 
 ## The local-first guarantee
 
 - **All work happens on-device.** Importing, parsing, storing, searching, time-travel,
-  causality analysis, redaction, and computing Insights run entirely on your machine.
-- **No model call in the analysis path.** Everything that could look like AI — causality
-  confidence tiers, secret redaction, cost computation, Insights aggregation — is a local
-  heuristic or a static table. No number on a dashboard is ever produced by a model.
+  redaction, and computing Insights run entirely on your machine.
+- **No model call in the analysis path.** Everything that could look like AI — secret
+  redaction, cost computation, Insights aggregation — is a local heuristic or a static
+  table. No number on a dashboard is ever produced by a model.
 - **Ask is opt-in and runs on your own subscription.** The one feature that uses a model is
   Ask, and it is off until you turn it on in Settings. When it is on, each question you type
   spawns `claude -p` on your machine, signed in as you, billed to the Claude subscription you
