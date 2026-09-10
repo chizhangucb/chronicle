@@ -23,21 +23,14 @@
 // the query) and its binds. This module never imports scope.ts, so it stays testable
 // standalone with a bare in-memory-style temp DB.
 import type { DatabaseSync } from 'node:sqlite';
-
-export interface UsageCells {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite5m: number;
-  cacheWrite1h: number;
-}
+import { parseUsage, type UsageCell } from '../shared/usage.ts';
 
 export interface RangeUsageCell {
   sessionId: string;
   projectId: number;
   model: string;
   source: string;
-  cells: UsageCells;
+  cells: UsageCell;
 }
 
 export type UsageBucket = 'hour' | 'day';
@@ -56,41 +49,7 @@ export function overlapGate(alias: string): string {
   return `COALESCE(${alias}.ended_at, ${alias}.started_at, '9') >= ?`;
 }
 
-// ---- sessions.usage parsing ----
-// Mirrors server/explore.ts's parseUsageCells, but keyed by the long field names this
-// module's callers (and its RangeUsageCell contract) use.
-interface RawUsageCell {
-  input?: number;
-  output?: number;
-  cacheRead?: number;
-  cacheWrite5m?: number;
-  cacheWrite1h?: number;
-  cacheWrite?: number; // legacy pre-TTL-split shape, billed at the 5m rate
-}
-
-function parseUsage(usage: string | null): Record<string, UsageCells> {
-  if (!usage) return {};
-  let parsed: Record<string, RawUsageCell>;
-  try {
-    parsed = JSON.parse(usage) as Record<string, RawUsageCell>;
-  } catch {
-    return {};
-  }
-  const out: Record<string, UsageCells> = {};
-  for (const [model, u] of Object.entries(parsed)) {
-    if (!u || typeof u !== 'object') continue;
-    out[model] = {
-      input: u.input ?? 0,
-      output: u.output ?? 0,
-      cacheRead: u.cacheRead ?? 0,
-      cacheWrite5m: u.cacheWrite5m ?? u.cacheWrite ?? 0,
-      cacheWrite1h: u.cacheWrite1h ?? 0,
-    };
-  }
-  return out;
-}
-
-function scaleCell(cell: UsageCells, ratio: number): UsageCells {
+function scaleCell(cell: UsageCell, ratio: number): UsageCell {
   return {
     input: Math.round(cell.input * ratio),
     output: Math.round(cell.output * ratio),

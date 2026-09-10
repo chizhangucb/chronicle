@@ -18,7 +18,7 @@ import {
 import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
 import type { PlaybackMessage } from './MessageRow.tsx';
 import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
-import type { ModelUsage } from '@shared/types.ts';
+import { parseUsage, type UsageByModel, type UsageCell } from '../../shared/usage.ts';
 import type { DeletedEntry } from '../SessionSelect.tsx';
 
 // Cost & Usage math lives in ../models.js (still untyped JS — see the task
@@ -92,7 +92,7 @@ interface OverviewStats {
 
 interface UsageRow {
   model: string;
-  u: ModelUsage;
+  u: UsageCell;
   cost: number | null;
   breakdown: CostBreakdown | null;
   cw: CacheWriteByTtl;
@@ -217,9 +217,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   // Cost & Usage: per-model token totals from the parser + list-price cost estimate.
   // `usageByModel` is the single parsed source both the per-model rows AND the
   // cost-over-session series (which needs it keyed by model) are built from.
-  const usageByModel = useMemo<Record<string, ModelUsage>>(() => {
-    try { return session.usage ? JSON.parse(session.usage) : {}; } catch { return {}; }
-  }, [session.usage]);
+  const usageByModel = useMemo<UsageByModel>(() => parseUsage(session.usage), [session.usage]);
   // Prices at the session's own start day when known — same
   // documented single-day-per-session boundary as ProjectDetail.tsx's
   // sessionCost (this aggregate has no sub-session date to split further

@@ -1,6 +1,7 @@
 import React, { useMemo, type JSX } from 'react';
 import { currentStreak, longestStreak, activeDaysCount, peakHour, shakespeareMultiple } from './stats.ts';
 import type { InsightsResult } from '../api.ts';
+import { parseUsage } from '../../shared/usage.ts';
 
 export interface WorkingRhythmProps {
   result: InsightsResult;
@@ -52,11 +53,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
   const totalTokens = useMemo(() => {
     let sum = 0;
     for (const s of result.sessions) {
-      if (!s.usage) continue;
-      try {
-        const usage = JSON.parse(s.usage) as Record<string, { input?: number; output?: number }>;
-        for (const u of Object.values(usage)) sum += (u.input || 0) + (u.output || 0);
-      } catch { /* malformed usage JSON — skip */ }
+      for (const u of Object.values(parseUsage(s.usage))) sum += u.input + u.output;
     }
     return sum;
   }, [result.sessions]);

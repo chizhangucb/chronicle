@@ -8,7 +8,8 @@
 import { db } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { rangedUsage, bucketedUsage, type UsageCells } from './rangeUsage.ts';
+import { rangedUsage, bucketedUsage } from './rangeUsage.ts';
+import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
@@ -35,10 +36,9 @@ export interface ExploreQuery {
   metric: ExploreMetric; group: ExploreGroup; subgroup?: ExploreGroup;
   rollup: ExploreRollup; topN: number;
 }
-export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
 export interface ExploreRow {
   key: string; label: string;
-  tokensByModel: Record<string, ModelUsageCell>;
+  tokensByModel: Record<string, UsageCell>;
   // Day-bucketed (LOCAL calendar day, YYYY-MM-DD) breakdown of tokensByModel —
   // Day bucket: lets the client price Spend per day-bucket at that day's rate
   // (e.g. Sonnet 5's intro window) instead of one flat rate for the whole
@@ -47,7 +47,7 @@ export interface ExploreRow {
   // day reproduce tokensByModel's flat total exactly. Calibrated groups
   // (tool/skill) and per-message groups (hour/subagent) omit it — their
   // magnitude is already an approximation, priced at the latest/current rate.
-  tokensByModelByDay?: Record<string, Record<string, ModelUsageCell>>;
+  tokensByModelByDay?: Record<string, Record<string, UsageCell>>;
   requests: number; sessions: number; errors: number; activeMs: number;
   segments: { key: string; label: string; tokens: number }[];
   // Only set on the synthetic key==='Other' row: how many non-topN group
@@ -62,7 +62,7 @@ export interface ExploreRow {
 // rest stay zero. The client reuses its per-row metricValue/rowSpend/rowTokens
 // on this same shape, so a cell projects to exactly one meaningful number.
 export interface ExploreCell {
-  tokensByModel: Record<string, ModelUsageCell>;
+  tokensByModel: Record<string, UsageCell>;
   requests: number; sessions: number; errors: number; activeMs: number;
 }
 // One time bucket. `bucket` is the raw sortable key (ISO-ish); `label` is the
@@ -155,28 +155,9 @@ const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'sessi
 // group=session's display label (see the session-label step below) without a
 // second sessions×projects query.
 interface SessionUsageParsed {
-  id: string; project: string; source: string; models: Record<string, ModelUsageCell>;
+  id: string; project: string; source: string; models: Record<string, UsageCell>;
   name: string | null; summary: string | null; first_prompt: string | null;
 }
-// The raw JSON shape stored in sessions.usage (field names are
-// cacheWrite5m/cacheWrite1h/cacheRead; legacy `cacheWrite` = a 5m write).
-interface RawUsageCell { input?: number; output?: number; cacheRead?: number; cacheWrite5m?: number; cacheWrite1h?: number; cacheWrite?: number; }
-
-function parseUsageCells(usage: string | null): Record<string, ModelUsageCell> {
-  if (!usage) return {};
-  let parsed: Record<string, RawUsageCell>;
-  try { parsed = JSON.parse(usage) as Record<string, RawUsageCell>; } catch { return {}; }
-  const out: Record<string, ModelUsageCell> = {};
-  for (const [model, u] of Object.entries(parsed)) {
-    if (!u || typeof u !== 'object') continue;
-    out[model] = {
-      input: u.input ?? 0, output: u.output ?? 0, cacheRead: u.cacheRead ?? 0,
-      cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0,
-    };
-  }
-  return out;
-}
-
 // Loads in-scope sessions' metadata (name/summary/first_prompt for label resolution) +
 // raw usage, honoring the SAME scope, minor gate and session range the message
 // queries use (so its session set matches rangedUsage's — a session
@@ -192,23 +173,9 @@ function loadSessionUsage(q: QueryContext): SessionUsageParsed[] {
     WHERE ${w.sql}
   `).all(...w.params) as unknown as { id: string; project: string; source: string; usage: string|null; name: string|null; summary: string|null; first_prompt: string|null }[];
   return rows.map((r) => ({
-    id: r.id, project: r.project, source: r.source, models: parseUsageCells(r.usage),
+    id: r.id, project: r.project, source: r.source, models: parseUsage(r.usage),
     name: r.name, summary: r.summary, first_prompt: r.first_prompt,
   }));
-}
-
-// Maps rangeUsage.ts's UsageCells (cacheWrite5m/cacheWrite1h field names) onto this
-// file's own ModelUsageCell shape (cw5m/cw1h) — same values, different field names (the
-// Task 1 review's carried "consolidate parseUsage" pointer stayed deferred rather than
-// unifying the two shapes; this is the small adapter instead).
-function toModelUsageCell(c: UsageCells): ModelUsageCell {
-  return { input: c.input, output: c.output, cacheRead: c.cacheRead, cw5m: c.cacheWrite5m, cw1h: c.cacheWrite1h };
-}
-
-function addCell(target: Record<string, ModelUsageCell>, model: string, cell: ModelUsageCell): void {
-  const cur = target[model] ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 };
-  cur.input += cell.input; cur.output += cell.output; cur.cacheRead += cell.cacheRead; cur.cw5m += cell.cw5m; cur.cw1h += cell.cw1h;
-  target[model] = cur;
 }
 
 // MCP server name derived from an `mcp__server__tool` tool_name, keeping the
@@ -307,12 +274,12 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   const cellRows = db.prepare(`
     SELECT ${g.col} AS gk, COALESCE(m.model,'') AS model,
            COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
-           COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cw5m,
-           COALESCE(SUM(m.cache_w1h_tokens),0) AS cw1h,
+           COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m,
+           COALESCE(SUM(m.cache_w1h_tokens),0) AS cacheWrite1h,
            COUNT(*) AS requests, COUNT(DISTINCT s.id) AS sessions
     FROM messages m ${base} ${g.where}
     GROUP BY gk, model
-  `).all(...bind()) as unknown as (ModelUsageCell & { gk: string|number; model: string; requests: number; sessions: number })[];
+  `).all(...bind()) as unknown as (UsageCell & { gk: string|number; model: string; requests: number; sessions: number })[];
 
   // Assemble rows keyed by group value.
   const rowMap = new Map<string, ExploreRow>();
@@ -320,7 +287,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     const key = String(c.gk);
     let row = rowMap.get(key);
     if (!row) { row = { key, label: key, tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0, segments: [] }; rowMap.set(key, row); }
-    if (c.model) row.tokensByModel[c.model] = { input: c.input, output: c.output, cacheRead: c.cacheRead, cw5m: c.cw5m, cw1h: c.cw1h };
+    if (c.model) row.tokensByModel[c.model] = { input: c.input, output: c.output, cacheRead: c.cacheRead, cacheWrite5m: c.cacheWrite5m, cacheWrite1h: c.cacheWrite1h };
     row.requests += c.requests;
     row.sessions = Math.max(row.sessions, c.sessions); // distinct-per-model max is an approximation; exact distinct-per-group below for accuracy
   }
@@ -403,19 +370,19 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
     const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
-    const acc = new Map<string, Record<string, ModelUsageCell>>();
-    const accByDay = new Map<string, Map<string, Record<string, ModelUsageCell>>>();
+    const acc = new Map<string, Record<string, UsageCell>>();
+    const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
     for (const c of bucketedCells) {
       const rowKey = query.group === 'model' ? c.model : query.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
         : query.group === 'session' ? c.sessionId : c.source;
       let byModel = acc.get(rowKey);
       if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
-      addCell(byModel, c.model, toModelUsageCell(c.cells));
+      addCellInto(byModel, c.model, c.cells);
       let byDay = accByDay.get(rowKey);
       if (!byDay) { byDay = new Map(); accByDay.set(rowKey, byDay); }
       let dayModel = byDay.get(c.bucket);
       if (!dayModel) { dayModel = {}; byDay.set(c.bucket, dayModel); }
-      addCell(dayModel, c.model, toModelUsageCell(c.cells));
+      addCellInto(dayModel, c.model, c.cells);
     }
     // group='session' still needs display labels (name → summary → first_prompt → id) —
     // bucketedUsage doesn't carry those fields (framework-free by design, see its header),
@@ -519,17 +486,17 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
       if (billedAll <= 0) {
         // Nothing billed in scope at all — spend 0 is acceptable; fall back
         // to the single empty-model cell rather than dividing by zero.
-        r.tokensByModel = { '': { input: T, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 } };
+        r.tokensByModel = { '': { ...emptyCell(), input: T } };
         continue;
       }
-      const tokensByModel: Record<string, ModelUsageCell> = {};
+      const tokensByModel: Record<string, UsageCell> = {};
       for (const ms of modelSplitRows) {
         const msTotal = ms.input + ms.output;
         if (msTotal <= 0) continue;
         const modelTokens = Math.round(T * (msTotal / billedAll));
         const input = Math.round(modelTokens * (ms.input / msTotal));
         const output = modelTokens - input;
-        tokensByModel[ms.model] = { input, output, cacheRead: 0, cw5m: 0, cw1h: 0 };
+        tokensByModel[ms.model] = { ...emptyCell(), input, output };
       }
       r.tokensByModel = tokensByModel;
     }
@@ -552,18 +519,10 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     for (const r of rest) {
       other.requests += r.requests; other.errors += r.errors; other.activeMs += r.activeMs;
       other.sessions += r.sessions;
-      for (const [model, u] of Object.entries(r.tokensByModel)) {
-        const cur = other.tokensByModel[model] ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 };
-        cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cw5m += u.cw5m; cur.cw1h += u.cw1h;
-        other.tokensByModel[model] = cur;
-      }
+      for (const [model, u] of Object.entries(r.tokensByModel)) addCellInto(other.tokensByModel, model, u);
       for (const [day, byModel] of Object.entries(r.tokensByModelByDay ?? {})) {
         const dayAcc = other.tokensByModelByDay![day] ?? {};
-        for (const [model, u] of Object.entries(byModel)) {
-          const cur = dayAcc[model] ?? { input: 0, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 };
-          cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cw5m += u.cw5m; cur.cw1h += u.cw1h;
-          dayAcc[model] = cur;
-        }
+        for (const [model, u] of Object.entries(byModel)) addCellInto(dayAcc, model, u);
         other.tokensByModelByDay![day] = dayAcc;
       }
     }
@@ -620,6 +579,59 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   };
 }
 
+// ---- the route's wire shape ----
+// Explore's JSON has always named the two cache-write tiers `cw5m`/`cw1h`,
+// while every other surface (and `sessions.usage` itself) names them
+// `cacheWrite5m`/`cacheWrite1h`. #301 consolidates the dialects but requires
+// every route's JSON to stay identical, so the older names survive on the wire
+// and nowhere else: the engine above computes in the one shared dialect
+// (shared/usage.ts) from parse to fold, and only the serialized answer is
+// renamed, here, in one place. Renaming the wire itself means changing what
+// /api/explore returns, which is a surface-contract question, not this
+// consolidation's.
+export interface ExploreWireCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface ExploreWireRow extends Omit<ExploreRow, 'tokensByModel' | 'tokensByModelByDay'> {
+  tokensByModel: Record<string, ExploreWireCell>;
+  tokensByModelByDay?: Record<string, Record<string, ExploreWireCell>>;
+}
+export interface ExploreWireCellSet extends Omit<ExploreCell, 'tokensByModel'> {
+  tokensByModel: Record<string, ExploreWireCell>;
+}
+export interface ExploreWireBucket extends Omit<ExploreBucket, 'series'> {
+  series: Record<string, ExploreWireCellSet>;
+}
+export interface ExploreWireResult extends Omit<ExploreResult, 'rows' | 'buckets'> {
+  rows: ExploreWireRow[];
+  buckets?: ExploreWireBucket[];
+}
+
+function wireCells(byModel: Record<string, UsageCell>): Record<string, ExploreWireCell> {
+  const out: Record<string, ExploreWireCell> = {};
+  for (const [model, c] of Object.entries(byModel)) {
+    out[model] = { input: c.input, output: c.output, cacheRead: c.cacheRead, cw5m: c.cacheWrite5m, cw1h: c.cacheWrite1h };
+  }
+  return out;
+}
+
+// Serialize a computed result into Explore's frozen wire names. The route
+// module is the only caller.
+export function toWire(result: ExploreResult): ExploreWireResult {
+  return {
+    ...result,
+    rows: result.rows.map((r) => ({
+      ...r,
+      tokensByModel: wireCells(r.tokensByModel),
+      tokensByModelByDay: r.tokensByModelByDay
+        ? Object.fromEntries(Object.entries(r.tokensByModelByDay).map(([day, byModel]) => [day, wireCells(byModel)]))
+        : undefined,
+    })),
+    buckets: result.buckets?.map((b) => ({
+      ...b,
+      series: Object.fromEntries(Object.entries(b.series).map(([k, c]) => [k, { ...c, tokensByModel: wireCells(c.tokensByModel) }])),
+    })),
+  };
+}
+
 // Per-(bucket × series) aggregation for a time rollup. Metric-SPECIALIZED: only
 // the dimension the chosen metric reads is populated per cell (see ExploreCell).
 // `rows` supplies the series identity (its keys = topN group values + 'Other'),
@@ -667,10 +679,10 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       // model/project/source/session magnitude from sessions.usage, bucketed by started_at.
       const srows = db.prepare(sessionSql).all(...sessionWhere.params) as unknown as { bkt: string; id: string; project: string; source: string; usage: string|null }[];
       for (const r of srows) {
-        for (const [model, u] of Object.entries(parseUsageCells(r.usage))) {
+        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
           const gv = query.group === 'model' ? model : query.group === 'project' ? r.project
             : query.group === 'session' ? r.id : r.source;
-          addCell(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
+          addCellInto(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
         }
       }
     } else if (CALIBRATED_GROUPS.includes(query.group)) {
@@ -683,7 +695,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       const billedByBucket = new Map<string, number>();
       const splitByBucket = new Map<string, Map<string, { input: number; output: number }>>();
       for (const r of srows) {
-        for (const [model, u] of Object.entries(parseUsageCells(r.usage))) {
+        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
           billedByBucket.set(r.bkt, (billedByBucket.get(r.bkt) ?? 0) + u.input + u.output);
           let sp = splitByBucket.get(r.bkt); if (!sp) { sp = new Map(); splitByBucket.set(r.bkt, sp); }
           const cur = sp.get(model) ?? { input: 0, output: 0 }; cur.input += u.input; cur.output += u.output; sp.set(model, cur);
@@ -696,12 +708,12 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
         const split = splitByBucket.get(bkt);
         for (const { key: gk, tokens: T } of calibrateByBucket(arr, billed)) {
           const tbm = cell(bkt, seriesKeyFor(gk)).tokensByModel;
-          if (!split || billed <= 0) { addCell(tbm, '', { input: T, output: 0, cacheRead: 0, cw5m: 0, cw1h: 0 }); continue; }
+          if (!split || billed <= 0) { addCellInto(tbm, '', { ...emptyCell(), input: T }); continue; }
           for (const [model, v] of split) {
             const msTotal = v.input + v.output; if (msTotal <= 0) continue;
             const modelTokens = Math.round(T * (msTotal / billed));
             const input = Math.round(modelTokens * (v.input / msTotal));
-            addCell(tbm, model, { input, output: modelTokens - input, cacheRead: 0, cw5m: 0, cw1h: 0 });
+            addCellInto(tbm, model, { ...emptyCell(), input, output: modelTokens - input });
           }
         }
       }
@@ -709,11 +721,11 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       // hour/subagent: per-message token columns are exact, bucketed by m.ts.
       const mrows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
         COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
-        COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cw5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cw1h
-        FROM messages m ${base} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (ModelUsageCell & { bkt: string; gk: string|number; model: string })[];
+        COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cacheWrite1h
+        FROM messages m ${base} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string; gk: string|number; model: string })[];
       for (const r of mrows) {
         if (!r.model) continue;
-        addCell(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cw5m: r.cw5m, cw1h: r.cw1h });
+        addCellInto(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite5m: r.cacheWrite5m, cacheWrite1h: r.cacheWrite1h });
       }
     }
   } else if (query.metric === 'requests') {
