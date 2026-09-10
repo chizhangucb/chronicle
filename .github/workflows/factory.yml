@@ -10,7 +10,10 @@ name: factory
 
 on:
   issues:
-    types: [closed, labeled]
+    # unlabeled and unassigned: a ticket held back by ready-for-human or by an
+    # assignee reaches the factory the moment the human removes the blocker,
+    # instead of waiting up to ten minutes for the next heartbeat.
+    types: [closed, labeled, unassigned, unlabeled]
   pull_request_target:
     types: [labeled]
   pull_request:
@@ -19,13 +22,15 @@ on:
     branches: [main] # update-branch: bring stale auto-merge PRs up to date when main moves
   repository_dispatch:
     # factory-update-branch: sent by the review workflow on a passing verdict.
-    # factory-sweep: the dispatcher's sweep, from outside GitHub when its cron does not fire:
+    # factory-sweep: the heartbeat, and what actually drives the sweep. Required, not optional.
+    # Send it every 10 minutes from outside GitHub, with a token that has contents write on the
+    # target and nothing else. One sender covers any number of targets:
     #   gh api repos/chizhangucb/chronicle/dispatches -f event_type=factory-sweep
     types: [factory-update-branch, factory-sweep]
   schedule:
-    # Dispatcher and reconciler sweep, the fallback for missed events. Off the :00 slots;
-    # GitHub delays crons on busy minutes and on some accounts skips them for hours, so a
-    # cron on any machine sends the factory-sweep dispatch above as the real trigger.
+    # The fallback, not the heartbeat: measured on one private target over 21 and a half hours this
+    # fired 6 times against about 129 expected, so run the heartbeat above and treat it as belt and
+    # braces. Off the :00 slots, since GitHub delays crons on busy minutes.
     - cron: "4,14,24,34,44,54 * * * *"
   workflow_dispatch:
 
@@ -43,13 +48,16 @@ jobs:
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'repository_dispatch' && github.event.action == 'factory-sweep') ||
-      (github.event_name == 'issues' && (github.event.action == 'closed' || github.event.label.name == 'ready-for-agent'))
+      (github.event_name == 'issues' && (github.event.action == 'closed' || github.event.action == 'unlabeled' ||
+        github.event.action == 'unassigned' ||
+        (github.event.action == 'labeled' && github.event.label.name == 'ready-for-agent')))
     uses: chizhangucb/software-factory/.github/workflows/dispatch.yml@main
     secrets: inherit
     with:
       factory_ref: main
       # chronicle is public: anyone can open an issue, and a ticket body is what the
-      # implementer executes. Only the owner's own tickets run (ADR 0002 amendment).
+      # implementer executes. Only the owner's own tickets run (software-factory's
+      # ADR 0002, 2026-09-07 amendment).
       trusted_author_associations: OWNER
   implement:
     if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent:implement'
@@ -86,8 +94,6 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
-      # The strongest model verified on the subscription (README, Audit).
-      audit_model: claude-fable-5-1
   update-branch:
     if: >-
       github.event_name == 'push' ||
