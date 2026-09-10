@@ -164,11 +164,17 @@ body {
      browser claims a touch as a pan, fires `pointercancel` and aborts the
      drag, so touch resize never works at all (#201). */
   touch-action: none;
+  position: relative;
 }
+/* 4px is a mouse-sized target, not a finger-sized one, so the hit area is
+   widened to the house-rule 24px minimum with an overlay rather than by
+   fattening the visible 4px line (the same split `.pane-handle` makes with
+   its 24px track and 2px ::after). Pseudo-element, so no layout shift. */
+.drag-handle::before { content: ''; position: absolute; top: 0; bottom: 0; left: -10px; right: -10px; }
 .drag-handle:hover, .drag-handle:active { background: var(--brass); }
 /* Both handles are keyboard-focusable (`useResizable`'s handleProps sets
-   tabIndex + the arrow-key handler), so both need the branded ring the
-   buttons above use — focusable with no visible focus is a trap. */
+   tabIndex plus the arrow-key handler), so both need the branded ring the
+   buttons above use: focusable with no visible focus is a trap. */
 .drag-handle:focus-visible, .pane-handle:focus-visible {
   outline: 2px solid var(--brass); outline-offset: -1px;
 }

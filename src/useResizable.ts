@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 
 // Shared drag-to-resize primitive for the two app rails (left sidebar in
-// App.tsx, right Home project rail in HomePage.tsx). Mirrors the sidebar
+// App.tsx, playback's chat/code divider in SessionView.tsx). Mirrors the sidebar
 // collapse's localStorage-persistence pattern (App.tsx `chronicle-sidebar`):
 // read once on mount, write on change. All storage access is guarded so the
 // module stays clean under `tsc` and any SSR/server import path.
@@ -13,12 +13,14 @@ import type React from 'react';
 // cursor moves left. Width is derived from the drag DELTA off the width at
 // pointerdown, so it never needs the element's box offset.
 //
-// The handle is not pointer-only: `handleProps` also makes it focusable and
+// The handle is not pointer-only. `handleProps` also makes it focusable,
 // answers the horizontal arrow keys through the same clamp as the drag, and
 // carries the `aria-valuenow`/`min`/`max` trio a screen reader reads off a
-// `separator`. Touch is the drag path plus one CSS line — `.drag-handle` /
-// `.pane-handle` set `touch-action: none` (styles.css) so the browser does not
-// claim the touch as a pan and `pointercancel` the drag before it starts.
+// `separator`. A pointer grab focuses the handle too, so a drag can be
+// finished with the arrow keys. Touch is the drag path plus one CSS line:
+// `.drag-handle` / `.pane-handle` set `touch-action: none` (styles.css) so the
+// browser does not claim the touch as a pan and `pointercancel` the drag
+// before it starts, and both keep a hit area wide enough for a fingertip.
 //
 // The drag uses POINTER events with pointer capture (not mouse events) so the
 // teardown is robust to three otherwise-uncovered exit paths:
@@ -38,7 +40,7 @@ export type ResizeEdge = 'left' | 'right';
  * (`<div className="drag-handle" aria-label="…" {...handleProps} />`). Kept as
  * ONE object so the pointer drag, the keyboard drag and the aria values the
  * screen reader reads out can never be wired up on one handle and forgotten on
- * the other — which is exactly how the keyboard path went missing.
+ * the other, which is exactly how the keyboard path went missing.
  */
 export interface ResizeHandleProps {
   role: 'separator';
@@ -75,7 +77,7 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 /** Pixels one arrow-key press moves the handle. */
-export const RESIZE_STEP = 16;
+const RESIZE_STEP = 16;
 
 /**
  * The width a horizontal arrow key leaves behind, or `null` when the key is
@@ -84,18 +86,18 @@ export const RESIZE_STEP = 16;
  *
  * Shares `clamp` and the caller's `min`/`max` with the pointer drag on
  * purpose: the keyboard must not be able to reach a width the drag cannot.
- * Direction follows `edge` the same way the drag's delta does — a `'right'`
+ * Direction follows `edge` the same way the drag's delta does. A `'right'`
  * handle (panel on the LEFT) grows on ArrowRight, a `'left'` handle grows on
  * ArrowLeft.
  */
 export function nextWidthForKey(
   key: string,
   width: number,
-  { min, max, edge, step = RESIZE_STEP }: { min: number; max: number; edge: ResizeEdge; step?: number },
+  { min, max, edge }: Pick<ResizableOptions, 'min' | 'max' | 'edge'>,
 ): number | null {
   if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null;
   const towardsGrowth = (key === 'ArrowRight') === (edge === 'right');
-  return clamp(width + (towardsGrowth ? step : -step), min, max);
+  return clamp(width + (towardsGrowth ? RESIZE_STEP : -RESIZE_STEP), min, max);
 }
 
 function readStored(key: string, fallback: number, min: number, max: number): number {
@@ -139,6 +141,10 @@ export function useResizable({ storageKey, fallback, min, max, edge }: Resizable
     const startW = latest.current;
     const handle = e.currentTarget;
     const pointerId = e.pointerId;
+    // `preventDefault()` above also suppresses the default focus action, which
+    // would leave a handle you just grabbed unfocused: the arrow keys could
+    // not finish the drag, and only Tab could ever reach the handle at all.
+    try { handle.focus(); } catch { /* not focusable in this host (SSR / test double) */ }
     // Pointer capture routes every subsequent event for this pointer through
     // the handle (which bubbles to the window listeners below) even when the
     // release happens outside the OS window — closing hole #1.
@@ -189,9 +195,12 @@ export function useResizable({ storageKey, fallback, min, max, edge }: Resizable
   }, [fallback, min, max, storageKey]);
 
   // Keyboard drag: same geometry, same clamp, same persistence as the pointer
-  // drag above — a press is just a one-step drag that commits immediately
-  // (there is no "release" to defer the localStorage write to).
+  // drag above. A press is just a one-step drag that commits immediately,
+  // since there is no "release" to defer the localStorage write to.
   const onHandleKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    // Alt/Ctrl/Cmd + Arrow are the browser's (history back/forward, word jump):
+    // swallowing them would break navigation whenever the handle holds focus.
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const next = nextWidthForKey(e.key, latest.current, { min, max, edge });
     if (next === null) return; // not ours: Tab still moves focus, arrows still scroll
     e.preventDefault();

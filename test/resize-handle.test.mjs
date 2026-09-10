@@ -4,32 +4,33 @@
 // screen-reader operator could not resize either pane at all.
 //
 // Three seams, one per way the handle is now reachable:
-//   1. `nextWidthForKey` — the arrow-key geometry, shared with the pointer
+//   1. `nextWidthForKey`, the arrow-key geometry, shared with the pointer
 //      drag's clamp so the two can never disagree about the bounds.
-//   2. `useResizable().handleProps` — what the handle element carries: focus
+//   2. `useResizable().handleProps`, what the handle element carries: focus
 //      and the live aria value trio.
-//   3. src/styles.css + the two call sites — `touch-action: none` and that
-//      both handles actually spread the props.
+//   3. src/styles.css and the two call sites: `touch-action: none`, a hit area
+//      a fingertip can land on, and the wiring reaching both handles.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSource } from './helpers/read-source.mjs';
-import { nextWidthForKey, RESIZE_STEP, useResizable } from '../src/useResizable.ts';
+import { nextWidthForKey, useResizable } from '../src/useResizable.ts';
 
 // The sidebar's real bounds (App.tsx), used as the worked example throughout.
 const SIDEBAR = { min: 160, max: 320, edge: 'right' };
 
+// One press moves the handle 16px, the step the hook keeps to itself.
 test('an arrow key steps the width by one step in the direction the panel grows', () => {
   // edge 'right' = panel sits LEFT of the handle, so right grows it.
-  assert.equal(nextWidthForKey('ArrowRight', 200, SIDEBAR), 200 + RESIZE_STEP);
-  assert.equal(nextWidthForKey('ArrowLeft', 200, SIDEBAR), 200 - RESIZE_STEP);
+  assert.equal(nextWidthForKey('ArrowRight', 200, SIDEBAR), 216);
+  assert.equal(nextWidthForKey('ArrowLeft', 200, SIDEBAR), 184);
 });
 
 test('the step direction follows the edge, so a left-edge panel grows leftwards', () => {
   const rail = { min: 160, max: 320, edge: 'left' };
-  assert.equal(nextWidthForKey('ArrowLeft', 200, rail), 200 + RESIZE_STEP);
-  assert.equal(nextWidthForKey('ArrowRight', 200, rail), 200 - RESIZE_STEP);
+  assert.equal(nextWidthForKey('ArrowLeft', 200, rail), 216);
+  assert.equal(nextWidthForKey('ArrowRight', 200, rail), 184);
 });
 
 test('stepping clamps to the same min and max the pointer drag uses', () => {
@@ -58,7 +59,7 @@ test('keys that are not a horizontal arrow are left to the browser', () => {
 // SessionView.tsx take, and it is the only way to see the hook's real starting
 // width (read from storage) reach `aria-valuenow`.
 
-/** Minimal `window.localStorage` stand-in, the only browser API the hook uses. */
+/** Minimal stand-in for the browser APIs the hook touches. */
 function fakeWindow(entries = {}) {
   const store = new Map(Object.entries(entries));
   return {
@@ -67,37 +68,58 @@ function fakeWindow(entries = {}) {
       setItem: (k, v) => { store.set(k, String(v)); },
       removeItem: (k) => { store.delete(k); },
     },
+    addEventListener: () => {},
+    removeEventListener: () => {},
     read: (k) => (store.has(k) ? store.get(k) : null),
   };
+}
+
+/** Run `fn` with the fake window (and the body class the drag toggles) in place. */
+function withWindow(win, fn) {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = win;
+  globalThis.document = { body: { classList: { add: () => {}, remove: () => {} } } };
+  try {
+    return fn();
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
 }
 
 /** Mount `useResizable` once and hand back what it returned. */
 async function mount(options, win) {
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const previous = globalThis.window;
-  globalThis.window = win;
   let captured;
   function Probe() { captured = useResizable(options); return null; }
-  try {
-    renderToStaticMarkup(createElement(Probe));
-  } finally {
-    globalThis.window = previous;
-  }
+  withWindow(win, () => renderToStaticMarkup(createElement(Probe)));
   return captured;
 }
 
-/** A key press on the focused handle. */
-function press(handleProps, key, win) {
-  const previous = globalThis.window;
-  globalThis.window = win;
+/** A key press on the focused handle. Returns whether the handle consumed it. */
+function press(handleProps, key, win, modifiers = {}) {
   let prevented = false;
-  try {
-    handleProps.onKeyDown({ key, preventDefault: () => { prevented = true; } });
-  } finally {
-    globalThis.window = previous;
-  }
+  withWindow(win, () => handleProps.onKeyDown({
+    key, ...modifiers, preventDefault: () => { prevented = true; },
+  }));
   return prevented;
+}
+
+/** A pointer grabbing the handle, reporting what the handle element was asked to do. */
+function grab(handleProps, win) {
+  const asked = { focused: false };
+  const handle = {
+    focus: () => { asked.focused = true; },
+    setPointerCapture: () => {},
+    releasePointerCapture: () => {},
+  };
+  withWindow(win, () => handleProps.onPointerDown({
+    clientX: 0, pointerId: 1, currentTarget: handle,
+    preventDefault: () => {}, stopPropagation: () => {},
+  }));
+  return asked;
 }
 
 const SIDEBAR_OPTIONS = {
@@ -155,6 +177,24 @@ test('keys the handle does not answer are left to the browser', async () => {
   assert.equal(win.read('chronicle.sidebarW'), '240', 'and must not resize');
 });
 
+test('a modified arrow stays with the browser, so history navigation still works', async () => {
+  const win = fakeWindow({ 'chronicle.sidebarW': '240' });
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, win);
+  for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+    assert.equal(press(handleProps, 'ArrowLeft', win, { [modifier]: true }), false,
+      `${modifier}+ArrowLeft is the browser's, not the handle's`);
+  }
+  assert.equal(win.read('chronicle.sidebarW'), '240', 'and none of them resized the pane');
+});
+
+test('grabbing the handle with a pointer focuses it, so arrow keys can finish the drag', async () => {
+  // The drag's own preventDefault() suppresses the browser's focus-on-mousedown,
+  // which would otherwise leave a just-dragged handle unfocused.
+  const win = fakeWindow();
+  const { handleProps } = await mount(SIDEBAR_OPTIONS, win);
+  assert.equal(grab(handleProps, win).focused, true);
+});
+
 // --- Seam 3: the handles on the page ----------------------------------------
 //
 // Read off disk (the same reason page-width.test.mjs does): a `touch-action`
@@ -174,17 +214,34 @@ test('a handle opts out of touch panning so a touch drag resizes instead of scro
   }
 });
 
+test('the thin sidebar handle still offers a finger-sized hit area', () => {
+  // 4px is a mouse target. A touch drag needs the house-rule 24px, widened
+  // with an overlay so the visible line stays thin.
+  assert.match(css, /\.drag-handle::before \{[^}]*position:\s*absolute/);
+  const overlay = css.match(/\.drag-handle::before \{([^}]*)\}/)[1];
+  const left = Number(overlay.match(/left:\s*(-?\d+)px/)[1]);
+  const right = Number(overlay.match(/right:\s*(-?\d+)px/)[1]);
+  const handleWidth = 4; // .drag-handle's visible line, above
+  assert.ok(handleWidth - left - right >= 24,
+    `sidebar handle hit area is ${handleWidth - left - right}px, below the 24px target minimum`);
+});
+
 test('a focused handle is visibly focused', () => {
   // Focusable with no focus ring is a keyboard trap in all but name.
   assert.match(css, /\.drag-handle:focus-visible[^{]*\{[^}]*outline/);
 });
 
-test('both handles take their wiring from the hook rather than hand-rolling it', () => {
+test('both handles carry the keyboard and screen-reader wiring, not just the sidebar one', () => {
+  // The regression this guards is one handle getting the treatment and the
+  // other staying pointer-only, which is the state #201 found the app in.
   for (const [file, cls] of [['App.tsx', 'drag-handle'], ['SessionView.tsx', 'pane-handle']]) {
     const src = readSource(path.join(SRC, file));
-    const tag = src.match(new RegExp(`<div className="${cls}"[^>]*>`));
+    const tag = src.match(new RegExp(`<div className="${cls}"[^>]*/>`, 's'));
     assert.ok(tag, `${file} must still render the ${cls} element`);
-    assert.match(tag[0], /\{\.\.\.\w+\.handleProps\}/,
-      `${file}'s handle must spread handleProps, not re-declare role/aria/handlers`);
+    // Either spread from the hook (what both do today) or set by hand: what
+    // matters is that the element ends up focusable, keyed and value-labelled.
+    const wired = /\{\.\.\.\w+\.handleProps\}/.test(tag[0])
+      || (/tabIndex/.test(tag[0]) && /onKeyDown/.test(tag[0]) && /aria-valuenow/.test(tag[0]));
+    assert.ok(wired, `${file}'s ${cls} is pointer-only again: no keyboard or aria wiring`);
   }
 });
