@@ -11,8 +11,9 @@ import { calibrateByBucket } from './calibrate.ts';
 import { overlapGate, rangedUsage, bucketedUsage, type UsageBucket } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
-// count can't say WHICH tool errored), so this engine keeps its head queries —
-// but the heuristic itself is the shared server-side copy.
+// count can't say WHICH tool errored), so this engine keeps its head query for
+// those groups — but the heuristic itself is the shared server-side copy, and the
+// session-level groups read the precomputed column instead (SESSION_ERROR_GROUPS).
 import { ERROR_RE } from '../shared/errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
 // precedence as the Task 13 Activity route, instead of re-deriving it here.
@@ -156,6 +157,22 @@ const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill', 'mcp'];
 // stay per-message by design. session is EXACT trivially: a session's own
 // sessions.usage IS its group value's usage, no aggregation needed.
 const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'session'];
+
+// Groups whose error count needs no attribution INSIDE the session: the group value
+// is a property of the session itself, so `sessions.error_count` — precomputed at
+// import with the one shared heuristic (server/db.ts replaceSession, shared/errors.ts)
+// — already answers it. Every other group (tool/skill/model/subagent/mcp/provider/
+// hour) has to say WHICH tool, model or hour errored, which only the per-message head
+// query can, so those keep it.
+//
+// KNOWN WINDOWING TRADEOFF, the same one server/insights.ts's errorsByProject
+// documents at length: error_count is a WHOLE-SESSION total, so under a range a
+// session that overlaps the edge contributes its full historical error count rather
+// than only the errors inside the range. Re-slicing it per request would mean
+// re-running exactly the tool_result/tool_use pairing query this path exists to
+// avoid. The rollup below buckets the same column by session start, so the total bar
+// and the stacked chart still agree.
+const SESSION_ERROR_GROUPS: ExploreGroup[] = ['project', 'source', 'session'];
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
 // project name + source so a single scan feeds model/project/source grouping,
@@ -316,22 +333,36 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // an arbitrary same-session tool_result isn't the one that actually errored
   // for that group value).
   const errCol = errorGroupCol(q.group);
-  const errRows = db.prepare(`
-    SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
-    FROM messages r
-    JOIN messages u ON u.id = (
-      SELECT MIN(u2.id) FROM messages u2
-      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
-    )
-    JOIN sessions s ON s.id = r.session_id
-    JOIN projects p ON p.id = s.project_id
-    WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
-      AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?
-  `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
-  for (const e of errRows) {
-    if (e.gk == null || !ERROR_RE.test(e.head)) continue;
-    const r = rowMap.get(String(e.gk));
-    if (r) r.errors++;
+  if (SESSION_ERROR_GROUPS.includes(q.group)) {
+    const errRows = db.prepare(`
+      SELECT ${errCol} AS gk, SUM(COALESCE(s.error_count, 0)) AS errors
+      FROM sessions s JOIN projects p ON p.id = s.project_id
+      WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}
+      GROUP BY gk
+    `).all(cutoff, ...sc.params) as unknown as { gk: string|number|null; errors: number }[];
+    for (const e of errRows) {
+      if (e.gk == null) continue;
+      const r = rowMap.get(String(e.gk));
+      if (r) r.errors = e.errors;
+    }
+  } else {
+    const errRows = db.prepare(`
+      SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
+      FROM messages r
+      JOIN messages u ON u.id = (
+        SELECT MIN(u2.id) FROM messages u2
+        WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
+      )
+      JOIN sessions s ON s.id = r.session_id
+      JOIN projects p ON p.id = s.project_id
+      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
+        AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?
+    `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
+    for (const e of errRows) {
+      if (e.gk == null || !ERROR_RE.test(e.head)) continue;
+      const r = rowMap.get(String(e.gk));
+      if (r) r.errors++;
+    }
   }
 
   // Active ms per group value (session agent_active_ms attributed to each group
@@ -743,6 +774,17 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   } else if (q.metric === 'sessions') {
     const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
+  } else if (q.metric === 'errors' && SESSION_ERROR_GROUPS.includes(q.group)) {
+    // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
+    // start — the same placement `metric === 'active'` below uses for the other
+    // whole-session precomputed column, agent_active_ms. Bucketing this column by the
+    // erroring message's own ts is not available: the column is one number per
+    // session, with no per-error timestamp to slice by.
+    const rr = db.prepare(`SELECT ${bs} AS bkt, ${errorGroupCol(q.group)} AS gk, SUM(COALESCE(s.error_count, 0)) AS c
+      FROM sessions s JOIN projects p ON p.id = s.project_id
+      WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}
+      GROUP BY bkt, gk`).all(cutoff, ...sc.params) as unknown as { bkt: string; gk: string|number|null; c: number }[];
+    for (const r of rr) { if (r.gk == null) continue; cell(String(r.bkt), seriesKeyFor(String(r.gk))).errors += r.c; }
   } else if (q.metric === 'errors') {
     const errCol = errorGroupCol(q.group);
     const br = bucketExpr(effective, 'r.ts');
