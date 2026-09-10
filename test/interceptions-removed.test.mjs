@@ -24,11 +24,31 @@ const read = (rel) => readSource(path.join(REPO, rel));
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-intercept-'));
 let security;
+let dbModule;
 
 before(async () => {
+  // A data folder written by a Chronicle that still had the feature: the table
+  // and one recorded block in it.
+  const seed = new DatabaseSync(path.join(dir, 'chronicle.db'));
+  seed.exec(`
+    CREATE TABLE interceptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT DEFAULT (datetime('now')),
+      tool_name TEXT, file_path TEXT, rules TEXT, sample TEXT, action TEXT
+    );
+    INSERT INTO interceptions (tool_name, file_path, rules, sample, action)
+      VALUES ('Read', '/tmp/.env', '["API keys"]', 'sk-****', 'blocked');
+  `);
+  seed.close();
   process.env.CHRONICLE_DATA_DIR = dir;
+  // Dynamic, and after CHRONICLE_DATA_DIR is set: server/db.ts opens
+  // <dir>/chronicle.db at import time and runs the drops as it does.
+  dbModule = await import('../server/db.ts');
   security = await import('../server/security.ts');
 });
+
+const objectNames = () =>
+  dbModule.db.prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
 
 after(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
@@ -46,4 +66,16 @@ test('the security module declares no interception types or severity set', () =>
     .map((m) => m[1]);
   const back = declared.filter((name) => /Interception|PreToolUse|HIGH_SEVERITY/.test(name));
   assert.deepEqual(back, [], `server/security.ts still declares: ${back.join(', ')}`);
+});
+
+test('booting on an upgraded data folder drops the interceptions table', () => {
+  const left = objectNames().filter((n) => /interception/i.test(n));
+  assert.deepEqual(left, [], `an upgraded data folder still carries ${left.join(', ')}`);
+});
+
+test('the drop takes nothing else with it', () => {
+  const names = objectNames();
+  for (const t of ['projects', 'sessions', 'messages', 'security_rules']) {
+    assert.ok(names.includes(t), `the migration removed ${t}`);
+  }
 });

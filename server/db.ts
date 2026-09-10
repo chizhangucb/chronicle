@@ -340,6 +340,12 @@ PRAGMA user_version = 0;
 // still carries the table, so drop it once — nothing reads it any more.
 db.exec('DROP TABLE IF EXISTS gate_audit;');
 
+// Retired with it: pre-tool-use interception (issue #264). Chronicle once
+// scanned a tool call before the model saw it and recorded what it blocked.
+// The hook that called it went with the shrink, so the record has had no
+// writer and no reader since; drop the table the same way.
+db.exec('DROP TABLE IF EXISTS interceptions;');
+
 // Retired: Chronicle's record of which of its own surfaces were looked at is
 // gone. A data folder written by an older Chronicle still carries the table, so
 // drop it once (its index goes with it). Nothing reads either, and the app
