@@ -10,8 +10,8 @@ leaves your machine, and where your data physically lives.
 ## The local-first guarantee
 
 The promise, stated precisely: **your session data never leaves your machine, and Chronicle
-has no server of its own.** The one outbound call is the Claude plan-window quota read — your
-own token, to that token's own issuer, for your own quota — on by default and off with one
+has no server of its own.** The one outbound call is the Claude plan-window read: your own
+token, to that token's own issuer, for your own plan windows, on by default and off with one
 Settings toggle. Everything below is that promise spelled out.
 
 - **All work happens on-device.** Importing, parsing, storing, searching, time-travel,

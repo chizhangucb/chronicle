@@ -223,9 +223,10 @@ function SpendBreakdownCard({ insights, range }: { insights: InsightsResult | nu
   );
 }
 
-// ---- Plan windows: one card per ACCOUNT. Codex is a LOCAL read
-// (always); Claude is OUTBOUND + opt-in-off — the card shows an opt-in
-// prompt until the user turns it on in Settings, then the live meters. ----
+// ---- Plan windows: one card per ACCOUNT. Codex is a LOCAL read (always);
+// Claude is OUTBOUND, opt-out, default ON: the card shows the live meters
+// until the user switches the read off in Settings, and a line saying where to
+// switch it back on after that. ----
 function fmtReset(iso: string | null, label: string): string {
   if (!iso) return '';
   const d = new Date(iso);

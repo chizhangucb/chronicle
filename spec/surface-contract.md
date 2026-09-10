@@ -222,7 +222,7 @@ scopes the tab.
    Claude cards mirror the official usage page rows: `5h` (current session) · `7d` (all models) ·
    `fable` (top-tier model 7d — follow whatever the quota API reports, NEVER hardcode opus). Codex
    cards: `7d`. A `COVERED` tag once per card head, never per meter. Caption: quota-read posture +
-   Settings opt-out (Claude) / local (Codex). Claude meters are opt-in-off outbound.
+   Settings opt-out (Claude) / local (Codex). Claude meters are outbound, on by default.
 4. **Efficiency card** (ROW grammar): **DETECTORS** rows (name · value + lowercase state word ·
    small bar · right-muted definition): cache hit rate · jumbo outputs · long context · error rows.
    Below, ONE column — **WASTE SIGNALS** (right-sizing approx `$` · cache churn `$` · repeat file

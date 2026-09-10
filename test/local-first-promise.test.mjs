@@ -2,25 +2,21 @@
 //
 // ADR 0008 fixes the wording: session data never leaves the machine, Chronicle
 // has no server of its own, and the one outbound call sends the operator's own
-// token to its own issuer for the operator's own quota, on by default and off
-// in Settings. Everything an operator reads has to say that same thing, so a
+// token to its own issuer for the operator's own plan windows, on by default
+// and off in Settings. Everything an operator reads has to say that same
+// thing, so a
 // surface that drops the plan-window exception trips CI instead of shipping.
 //
-// Reads git-tracked paths only (`git ls-files`), like test/repo-shape.test.mjs,
-// so gitignored build output can never make this flaky.
+// Reads the tracked corpus through test/helpers/tracked-files.mjs, the same
+// reader test/repo-shape.test.mjs sweeps, so gitignored build output can never
+// make this flaky and the two sweeps cannot disagree about what is in scope.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const git = (...args) =>
-  execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
-const tracked = git('ls-files').split('\n').filter(Boolean);
-const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+import { REPO, tracked, read, BINARY } from './helpers/tracked-files.mjs';
 
 // Exempt, on the same grounds test/repo-shape.test.mjs exempts them:
 //   - CHANGELOG.md: history is allowed to say what a release said.
@@ -34,20 +30,25 @@ const EXEMPT = new Set([
   // quotes the claim this pin retires. Same grounds as the CHANGELOG.
   'docs/agents/design-audit-2026-09-04.md',
 ]);
-const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 const sweepable = tracked.filter((rel) => !EXEMPT.has(rel) && !BINARY.test(rel));
 
 // Prose wraps, and markdown bolds half a sentence, so a claim is matched
 // against the flattened line: emphasis stripped, whitespace collapsed.
 const flatten = (src) => src.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
 
-// Claims that deny the plan-window quota read exists. Each is false as written:
+// Claims that deny the plan-window read exists. Each is false as written:
 // the one outbound call is real, on by default, and named on the privacy page.
 const OVERCLAIMS = [
   { claim: 'zero outbound', re: /\bzero outbound\b/i },
   { claim: 'no outbound network calls', re: /\b(?:no|zero) outbound network calls?\b/i },
+  { claim: 'zero network calls', re: /\b(?:zero|no) network calls\b/i },
   { claim: 'no cloud, no telemetry', re: /\bno cloud,? and no telemetry\b|\bno cloud, no telemetry\b/i },
+  { claim: 'no cloud, no LLM calls', re: /\bno cloud, no LLM calls\b/i },
   { claim: 'the outbound calls are none', re: /outbound calls? \(there are none\)/i },
+  // `readConfig().planWindows !== false` is opt-OUT: absent config reads as on.
+  // Every place that called the plan-window read opt-in-off documented the opposite
+  // of what ships -- the module, the route, the client and the contract.
+  { claim: 'the plan-window read is opt-in-off', re: /opt-?in-off/i },
 ];
 
 test('the sweep reaches the README, the marketing site and the docs', () => {
@@ -94,9 +95,19 @@ const NEVER_LEAVES = /never leaves (?:your machine|the machine|it\b)/i;
 // Part two: Chronicle has no server of its own.
 const NO_SERVER = /no server (?:of its own|that holds)/i;
 // Part three: the one outbound call, its purpose, and the toggle that stops it.
-const QUOTA_READ = /(?:plan[- ]window|plan quota|subscription quota|quota)/i;
+const PLAN_WINDOW_READ = /plan[- ]windows?/i;
 const DEFAULT_ON = /\bon by default\b/i;
 const SETTINGS_OFF = /\bSettings\b/;
+
+/** Every stretch of prose surrounding a mention of `re`, one per mention. */
+const passagesAround = (text, re, before = 200, after = 400) => {
+  const out = [];
+  const all = new RegExp(re.source, `${re.flags.replace('g', '')}g`);
+  for (const m of text.matchAll(all)) {
+    out.push(text.slice(Math.max(0, m.index - before), m.index + after));
+  }
+  return out;
+};
 
 for (const rel of PROMISE_SURFACES) {
   test(`${rel} states the promise ADR 0008 states`, () => {
@@ -107,13 +118,19 @@ for (const rel of PROMISE_SURFACES) {
 
   test(`${rel} names the plan-window exception, on by default and off in Settings`, () => {
     const src = flatten(read(rel));
-    assert.match(src, QUOTA_READ, `${rel} never names the quota read`);
-    assert.match(src, DEFAULT_ON, `${rel} does not say the quota read is on by default`);
-    assert.match(src, SETTINGS_OFF, `${rel} does not say Settings turns the quota read off`);
+    assert.match(src, PLAN_WINDOW_READ, `${rel} never names the plan-window read`);
+    // Around the mention, not merely somewhere in the file: a page that names
+    // the read in one section and says "on by default" about something else in
+    // another has not stated the exception.
+    const near = passagesAround(src, PLAN_WINDOW_READ);
+    assert.ok(
+      near.some((p) => DEFAULT_ON.test(p) && SETTINGS_OFF.test(p)),
+      `${rel} names the plan-window read without saying, beside it, that it is on by default and off in Settings`,
+    );
   });
 
   test(`${rel} makes no unqualified "nothing leaves your machine" claim`, () => {
-    // True of session data, false of the product: the quota read leaves.
+    // True of session data, false of the product: the plan-window read leaves.
     assert.doesNotMatch(
       flatten(read(rel)),
       /\bnothing leaves (?:your|the) machine\b/i,
@@ -124,9 +141,9 @@ for (const rel of PROMISE_SURFACES) {
 
 // --- The code that makes the call ------------------------------------------
 //
-// `readConfig().planWindows !== false` means the quota read is opt-OUT: absent
-// config reads as on. Both comment sites described it as opt-in-off, so the
-// module documented the opposite of what it does.
+// `readConfig().planWindows !== false` means the plan-window read is opt-OUT: absent
+// config reads as on. Every comment site described it the other way round, so
+// the code documented the opposite of what it does.
 
 const MODULE = 'server/planWindows.ts';
 const ROUTE = 'server/routes/planWindows.ts';
@@ -151,24 +168,52 @@ const commentsOf = (rel) => {
   return out;
 };
 
+/** The leading comment block of a file: everything above its first code line. */
+const headerOf = (rel) => {
+  const out = [];
+  for (const line of read(rel).split('\n')) {
+    const t = line.trim();
+    if (t === '') continue;
+    if (!t.startsWith('//')) break;
+    out.push(t);
+  }
+  return out.join(' ');
+};
+
 for (const rel of [MODULE, ROUTE]) {
-  test(`${rel} documents the quota read as opt-out, not opt-in`, () => {
+  test(`${rel} documents the plan-window read as opt-out, not opt-in`, () => {
     const offenders = commentsOf(rel)
       .filter(({ text }) => /opt-?in/i.test(text))
       .map(({ n, text }) => `${rel}:${n}: ${text.slice(0, 100)}`);
     assert.deepEqual(
       offenders,
       [],
-      `the quota read is opt-out in the code and opt-in in the comments:\n  ${offenders.join('\n  ')}`,
+      `the plan-window read is opt-out in the code and opt-in in the comments:\n  ${offenders.join('\n  ')}`,
     );
   });
 
-  test(`${rel} says the quota read defaults to on`, () => {
-    const src = flatten(commentsOf(rel).map(({ text }) => text).join(' '));
-    assert.match(src, /opt-?out/i, `${rel} never calls the quota read opt-out`);
-    assert.match(src, /default(?:s to)? on\b/i, `${rel} never says the quota read defaults to on`);
-  });
 }
+
+// Whole-comment sweeps catch a stray line anywhere in the file; these two pin
+// the exact places the ticket names, so a correct sentence further down the
+// file cannot stand in for a wrong module header.
+const saysOptOutDefaultOn = (where, text) => {
+  const src = flatten(text);
+  assert.match(src, /opt-?out/i, `${where} never calls the plan-window read opt-out`);
+  assert.match(src, /default(?:s to)? on\b/i, `${where} never says the plan-window read defaults to on`);
+};
+
+test(`${MODULE}'s module header says opt-out, default on`, () => {
+  saysOptOutDefaultOn(`${MODULE}'s header`, headerOf(MODULE));
+});
+
+test(`${ROUTE}'s route comment says opt-out, default on`, () => {
+  // The route's own comment sits inside mountPlanWindows, under the header.
+  const routeComment = commentsOf(ROUTE)
+    .map(({ text }) => text)
+    .join(' ');
+  saysOptOutDefaultOn(`${ROUTE}'s route comment`, routeComment);
+});
 
 // --- The default the wording describes -------------------------------------
 //
@@ -182,12 +227,13 @@ for (const rel of [MODULE, ROUTE]) {
 // reason the child stubs fetch: no case of this may reach api.anthropic.com,
 // on any machine, whether or not the person running it has a credential on
 // disk. The child reports the fetch attempts it swallowed.
-const CHILD = `
+const childSource = () => `
+const calls = [];
 globalThis.fetch = (url) => {
   calls.push(String(url));
   return Promise.resolve({ ok: false, status: 401, json: async () => ({}) });
 };
-const { computePlanWindows } = await import(REPO + '/server/planWindows.ts');
+const { computePlanWindows } = await import(${JSON.stringify(`${REPO}/server/planWindows.ts`)});
 const result = await computePlanWindows();
 process.stdout.write(JSON.stringify({ result, calls }));
 `;
@@ -200,7 +246,7 @@ const planWindowsUnder = (config) => {
     delete env.CHRONICLE_DEMO;
     const out = execFileSync(
       process.execPath,
-      ['--input-type=module', '-e', `const calls = [];\nconst REPO = ${JSON.stringify(REPO)};\n${CHILD}`],
+      ['--input-type=module', '-e', childSource()],
       { encoding: 'utf8', env, cwd: REPO },
     );
     return JSON.parse(out);
@@ -209,24 +255,24 @@ const planWindowsUnder = (config) => {
   }
 };
 
-test('the quota read is ON for a config that never mentions it', () => {
+test('the plan-window read is ON for a config that never mentions it', () => {
   const { result } = planWindowsUnder(null);
-  assert.equal(result.claudeEnabled, true, 'a fresh install has the quota read off');
+  assert.equal(result.claudeEnabled, true, 'a fresh install has the plan-window read off');
 });
 
-test('the quota read stays ON for a config that sets other keys', () => {
+test('the plan-window read stays ON for a config that sets other keys', () => {
   const { result } = planWindowsUnder({ autoSync: true, ask: true });
-  assert.equal(result.claudeEnabled, true, 'an unrelated Settings write turned the quota read off');
+  assert.equal(result.claudeEnabled, true, 'an unrelated Settings write turned the read off');
 });
 
-test('planWindows:false turns the quota read off and goes nowhere', () => {
+test('planWindows:false turns the plan-window read off and goes nowhere', () => {
   const { result, calls } = planWindowsUnder({ planWindows: false });
   assert.equal(result.claudeEnabled, false);
   assert.equal(result.claudeUnauthed, false, 'a switched-off read must not report an auth problem');
-  assert.deepEqual(calls, [], 'a switched-off quota read still went outbound');
+  assert.deepEqual(calls, [], 'a switched-off plan-window read still went outbound');
 });
 
-test('Settings still renders the quota-read toggle, defaulted on', () => {
+test('Settings still renders the plan-windows row, defaulted on', () => {
   const app = flatten(read('src/App.tsx'));
   assert.match(app, /planWindows: true/, 'the Settings fallback no longer defaults the toggle on');
   assert.match(

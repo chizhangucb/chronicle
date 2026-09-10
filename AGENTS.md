@@ -1,6 +1,6 @@
 # Chronicle
 
-Local-first AI coding session manager: it imports logs from Claude Code, Codex, Cursor and OpenCode, maps every message to a Git snapshot, redacts secrets, and serves a tabbed Insights home. Ships as a local web app via `npx chronicle-cli`. No account, no telemetry, no LLM calls, and session data never leaves the machine; the one outbound call is the opt-out Claude quota read. Everything heavy is heuristic and local. Public repo, Apache-2.0, published as the npm package `chronicle-cli`.
+Local-first AI coding session manager: it imports logs from Claude Code, Codex, Cursor and OpenCode, maps every message to a Git snapshot, redacts secrets, and serves a tabbed Insights home. Ships as a local web app via `npx chronicle-cli`. No account, no telemetry, no LLM calls, and session data never leaves the machine; the one outbound call is the opt-out Claude plan-window read. Everything heavy is heuristic and local. Public repo, Apache-2.0, published as the npm package `chronicle-cli`.
 
 ## Words
 

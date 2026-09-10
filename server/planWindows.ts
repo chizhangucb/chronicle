@@ -2,15 +2,15 @@
 // meter, one card per ACCOUNT. Two sources:
 //  - Claude (subscription.ts): OUTBOUND, OPT-OUT, DEFAULT ON. Reads Claude
 //    Code's OAuth token (Keychain / ~/.claude/.credentials.json) and calls
-//    api.anthropic.com/api/oauth/usage — the operator's own token, to that
-//    token's own issuer, for the operator's own 5h / 7d / top-tier quota,
-//    exactly as Claude Code does. The ONE outbound call in Chronicle (ADR
-//    0008): absent config reads as ON, and the `planWindows` Settings toggle
-//    turns it off for a fully offline instance. Token read, used once, never
-//    stored.
+//    api.anthropic.com/api/oauth/usage with it: the operator's own token, to
+//    that token's own issuer, for the operator's own 5h / 7d / top-tier
+//    windows, exactly as Claude Code does. The ONE outbound call in Chronicle
+//    (ADR 0008), so absent config reads as ON and the `planWindows` Settings
+//    toggle turns it off for a fully offline instance. Token read, used once,
+//    never stored.
 //  - Codex (spend-codex.ts): LOCAL, no network. Reads the newest `rate_limits`
 //    payload from ~/.codex/sessions rollout logs (primary/secondary windows).
-//    Always available (nothing to toggle — it never leaves the machine).
+//    Always available (nothing to toggle, it never leaves the machine).
 // The accounts array is adaptive: today the local stores expose one Claude
 // account + one Codex account; more cards appear if more become readable.
 import { spawnSync } from 'node:child_process';
@@ -25,7 +25,7 @@ const FETCH_TIMEOUT_MS = 15_000;
 export interface AccountWindow { label: string; utilization: number; resetsAt: string | null }
 export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[] }
 export interface PlanWindowsResult {
-  /** Claude toggle state (default ON) — false means we never went outbound. */
+  /** Claude toggle state (default ON). False means we never went outbound. */
   claudeEnabled: boolean;
   /** true when the Claude toggle is on but no readable credential was found. */
   claudeUnauthed: boolean;
