@@ -12,7 +12,7 @@ import { overlapGate, rangedUsage, bucketedUsage, type UsageCells } from './rang
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
-import { ERROR_RE } from './errors.ts';
+import { ERROR_RE } from '../shared/errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
 // precedence as the Task 13 Activity route, instead of re-deriving it here.
 import { displayName } from './activity.ts';

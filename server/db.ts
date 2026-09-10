@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { agentActiveMs, engagedMs } from './durations.ts';
 import { isMinorSession } from './noiseGate.ts';
-import { isErrorHead } from './errors.ts';
+import { isErrorHead } from '../shared/errors.ts';
 import { invalidateCache } from './cache.ts';
 import type { Event, SessionInput, Project, ModelUsage } from '../shared/types.ts';
 import { resolveDataDir } from './dataDir.ts';

@@ -15,6 +15,7 @@
 // must point at the real `.ts` file.
 import { costOf, type ModelUsageInput, type CostMode } from '../models.ts';
 import { SYNTHETIC_USER_RE, isSyntheticUserText } from '../../shared/synthetic.ts';
+import { isErrorHead } from '../../shared/errors.ts';
 export interface StatMessage {
   kind: string;
   ts?: string | null;
@@ -52,16 +53,16 @@ const FRIENDLY_CALL: Record<string, string> = {
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
 
+// The heuristic itself is shared/errors.ts (one rule for a live session here
+// and a stored session on the server); this only adds the kind gate.
 function isErrorResult(m: StatMessage): boolean {
-  return m.kind === 'tool_result'
-    && /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i
-      .test((m.text || '').slice(0, 200));
+  return m.kind === 'tool_result' && isErrorHead(m.text);
 }
 
 // Errors KPI drill-in (src/session/OverviewMode.tsx's Errors card →
 // src/SessionView.tsx's Playback filter): the erroring tool_result rows PLUS
 // their paired tool_use call, matched by `tool_use_id` — the same pairing
-// rule server/errors.ts documents for aggregate error attribution, applied
+// rule shared/errors.ts documents for aggregate error attribution, applied
 // here to pick out individual rows instead of counting them. Mirrors
 // `messages.filter(isErrorResult)` (the count shown on the KPI itself), so
 // the drill-in view shows exactly what was counted, plus the call that
