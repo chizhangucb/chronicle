@@ -32,3 +32,27 @@ test('KIND_ICON: one glyph per kind, never shared', () => {
   const icons = Object.values(KIND_ICON);
   assert.equal(new Set(icons).size, icons.length, `duplicate glyph in ${icons.join(' ')}`);
 });
+
+// The Playback row's own resolution step, lifted out of MessageRow.tsx so it is
+// reachable without a DOM: the row renders `metaFor(m.kind).icon` in front of
+// the tool name or the kind label. Node cannot import a .tsx, so a glyph that
+// reached the row wrong could only ever be caught by the e2e suite; this is the
+// unit-level pin under it.
+test('playback rows resolve every kind to its canonical mono glyph', async () => {
+  const { metaFor } = await import('../src/session/kindMeta.ts');
+  for (const kind of Object.keys(KIND_LABEL)) {
+    const meta = metaFor(kind);
+    assert.equal(meta.icon, KIND_ICON[kind], `${kind} row icon`);
+    assert.equal(meta.label, KIND_LABEL[kind], `${kind} row label`);
+    assert.equal(COLORED.test(meta.icon), false, `${kind} row icon is a colored emoji`);
+    assert.ok(meta.cls.length > 0, `${kind} has no row class`);
+  }
+});
+
+test('playback rows fall back to a mono bullet for an unknown kind', async () => {
+  const { metaFor } = await import('../src/session/kindMeta.ts');
+  const meta = metaFor('summary');
+  assert.equal(meta.icon, '•');
+  assert.equal(meta.label, 'summary');
+  assert.equal(meta.cls, '');
+});
