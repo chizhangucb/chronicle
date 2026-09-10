@@ -5,9 +5,7 @@
 // A machine without python3 skips. The refresher maintains the operator's own
 // routing document, so it is not what a contributor working on the React
 // client should have to install an interpreter for, and CI installs no Python
-// of its own now that the spine it was pinned for is gone. The rule lives here
-// rather than inside the suite so the next suite that shells out to python3
-// inherits it instead of inventing its own answer.
+// of its own now that the spine it was pinned for is gone.
 
 /**
  * Decide what a spawnSync result that could not start python3 means.

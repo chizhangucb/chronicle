@@ -14,7 +14,6 @@ import {
   PRIVATE_PATHS,
   PRIVATE_FOLDERS,
   LEGACY_LAYOUT,
-  PRIVATE_LOCATION,
   FOREIGN_CONSUMER,
   RETIRED_WORDS,
   RETIRED_PHRASES,
@@ -38,12 +37,12 @@ const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md'];
 
 // The private checkout, spelled every way a tracked file could point at it: the
-// paths themselves, the folders, the pre-move layout its files sat in, and the
-// `hub `path`` location header. The last two used to be read by the LiteLLM
-// runtime pins over litellm/'s runbook; #296 deleted that suite with the spine,
+// paths themselves, the folders, the pre-move layout those files sat in, and
+// the sibling repo named as a reader of this one's data. The last two were read
+// by the proxy runtime's own pins until #296 deleted that suite with the spine,
 // so the owned-doc sweep carries them now rather than letting them lapse.
 const PRIVATE_STRINGS = new RegExp(
-  [PRIVATE_PATHS, PRIVATE_FOLDERS, LEGACY_LAYOUT, PRIVATE_LOCATION, FOREIGN_CONSUMER]
+  [PRIVATE_PATHS, PRIVATE_FOLDERS, LEGACY_LAYOUT, FOREIGN_CONSUMER]
     .map((re) => re.source)
     .join('|'),
   'i',
@@ -166,86 +165,6 @@ test('the published package ships no job template', () => {
   assert.ok(!files.includes('launchd'), '`launchd` is back in the published files list');
   const strays = tracked.filter((rel) => /\.(plist|plist\.template)$|crontab/.test(rel));
   assert.deepEqual(strays, [], `a job template is tracked again: ${strays}`);
-});
-
-// --- The proxy spine (issue #296, part of spec #294) -----------------------
-//
-// Chronicle stopped reading the LiteLLM proxy's spend log in #217, and the
-// spine outlived its reader: a Python proxy, its launchd template, the
-// installer that filled that template, and two suites whose whole subject was
-// the proxy. Nothing in the product reached any of it.
-//
-// `npx chronicle-cli` and this repo's CI need Node and nothing else. These
-// pins are what "and nothing else" means, so the spine cannot settle back in
-// one file at a time.
-const RETIRED_SPINE_PATHS = [
-  'litellm/',
-  'launchd/',
-  'scripts/install-jobs.mjs',
-  'test/litellm-guards.test.mjs',
-  'test/litellm-runtime.test.mjs',
-];
-
-test('no proxy-spine file is tracked', () => {
-  const back = RETIRED_SPINE_PATHS.filter((spine) =>
-    tracked.some((rel) => rel === spine || rel.startsWith(spine)),
-  );
-  assert.deepEqual(back, [], `the proxy spine is tracked again: ${back}`);
-});
-
-test('the roster refresher keeps its Python', () => {
-  // The removal is the spine, not every interpreter in the repo. The roster
-  // refresher shared a folder with the proxy in an older layout and nothing
-  // else, so a deletion that took it along would be a deletion that read the
-  // layout instead of the reason.
-  assert.ok(
-    tracked.includes('scripts/refresh_roster.py'),
-    'the roster refresher went with the spine',
-  );
-  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
-  assert.match(
-    pkg.scripts?.['refresh-roster'] ?? '',
-    /^python3 /,
-    'npm run refresh-roster no longer runs the refresher under python3',
-  );
-});
-
-// The proxy spine, spelled every way a doc could send a reader after it: the
-// folder, the template dir, the installer, and the CI flag that pinned its
-// guards. `proxy` on its own is not a hit -- the Reference page's Retired group
-// still describes the proxy lane the shrink removed, which is the ONE place
-// spec/surface-contract.md allows a removed surface to be named.
-const SPINE_POINTERS = /litellm|launchd|install-jobs|CHRONICLE_REQUIRE_PYTHON/i;
-
-// One file, exempted the way WORD_EXEMPT exempts a word: the dated design audit
-// records F15 as the finding this removal came from, and spec #294 is cut from
-// its findings and cites them by number, so the entry cannot be edited out.
-const SPINE_RECORD = 'docs/agents/design-audit-2026-09-04.md';
-
-test('no owned doc points a reader at the proxy spine', () => {
-  const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
-  const offenders = docs.flatMap((rel) =>
-    rel === SPINE_RECORD
-      ? []
-      : fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').flatMap((line, i) =>
-          SPINE_POINTERS.test(line) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
-        ),
-  );
-  assert.deepEqual(offenders, [], `a doc still points at the spine:\n  ${offenders.join('\n  ')}`);
-});
-
-test('CI sets up Node and no second toolchain', () => {
-  // The Python setup step and its require-python flag existed for the proxy
-  // guards and nothing else. A contributor reads the workflow to learn what a
-  // clone needs; Node is the whole answer.
-  const src = ci();
-  const toolchains = [...src.matchAll(/uses: actions\/setup-(\w+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(toolchains)], ['node'], 'CI sets up a second toolchain');
-  assert.equal(
-    src.includes('CHRONICLE_REQUIRE_PYTHON'),
-    false,
-    'CI still sets the require-python flag',
-  );
 });
 
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
@@ -404,4 +323,92 @@ test('no module the shrink deleted is tracked or imported', () => {
     }).map((mod) => `${rel} -> ${mod}`),
   );
   assert.deepEqual(importers, [], `a deleted module is imported again:\n  ${importers.join('\n  ')}`);
+});
+
+// --- The proxy spine (issue #296, part of spec #294) -----------------------
+//
+// Chronicle stopped reading the LiteLLM proxy's spend log in #217, and the
+// spine outlived its reader: a Python proxy, its launchd template, the
+// installer that filled that template, and two suites whose whole subject was
+// the proxy. Nothing in the product reached any of it.
+//
+// `npx chronicle-cli` and this repo's CI need Node and nothing else. These
+// pins are what "and nothing else" means, so the spine cannot settle back in
+// one file at a time.
+const RETIRED_SPINE_PATHS = [
+  'litellm/',
+  'launchd/',
+  'scripts/install-jobs.mjs',
+  'test/litellm-guards.test.mjs',
+  'test/litellm-runtime.test.mjs',
+];
+
+test('no proxy-spine file is tracked', () => {
+  const back = RETIRED_SPINE_PATHS.filter((spine) =>
+    tracked.some((rel) => rel === spine || rel.startsWith(spine)),
+  );
+  assert.deepEqual(back, [], `the proxy spine is tracked again: ${back}`);
+});
+
+test('the roster refresher keeps its Python', () => {
+  // The removal is the spine, not every interpreter in the repo. The roster
+  // refresher shared a folder with the proxy in an older layout and nothing
+  // else, so a deletion that took it along would be a deletion that read the
+  // layout instead of the reason.
+  assert.ok(
+    tracked.includes('scripts/refresh_roster.py'),
+    'the roster refresher went with the spine',
+  );
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.match(
+    pkg.scripts?.['refresh-roster'] ?? '',
+    /^python3 /,
+    'npm run refresh-roster no longer runs the refresher under python3',
+  );
+});
+
+// The spine, spelled every way a tracked file could send a reader after it: the
+// folder, the template dir, the installer, the spend logger and the CI flag
+// that pinned its guards. `proxy` on its own is not a hit, because the proxy
+// LANE the shrink removed is still named where a removed surface is allowed to
+// be named. Word-anchored, so the e2e suite's `launchDemo` is not a launchd
+// job and a future `install-jobsomething` is still a hit.
+const SPINE_POINTERS =
+  /\blitellm\b|\blaunchd\b|\binstall-jobs\b|\blane_c|CHRONICLE_REQUIRE_PYTHON/i;
+
+// Two files, exempted by name for the reason WORD_EXEMPT exempts a word: each
+// is a place this repo has already decided a removed thing may still be named.
+//   - the dated design audit records F15, the finding this removal came from,
+//     and spec #294 is cut from its findings and cites them by number.
+//   - the Reference page's Retired group, which spec/surface-contract.md calls
+//     the ONE place a removed surface may still be named: it describes the
+//     proxy-lane spend tile and the Jobs page to the operator who lost them.
+const SPINE_EXEMPT = new Map([
+  ['docs/agents/design-audit-2026-09-04.md', 'the audit finding this removal came from'],
+  ['src/reference/definitions.ts', 'the Reference page\'s Retired group'],
+]);
+
+test('no tracked file points a reader at the proxy spine', () => {
+  const offenders = sweep((rel, src) =>
+    SPINE_EXEMPT.has(rel)
+      ? []
+      : src.split('\n').flatMap((line, i) =>
+          SPINE_POINTERS.test(line) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
+        ),
+  );
+  assert.deepEqual(offenders, [], `the spine is pointed at again:\n  ${offenders.join('\n  ')}`);
+});
+
+test('CI sets up Node and no second toolchain', () => {
+  // The Python setup step and its require-python flag existed for the proxy
+  // guards and nothing else. A contributor reads the workflow to learn what a
+  // clone needs; Node is the whole answer.
+  const src = ci();
+  const toolchains = [...src.matchAll(/uses: actions\/setup-(\w+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(toolchains)], ['node'], 'CI sets up a second toolchain');
+  assert.equal(
+    src.includes('CHRONICLE_REQUIRE_PYTHON'),
+    false,
+    'CI still sets the require-python flag',
+  );
 });

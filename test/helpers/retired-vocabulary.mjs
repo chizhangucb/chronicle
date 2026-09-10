@@ -19,9 +19,6 @@ export const PRIVATE_FOLDERS = /governance\//i;
  *  `scripts/tests/test_lane_c.py` is pointing at a file that is not there. */
 export const LEGACY_LAYOUT = /scripts\/litellm|scripts\/tests\/test_(litellm|lane_c)/i;
 
-/** `hub `scripts/...`` style location headers. */
-export const PRIVATE_LOCATION = /\bhub\s+`/i;
-
 /** Ticket ids from the private tracker. A reader who is not the author cannot
  *  open one, so prose citing them is prose that dead-ends (issue #187).
  *  Case-insensitive and separator-tolerant: `chi286Backfill` and
