@@ -6,7 +6,7 @@
 // columns + tags); tool/skill × tokens are CALIBRATED via calibrate.ts and the
 // result carries calibrated:true. rollup='total' only in 5e (ranked bars).
 import { db } from './db.ts';
-import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
+import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
@@ -254,7 +254,7 @@ function groupExpr(g: ExploreGroup): { col: string; where: string } {
     // fmtHourOfDay ("9 AM"/"10 PM"), which is meaningless unless the hour is
     // the user's own clock hour, not UTC. Same 'localtime' convention as
     // bucketExpr above.
-    case 'hour': return { col: "CAST(strftime('%H', m.ts, 'localtime') AS INTEGER)", where: 'AND m.ts IS NOT NULL' };
+    case 'hour': return { col: "CAST(strftime('%H', m.ts, 'localtime') AS INTEGER)", where: tsNotNull('m') };
     case 'mcp': return { col: mcpServerExpr('m'), where: "AND m.tool_name LIKE 'mcp\\_\\_%' ESCAPE '\\'" };
     case 'provider': return { col: providerExpr('m'), where: "AND m.kind='assistant' AND m.model IS NOT NULL" };
     default: throw new Error(`explore.ts groupExpr: unknown group "${g as string}"`);
@@ -714,6 +714,11 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
   const bind = (extra: (string|number)[] = []): (string|number)[] => [...messageWhere.params, ...extra];
   const bm = bucketExpr(effective, 'm.ts');
   const bs = bucketExpr(effective, 's.started_at');
+  // `base` restricted to messages that HAVE a timestamp (#334), for every scan
+  // below keyed by `bm`. The `bs`-keyed scans (started_at) keep plain `base`:
+  // dropping a session's undated messages there would change which sessions the
+  // scan sees, not just how they bucket. See scope.ts's tsNotNull.
+  const datedBase = `${base} ${tsNotNull('m')}`;
   // Billed `sessions.usage` cells for this rollup's granularity, scaled to each
   // bucket's share of the session's per-message tokens (#306). This replaces the old
   // started_at scan, which placed a session's WHOLE billed cell on the bucket it began
@@ -735,9 +740,21 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
   const seriesKeyFor = (gv: string): string => (topN.has(gv) ? gv : (hasOther ? 'Other' : gv));
 
   const grid = new Map<string, Map<string, ExploreCell>>();
-  const cell = (bkt: string, sk: string): ExploreCell => {
+  const newCell = (): ExploreCell => ({ tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0 });
+  // The last word on #334: SQLite hands back a NULL bucket key whenever the
+  // timestamp it bucketed is absent OR unparseable, and `tsNotNull` covers only
+  // absent, only on the `m.ts` scans. Two ways a key still arrives NULL here: an
+  // imported `timestamp` is written through verbatim (server/db.ts validates
+  // nothing), so strftime returns NULL on a value that is not a date; and the
+  // `s.started_at` scans keep plain `base` on purpose, while a session whose
+  // messages are all undated has no started_at to bucket by. Either way the row
+  // gets no bucket rather than one keyed "null", which is what the chart would
+  // label it if bucketLabel (typed for a string) did not crash on it first. The
+  // row still counts in the ranked rows, the rule tsNotNull already keeps.
+  const cell = (bkt: string | null, sk: string): ExploreCell => {
+    if (bkt == null) return newCell(); // discarded, never entered into `grid`
     let m = grid.get(bkt); if (!m) { m = new Map(); grid.set(bkt, m); }
-    let c = m.get(sk); if (!c) { c = { tokensByModel: {}, requests: 0, sessions: 0, errors: 0, activeMs: 0 }; m.set(sk, c); }
+    let c = m.get(sk); if (!c) { c = newCell(); m.set(sk, c); }
     return c;
   };
 
@@ -753,7 +770,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       // then split across the bucket's real models — the range-total path, partitioned.
       const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
         COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
-        FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
+        FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; chars: number }[];
       // The per-bucket billed base is the same in-range-scaled cell set the exact
       // branch reads, so a calibrated tool/skill bucket prices off the range's real
       // billed total rather than a spanning session's whole history.
@@ -766,7 +783,13 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
         cur.input += c.cells.input; cur.output += c.cells.output; sp.set(c.model, cur);
       }
       const charByBucket = new Map<string, { key: string; chars: number }[]>();
-      for (const cr of charRows) { const a = charByBucket.get(cr.bkt) ?? []; a.push({ key: String(cr.gk), chars: cr.chars }); charByBucket.set(cr.bkt, a); }
+      // A NULL bucket key is dropped here rather than at `cell` below, so it
+      // never reaches the two per-bucket maps above either: it has no bucket to
+      // take a billed share of. Same rule, applied at the fold.
+      for (const cr of charRows) {
+        if (cr.bkt == null) continue;
+        const a = charByBucket.get(cr.bkt) ?? []; a.push({ key: String(cr.gk), chars: cr.chars }); charByBucket.set(cr.bkt, a);
+      }
       for (const [bkt, arr] of charByBucket) {
         const billed = billedByBucket.get(bkt) ?? 0;
         const split = splitByBucket.get(bkt);
@@ -786,18 +809,18 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       const mrows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
         COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
         COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cacheWrite1h
-        FROM messages m ${base} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string; gk: string|number; model: string })[];
+        FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string|null; gk: string|number; model: string })[];
       for (const r of mrows) {
         if (!r.model) continue;
         addCellInto(cell(r.bkt, seriesKeyFor(String(r.gk))).tokensByModel, r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite5m: r.cacheWrite5m, cacheWrite1h: r.cacheWrite1h });
       }
     }
   } else if (query.metric === 'requests') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
-    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).requests += r.c;
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
+    for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).requests += r.c;
   } else if (query.metric === 'sessions') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
-    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
+    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
+    for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).sessions += r.c;
   } else if (query.metric === 'errors' && SESSION_ERROR_GROUPS.includes(query.group)) {
     // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
     // start, the same placement `metric === 'active'` below uses for the other
@@ -826,17 +849,19 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       if (e.gk == null) continue;
       const gv = String(e.gk);
       if (!preFoldGroupValues.has(gv)) continue;
-      cell(String(e.bkt), seriesKeyFor(gv)).errors += e.errors;
+      cell(e.bkt, seriesKeyFor(gv)).errors += e.errors;
     }
   } else if (query.metric === 'errors') {
     const errCol = errorGroupCol(query.group);
-    const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'));
+    // Keyed by the erroring tool_result's own timestamp, so it carries the same
+    // guard `datedBase` carries above (#334), on `r` rather than `m`.
+    const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'), tsNotNull('r'));
     const br = bucketExpr(effective, 'r.ts');
     const er = db.prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
       JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
-      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${rollupErrWhere.sql}`).all(...rollupErrWhere.params) as unknown as { bkt: string; gk: string|number|null; head: string }[];
+      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${rollupErrWhere.sql}`).all(...rollupErrWhere.params) as unknown as { bkt: string|null; gk: string|number|null; head: string }[];
     // Same pre-fold membership test as the session branch above, for the same reason:
     // this query attributes through the PAIRED tool_use (u), which is only gated by the
     // RESULT's ts, so a call made just before the cutoff whose result landed just after
@@ -847,12 +872,12 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       if (e.gk == null || !ERROR_RE.test(e.head)) continue;
       const gv = String(e.gk);
       if (!preFoldGroupValues.has(gv)) continue;
-      cell(String(e.bkt), seriesKeyFor(gv)).errors++;
+      cell(e.bkt, seriesKeyFor(gv)).errors++;
     }
   } else if (query.metric === 'active') {
     const rr = db.prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
-      FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string; gk: string|number; sid: string; ms: number }[];
-    for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).activeMs += r.ms;
+      FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; sid: string; ms: number }[];
+    for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).activeMs += r.ms;
   }
 
   return [...grid.entries()]

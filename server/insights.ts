@@ -19,7 +19,7 @@
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
 import { bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
-import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
+import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -136,7 +136,7 @@ function kindDistribution(q: QueryContext): KindCount[] {
 // from the range by design, see the file header). A day-keyed query drops a
 // NULL `ts` outright: it has no day to be counted on.
 function dailyMessageCounts(where: SqlFragment): DayCount[] {
-  const w = whereOf(where, 'AND m.ts IS NOT NULL');
+  const w = whereOf(where, tsNotNull('m'));
   return db.prepare(`
     SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
