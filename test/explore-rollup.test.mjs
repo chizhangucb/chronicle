@@ -7,7 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
 
-let dbModule, teardown, explore, otherProjectId;
+let dbModule, teardown, explore, otherProjectId, spanProjectId;
 
 // 12 alternating user/assistant events over 22 minutes — same shape as
 // test/explore.test.mjs's `rhythmEvents` — so each session clears BOTH
@@ -104,6 +104,30 @@ before(async () => {
       ...assistantEvents('2026-08-02'),
       ...toolEvents('2026-08-02', { Bash: 2, Grep: 6, Glob: 3, WebFetch: 1 }),
     ],
+  );
+
+  // ---- range-edge fixture (#306) ----
+  // One session whose activity SPANS the days=7 cutoff: 14 assistant turns, one per
+  // day, seven of them before the cutoff and seven at/after it, so exactly half the
+  // session's per-message tokens are in-range and its billed cell must be halved.
+  // Offsets are on the half-day so the nearest message sits 12h clear of the cutoff —
+  // `cutoff` is computed inside computeExplore() at assertion time, later than these
+  // timestamps, and a message pinned exactly at 7d would flip sides on clock drift
+  // (the same trap the hourly fixture above documents).
+  const spanProj = upsertProject('/tmp/proj-span-edge');
+  spanProjectId = spanProj.id;
+  const DAY = 86400000;
+  const spanNow = Date.now();
+  replaceSession(
+    { id: 'sSpan', project_id: spanProj.id, source: 'claude-code', file_path: '/tmp/sSpan.jsonl',
+      started_at: new Date(spanNow - 13.5 * DAY).toISOString(),
+      ended_at: new Date(spanNow - 0.5 * DAY).toISOString(),
+      usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 300, cacheRead: 500, cacheWrite5m: 100, cacheWrite1h: 0 } }) },
+    Array.from({ length: 14 }, (_, i) => ({
+      kind: 'assistant', text: `span msg ${i}`, model: 'claude-sonnet-5',
+      input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0,
+      ts: new Date(spanNow - (13.5 - i) * DAY).toISOString(),
+    })),
   );
 
   // ---- group=session fixture ----
@@ -302,4 +326,42 @@ test('computeExplore: group=session respects scope=project', () => {
   // fallback fixtures — so 5 sessions, not 3.
   assert.equal(r.rows.length, 5);
   assert.ok(r.rows.every((x) => ['sSessA', 'sSessB', 'sSessC', 'sSessD', 'sSessE'].includes(x.key)));
+});
+
+// ---- the range-edge reconciliation pin (#306) ----
+
+// Every field of a token cell, summed — the magnitude the total bar and the stacked
+// chart each render from.
+const cellsTotal = (byModel) => Object.values(byModel ?? {})
+  .reduce((n, u) => n + u.input + u.output + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h, 0);
+
+// sSpan bills 1900 tokens across five fields with exactly half its per-message tokens
+// inside the days=7 range, so the in-range share is 950 — not the full 1900 the rollup
+// used to place on the session's started_at bucket.
+const SPAN_BILLED = 1900;
+const SPAN_IN_RANGE = 950;
+
+test('a session on the range edge contributes only its in-range share to the rollup buckets', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'project', id: spanProjectId }, days: 7, metric: 'tokens', group: 'model', rollup: 'daily', topN: 10,
+  });
+  const bucketTotal = (r.buckets ?? []).reduce(
+    (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cellsTotal(cell.tokensByModel), 0), 0);
+  assert.equal(bucketTotal, SPAN_IN_RANGE);
+  assert.ok(bucketTotal < SPAN_BILLED, 'the whole billed cell must not land in the rollup');
+});
+
+test('reconciliation pin: for a range whose edge splits a session, the total equals the sum of the rollup buckets', () => {
+  for (const group of ['model', 'project', 'source', 'session']) {
+    for (const rollup of ['hourly', 'daily', 'weekly', 'monthly']) {
+      const r = explore.computeExplore({
+        scope: { type: 'project', id: spanProjectId }, days: 7, metric: 'tokens', group, rollup, topN: 10,
+      });
+      const rowTotal = r.rows.reduce((n, row) => n + cellsTotal(row.tokensByModel), 0);
+      const bucketTotal = (r.buckets ?? []).reduce(
+        (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cellsTotal(cell.tokensByModel), 0), 0);
+      assert.equal(rowTotal, SPAN_IN_RANGE, `group=${group} rollup=${rollup}: total bar`);
+      assert.equal(bucketTotal, rowTotal, `group=${group} rollup=${rollup}: stacked chart must equal the total bar`);
+    }
+  }
 });

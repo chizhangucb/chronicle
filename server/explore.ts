@@ -8,7 +8,7 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, rangedUsage, bucketedUsage } from './rangeUsage.ts';
+import { overlapGate, rangedUsage, bucketedUsage, type UsageBucket } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
@@ -127,6 +127,14 @@ export function pickRollup(
   }
   return 'monthly';
 }
+
+// Each time rollup's granularity in server/rangeUsage.ts's vocabulary. The rollup's
+// token magnitude is bucketed by that primitive (#306), so a session sitting on the
+// range edge contributes its in-range share to each bucket instead of its whole billed
+// cell to its started_at bucket — the same scaling the ranked rows already apply.
+const USAGE_BUCKET_FOR: Record<Exclude<ExploreRollup, 'total'>, UsageBucket> = {
+  hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
+};
 
 // D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
 // tool_name shape) is calibrated exactly like
@@ -570,7 +578,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, sc, base, g });
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById });
   }
 
   return {
@@ -637,28 +645,31 @@ export function toWire(result: ExploreResult): ExploreWireResult {
 // `rows` supplies the series identity (its keys = topN group values + 'Other'),
 // so the time-series stacks the SAME series the ranked/Detail views show, in the
 // same colors. Non-topN group values fold into 'Other' per bucket.
-interface RollupCtx { cutoff: string; sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string }; }
+interface RollupCtx {
+  cutoff: string; cutoffIso: string | null;
+  sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string };
+  // Project id → name, so a usage cell (which carries projectId) can be keyed the way
+  // groupExpr('project') keys the ranked rows. Populated only for group='project'.
+  projectNameById: Map<number, string>;
+}
 function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { cutoff, sc, base, g } = ctx;
+  const { cutoff, cutoffIso, sc, base, g, projectNameById } = ctx;
   // `base` (from computeExplore) now carries overlapGate + a trailing `AND m.ts >= ?`
   // placeholder — see the computeExplore `base` comment. Bind order: cutoff (overlap),
   // sc.params (scope), cutoff again (m.ts), then any caller-supplied extras.
   const bind = (extra: (string|number)[] = []): (string|number)[] => [cutoff, ...sc.params, cutoff, ...extra];
   const bm = bucketExpr(effective, 'm.ts');
   const bs = bucketExpr(effective, 's.started_at');
-  // Session scan (used by usage-sourced token magnitude + calibrated billed),
-  // bucketed by started_at — a session lands wholly in one bucket. overlapGate
-  // fixes the P0 vanishing bug for rollup token/spend charts too — a
-  // spanning session is no longer dropped — but bucket PLACEMENT stays at
-  // started_at (unscaled) rather than routing through bucketedUsage: that
-  // primitive only supports hour/day granularity, not the weekly/monthly
-  // rollups this file also serves, so per-message-scaled bucket placement for
-  // this session-usage-sourced path is left as a known follow-up, not this
-  // task's scope (the total/ranked `rows` above ARE fully rangedUsage-scaled).
-  const sessionSql = `SELECT ${bs} AS bkt, s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
-    FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}`;
+  // Billed `sessions.usage` cells for this rollup's granularity, scaled to each
+  // bucket's share of the session's per-message tokens (#306). This replaces the old
+  // started_at scan, which placed a session's WHOLE billed cell on the bucket it began
+  // in: for a range whose edge splits a session that over-counted the rollup against
+  // the ranked rows above (already rangedUsage/bucketedUsage-scaled), so the stacked
+  // chart and the total bar disagreed. bucketedUsage's buckets sum to exactly the
+  // ranged cell, so they now agree by construction.
+  const usageCells = (): ReturnType<typeof bucketedUsage> =>
+    bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, USAGE_BUCKET_FOR[effective]);
 
   // series identity: topN group values are their own series; everything else
   // (present iff `rows` was folded) collapses to 'Other'.
@@ -675,14 +686,12 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
 
   if (q.metric === 'tokens' || q.metric === 'spend') {
     if (EXACT_USAGE_GROUPS.includes(q.group)) {
-      // model/project/source/session magnitude from sessions.usage, bucketed by started_at.
-      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; id: string; project: string; source: string; usage: string|null }[];
-      for (const r of srows) {
-        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
-          const gv = q.group === 'model' ? model : q.group === 'project' ? r.project
-            : q.group === 'session' ? r.id : r.source;
-          addCellInto(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
-        }
+      // model/project/source/session magnitude from sessions.usage, bucketed and scaled
+      // to in-range share by the same primitive the ranked rows read.
+      for (const c of usageCells()) {
+        const gv = q.group === 'model' ? c.model : q.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
+          : q.group === 'session' ? c.sessionId : c.source;
+        addCellInto(cell(c.bucket, seriesKeyFor(gv)).tokensByModel, c.model, c.cells);
       }
     } else if (CALIBRATED_GROUPS.includes(q.group)) {
       // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
@@ -690,15 +699,16 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
       const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
         COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
         FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
-      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; usage: string|null }[];
+      // The per-bucket billed base is the same in-range-scaled cell set the exact
+      // branch reads, so a calibrated tool/skill bucket prices off the range's real
+      // billed total rather than a spanning session's whole history.
       const billedByBucket = new Map<string, number>();
       const splitByBucket = new Map<string, Map<string, { input: number; output: number }>>();
-      for (const r of srows) {
-        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
-          billedByBucket.set(r.bkt, (billedByBucket.get(r.bkt) ?? 0) + u.input + u.output);
-          let sp = splitByBucket.get(r.bkt); if (!sp) { sp = new Map(); splitByBucket.set(r.bkt, sp); }
-          const cur = sp.get(model) ?? { input: 0, output: 0 }; cur.input += u.input; cur.output += u.output; sp.set(model, cur);
-        }
+      for (const c of usageCells()) {
+        billedByBucket.set(c.bucket, (billedByBucket.get(c.bucket) ?? 0) + c.cells.input + c.cells.output);
+        let sp = splitByBucket.get(c.bucket); if (!sp) { sp = new Map(); splitByBucket.set(c.bucket, sp); }
+        const cur = sp.get(c.model) ?? { input: 0, output: 0 };
+        cur.input += c.cells.input; cur.output += c.cells.output; sp.set(c.model, cur);
       }
       const charByBucket = new Map<string, { key: string; chars: number }[]>();
       for (const cr of charRows) { const a = charByBucket.get(cr.bkt) ?? []; a.push({ key: String(cr.gk), chars: cr.chars }); charByBucket.set(cr.bkt, a); }
