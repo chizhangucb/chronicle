@@ -207,7 +207,7 @@ class SqlitePollWatcher {
     this.lastMtime = 0;
     this.seq = 1_000_000;
     this.pollMs = 2000;
-    this.poll = setInterval(() => { this.check(); }, this.pollMs);
+    this.poll = setInterval(() => { this.check().catch(() => {}); }, this.pollMs);
     this.idleSince = Date.now();
   }
 
@@ -246,7 +246,7 @@ class SqlitePollWatcher {
     if (this.pollMs === ms) return;
     this.pollMs = ms;
     clearInterval(this.poll);
-    this.poll = setInterval(() => { this.check(); }, ms);
+    this.poll = setInterval(() => { this.check().catch(() => {}); }, ms);
   }
 
   broadcast(payload: unknown): void {
@@ -288,7 +288,9 @@ function tail(source: Source, line: string): Event[] {
 
 // Where a stored session can be re-read from: the scanned projects that sit on
 // this session's project path. Resolved once per watcher — a scan walks the
-// source's root, which is too much to redo every poll.
+// source's root, which is too much to redo every poll. A session whose project
+// the source can no longer scan has no target, so nothing streams for it: the
+// stored messages still render, the live tail is simply empty.
 function storeTargets(source: Source, session: SessionRow): ParseTarget[] {
   const projectPath = (db.prepare('SELECT path FROM projects WHERE id = ?').get(session.project_id) as { path: string } | undefined)?.path;
   if (!projectPath) return [];

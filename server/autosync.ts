@@ -182,8 +182,12 @@ export function startAutoSync(): void {
   const st = state();
   stopAutoSync();
   if (!autoSyncEnabled()) return;
-  // fs-watch the known source dirs (recursive works on macOS/Windows; a dir that
-  // doesn't exist or can't be watched is skipped — the timer is the backstop).
+  // fs-watch one dir per source, its own default root (recursive works on
+  // macOS/Windows; a dir that doesn't exist or can't be watched is skipped —
+  // the timer is the backstop). One watcher per source, not one per scanned
+  // project: the root covers every project under it, and for Cursor it covers
+  // the global store its composer bubbles live in as well as the per-workspace
+  // ones — a write there used to reach no watcher at all.
   const dirs = SOURCES.map((s) => watchDirOf(s.defaultRoot()));
   for (const d of new Set(dirs)) {
     try {
