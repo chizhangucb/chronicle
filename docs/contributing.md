@@ -64,9 +64,9 @@ plain JS (`dist-server/`) so the published npm package doesn't require Node to s
 - **Plain React + one `styles.css`.** There is no UI framework and no chart library beyond
   Recharts wrapped in `src/charts/ChartWrapper.tsx` for the newer views — match the existing
   style rather than introducing a new one.
-- **Everything heavy is heuristic and local.** Redaction, cost accounting, and
-  Insights aggregation run entirely on-device with no LLM calls. Preserve that offline
-  guarantee — never add a network dependency to a core feature.
+- **Everything heavy is heuristic and local.** Redaction, cost accounting, and Insights
+  aggregation run entirely on-device with no LLM calls. Preserve that offline guarantee —
+  never add a network dependency to a core feature.
 - **Read-only on foreign systems.** SQLite sources are copied to a temp location (including
   their `-wal`/`-shm` files) before opening; original logs and repos are never written.
 - **Long-lived state lives on `globalThis`** (e.g. auto-sync's watchers/timers) so Vite's SSR

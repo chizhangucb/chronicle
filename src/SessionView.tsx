@@ -18,8 +18,8 @@ import type { DeletedEntry } from './SessionSelect.tsx';
 // ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
 // Duplicated from server/db.ts + server/git.ts rather than imported:
 // tsconfig.client.json's program only includes src/**  + shared/**, so it
-// cannot see server/**. See the task report for the suggested shared-type
-// addition (a client-usable Session/Project contract).
+// cannot see server/**. Spec #294 moves the server row types into shared/, at
+// which point both sides import one Session/Project contract instead.
 
 // Full `sessions` row shape (mirrors server/db.ts SessionRow). `source` is a
 // plain `string` (not the narrower `SourceId` union) to match the canonical

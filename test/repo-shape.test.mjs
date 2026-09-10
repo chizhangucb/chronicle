@@ -193,15 +193,11 @@ test('CI declares a gitleaks job, pinned by version and checksum', () => {
 //   - the removal pins themselves (this file, the vocabulary registry it reads,
 //     and the suites that assert a retired route, CLI subcommand or env knob is
 //     gone): a pin cannot forbid a word without spelling it.
-//   - docs/agents/design-audit-2026-09-04.md: a dated audit record. Like the
-//     CHANGELOG it names what was, and the specs cut from its findings cite it
-//     by finding number, so a finding cannot be edited out of it.
 //   - package-lock.json: generated, and its base64 integrity hashes contain
 //     arbitrary letter runs.
 //   - binary files: read as utf8 they are noise, and none carries prose.
 const VOCAB_EXEMPT = new Set([
   'CHANGELOG.md',
-  'docs/agents/design-audit-2026-09-04.md',
   'package-lock.json',
   'test/repo-shape.test.mjs',
   'test/helpers/retired-vocabulary.mjs',
@@ -255,23 +251,36 @@ test('the sweep covers source, config, spec and docs, not just docs', () => {
   );
 });
 
+// One word, one file. docs/agents/design-audit-2026-09-04.md is a dated audit
+// record: spec #294 is cut from its findings and cites them by number, so F18
+// cannot be edited out of it. Exempting the WORD there (rather than the file,
+// as VOCAB_EXEMPT would) keeps every other retired word forbidden in it, same
+// principle as SCHEMA_LITERALS above.
+const WORD_EXEMPT = new Map([
+  ['causality', 'docs/agents/design-audit-2026-09-04.md'],
+]);
+
+// The glossary's `_Avoid_:` lines are the one place a retired word or phrase is
+// supposed to appear: CONTEXT.md cannot say which one lost without naming it.
+// Same principle as VOCAB_EXEMPT above, scoped to the line rather than the file,
+// so every other line of the glossary is swept normally.
+const stripAvoidLine = (line) => (/^_Avoid_:/.test(line.trim()) ? '' : line);
+
 for (const { word, re } of RETIRED_WORDS) {
   test(`no tracked file outside the CHANGELOG names "${word}"`, () => {
     // Per LINE, so the failure names the line a reader has to go fix.
-    const offenders = sweep((rel, src) =>
-      src.split('\n').flatMap((line, i) =>
-        re.test(stripSchemaLiterals(line)) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
-      ),
+    const offenders = sweep(
+      (rel, src) =>
+        src.split('\n').flatMap((line, i) =>
+          re.test(stripAvoidLine(stripSchemaLiterals(line)))
+            ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
+            : [],
+        ),
+      { skip: (rel) => WORD_EXEMPT.get(word) === rel },
     );
     assert.deepEqual(offenders, [], `"${word}" is back:\n  ${offenders.join('\n  ')}`);
   });
 }
-
-// The glossary's `_Avoid_:` lines are the one place a retired word is supposed
-// to appear: CONTEXT.md cannot say which word lost without naming it. Same
-// principle as VOCAB_EXEMPT above, scoped to the line rather than the file, so
-// every other line of the glossary is swept normally.
-const stripAvoidLine = (line) => (/^_Avoid_:/.test(line.trim()) ? '' : line);
 
 for (const { phrase, re } of RETIRED_PHRASES) {
   test(`no tracked file outside the CHANGELOG says "${phrase}"`, () => {

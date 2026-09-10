@@ -3,9 +3,9 @@
 What Chronicle stores, where it stores it, and the exact outbound network calls it makes.
 
 Chronicle is local-first by design, not by configuration. Parsing, storage, viewing,
-time-travel, and redaction all happen on-device, and there is no cloud
-backend to opt out of. This page is the honest accounting: the guarantees, what actually
-leaves your machine, and where your data physically lives.
+time-travel, and redaction all happen on-device, and there is no cloud backend to opt out
+of. This page is the honest accounting: the guarantees, what actually leaves your machine,
+and where your data physically lives.
 
 ## The local-first guarantee
 

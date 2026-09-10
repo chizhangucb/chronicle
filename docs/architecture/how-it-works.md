@@ -239,8 +239,7 @@ a later scan of the same source log. "Undo" just removes the tombstone row.
 ### The normalized event model
 
 Every parser's job is to turn a tool-native log into a flat list of rows of one shape — the
-contract between ingestion and everything downstream (playback, refine, search,
-Insights).
+contract between ingestion and everything downstream (playback, refine, search, Insights).
 
 | `kind` | Meaning | Label (`src/kinds.ts`) |
 | --- | --- | --- |
