@@ -144,11 +144,18 @@ constant; readability is solved on the TEXT, not by moving the frame.
   named only in the Reference `Retired` group and in the CHANGELOG. Guards:
   `test/removed-routes.test.mjs`, `test/routes-after-contract-views.test.mjs`,
   `test/cli-removed-inputs.test.mjs`, `test/repo-shape.test.mjs`.
+- **Playback layers no confidence score on a message.** Spec #294 deleted the heuristic
+  read-to-change analysis: a Playback row shows its kind, its timestamp and its body, and
+  nothing scores what drove it. The engine and its per-session route are gone with the chip,
+  so opening a session issues no request for either. Guards:
+  `test/removed-routes.test.mjs`, `test/repo-shape.test.mjs`.
 - **The retired vocabulary stays retired.** The words for the private checkout Chronicle was the
-  operator's front end for, the two sibling repos it named, and the private tracker's ticket ids
-  appear in NO tracked source, config, spec or doc. The CHANGELOG is excepted (history names what
-  was), as are the removal pins themselves (a pin cannot forbid a word without spelling it).
-  Guard: `test/repo-shape.test.mjs` — the vocabulary-sweep pins.
+  operator's front end for, the two sibling repos it named, the private tracker's ticket ids, and
+  the word for the read-to-change links spec #294 removed, appear in NO tracked source, config,
+  spec or doc. The CHANGELOG is excepted (history names what was), as are the removal pins
+  themselves (a pin cannot forbid a word without spelling it) and, for that last word alone, the
+  dated design audit whose findings the spec cites by number. Guard: `test/repo-shape.test.mjs` —
+  the vocabulary-sweep pins.
 
 ## Per-surface content inventory (what each surface MUST show)
 
@@ -222,7 +229,7 @@ scopes the tab.
    Claude cards mirror the official usage page rows: `5h` (current session) · `7d` (all models) ·
    `fable` (top-tier model 7d — follow whatever the quota API reports, NEVER hardcode opus). Codex
    cards: `7d`. A `COVERED` tag once per card head, never per meter. Caption: quota-read posture +
-   Settings opt-out (Claude) / local (Codex). Claude meters are opt-in-off outbound.
+   Settings opt-out (Claude) / local (Codex). Claude meters are outbound, on by default.
 4. **Efficiency card** (ROW grammar): **DETECTORS** rows (name · value + lowercase state word ·
    small bar · right-muted definition): cache hit rate · jumbo outputs · long context · error rows.
    Below, ONE column — **WASTE SIGNALS** (right-sizing approx `$` · cache churn `$` · repeat file
@@ -329,6 +336,13 @@ sidebar rail):
    sibling runs of the same type).
 Back affordances step back one level at a time (run transcript → run list → session Overview).
 
+The Overview **Transcript** card (`.ov-danger`) shows the session's transcript path and offers
+exactly ONE action, `⌫ Delete from Chronicle` (two-step inline confirm, never `window.confirm`;
+disabled while the session is live). Chronicle removes its own copy and never the transcript:
+the "Delete source file" and "Delete everywhere" controls, and the routes behind them, are gone
+(issue #299, decision #283, ADR 0008's floor). Guard:
+`test/transcript-delete-removed.test.mjs`.
+
 ### Content tab — composition + three-card grid
 
 - **Token composition rows sort DESC by token count** (`compositionRows`, zero-token rows sink to
@@ -374,6 +388,7 @@ when empty and is absent in demo (demo never records).
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
+| No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |
 | No job template is tracked at all, and the published files list excludes no path that is missing | `test/repo-shape.test.mjs` — "the published package ships no job template" |
 | The retired vocabulary appears in no tracked source, config, spec or doc (CHANGELOG and the removal pins excepted); no retired route prefix or deleted module returns | `test/repo-shape.test.mjs` — the vocabulary-sweep pins |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |

@@ -20,7 +20,7 @@ group under `/api`:
 | --- | --- |
 | `import-sync.ts` | Scan/import, per-project and per-session sync |
 | `projects.ts` | Project list, detail, associate/unlink, delete |
-| `sessions.ts` | Session detail, rename, delete/undo (tombstones), minor-session bucket, live SSE, causality |
+| `sessions.ts` | Session detail, rename, delete/undo (tombstones), minor-session bucket, live SSE |
 | `search.ts` | Global search (FTS5, `LIKE` fallback) |
 | `security.ts` | Security scan, redaction rules, redacted export |
 | `git.ts` | Snapshot queries (`/git/at`, `/git/tree`, `/git/file`) |
@@ -79,7 +79,6 @@ point) imports the compiled `dist-server/server/standalone.js`, not the `.ts` so
 │  live.ts       JSONL tail + SQLite poll → SSE                 │
 │  autosync.ts   invisible background sync (watchers, backstop) │
 │  noiseGate.ts  "minor session" bucketing                      │
-│  causality.ts  read→change linking (heuristic)                │
 │  security.ts   redaction rules, session scan                  │
 │  insights.ts   explore.ts   content.ts   calibrate.ts         │
 │                → the Insights engine (Overview/Explore/Content)│
@@ -123,8 +122,8 @@ watchers) lives on `globalThis` so a Vite SSR module reload in dev doesn't orpha
    sources are copied to temp before opening; the git engine only reads.
 4. **Safe by default.** Redaction is one-way; destructive operations (delete session, delete
    project) back up the database first and tombstone rather than silently discard.
-5. **Everything heavy is heuristic + local.** Causality confidence tiers, redaction regexes,
-   active-duration math, Insights aggregation, token calibration — all local heuristics.
+5. **Everything heavy is heuristic + local.** Redaction regexes, active-duration math,
+   Insights aggregation, token calibration — all local heuristics.
    **No model call in the analysis path.** The one model run in the product is Ask, which is
    off by default and, when on, spawns a local `claude -p` on the operator's own Claude
    subscription once per question, confined to a single read-only SELECT-only tool over
@@ -240,8 +239,7 @@ a later scan of the same source log. "Undo" just removes the tombstone row.
 ### The normalized event model
 
 Every parser's job is to turn a tool-native log into a flat list of rows of one shape — the
-contract between ingestion and everything downstream (playback, refine, causality, search,
-Insights).
+contract between ingestion and everything downstream (playback, refine, search, Insights).
 
 | `kind` | Meaning | Label (`src/kinds.ts`) |
 | --- | --- | --- |
@@ -494,19 +492,6 @@ slow their poll interval after a period of silence and auto-stop when the last v
 disconnects. Live messages use `seq` starting at 1,000,000 to avoid colliding with stored rows
 and exist only in client state until re-import.
 
-### Context causality (`server/causality.ts`)
-
-`analyzeCausality(sessionId)` links what the AI **read** to what it **changed** via pure
-structural analysis over the tool-call sequence:
-
-| Confidence | Signal |
-| --- | --- |
-| 0.95 | read the exact file it then changed |
-| 0.55 | read a sibling file in the same directory |
-| 0.5 | read a file with the same base name |
-| 0.45 | a search pattern that matches the changed file |
-| 0.2 | read shortly before the change (background context, 8-read window) |
-
 ## The Insights engine
 
 **Insights** is Chronicle's tabbed analytics surface — **Overview / Explore / Content** —
@@ -560,7 +545,7 @@ server binds `127.0.0.1`.
 | --- | --- |
 | Import & scan | `GET /scan`, `POST /import`, `POST /projects/:id/sync`, `POST /sessions/:id/sync` |
 | Projects | `GET /projects`, `GET /projects/:id`, `PATCH /projects/:id`, `DELETE /projects/:id`, `POST /projects/:id/associate`, `POST /projects/:id/unlink` |
-| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `DELETE /sessions/:id/source-file`, `POST /sessions/undo-delete`, `GET /sessions/minor`, `POST /sessions/:id/promote`, `GET /sessions/:id/causality`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted` |
+| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `POST /sessions/undo-delete`, `GET /sessions/minor`, `POST /sessions/:id/promote`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted` |
 | Git | `GET /git/at`, `GET /git/tree`, `GET /git/file` |
 | Search | `GET /search` |
 | Live | `GET /live/status` |
@@ -575,7 +560,7 @@ server binds `127.0.0.1`.
 
 - [Supported tools](../reference/supported-tools.md) — the tool matrix, log locations, and
   configuration (env vars, `config.json`, ports).
-- [Privacy & data](../reference/privacy-and-data.md) — the local-first guarantees and outbound
-  calls (there are none).
+- [Privacy & data](../reference/privacy-and-data.md) — the local-first guarantees and the one
+  outbound call (your own Claude plan windows, on by default, off in Settings).
 - [Installation](../guide/installation.md) — install paths, run modes, requirements.
 - [Contributing](../contributing.md) — dev setup and verification habits.

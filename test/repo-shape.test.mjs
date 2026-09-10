@@ -8,10 +8,8 @@
 // (dist/, node_modules/, .DS_Store) can never make this flaky.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   PRIVATE_PATHS,
   PRIVATE_FOLDERS,
@@ -20,12 +18,8 @@ import {
   RETIRED_ROUTE_PREFIXES,
   RETIRED_MODULE_PATHS,
 } from './helpers/retired-vocabulary.mjs';
+import { REPO, git, tracked, BINARY } from './helpers/tracked-files.mjs';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const git = (...args) =>
-  execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
-
-const tracked = git('ls-files').split('\n').filter(Boolean);
 const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 
 // Folders the restructure retired. The retired seams (records/, plans/) and the
@@ -207,7 +201,7 @@ test('CI declares a gitleaks job, pinned by version and checksum', () => {
 //     gone): a pin cannot forbid a word without spelling it.
 //   - package-lock.json: generated, and its base64 integrity hashes contain
 //     arbitrary letter runs.
-//   - binary files: read as utf8 they are noise, and none carries prose.
+//   - binary files (the BINARY list in test/helpers/tracked-files.mjs).
 const VOCAB_EXEMPT = new Set([
   'CHANGELOG.md',
   'package-lock.json',
@@ -216,7 +210,6 @@ const VOCAB_EXEMPT = new Set([
   'test/removed-routes.test.mjs',
   'test/cli-removed-inputs.test.mjs',
 ]);
-const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 
 // The ONE surviving literal, exempted BY VALUE rather than by file: this exact
 // string is written into `chronicle_migrations` on every install that has run
@@ -262,29 +255,48 @@ test('the sweep covers source, config, spec and docs, not just docs', () => {
   );
 });
 
+// One word, one file. docs/agents/design-audit-2026-09-04.md is a dated audit
+// record: spec #294 is cut from its findings and cites them by number, so F18
+// cannot be edited out of it. Exempting the WORD there (rather than the file,
+// as VOCAB_EXEMPT would) keeps every other retired word forbidden in it, same
+// principle as SCHEMA_LITERALS above.
+const WORD_EXEMPT = new Map([
+  ['causality', 'docs/agents/design-audit-2026-09-04.md'],
+]);
+// Blanks the exempt word's one file for that word only. Applied inside the
+// report (rather than as a sweep-wide filter) so the sweepable set the other
+// pins read stays exactly the same set.
+const stripExemptFile = (word, rel, line) =>
+  (WORD_EXEMPT.get(word) === rel ? '' : line);
+
+// The glossary's `_Avoid_:` lines are the one place a retired word or phrase is
+// supposed to appear: CONTEXT.md cannot say which one lost without naming it.
+// Same principle as VOCAB_EXEMPT above, scoped to the ONE file AND to the line
+// inside it, so every other line of the glossary is swept normally and no other
+// file can hide a retired word behind an `_Avoid_:` prefix.
+const GLOSSARY = 'CONTEXT.md';
+const stripAvoidLine = (rel, line) =>
+  (rel === GLOSSARY && /^_Avoid_:/.test(line.trim()) ? '' : line);
+
 for (const { word, re } of RETIRED_WORDS) {
   test(`no tracked file outside the CHANGELOG names "${word}"`, () => {
     // Per LINE, so the failure names the line a reader has to go fix.
     const offenders = sweep((rel, src) =>
       src.split('\n').flatMap((line, i) =>
-        re.test(stripSchemaLiterals(line)) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
+        re.test(stripExemptFile(word, rel, stripAvoidLine(rel, stripSchemaLiterals(line))))
+          ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
+          : [],
       ),
     );
     assert.deepEqual(offenders, [], `"${word}" is back:\n  ${offenders.join('\n  ')}`);
   });
 }
 
-// The glossary's `_Avoid_:` lines are the one place a retired word is supposed
-// to appear: CONTEXT.md cannot say which word lost without naming it. Same
-// principle as VOCAB_EXEMPT above, scoped to the line rather than the file, so
-// every other line of the glossary is swept normally.
-const stripAvoidLine = (line) => (/^_Avoid_:/.test(line.trim()) ? '' : line);
-
 for (const { phrase, re } of RETIRED_PHRASES) {
   test(`no tracked file outside the CHANGELOG says "${phrase}"`, () => {
     const offenders = sweep((rel, src) =>
       src.split('\n').flatMap((line, i) =>
-        re.test(stripAvoidLine(stripSchemaLiterals(line)))
+        re.test(stripAvoidLine(rel, stripSchemaLiterals(line)))
           ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
           : [],
       ),

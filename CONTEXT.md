@@ -87,8 +87,9 @@ The time filter on a surface: Today, 7d, 30d, 90d, All.
 _Avoid_: window (reserved for plan window and context window), period.
 
 **Playback**:
-Stepping through a session's messages in order, with each message's snapshot beside it.
-_Avoid_: replay.
+Stepping through a session's messages in order, with each message's snapshot beside it. It
+shows what the tool read and changed; nothing scores what drove a message.
+_Avoid_: replay, causality (the read-to-change heuristic was removed).
 
 **Refine**:
 The session mode for trimming and annotating a session before it is shared.

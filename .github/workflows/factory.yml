@@ -66,6 +66,12 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
+      # 20 slots, not the default 5. The slot is the issue or PR number mod this,
+      # so with 5 a run waits behind an unrelated number that happens to share a
+      # remainder: issue 295 and PR 315 both landed on slot 0 while three slots
+      # sat idle. Set the same number on every job that takes it, or the roles
+      # stop sharing a group and the cap stops capping.
+      per_account_slots: 20
   review:
     if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:review'
     uses: chizhangucb/software-factory/.github/workflows/agent-review.yml@main
@@ -73,6 +79,12 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
+      # 20 slots, not the default 5. The slot is the issue or PR number mod this,
+      # so with 5 a run waits behind an unrelated number that happens to share a
+      # remainder: issue 295 and PR 315 both landed on slot 0 while three slots
+      # sat idle. Set the same number on every job that takes it, or the roles
+      # stop sharing a group and the cap stops capping.
+      per_account_slots: 20
   implement-pr:
     if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:implement'
     uses: chizhangucb/software-factory/.github/workflows/agent-implement-pr.yml@main
@@ -80,6 +92,12 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
+      # 20 slots, not the default 5. The slot is the issue or PR number mod this,
+      # so with 5 a run waits behind an unrelated number that happens to share a
+      # remainder: issue 295 and PR 315 both landed on slot 0 while three slots
+      # sat idle. Set the same number on every job that takes it, or the roles
+      # stop sharing a group and the cap stops capping.
+      per_account_slots: 20
   gate:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     uses: chizhangucb/software-factory/.github/workflows/gate.yml@main
@@ -94,6 +112,12 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
+      # 20 slots, not the default 5. The slot is the issue or PR number mod this,
+      # so with 5 a run waits behind an unrelated number that happens to share a
+      # remainder: issue 295 and PR 315 both landed on slot 0 while three slots
+      # sat idle. Set the same number on every job that takes it, or the roles
+      # stop sharing a group and the cap stops capping.
+      per_account_slots: 20
   update-branch:
     if: >-
       github.event_name == 'push' ||
