@@ -204,6 +204,13 @@ export const DEFINITIONS: Definition[] = [
 
   // ---- Explore / Content ----
   {
+    id: 'explore.approximate-tokens',
+    page: 'explore',
+    title: 'Approximate tokens (≈)',
+    plain: () => 'Tokens for Hour and Subagent are summed from the per-message token columns, which hold only part of what was billed (roughly three quarters of it): the rest is never written per message, so these figures undercount. Chronicle has no hourly or per-subagent split of the billed totals to reconcile them against, so it shows the real per-message numbers and marks them ≈. Group by Model, Project or Source for billed-exact tokens.',
+    tech: () => 'server/explore.ts per-message sums; EXACT_USAGE_GROUPS is the billed-exact set',
+  },
+  {
     id: 'explore.rollup',
     page: 'explore',
     title: 'Rollup',

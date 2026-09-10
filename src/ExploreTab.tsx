@@ -15,7 +15,7 @@ import { bucketLabel } from '../shared/bucketLabel.ts';
 import PivotControls, {
   type PivotState, type PivotMetric, type PivotRollup, metricOptions, groupOptions,
 } from './explore/PivotControls.tsx';
-import { groupShowsTokenColumn } from './explore/tokenColumns.ts';
+import { cardApproxBadge, detailTokensCell } from './explore/tokenColumns.ts';
 import { useCachedFetch } from './useCachedFetch.ts';
 
 // Mounted by both HomeDashboard (the Insights home, scope {type:all}) and ProjectDetail
@@ -308,12 +308,14 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // column for those (Spend/Active/Errors have no fixed twin, so it stays).
   const FIXED_COLUMN_KEYS = new Set(['Tokens', 'Requests', 'Sessions']);
   const showMetricCol = !FIXED_COLUMN_KEYS.has(METRIC_COLUMN_KEY[pivot.metric]);
-  // EXP-02: suppress the TOKENS column to '—' only for the truly-calibrated
-  // groups (tool/skill), whose card carries the ≈ badge. model/project/source
-  // (authoritative) AND subagent/hour (real per-message tokens, shown unmarked
-  // on the card/bar) show the concrete number. $/session is SPEND-derived and is
+  // EXP-02 / #203: how this group's tokens are presented, decided in one place
+  // (tokenColumns.ts). Calibrated groups (tool/skill/mcp) suppress the TOKENS
+  // column to '—'; the per-message groups (hour/subagent/provider) show their
+  // real number marked '≈', the same badge the card carries, because those
+  // columns hold only part of the billed usage; model/project/source/session
+  // are billed-exact and show a bare figure. $/session is SPEND-derived and is
   // NOT gated here — it shows for every group (see tokenColumns.ts).
-  const showTokenCol = groupShowsTokenColumn(pivot.group);
+  const approx = cardApproxBadge(pivot.group, pivot.metric, result?.calibrated ?? false);
 
   return (
     <>
@@ -327,10 +329,10 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
               {result.buckets
                 ? `${metricChipLabel} by ${groupChipLabel} · ${ROLLUP_LABEL[result.rollup]} · ${rangeLabel}`
                 : cardTitle}
-              {result.calibrated && (
+              {approx.show && (
                 <>
                   {' ≈'}
-                  <InfoTip def="spend.token-attribution" />
+                  <InfoTip def={approx.def} />
                 </>
               )}
               {result.rollup !== result.requestedRollup && (
@@ -350,7 +352,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <CartesianGrid {...GRID_PROPS} />
                       <XAxis dataKey="bucket" {...AXIS_PROPS} />
                       <YAxis {...AXIS_PROPS} width={52} tickFormatter={(v) => fmtChartValue(Number(v))} />
-                      <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={result.calibrated} />} />
+                      <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtChartValue(Number(v))} calibrated={approx.show} />} />
                       {ranked.map(({ row }, i) => (
                         <Bar key={row.key} dataKey={row.key} stackId="a" name={rowDisplayLabel(row)} fill={rowColor(row, i)} />
                       ))}
@@ -466,7 +468,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                       <td><span className="dot" style={{ background: rowColor(row, i) }} />{rowDisplayLabel(row)}</td>
                       {showMetricCol && <td className="cost">{fmtMetricValue(row, pivot.metric, 2, mode)}</td>}
                       <td><span className="mini"><i style={{ width: `${Math.min(100, share)}%`, background: rowColor(row, i) }} /></span> {share.toFixed(1)}%</td>
-                      <td>{showTokenCol ? fmtTok(rowTokens(row)) : '—'}</td>
+                      <td>{detailTokensCell(pivot.group, fmtTok(rowTokens(row)))}</td>
                       <td>{row.requests.toLocaleString()}</td>
                       <td>{row.sessions.toLocaleString()}</td>
                       <td>{fmtMoney(perSession, 2)}</td>

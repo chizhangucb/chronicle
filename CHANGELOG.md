@@ -114,6 +114,16 @@ https://github.com/chizhangucb/chronicle/releases
   say "window" now says "range". *Window* is left to mean only a plan window or a context
   window, so the two are never confused on the Spend tab.
 
+- **Explore marks Hour and Subagent tokens `≈`.** Grouping by Hour or Subagent shows tokens
+  summed from the per-message columns, which hold only part of what was billed — roughly
+  three quarters of it — because the rest is never written per message. The figures are
+  unchanged (there is no hourly or per-subagent split of the billed totals to reconcile
+  them against, so a scaled guess would be worse than the real count), but the card, the
+  chart tooltip and the Detail table's Tokens cell now carry the same `≈` the calibrated
+  Tool and Skill dimensions carry, with a ⓘ that says why. Across every dimension the
+  marker now means one thing: this is not a billed total. Group by Model, Project or
+  Source for tokens that are.
+
 - **Explore's stacked chart now agrees with its own total.** On a range whose edge cuts
   through a session, the time chart used to draw that session's whole billed usage on the
   bar it started in while the ranked rows showed only the share inside the range, so the
