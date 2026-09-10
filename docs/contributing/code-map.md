@@ -31,8 +31,12 @@ object, which is the reason an endpoint works in dev and standalone with no per-
 calls. `_shared.ts` holds the helpers they have in common. This is where a new endpoint goes.
 
 **`parsers/`** is `claudeCode.ts`, `codex.ts`, `cursor.ts`, `opencode.ts`. Each exports a cheap
-`scan*Projects()` for the import wizard and a parse function returning `{ session, events }`.
-The parser is the only place that knows a tool's native format.
+`scan*Projects()` for the import wizard and a parse function returning `{ session, events }`,
+and each also implements the one `Source` interface in `source.ts`: `scan`, `parse` and
+`mtime`, plus `tail` where the store is an append-only transcript (Claude Code and Codex; the
+Cursor and OpenCode stores are SQLite, and live re-reads them instead). `registry.ts` lists the
+four, so a caller looks a source up by id rather than branching on the source string. The
+parser is the only place that knows a tool's native format.
 
 **The core engines:**
 
