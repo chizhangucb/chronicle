@@ -266,15 +266,6 @@ export const DEFINITIONS: Definition[] = [
     plain: () => 'Each answer is generated locally by your claude CLI, which may run only ONE tool: a read-only, SELECT-only query over ~/.chronicle/chronicle.db. No data leaves your machine. Dollar figures use the cost basis shown and reconcile with the Insights dashboards.',
   },
 
-  // ---- Settings ----
-  {
-    id: 'settings.view-log',
-    page: 'settings',
-    title: 'Local view log',
-    plain: () => 'Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.',
-    tech: () => 'server/viewlog.ts; routes are stored as patterns (/session/:id), never as instances',
-  },
-
   // ---- Retired: surfaces dropped by past releases ----
   // The surfaces are gone; the vocabulary survives, so a term you remember can
   // still be looked up. Each says plainly what replaced it.

@@ -12,7 +12,7 @@ _Avoid_: conversation, chat, thread.
 
 **Transcript**:
 The file a coding tool writes for a session, read-only input Chronicle never modifies. Where it lands is that tool's business.
-_Avoid_: log (reserved for the view log), history.
+_Avoid_: history.
 
 **Message**:
 One normalized row of a session: user, assistant, thinking, tool_use or tool_result. The five kinds are closed.
@@ -107,9 +107,6 @@ The in-app page defining every metric and term on the surfaces, rendered from th
 
 **Ask**:
 The one model run in the product: an operator-initiated local `claude -p` over a read-only, SELECT-only handle on Chronicle's own database. Off by default.
-
-**View log**:
-Chronicle's local record of which of its own surfaces got looked at, actor-tagged, browser-driven only. Never leaves the machine. Unrelated to a source transcript.
 
 ### Money and tokens
 

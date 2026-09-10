@@ -14,11 +14,9 @@ import { mountDetectors }  from './routes/detectors.ts';
 import { mountWaste }      from './routes/waste.ts';
 import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountAsk }        from './routes/ask.ts';
-import { mountViewLog }    from './routes/viewlog.ts';
 import { mountDemo }       from './routes/demo.ts';
 import { writeTokenGuard, mountWriteToken } from './writeToken.ts';
 import { startAutoSync }   from './autosync.ts';
-import { pruneViewLog }    from './viewlog.ts';
 
 export const api = express();
 api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH
@@ -44,14 +42,7 @@ mountDetectors(api);
 mountWaste(api);
 mountPlanWindows(api);
 mountAsk(api);
-mountViewLog(api);
 mountDemo(api);
-
-// Rolling 180-day retention on the view log, once per boot.
-// Pruning here rather than per write keeps a DELETE scan out of the
-// navigation path; pruneViewLog swallows its own failure so a locked DB at
-// this exact moment costs stale rows, never startup.
-pruneViewLog();
 
 // Auto-sync starts with the server in every run mode (dev / standalone);
 // watchers + timer live on globalThis so SSR reloads don't orphan them.

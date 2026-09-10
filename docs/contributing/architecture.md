@@ -32,8 +32,8 @@ decision records:
   ([gotchas](gotchas.md)).
 - Native `.ts` in dev; a real compile only at `prepack` ([patterns](patterns.md)).
 - A tag triggers an OIDC publish; the workflow file is the source of truth ([release](release.md)).
-- The analytics cache is generation-keyed, invalidated rather than expired, with the view log
-  exempt from invalidation.
+- The analytics cache is generation-keyed, invalidated rather than expired: every write path
+  invalidates, with no exemptions.
 - Live sessions stream over SSE.
 - Deletes are tombstones.
 - Routing is `wouter`; styling is one `styles.css`; sync is in-process.

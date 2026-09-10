@@ -60,18 +60,26 @@ export const RETIRED_PHRASES = [
   { phrase: 'in-window', re: /\bin-window\b/i },
 ];
 
-/** Route prefixes the shrink unmounted. A tracked file that mounts or fetches
+/** Route prefixes a removal unmounted. A tracked file that mounts or fetches
  *  one has re-grown a surface (routes are pinned live in
- *  test/removed-routes.test.mjs; this is the source-level pin). */
+ *  test/removed-routes.test.mjs; this is the source-level pin).
+ *
+ *  `/view-log` is the shrink's neighbour rather than its work: the local record
+ *  of which Chronicle surface was looked at is gone, table included. */
 export const RETIRED_ROUTE_PREFIXES = [
   '/briefing', '/launch/', '/memory/scope-suggest', '/routing', '/gate/',
   '/modules', '/jobs', '/records', '/proxy-lane', '/machine-sessions',
+  '/view-log', '/api/view-log',
 ];
 
-/** Server and client modules the shrink deleted. None may come back. */
+/** Modules and suites a removal deleted, server, client and test alike. None
+ *  may come back. A suite is listed alongside its module so a feature cannot
+ *  return with its own tests in tow and look green doing it. */
 export const RETIRED_MODULE_PATHS = [
   'server/hub/', 'server/gate/', 'server/briefing', 'server/launch',
   'server/machineSessions', 'server/proxyLane', 'server/scopeSuggest',
   'src/ModulesPage', 'src/SafetyPage', 'src/JobsPage', 'src/BriefingPage',
   'src/MemoryPage', 'src/RecordsPage', 'src/gateToken',
+  'server/viewlog', 'server/routes/viewlog', 'src/useViewLog',
+  'test/viewlog.test.mjs', 'test/e2e/viewlog.spec.ts',
 ];
