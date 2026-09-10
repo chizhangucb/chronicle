@@ -72,6 +72,11 @@ https://github.com/chizhangucb/chronicle/releases
   removes the imported copy, backs the database up first, and tombstones the session so a
   later sync does not re-import it, with Undo to take that back.
 
+- **Chronicle is English only.** The EN / 中文 / 日本語 dropdown in the top bar is gone, with the
+  zh and ja dictionaries and the lookup behind them. If you had the console set to one of those
+  languages it now reads in English; nothing else about your install changes, and no data moves.
+  Dates, hours and weekday labels format the same way they did with the language set to English.
+
 ### Added
 
 - **A reference for every number on the console.** The Reference page defines every metric

@@ -382,6 +382,7 @@ when empty and is absent in demo (demo never records).
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |
+| Chronicle is English only: no `src/i18n.ts`, no `t()` call site, no zh/ja string in any tracked file, no switcher control in the top bar and no persisted locale key; the date/hour/weekday call sites still format on `en-US` | `test/languages-removed.test.mjs` |
 | No launchd or cron template ships in the published tarball | `test/repo-shape.test.mjs` — "the published package ships no job template" |
 | The retired vocabulary appears in no tracked source, config, spec or doc (CHANGELOG and the removal pins excepted); no retired route prefix or deleted module returns | `test/repo-shape.test.mjs` — the vocabulary-sweep pins |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |

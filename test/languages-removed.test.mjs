@@ -53,7 +53,8 @@ test('no tracked file carries a zh or ja dictionary string', () => {
   // CJK text in the repo; a hit means a dictionary (or a menu label) grew back.
   const CJK = /[぀-ヿ㐀-䶿一-鿿]/;
   const offenders = tracked.filter((rel) => {
-    if (PIN_EXEMPT.has(rel) || rel === 'package-lock.json') return false;
+    // Lockfiles everywhere, not just the root one: `website/` ships its own.
+    if (PIN_EXEMPT.has(rel) || rel.endsWith('package-lock.json')) return false;
     if (!/\.(tsx?|jsx?|mjs|css|md|html|json|yml|yaml)$/.test(rel)) return false;
     return CJK.test(read(rel));
   });
