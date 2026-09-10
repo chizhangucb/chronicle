@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
+import type { Source } from './source.ts';
+import { newestMtimeMs } from './source.ts';
 
 interface Snapshot {
   db: DatabaseSync;
@@ -571,3 +573,33 @@ function bubbleToEvent(b: CursorBubble, anchorMs: number | string | null | undef
   }
   return events.length ? events : null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Source interface (#308)
+
+// Cursor is a store-backed source: many sessions live in one workspace SQLite
+// file (plus the global store its bubbles hang off), so there is no line to
+// tail — live re-reads the store instead, and `tail` is left off.
+export const cursorSource: Source = {
+  id: 'cursor',
+
+  defaultRoot: () => cursorUserDir(),
+
+  scan: (root: string = cursorUserDir()): ScannedProject[] => scanCursorProjects(root),
+
+  async parse({ logDir, physicalPath }): Promise<ParseResult[]> {
+    if (!logDir || !fs.existsSync(logDir)) return [];
+    return parseCursorWorkspace(logDir, cursorUserDir(), physicalPath ?? null);
+  },
+
+  // A workspace unit is a directory holding state.vscdb; an Agent-transcript
+  // unit is the JSONL file itself. Reading both spellings (and the WAL sidecar,
+  // where a SQLite write can land without touching the main file) keeps one
+  // signature over the two.
+  mtime: (unit: string): number | null => newestMtimeMs(
+    unit,
+    unit + '-wal',
+    path.join(unit, 'state.vscdb'),
+    path.join(unit, 'state.vscdb-wal'),
+  ),
+};

@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
+import type { Source } from './source.ts';
+import { newestMtimeMs } from './source.ts';
 
 export const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 
@@ -168,3 +170,32 @@ export function parseOpencodeSessions(dbPath: string, directory: string | undefi
     snap.cleanup();
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Source interface (#308)
+
+// OpenCode is a store-backed source: every session of every project lives in
+// one SQLite file, so there is no line to tail — live re-reads the store
+// instead, and `tail` is left off.
+export const opencodeSource: Source = {
+  id: 'opencode',
+
+  defaultRoot: () => OPENCODE_DB,
+
+  scan: (root: string = OPENCODE_DB): ScannedProject[] => scanOpencodeProjects(root),
+
+  async parse({ logDir, directory, sessionIds }): Promise<ParseResult[]> {
+    const dbPath = logDir || OPENCODE_DB;
+    if (!fs.existsSync(dbPath)) return [];
+    // No directory named means the whole store, the way "no files named" means
+    // the whole log dir on a per-file source.
+    const directories = directory
+      ? [directory]
+      : [...new Set(scanOpencodeProjects(dbPath).map((p) => p.directory as string))];
+    return directories.flatMap((dir) => parseOpencodeSessions(dbPath, dir, sessionIds));
+  },
+
+  // The store is the unit, read beside the WAL sidecar a write can land in
+  // without touching the main file.
+  mtime: (unit: string): number | null => newestMtimeMs(unit, unit + '-wal'),
+};
