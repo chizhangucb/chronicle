@@ -15,27 +15,26 @@ import { read } from './helpers/tracked-files.mjs';
 
 const CALLER = '.github/workflows/factory.yml';
 
-const lines = () => read(CALLER).split('\n');
+const source = read(CALLER);
+const lines = source.split('\n');
 
 /** The `jobs:` block, as line numbers, for the pins that read prose. */
 const jobLines = () => {
-  const start = lines().findIndex((line) => /^jobs:\s*$/.test(line));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
   assert.notEqual(start, -1, 'the caller declares no `jobs:` block');
-  return lines()
-    .slice(start)
-    .map((line, i) => ({ line, number: start + i + 1 }));
+  return lines.slice(start).map((line, i) => ({ line, number: start + i + 1 }));
 };
 
 /** The `jobs:` block, parsed, the way GitHub reads it. */
 const jobs = () => {
-  const parsed = yaml.load(read(CALLER));
+  const parsed = yaml.load(source);
   assert.ok(parsed?.jobs, 'the caller parses to no `jobs:` block');
   return parsed.jobs;
 };
 
 test('no job in the factory caller passes per_account_slots', () => {
   // By name, on the raw text, which the parsed pin below cannot do: the way
-  // this input comes back is someone adding it to DECLARED_INPUTS to quiet a
+  // this input comes back is someone adding it to FACTORY_ROLES to quiet a
   // red test. Then the allowlist agrees with the caller and only this fails.
   const offenders = jobLines()
     .filter(({ line }) => /per_account_slots/.test(line))
@@ -58,44 +57,48 @@ test('no job in the factory caller carries a comment about slots', () => {
 
 // --- The run still starts (#331, acceptance criterion 2) -------------------
 
-// Every input the factory's reusable workflows still declare. `factory_ref` is
-// on all of them, `node_version` on the ones that run the target's tooling,
-// `trusted_author_associations` on dispatch. Chronicle cannot read the
-// factory's declarations from here, so this list is the local mirror of them:
-// when the factory declares a new input and this caller starts passing it,
-// adding the name here is the step that says someone checked.
-const DECLARED_INPUTS = new Set(['factory_ref', 'node_version', 'trusted_author_associations']);
-
-// job id -> the factory workflow its `uses:` must name. A caller that loses a
-// job loses the role: no dispatch is no sweep, no update-branch is no
-// auto-merge. Checked as a subset, so gaining a role is an ordinary change.
-const CALLED_WORKFLOWS = {
-  dispatch: 'dispatch.yml',
-  implement: 'agent-implement.yml',
-  review: 'agent-review.yml',
-  'implement-pr': 'agent-implement-pr.yml',
-  gate: 'gate.yml',
-  audit: 'agent-audit.yml',
-  'update-branch': 'update-branch.yml',
+// The factory roles this caller wires, one row each: the workflow its `uses:`
+// must name, and the inputs it passes.
+//
+// A caller that loses a role loses the job: no dispatch is no sweep, no
+// update-branch is no auto-merge. The roles are checked as a subset, so
+// gaining one is an ordinary upstream change.
+//
+// `inputs` is per role, not global, because the factory declares them per
+// workflow: `factory_ref` on all of them, `node_version` only where the
+// target's own tooling runs, `trusted_author_associations` only on dispatch.
+// One flat allowlist would pass a caller sending `node_version` to dispatch,
+// which is the same parse failure this pin is for. Chronicle cannot read the
+// factory's declarations from here, so these are the inputs each role passes
+// today, on a caller the factory is running: widening a row is the step that
+// says someone checked the factory declares the new name.
+const FACTORY_ROLES = {
+  dispatch: { workflow: 'dispatch.yml', inputs: ['factory_ref', 'trusted_author_associations'] },
+  implement: { workflow: 'agent-implement.yml', inputs: ['factory_ref', 'node_version'] },
+  review: { workflow: 'agent-review.yml', inputs: ['factory_ref', 'node_version'] },
+  'implement-pr': { workflow: 'agent-implement-pr.yml', inputs: ['factory_ref', 'node_version'] },
+  gate: { workflow: 'gate.yml', inputs: ['factory_ref', 'node_version'] },
+  audit: { workflow: 'agent-audit.yml', inputs: ['factory_ref', 'node_version'] },
+  'update-branch': { workflow: 'update-branch.yml', inputs: ['factory_ref'] },
 };
 
 test('every job passes only inputs the factory still declares', () => {
   const offenders = Object.entries(jobs()).flatMap(([id, job]) =>
     Object.keys(job.with ?? {})
-      .filter((input) => !DECLARED_INPUTS.has(input))
+      .filter((input) => !(FACTORY_ROLES[id]?.inputs ?? []).includes(input))
       .map((input) => `${id} -> ${input}`),
   );
   assert.deepEqual(
     offenders,
     [],
     'the caller passes an input the factory may not declare, which fails every job at parse ' +
-      `time. Confirm the factory declares it, then add it to DECLARED_INPUTS:\n  ${offenders.join('\n  ')}`,
+      `time. Confirm the factory declares it, then add it to its FACTORY_ROLES row:\n  ${offenders.join('\n  ')}`,
   );
 });
 
 test('every factory role is still wired, at the ref its factory_ref names', () => {
   const declared = jobs();
-  for (const [id, workflow] of Object.entries(CALLED_WORKFLOWS)) {
+  for (const [id, { workflow }] of Object.entries(FACTORY_ROLES)) {
     const job = declared[id];
     assert.ok(job, `the caller no longer declares the ${id} job`);
     const uses = job.uses ?? '';
