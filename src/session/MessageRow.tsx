@@ -10,7 +10,7 @@ export interface PlaybackMessage extends Event {
   live?: boolean;
 }
 
-export interface MessageRowProps {
+interface MessageRowProps {
   m: PlaybackMessage;
   selected: boolean;
   keyword: string;

@@ -18,7 +18,7 @@ import { isSyntheticUserText } from './synthetic.ts';
 //   'label' — `Session 3f2a1b9c`: the id prefixed and shortened for a UI that
 //             is showing it to a person, and a bare `Session` when the row has
 //             no id yet.
-export type NamePresentation = 'id' | 'label';
+type NamePresentation = 'id' | 'label';
 
 // Deliberately loose so callers with slightly different session-like shapes
 // (a server row keyed on id/name/summary/first_prompt, SearchModal's search

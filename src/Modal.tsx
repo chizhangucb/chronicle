@@ -1,7 +1,7 @@
 import React, { type KeyboardEvent, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 
-export interface ModalProps {
+interface ModalProps {
   onClose: () => void;
   className?: string;
   children: ReactNode;

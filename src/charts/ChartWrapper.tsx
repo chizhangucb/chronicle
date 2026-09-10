@@ -1,18 +1,11 @@
 import React, { type JSX } from 'react';
 import type { TooltipContentProps } from 'recharts';
-import { CATEGORICAL_COLORS } from '../colors.ts';
 
 // The one Recharts wrapper module (design spec, "Charts" primitive): every
 // chart in the app should compose Recharts' own <LineChart>/<BarChart>/etc.
 // with these shared pieces so every chart reads as one system — categorical
 // palette order, mono ticks, --border grid, and the OpenRouter-style
 // breakdown tooltip. No call sites yet; 5d wires real per-view charts.
-
-// Categorical series palette — fixed order, never cycled (same source as the
-// --c1..--c5 CSS tokens and src/colors.ts, so pills/dots/charts never drift
-// apart). 6th+ series folds into "Other" (the caller's job to pre-aggregate
-// before charting).
-export const CHART_COLORS = CATEGORICAL_COLORS;
 
 // Shared axis styling — spread onto Recharts' <XAxis>/<YAxis>.
 export const AXIS_PROPS = {

@@ -16,21 +16,21 @@ import type { ParseResult } from '../shared/types.ts';
 // The status shape the Settings surface reads (shared/results.ts, #307).
 import type { AutosyncStatus } from '../shared/results.ts';
 
-export interface SyncResultOk {
+interface SyncResultOk {
   ok: true;
   imported: number;
   checked: number;
   ms: number;
 }
-export interface SyncResultSkipped {
+interface SyncResultSkipped {
   ok: true;
   skipped: string;
 }
-export interface SyncResultError {
+interface SyncResultError {
   ok: false;
   error: string;
 }
-export type SyncResult = SyncResultOk | SyncResultSkipped | SyncResultError;
+type SyncResult = SyncResultOk | SyncResultSkipped | SyncResultError;
 
 interface AutoSyncState {
   watchers: fs.FSWatcher[];
@@ -68,7 +68,7 @@ export function nextDelay(nowMs: number, firstPendingAtMs: number | null): numbe
   return Math.min(DEBOUNCE_MS, Math.max(0, first + MAXWAIT_MS - nowMs));
 }
 
-export function autoSyncEnabled(): boolean {
+function autoSyncEnabled(): boolean {
   return readConfig().autoSync !== false; // default ON
 }
 

@@ -11,7 +11,7 @@ import type { SecurityRuleRow } from '../shared/rows.ts';
 // beside every other route contract, so this modal renders what the route
 // sends instead of keeping its own copy of both shapes.
 
-export interface SecurityCheckProps {
+interface SecurityCheckProps {
   sessionId: string;
   projectName: string;
   onClose: () => void;

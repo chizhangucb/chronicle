@@ -1,7 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
-import path from 'node:path';
 // The two shapes this module answers with live in shared/rows.ts (#307): the
 // client renders them (CodePanel's commit list, the project page's repo badge)
 // and must read the same contract the server sends.
@@ -9,7 +8,7 @@ import type { Commit, RepoInfo } from '../shared/rows.ts';
 
 const execFileAsync = promisify(execFile);
 
-export interface FileAtResult {
+interface FileAtResult {
   content: string | null;
   previous: string | null;
   prevCommit: string | null;
@@ -152,10 +151,4 @@ export function changedFiles(dir: string, commit: string): string[] {
   try {
     return git(dir, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-m', '--first-parent', commit]).trim().split('\n').filter(Boolean);
   } catch { return []; }
-}
-
-export function assertSafeRepoPath(dir: string): string {
-  const resolved = path.resolve(dir);
-  if (!fs.existsSync(resolved)) throw new Error('Path does not exist');
-  return resolved;
 }

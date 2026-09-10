@@ -10,9 +10,9 @@ import React from 'react';
 // Chi's sign-off (see the D10 entry there).
 export type RangeKey = 'today' | '7d' | '30d' | '90d' | 'all';
 
-export interface RangeOption { key: RangeKey; label: string; }
+interface RangeOption { key: RangeKey; label: string; }
 
-export const RANGE_OPTIONS: RangeOption[] = [
+const RANGE_OPTIONS: RangeOption[] = [
   { key: 'today', label: 'Today' },
   { key: '7d', label: '7d' },
   { key: '30d', label: '30d' },
@@ -33,14 +33,7 @@ export function rangeDays(key: RangeKey, daysToday: number): number | null {
   }
 }
 
-// A stored/URL-sourced range key can go stale (e.g. an old "365"/"1 Year"
-// value from before this unification) — degrade anything not in
-// RANGE_OPTIONS to the default 'today' rather than rendering a dead toggle.
-export function coerceRangeKey(value: string | null | undefined, fallback: RangeKey = 'today'): RangeKey {
-  return RANGE_OPTIONS.some((o) => o.key === value) ? (value as RangeKey) : fallback;
-}
-
-export interface RangeBarProps {
+interface RangeBarProps {
   value: RangeKey;
   onChange: (next: RangeKey) => void;
   className?: string;

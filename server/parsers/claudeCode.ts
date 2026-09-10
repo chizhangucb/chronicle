@@ -174,6 +174,9 @@ function sniffHead(file: string): HeadSniff {
 // to the .claude/worktrees/ convention only; a deleted worktree leaves no
 // filesystem git-metadata, so a path heuristic is the only thing that works.
 // Design: records/brainstorms/2026-08-14-worktree-cwd-collapse-design.md
+// Exported for test/worktree-cwd-collapse.test.mjs and
+// test/parsers/claudeCode.test.mjs: collapseWorktree and reduceCwd are asserted
+// path by path, which no fixture transcript can cover as densely.
 export function collapseWorktree(p: string): string {
   return p ? p.replace(/\/\.claude\/worktrees\/[^/]+(?:\/.*)?$/, '') : p;
 }

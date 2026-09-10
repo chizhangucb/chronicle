@@ -28,20 +28,20 @@ const fmtTok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000
 
 // A session message, as passed in by SessionView (a parsed/stored Event plus
 // its assigned `seq`, always present on stored rows).
-export interface RefineSourceMessage extends Event {
+interface RefineSourceMessage extends Event {
   seq: number;
 }
 
-export interface RefineSessionInfo {
+interface RefineSessionInfo {
   source?: string | null;
   started_at?: string | null;
 }
 
-export interface RefineProjectInfo {
+interface RefineProjectInfo {
   name?: string | null;
 }
 
-export interface RefineModeProps {
+interface RefineModeProps {
   messages: RefineSourceMessage[];
   session?: RefineSessionInfo | null;
   project?: RefineProjectInfo | null;

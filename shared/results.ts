@@ -307,7 +307,7 @@ export interface ActivityResult {
 
 /** How to read a characteristic's `value` (and its optional secondary
  * `value2`, always a percent). */
-export type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
+type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
 
 /** One Content characteristic. Every field the client needs to RENDER the row
  * travels on the characteristic itself — the client maps over the array

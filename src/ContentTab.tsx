@@ -11,7 +11,7 @@ import { useCachedFetch } from './useCachedFetch.ts';
 // Mounted by both HomeDashboard (the Insights home, scope {type:all}) and ProjectDetail
 // (5e-4, scope {type:'project'|'session', id}) — generic from day one, same
 // convention as ExploreTab.tsx (5e-1).
-export interface ContentTabProps {
+interface ContentTabProps {
   scope: Scope;
   days: number | null;
 }

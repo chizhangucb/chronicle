@@ -60,7 +60,7 @@ function searchHighlight(text: string, q: string): React.ReactNode {
   return parts;
 }
 
-export interface SearchModalProps {
+interface SearchModalProps {
   onClose: () => void;
   onOpen: (sessionId: string, projectId: number) => void;
 }

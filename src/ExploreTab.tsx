@@ -26,7 +26,7 @@ export interface Scope {
   id?: number | string;
 }
 
-export interface ExploreTabProps {
+interface ExploreTabProps {
   scope: Scope;
   days: number | null;
 }

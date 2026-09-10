@@ -18,6 +18,8 @@
 // session sent a message:\n<cross-session-message …>" (confirmed across real
 // logs); the `<cross-session-message` tag alternative is the durable signal if
 // that preamble wording ever changes.
+// Exported for test/synthetic.test.mjs and test/durations.test.mjs:
+// SYNTHETIC_USER_RE is asserted line by line against real transcript rows.
 export const SYNTHETIC_USER_RE = /^\s*(?:<task-notification|<launch-selected-element|<system-reminder|<command-name|<command-message|<local-command|\[Request interrupted|Another Claude session sent a message:|<cross-session-message)/;
 
 export function isSyntheticUserText(text: string | null | undefined): boolean {

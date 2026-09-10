@@ -17,7 +17,7 @@ import { DEFAULT_SPEND_THRESHOLDS } from './thresholds.ts';
 // vendor claude-code/codex/…; mcp from
 // the dormant mcp_server column; agent = agent_type).
 export type AnomalyDimension = 'model' | 'project' | 'source' | 'skill' | 'agent' | 'mcp';
-export const ANOMALY_DIMENSIONS: AnomalyDimension[] = ['model', 'project', 'source', 'skill', 'agent', 'mcp'];
+const ANOMALY_DIMENSIONS: AnomalyDimension[] = ['model', 'project', 'source', 'skill', 'agent', 'mcp'];
 const DIM_LABEL: Record<AnomalyDimension, string> = {
   model: 'model', project: 'project', source: 'source', skill: 'skill', agent: 'agent', mcp: 'mcp',
 };
@@ -30,7 +30,7 @@ export interface CostedDay {
   byDimension?: Partial<Record<AnomalyDimension, Record<string, number>>>;
 }
 
-export interface DimensionFlag {
+interface DimensionFlag {
   dimension: string;
   value: string;
   todayCost: number;
@@ -38,7 +38,7 @@ export interface DimensionFlag {
   ratio: number;
 }
 
-export interface AnomalyResult {
+interface AnomalyResult {
   baselineMedian: number | null; // null when there is no prior active day
   todayCost: number;
   ratio: number | null;

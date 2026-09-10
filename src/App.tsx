@@ -293,7 +293,7 @@ export default function App() {
 // which always returns both fields with concrete booleans — no index
 // signature needed here).
 
-export interface SettingsModalProps {
+interface SettingsModalProps {
   onClose: () => void;
   onAskChanged?: () => void;
 }
