@@ -17,6 +17,10 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { resolveDataDir } from './config.ts';
 import type { CostMode } from '../shared/pricing.ts';
+// The cost basis and the persisted turn are what /ask answers with, so they
+// live in shared/results.ts with every other result shape (#345): the route,
+// the runner and AskPage all read them from there.
+import type { AskCostMode, AskTurn } from '../shared/results.ts';
 
 // ---- caps (result-size, review #5/#8) ------------------------------------
 export const ASK_MAX_ROWS = 500;       // rows returned to the model / stored
@@ -24,8 +28,8 @@ export const ASK_CELL_MAX = 2000;      // chars per cell before truncation
 export const ASK_RESP_MAX_BYTES = 256 * 1024; // hard cap on one tool response
 
 // ---- cost basis ----------------------------------------------------------
-// The UI/user speak "list"/"billed"; the price core speaks "theoretical"/"real".
-export type AskCostMode = 'list' | 'billed';
+// The operator picks "list"/"billed" (`AskCostMode`); the price core speaks
+// "theoretical"/"real".
 export function toCostMode(m: AskCostMode): CostMode {
   return m === 'billed' ? 'real' : 'theoretical';
 }
@@ -221,23 +225,6 @@ export function askClaudeArgs(prompt: string, cfgPath: string, model?: string): 
   return ['-p', prompt, '--tools', '', '--mcp-config', cfgPath,
     '--allowedTools', 'mcp__chronicledb__query', '--strict-mcp-config',
     ...(model ? ['--model', model] : [])];
-}
-
-// ---- a persisted conversation turn ---------------------------------------
-export interface AskTurn {
-  id: string;
-  ts: string;               // ISO
-  question: string;
-  costBasis: AskCostMode;
-  ok: boolean;
-  prose: string;
-  sql: string | null;
-  columns: string[];
-  rows: unknown[][];
-  rowCount: number;
-  truncated: boolean;
-  note?: string;
-  error?: string;           // set when ok === false
 }
 
 // ---- claude CLI presence (server-side; routes can't import scripts/**) ----
