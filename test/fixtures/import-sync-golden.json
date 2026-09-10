@@ -1,0 +1,237 @@
+{
+  "GET /scan": {
+    "status": 200,
+    "body": {
+      "claude-code": [
+        {
+          "source": "claude-code",
+          "logDir": "<home>/.claude/projects/fixture-project",
+          "name": "fixture-cc",
+          "physicalPath": "/tmp/fixture-cc",
+          "sessionCount": 1,
+          "messageEstimate": 1,
+          "sessions": [
+            {
+              "id": "fixture-session",
+              "file": "<home>/.claude/projects/fixture-project/fixture-session.jsonl",
+              "label": null,
+              "modifiedAt": "2026-09-10T09:54:53.935Z",
+              "messageEstimate": 1,
+              "imported": false
+            }
+          ],
+          "imported": false
+        }
+      ],
+      "codex": [],
+      "cursor": [
+        {
+          "source": "cursor",
+          "logDir": "<repo>/test/fixtures/cursor-user/workspaceStorage/abc123",
+          "name": "example-repo",
+          "physicalPath": "/Users/dev/example-repo",
+          "sessionCount": 3,
+          "messageEstimate": 4,
+          "imported": false
+        }
+      ],
+      "opencode": []
+    }
+  },
+  "GET /scan?source=codex": {
+    "status": 200,
+    "body": {
+      "codex": [
+        {
+          "source": "codex",
+          "logDir": "<repo>/test/fixtures/codex-sessions",
+          "files": [
+            "<repo>/test/fixtures/codex-sessions/2026/07/01/rollout-2026-07-01T10-00-00-abc.jsonl"
+          ],
+          "name": "example-repo",
+          "physicalPath": "/Users/dev/example-repo",
+          "sessionCount": 1,
+          "messageEstimate": 40,
+          "sessions": [
+            {
+              "id": "rollout-2026-07-01T10-00-00-abc",
+              "file": "<repo>/test/fixtures/codex-sessions/2026/07/01/rollout-2026-07-01T10-00-00-abc.jsonl",
+              "label": null,
+              "modifiedAt": "2026-09-10T09:48:36.081Z",
+              "messageEstimate": 40,
+              "imported": false
+            }
+          ],
+          "imported": false
+        }
+      ]
+    }
+  },
+  "GET /scan?source=opencode": {
+    "status": 200,
+    "body": {
+      "opencode": [
+        {
+          "source": "opencode",
+          "logDir": "<repo>/test/fixtures/oc-live.db",
+          "directory": "/tmp/oc-live-project",
+          "name": "oc-live-project",
+          "physicalPath": "/tmp/oc-live-project",
+          "sessionCount": 1,
+          "messageEstimate": 2,
+          "sessions": [
+            {
+              "id": "ses_live1",
+              "file": null,
+              "label": "Live test",
+              "modifiedAt": "2026-07-04T08:57:26.884Z",
+              "messageEstimate": 2,
+              "imported": false
+            }
+          ],
+          "imported": false
+        }
+      ]
+    }
+  },
+  "GET /scan?source=cursor": {
+    "status": 200,
+    "body": {
+      "cursor": [
+        {
+          "source": "cursor",
+          "logDir": "<repo>/test/fixtures/cursor-user/workspaceStorage/abc123",
+          "name": "example-repo",
+          "physicalPath": "/Users/dev/example-repo",
+          "sessionCount": 3,
+          "messageEstimate": 4,
+          "imported": false
+        }
+      ]
+    }
+  },
+  "GET /scan?source=nope": {
+    "status": 400,
+    "body": {
+      "error": "Unsupported source: nope"
+    }
+  },
+  "POST /import claude-code": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "skippedSessions": 0,
+      "totalMessages": 4,
+      "projects": [
+        {
+          "id": 1,
+          "name": "fixture-cc",
+          "path": "/tmp/fixture-cc",
+          "created": true,
+          "sessions": 1,
+          "messages": 4
+        }
+      ],
+      "projectId": 1
+    }
+  },
+  "POST /import codex": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "skippedSessions": 0,
+      "totalMessages": 5,
+      "projects": [
+        {
+          "id": 2,
+          "name": "example-repo",
+          "path": "/Users/dev/example-repo",
+          "created": true,
+          "sessions": 1,
+          "messages": 5
+        }
+      ],
+      "projectId": 2
+    }
+  },
+  "POST /import opencode": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "skippedSessions": 0,
+      "totalMessages": 4,
+      "projects": [
+        {
+          "id": 3,
+          "name": "oc-live-project",
+          "path": "/tmp/oc-live-project",
+          "created": true,
+          "sessions": 1,
+          "messages": 4
+        }
+      ],
+      "projectId": 3
+    }
+  },
+  "POST /import cursor": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 2,
+      "skippedSessions": 0,
+      "totalMessages": 7,
+      "projects": [
+        {
+          "id": 4,
+          "name": "cursor-fixture-project",
+          "path": "/tmp/cursor-fixture-project",
+          "created": true,
+          "sessions": 2,
+          "messages": 7
+        }
+      ],
+      "projectId": 4
+    }
+  },
+  "POST /import unsupported": {
+    "status": 400,
+    "body": {
+      "error": "Unsupported source: nope"
+    }
+  },
+  "POST /projects/:id/sync": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "skippedSessions": 0,
+      "totalMessages": 4,
+      "sources": [
+        "claude-code"
+      ]
+    }
+  },
+  "POST /projects/999/sync": {
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  "POST /sessions/:id/sync": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "totalMessages": 4
+    }
+  },
+  "POST /sessions/nope/sync": {
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  }
+}
