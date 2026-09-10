@@ -34,7 +34,13 @@ interface CodexPayload {
   action?: unknown;
   call_id?: string;
   output?: unknown;
-  info?: { last_token_usage?: CodexTokenUsage };
+  info?: { last_token_usage?: CodexTokenUsage; model?: string };
+  // The model Codex ran the turn on. It is recorded on the rollout's CONTEXT
+  // lines (a `turn_context` item, and on some versions the session meta or a
+  // task-started event), never on the response items themselves — so a model
+  // output's model is the last one the transcript recorded before it (#198).
+  model?: string;
+  turn_context?: { model?: string };
 }
 
 interface CodexLine {
@@ -99,9 +105,23 @@ function sniffCodexCwd(file: string): string | null {
   return null;
 }
 
+// The model one rollout line records, if it records one. Codex has moved this
+// field around across versions (payload.model on `turn_context`, a nested
+// `turn_context` object, `info.model` on a token_count/task_started event), so
+// all three spellings are read rather than pinning one version's shape. A blank
+// or non-string value records nothing.
+function recordedModel(p: CodexPayload): string | null {
+  const candidates = [p.model, p.turn_context?.model, p.info?.model];
+  for (const c of candidates) if (typeof c === 'string' && c.trim()) return c.trim();
+  return null;
+}
+
 // One rollout line to its events. Shared by the whole-file parse above and by
 // the source's `tail`, so a streamed line and an imported one map identically.
-function parseCodexLine(o: CodexLine): Event[] {
+// `model` is the turn's model as recorded by an earlier line (#198); a model
+// output (assistant / thinking / tool_use) is stamped with it, a user turn is
+// not — that one is the operator's, not the model's.
+function parseCodexLine(o: CodexLine, model: string | null = null): Event[] {
   const ts = o.timestamp || o.ts || null;
   const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
   const t = p.type || o.type;
@@ -111,14 +131,14 @@ function parseCodexLine(o: CodexLine): Event[] {
   }
   if (t === 'message' && p.role === 'assistant') {
     const text = itemText(p.content);
-    return text ? [{ ts, kind: 'assistant', text }] : [];
+    return text ? [{ ts, kind: 'assistant', text, model }] : [];
   }
   if (t === 'reasoning') {
     const text = (p.summary || []).map((s) => s.text || '').join('\n');
-    return text ? [{ ts, kind: 'thinking', text }] : [];
+    return text ? [{ ts, kind: 'thinking', text, model }] : [];
   }
   if (t === 'function_call' || t === 'local_shell_call') {
-    return [{ ts, kind: 'tool_use', tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id }];
+    return [{ ts, kind: 'tool_use', model, tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id }];
   }
   if (t === 'function_call_output') {
     return [{ ts, kind: 'tool_result', text: typeof p.output === 'string' ? p.output : JSON.stringify(p.output), tool_use_id: p.call_id }];
@@ -132,6 +152,7 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
   let sessionId = path.basename(file, '.jsonl');
   let cwd: string | null = null;
   let firstPrompt: string | null = null;
+  let model: string | null = null;
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -140,7 +161,10 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
     const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
     if (p.id && p.cwd) { cwd = p.cwd; if (p.id) sessionId = p.id; }
     const t = p.type || o.type;
-    for (const e of parseCodexLine(o)) {
+    // A recorded model holds until the transcript records another one (the
+    // operator switching model mid-session writes a fresh turn context).
+    model = recordedModel(p) ?? model;
+    for (const e of parseCodexLine(o, model)) {
       events.push(e);
       // Push every user row (active-time needs them); only the display-name
       // fallback skips synthetic wrappers.

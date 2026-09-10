@@ -1,5 +1,7 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { codexSource } from '../../server/parsers/codex.ts';
 
@@ -92,4 +94,51 @@ test('parseCodexSession: per-event token usage fields are absent when the fixtur
     assert.equal(e.input_tokens, undefined);
     assert.equal(e.output_tokens, undefined);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model capture (#198). Codex records the model it ran a turn on in the
+// rollout's own context lines, not on the response items — so these fixtures
+// are written per test rather than added to the committed one.
+
+const tmpDirs = [];
+function makeTmpDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-codex-test-'));
+  tmpDirs.push(dir);
+  return dir;
+}
+after(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+function writeRollout(lines) {
+  const dir = makeTmpDir();
+  const file = path.join(dir, 'rollout-2026-07-02T09-00-00-def.jsonl');
+  fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return file;
+}
+
+const META = { timestamp: '2026-07-02T09:00:00.000Z', type: 'session_meta', payload: { id: '0198-def', cwd: '/Users/dev/example-repo' } };
+const TURN_CONTEXT = (model, at) => ({ timestamp: at, type: 'turn_context', payload: { cwd: '/Users/dev/example-repo', model, effort: 'medium' } });
+const USER = (text, at) => ({ timestamp: at, type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
+const ASSISTANT = (text, at) => ({ timestamp: at, type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] } });
+
+test('parseCodexSession: the turn context model lands on every model output of the turn', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    { timestamp: '2026-07-02T09:00:03.000Z', type: 'response_item', payload: { type: 'reasoning', summary: [{ type: 'summary_text', text: 'think' }] } },
+    { timestamp: '2026-07-02T09:00:04.000Z', type: 'response_item', payload: { type: 'function_call', name: 'shell', arguments: '{"command":["ls"]}', call_id: 'call_1' } },
+    ASSISTANT('shipped', '2026-07-02T09:00:05.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+  const modelOf = (kind) => events.find((e) => e.kind === kind).model;
+
+  assert.equal(modelOf('assistant'), 'gpt-5-codex');
+  assert.equal(modelOf('thinking'), 'gpt-5-codex');
+  assert.equal(modelOf('tool_use'), 'gpt-5-codex');
+  // A user turn is the operator's, not the model's — it carries no model.
+  assert.equal(modelOf('user'), undefined);
 });
