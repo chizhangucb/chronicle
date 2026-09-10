@@ -80,9 +80,9 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
-  gate:
+  merge-gate:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    uses: chizhangucb/software-factory/.github/workflows/gate.yml@main
+    uses: chizhangucb/software-factory/.github/workflows/merge-gate.yml@main
     secrets: inherit
     with:
       factory_ref: main
