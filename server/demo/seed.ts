@@ -34,6 +34,12 @@ const DONE_MARKER = '.seed-complete';
  *  thing that tells a dead cache apart from a stranger's temp dir. */
 const DEMO_DIR_PREFIX = 'chronicle-demo-';
 
+/** The whole name a demo cache dir carries: the prefix, a corpus version, then
+ *  the day key that ends it. The prefix on its own is not enough to claim a
+ *  tree -- `chronicle-demo-tx-a1b2c3` is a live mkdtemp scratch dir, not a dead
+ *  cache -- so the sweep only takes names that end in a `-YYYY-MM-DD` day key. */
+const DEMO_DIR_NAME = new RegExp(`^${DEMO_DIR_PREFIX}.+-\\d{4}-\\d{2}-\\d{2}$`);
+
 /** Every symlink in `p` resolved, falling back to a plain resolve when the path
  *  does not exist. macOS hands out a /var/folders temp dir that really lives
  *  under /private/var, so comparing strings against os.tmpdir() is not enough
@@ -62,11 +68,12 @@ export function demoDataDir(now = new Date()): string {
  *
  * This deletes trees the operator did not name, and ADR 0008 says the data
  * folder is the only place Chronicle writes, so the sweep is deliberately
- * timid: only inside the OS temp dir, only names starting with the exact demo
- * prefix, only real directories (a symlink is left where it lies rather than
- * followed to whatever it points at), and every failure swallowed. A second
- * demo still holding yesterday's dir open is a reason to leave that dir alone,
- * never a reason to fail the seed that just succeeded.
+ * timid: only inside the OS temp dir, only whole demo cache names (the exact
+ * prefix, a corpus version, a day key), only real directories (a symlink is
+ * left where it lies rather than followed to whatever it points at), and every
+ * failure swallowed. A second demo still holding yesterday's dir open is a
+ * reason to leave that dir alone, never a reason to fail the seed that just
+ * succeeded.
  *
  * Returns the directories actually removed, oldest name first.
  */
@@ -81,7 +88,7 @@ export function pruneStaleDemoDirs(keepDir: string): string[] {
     stale = fs.readdirSync(root, { withFileTypes: true })
       // withFileTypes does not follow links, so a symlink to a directory
       // reports isDirectory() false and is skipped rather than deleted through.
-      .filter((entry) => entry.isDirectory() && entry.name.startsWith(DEMO_DIR_PREFIX))
+      .filter((entry) => entry.isDirectory() && DEMO_DIR_NAME.test(entry.name))
       .map((entry) => entry.name)
       .filter((name) => name !== path.basename(kept))
       .sort(); // A fixed sweep order, so one unremovable dir fails the same way every run.

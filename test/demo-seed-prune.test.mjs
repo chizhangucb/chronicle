@@ -39,6 +39,9 @@ test("a successful seed removes yesterday's demo dir and leaves unrelated temp d
   // Prefix matching is exact: `chronicle-demo` with no separator is a
   // different name, not an older demo cache.
   const lookalike = dirWithFile(path.join(root, 'chronicle-demoish-abc'));
+  // Nor is the prefix on its own the key: a live mkdtemp scratch dir wearing it
+  // (test/demo-mode.test.mjs makes exactly this one) has no day key on the end.
+  const scratch = dirWithFile(path.join(root, 'chronicle-demo-tx-a1b2c3'));
 
   fs.mkdirSync(today, { recursive: true });
   process.env.CHRONICLE_DATA_DIR = today;
@@ -49,6 +52,7 @@ test("a successful seed removes yesterday's demo dir and leaves unrelated temp d
   assert.equal(fs.existsSync(yesterday), false, "yesterday's demo dir survived the seed");
   assert.ok(fs.existsSync(path.join(unrelated, 'payload.txt')), 'an unrelated temp dir was deleted');
   assert.ok(fs.existsSync(path.join(lookalike, 'payload.txt')), 'a chronicle-demo LOOKALIKE was deleted');
+  assert.ok(fs.existsSync(path.join(scratch, 'payload.txt')), 'a prefixed mkdtemp scratch dir with no day key was deleted');
   assert.ok(fs.existsSync(path.join(today, '.seed-complete')), "today's dir lost its completion marker");
 });
 
