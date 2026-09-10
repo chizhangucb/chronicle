@@ -540,3 +540,45 @@ describe('#206: workflowRuns states its share of the subagent usage it nests ins
     assert.equal(findChar(r, 'workflowRuns').subsetOf, undefined);
   });
 });
+
+// ── #206 (DEDUP): the rubric's rule for this card is "no stat is shown twice
+// on the same page without a visibly distinct label explaining the
+// difference" (spec/design-qa-rubric.md). Every row of "What your usage says"
+// leads with a bare "N% of usage …", so two rows over the same family — the
+// two context-pressure shares (past 70% of the window vs above a flat 150k)
+// and the two subagent shares — are only told apart by their `measure`: the
+// chip naming which population each percentage is over.
+describe('#206: every characteristic carries a distinct `measure` cue', () => {
+  const scopes = () => [
+    { name: 'project', result: content.computeContent({ type: 'project', id: p1Id }, rangeOf(null)) },
+    { name: 'session', result: content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null)) },
+  ];
+
+  test('every row of every scope\'s set carries a non-empty measure that is not just its label repeated', () => {
+    for (const { name, result } of scopes()) {
+      for (const c of result.characteristics) {
+        assert.ok(c.measure && c.measure.trim().length > 0, `${name}/${c.key} has no measure`);
+        assert.notEqual(c.measure, c.label, `${name}/${c.key}'s measure only repeats its label`);
+      }
+    }
+  });
+
+  test('no two rows in a scope\'s set share a measure, so no row can read as a restatement of another', () => {
+    for (const { name, result } of scopes()) {
+      const measures = result.characteristics.map((c) => c.measure);
+      assert.equal(new Set(measures).size, measures.length, `${name} scope repeats a measure: ${measures.join(' | ')}`);
+    }
+  });
+
+  test('the two context-pressure rows (sHighCtxAbs + sHighCtxRel in p1) are distinguished even though they share a denominator', () => {
+    const r = content.computeContent({ type: 'project', id: p1Id }, rangeOf(null));
+    const rel = findChar(r, 'highContextRel');
+    const abs = findChar(r, 'highContextAbs');
+    assert.notEqual(rel.measure, abs.measure);
+  });
+
+  test('the two subagent rows are distinguished by measure as well as by the subset cue', () => {
+    const r = content.computeContent({ type: 'project', id: p3Id }, rangeOf(null));
+    assert.notEqual(findChar(r, 'subagentTurns').measure, findChar(r, 'workflowRuns').measure);
+  });
+});

@@ -339,6 +339,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     {
       key: 'highContextRel', format: 'percent', value: highRelShare, count: stats.highRel.count, exact: true,
       warn: highRelShare >= 40,
+      measure: "context pressure · against each model's own window",
       label: "of usage ran past 70% of the model's context window",
       why: "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
       info: "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
@@ -346,6 +347,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'subagentTurns', format: 'percent', value: subagentShare, count: sub.turns, exact: true,
+      measure: 'delegation · every subagent turn, workflow or not',
       label: 'of usage came from subagent turns',
       why: "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
       info: "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
@@ -353,6 +355,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'eightHourSessions', format: 'percent', value: bucketShare(stats.eightHour), count: stats.eightHour.count, exact: true,
+      measure: 'session length · by agent-active hours',
       label: 'of usage came from marathon sessions (8h+ active)',
       why: 'Sessions where the agent was actively working — not just open — for 8 hours or more.',
       info: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
@@ -360,6 +363,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'workflowRuns', format: 'percent', value: share(wf.tokens), count: wf.runs, exact: true,
+      measure: 'delegation · the workflow-tagged subagents only',
       subsetOf: workflowSubsetOfSubagents(wf, sub),
       label: 'of usage ran inside a multi-agent workflow',
       why: 'Tokens spent on groups of subagents launched together to divide one task.',
@@ -368,6 +372,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'highContextAbs', format: 'percent', value: bucketShare(stats.highAbs), count: stats.highAbs.count, exact: true,
+      measure: 'context pressure · against a flat 150k line',
       label: 'of usage ran above 150k context tokens',
       why: "Sessions carrying a large context regardless of the model's window size.",
       info: "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
@@ -375,6 +380,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'cacheEfficiency', format: 'percent', value: cacheDenom ? Math.round((stats.cacheRead / cacheDenom) * 100) : 0, count: stats.cacheSessionCount, exact: true,
+      measure: 'cache · share of input-side tokens, not of usage',
       label: 'of input tokens were served from cache',
       why: 'Higher is cheaper — a cache read costs a fraction of a fresh input token.',
       info: "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
@@ -382,6 +388,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'autonomousShare', format: 'percent', value: bucketShare(stats.autonomous), count: stats.autonomous.count, exact: true,
+      measure: 'attention · by engaged vs agent-active time',
       label: 'of usage ran mostly unattended',
       why: 'Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.',
       info: 'Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent\'s working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.',
@@ -413,6 +420,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
     const crossed = active >= EIGHT_HOUR_ACTIVE_MS;
     facts.push({
       key: 'marathonBadge', format: 'hours', value: hours, count: crossed ? 1 : 0, exact: true, warn: crossed,
+      measure: 'session length · agent-active hours, not a share',
       label: crossed ? 'active — crossed the 8-hour marathon threshold' : 'active this session (marathon threshold: 8h)',
       why: 'Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it.',
       info: 'The same agent-active computation used for the marathon-sessions share elsewhere in Chronicle, reported here as this session\'s actual hours rather than a 0%/100% flag.',
@@ -423,6 +431,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
     const pctCtxWindow = ctxWindow ? Math.round((ctx / ctxWindow) * 100) : 0;
     facts.push({
       key: 'peakContextTokens', format: 'tokens', value: ctx, value2: pctCtxWindow, exact: true, warn: pctCtxWindow >= 70,
+      measure: "context pressure · peak tokens, then that as % of the window",
       label: 'peak context tokens reached',
       why: "Chronicle's own heuristic threshold for rising cost is 70% of the model's context window — not a documented Claude Code auto-compact trigger.",
       info: "This session's largest stored context size, and what share that is of its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point.",
@@ -432,6 +441,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
   const cacheDenom = cacheRead + cacheInput;
   facts.push({
     key: 'cacheEfficiency', format: 'percent', value: cacheDenom ? Math.round((cacheRead / cacheDenom) * 100) : 0, exact: true,
+    measure: 'cache · share of input-side tokens, not of usage',
     label: 'of input tokens were served from cache',
     why: 'Higher is cheaper — a cache read costs a fraction of a fresh input token.',
     info: "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
@@ -439,6 +449,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
 
   facts.push({
     key: 'subagentTurns', format: 'percent', value: share(sub.tokens), count: sub.turns, exact: true,
+    measure: 'delegation · every subagent turn, workflow or not',
     label: 'of usage came from subagent turns',
     why: "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
     info: "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
@@ -447,6 +458,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
 
   facts.push({
     key: 'workflowRuns', format: 'percent', value: share(wf.tokens), count: wf.runs, exact: true,
+    measure: 'delegation · the workflow-tagged subagents only',
     subsetOf: workflowSubsetOfSubagents(wf, sub),
     label: 'of usage ran inside a multi-agent workflow',
     why: 'Tokens spent on groups of subagents launched together to divide one task.',
@@ -458,6 +470,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
     const ratio = active > 0 ? Math.round((engaged / active) * 100) : 0;
     facts.push({
       key: 'unattendedRatio', format: 'percent', value: ratio, exact: true, warn: ratio < 25,
+      measure: 'attention · engaged ÷ agent-active for this session',
       label: "engaged time as a share of agent-active time",
       why: 'Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.',
       info: "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import.",

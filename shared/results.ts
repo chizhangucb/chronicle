@@ -331,6 +331,12 @@ export interface Characteristic {
   countOne?: string;
   countMany?: string;
   exact: boolean;
+  /** Short phrase naming WHICH population this row's number is over — the
+   * DEDUP cue (#206), rendered as its own chip beside the row. Distinct
+   * across every row of a scope's set, so two same-family rows (the two
+   * context-pressure shares, the two subagent shares) can never read as one
+   * restated stat. */
+  measure: string;
   /** Set when this row's population is a strict SUBSET of another row's in the
    * same set (#206): that row's `key`, this row's share OF it (`percent`, a
    * separately computed ratio, never a restatement of `value`) and the prose
