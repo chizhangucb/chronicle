@@ -5,6 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, activity;
 const now = Date.now();
@@ -64,13 +65,13 @@ const anomalyTokenSum = (r) =>
 after(async () => { await teardown?.(); });
 
 test('burn carries today + anomalyDays', () => {
-  const r = activity.computeActivity(null, 1);
+  const r = activity.computeActivity({ type: 'all' }, rangeOf(1), null);
   assert.equal(r.burn.today, localToday);
   assert.ok(Array.isArray(r.burn.anomalyDays) && r.burn.anomalyDays.length >= 1);
 });
 
 test("today's anomaly day cells split by project / model / source", () => {
-  const r = activity.computeActivity(null, 1);
+  const r = activity.computeActivity({ type: 'all' }, rangeOf(1), null);
   const day = r.burn.anomalyDays.find((d) => d.day === localToday);
   assert.ok(day, 'today is present in anomalyDays');
   // Two projects, two models, two sources — each dimension keyed and populated.
@@ -82,9 +83,9 @@ test("today's anomaly day cells split by project / model / source", () => {
 });
 
 test('anomalyDays coverage is monotonic: All ≥ 90d ≥ 30d (review, no 90d>All)', () => {
-  const d30 = anomalyTokenSum(activity.computeActivity(null, 30));
-  const d90 = anomalyTokenSum(activity.computeActivity(null, 90));
-  const dAll = anomalyTokenSum(activity.computeActivity(null, null));
+  const d30 = anomalyTokenSum(activity.computeActivity({ type: 'all' }, rangeOf(30), null));
+  const d90 = anomalyTokenSum(activity.computeActivity({ type: 'all' }, rangeOf(90), null));
+  const dAll = anomalyTokenSum(activity.computeActivity({ type: 'all' }, rangeOf(null), null));
   // 30d reaches back 44 days (today + s10); 90d reaches 104 (adds s50); All spans
   // everything (adds s120). Strictly widening here, but assert ≥ for generality.
   assert.ok(d90 >= d30, `90d (${d90}) must be ≥ 30d (${d30})`);

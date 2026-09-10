@@ -5,6 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, detectors;
 const now = Date.now();
@@ -50,7 +51,7 @@ before(async () => {
 after(async () => { await teardown?.(); });
 
 test('computeDetectors: jumbo + long-context + cache/input token sums (All window)', () => {
-  const d = detectors.computeDetectors(null);
+  const d = detectors.computeDetectors({ type: 'all' }, rangeOf(null));
   assert.equal(d.assistantRows, 5);           // 4 recent + 1 old
   assert.equal(d.jumboRows, 1);               // only the 5000-output row (> 3000)
   assert.equal(d.longContextRows, 1);         // only the 200k-context row (> 150k)
@@ -59,7 +60,7 @@ test('computeDetectors: jumbo + long-context + cache/input token sums (All windo
 });
 
 test('computeDetectors: windows by message ts (1d excludes the 2-day-old row)', () => {
-  const d = detectors.computeDetectors(1);
+  const d = detectors.computeDetectors({ type: 'all' }, rangeOf(1));
   assert.equal(d.assistantRows, 4);           // old session dropped
   assert.equal(d.jumboRows, 1);
   assert.equal(d.longContextRows, 1);

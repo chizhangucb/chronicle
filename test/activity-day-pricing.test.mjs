@@ -13,6 +13,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, activity;
 
@@ -46,7 +47,7 @@ before(async () => {
 after(async () => { teardown?.(); });
 
 test('computeActivity(days=null): burn.rangeSpendTokensByModelByDay splits the All-window total by LOCAL day', () => {
-  const r = activity.computeActivity(null, null);
+  const r = activity.computeActivity({ type: 'all' }, rangeOf(null), null);
   assert.ok(r.burn.rangeSpendTokensByModelByDay, 'burn must carry rangeSpendTokensByModelByDay');
   assert.equal(r.burn.rangeSpendTokensByModelByDay['2026-08-15']['claude-sonnet-5'].input, 1_000_000);
   assert.equal(r.burn.rangeSpendTokensByModelByDay['2026-09-01']['claude-sonnet-5'].input, 1_000_000);

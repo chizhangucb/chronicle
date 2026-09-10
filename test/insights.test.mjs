@@ -24,6 +24,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, insightsModule;
 
@@ -88,13 +89,13 @@ after(() => teardown());
 // see the perf fix note in server/insights.ts), so every call below is awaited.
 
 test('computeInsights: aggregates across ALL projects, no project filter', async () => {
-  const r = await insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r.sessions.length, 2);
   assert.equal(r.projects.length, 2);
 });
 
 test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/commits but NOT dailyActivity/hourlyActivity', async () => {
-  const r = await insightsModule.computeInsights(30); // trailing 30d from "now" — s2 (Jan) falls out, s1 (14d ago) stays
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(30)); // trailing 30d from "now" — s2 (Jan) falls out, s1 (14d ago) stays
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
   // dailyActivity/hourlyActivity use their own fixed windows — both
@@ -105,7 +106,7 @@ test('computeInsights: days cutoff filters sessions/toolDist/kindDist/errors/com
 });
 
 test('computeInsights: toolDist counts tool_use messages globally', async () => {
-  const r = await insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   const bash = r.toolDist.find((t) => t.name === 'Bash');
   assert.ok(bash);
   assert.equal(bash.count, 1);
@@ -114,14 +115,14 @@ test('computeInsights: toolDist counts tool_use messages globally', async () => 
 test('computeInsights: excludes minor(=1) sessions from every aggregate', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 1 WHERE id = ?').run('s2');
-  const r = await insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r.sessions.length, 1);
   assert.equal(r.sessions[0].id, 's1');
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // restore for later tests
 });
 
 test('computeInsights: commits is 0 for projects with no real git repo (graceful, no throw)', async () => {
-  const r = await insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r.commits, 0);
 });
 
@@ -144,7 +145,7 @@ test('error counts are precomputed on sessions at import and drive computeInsigh
   const s2 = db.prepare('SELECT result_count, error_count FROM sessions WHERE id = ?').get('s2');
   assert.equal(s2.result_count, 0);
   assert.equal(s2.error_count, 0);
-  const r = await insightsModule.computeInsights(null);
+  const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r.errors, 1);
   const p1 = r.errorsByProject.find((p) => p.head_count > 0);
   assert.ok(p1);
@@ -159,8 +160,8 @@ test('error counts are precomputed on sessions at import and drive computeInsigh
 test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', async () => {
   const { db } = dbModule;
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
-  const r7 = await insightsModule.computeInsights(7);     // days=7 cutoff excludes s1 (14d old) from the days-scoped aggregates
-  const rAll = await insightsModule.computeInsights(null);
+  const r7 = await insightsModule.computeInsights({ type: 'all' }, rangeOf(7));     // days=7 cutoff excludes s1 (14d old) from the days-scoped aggregates
+  const rAll = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r7.sessions.length, 0, 'sanity: days=7 excludes both fixture sessions from the days-scoped session list');
   // The fixed-window aggregate must be IDENTICAL regardless of days=, same
   // contract as dailyActivity/hourlyActivity.
@@ -180,8 +181,8 @@ test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyA
 // resolves correctly as a Promise and a second call for the same cutoff
 // (hits the cache) still returns the same value.
 test('computeInsights: commits computation is async and cache-stable across repeated calls for the same cutoff', async () => {
-  const first = await insightsModule.computeInsights(null);
-  const second = await insightsModule.computeInsights(null); // should hit the commit cache, not re-shell
+  const first = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
+  const second = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null)); // should hit the commit cache, not re-shell
   assert.equal(first.commits, 0);
   assert.equal(second.commits, 0);
 });

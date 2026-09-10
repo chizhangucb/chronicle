@@ -10,6 +10,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore;
 
@@ -75,7 +76,7 @@ const q = { scope: { type: 'all' }, metric: 'errors', group: 'tool', rollup: 'da
 
 // The control: with no range, both calls are in scope and both surfaces show both.
 test('group=tool over all time: every attributed error reaches both the rows and the chart', () => {
-  const r = explore.computeExplore({ ...q, days: null });
+  const r = explore.computeExplore({ ...q, range: rangeOf(null) });
   const { rowTotal, bucketTotal } = errorTotals(r);
   assert.equal(r.rows.find((x) => x.key === 'Grep')?.errors, 1);
   assert.equal(r.rows.find((x) => x.key === 'Bash')?.errors, 1);
@@ -84,7 +85,7 @@ test('group=tool over all time: every attributed error reaches both the rows and
 });
 
 test('group=tool under a range: a call made before the range cannot draw a bar of its own', () => {
-  const r = explore.computeExplore({ ...q, days: 7 });
+  const r = explore.computeExplore({ ...q, range: rangeOf(7) });
   const { rowTotal, bucketTotal } = errorTotals(r);
   assert.ok(r.rows.length > 0, 'the range holds tool calls, so the rows cannot be empty');
   assert.ok((r.buckets ?? []).length > 0, 'the range holds an error, so the chart cannot be empty');
