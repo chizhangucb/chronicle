@@ -2,10 +2,8 @@
 //
 // The script maintains the volatile columns of the routing roster that
 // server/routing.ts reads and the Spend tab's ROUTING COMPLIANCE section
-// renders. It lived in litellm/ only because it was adjacent there in an older
-// layout: the proxy never reads the roster and the roster never configures the
-// proxy, so #192 moved it to scripts/ and its guards moved here with it, out of
-// the two LiteLLM suites.
+// renders. #192 moved it to scripts/, where Chronicle's own tooling lives, and
+// its guards moved here with it.
 //
 // The filename stays snake_case against the repo's kebab-case script
 // convention because it is an importable Python module, and `import
@@ -13,8 +11,11 @@
 // importing them; a dash would force every caller through importlib to buy
 // nothing.
 //
-// python3 is not optional in CI: test/helpers/python.mjs holds the one
-// skip-or-fail rule this suite shares with the LiteLLM ones.
+// python3 is optional. This is the only suite that shells out to an
+// interpreter, and installing one is not something a contributor working on the
+// React client should owe: without python3 these three tests skip. CI installs
+// Node and nothing else for the same reason (#296), so the skip rule lives here
+// rather than in a helper shared with suites that no longer exist.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -22,7 +23,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { skipWithoutPython } from './helpers/python.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(REPO, 'scripts/refresh_roster.py');
@@ -36,6 +36,17 @@ const tmp = (t, prefix) => {
 
 // Never inherits an ambient CHRONICLE_ROSTER_MD: a shell that exported one
 // would otherwise steer a guard at the operator's real roster.
+/**
+ * Decide what a spawnSync result that could not start python3 means. Returns
+ * true when the caller should `return` (it has been skipped); false when
+ * python3 ran and the test should continue.
+ */
+const skipWithoutPython = (t, result) => {
+  if (!result.error) return false;
+  t.skip('no python3');
+  return true;
+};
+
 const py = (args, env = {}) => spawnSync('python3', args, {
   encoding: 'utf8',
   env: {
@@ -83,8 +94,7 @@ print(len(changes))`]);
 });
 
 // The judgment columns are hand-curated; a refresher that rewrote them would
-// quietly discard the curation on the next run. This was Promise 4 of
-// litellm/README.md before the move (issue #188).
+// quietly discard the curation on the next run (issue #188).
 test('the refresher rewrites price and context only, and adds or drops no row', (t) => {
   const dir = tmp(t, 'roster-guard-');
   const md = path.join(dir, 'model-routing.md');
@@ -161,7 +171,7 @@ print(json.dumps([c[0] for c in changes]))`]);
 
 test('npm run refresh-roster reaches the script from its new home', () => {
   // It had no npm script before the move, which is part of why it drifted out
-  // of sight in litellm/. The pin is that the wiring names a file that exists.
+  // of sight. The pin is that the wiring names a file that exists.
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const cmd = pkg.scripts?.['refresh-roster'];
   assert.ok(cmd, 'package.json declares no `refresh-roster` script');

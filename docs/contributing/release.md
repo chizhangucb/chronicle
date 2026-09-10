@@ -77,9 +77,9 @@ GitHub Actions, with organization `chizhangucb`, repository `chronicle`, workflo
   The job id is required by branch protection **by name**, so keep it stable. The binary is
   pinned by version and by SHA-256, so a retagged release cannot change what runs; bump both
   values together.
-- **`check`** runs typecheck, the test suite, and the client build on Node 24, with Python 3.12
-  pinned for the guards that shell out to it. `CHRONICLE_REQUIRE_PYTHON=1` turns a
-  "no python3" skip into a failure, so a silently skipped guard cannot pass CI.
+- **`check`** runs typecheck, the test suite, and the client build on Node 24. Node is the only
+  runtime it installs: the roster refresher is still Python, but it maintains an operator
+  document rather than anything the app reads, and its suite skips where python3 is absent.
 - **`changes`** classifies the PR's diff through `scripts/ci/e2e-applies.sh`. A change confined
   to `docs/`, `website/` or root-level markdown cannot reach the running app, so it skips the
   e2e gate. Anything else runs it, and a push to `main` or a manual dispatch always runs it.

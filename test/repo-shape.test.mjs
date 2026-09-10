@@ -212,7 +212,6 @@ const VOCAB_EXEMPT = new Set([
   'test/helpers/retired-vocabulary.mjs',
   'test/removed-routes.test.mjs',
   'test/cli-removed-inputs.test.mjs',
-  'test/litellm-runtime.test.mjs',
 ]);
 const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 
@@ -319,3 +318,44 @@ test('no module the shrink deleted is tracked or imported', () => {
   );
   assert.deepEqual(importers, [], `a deleted module is imported again:\n  ${importers.join('\n  ')}`);
 });
+
+// --- Proxy-spine mentions (issue #296, part of spec #294) ------------------
+//
+// Deleting the folder is half of it. A doc that still tells a contributor to
+// run `litellm/run.sh`, install a launchd job or set CHRONICLE_REQUIRE_PYTHON
+// sends them at files that are not there, and describes an install story that
+// needs more than Node.
+//
+// Swept by name over every tracked file, source and config included, on the
+// same terms as the vocabulary sweep above. Two exemptions beyond VOCAB_EXEMPT:
+//
+//   - docs/agents/design-audit-2026-09-04.md, the dated audit that ORDERED this
+//     removal (finding F15). Like the CHANGELOG, it records what was.
+//   - src/reference/definitions.ts, whose `Retired` group is the one place the
+//     surface contract lets a removed surface still be named -- the retired
+//     proxy lane and the retired Jobs page both cite it there.
+const PROXY_SPINE_NAMES = [
+  { name: 'litellm', re: /litellm/i },
+  // `\b` on both sides so `launchDemo`, the e2e helper, is not a hit.
+  { name: 'launchd', re: /\blaunchd\b/i },
+  { name: 'install-jobs', re: /install-jobs/i },
+  { name: 'CHRONICLE_REQUIRE_PYTHON', re: /CHRONICLE_REQUIRE_PYTHON/ },
+];
+
+const SPINE_EXEMPT = new Set([
+  'docs/agents/design-audit-2026-09-04.md',
+  'src/reference/definitions.ts',
+]);
+
+for (const { name, re } of PROXY_SPINE_NAMES) {
+  test(`no tracked file points a reader at "${name}"`, () => {
+    const offenders = sweep(
+      (rel, src) =>
+        src.split('\n').flatMap((line, i) =>
+          re.test(line) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
+        ),
+      { skip: (rel) => SPINE_EXEMPT.has(rel) },
+    );
+    assert.deepEqual(offenders, [], `"${name}" is back:\n  ${offenders.join('\n  ')}`);
+  });
+}

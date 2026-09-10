@@ -374,7 +374,7 @@ when empty and is absent in demo (demo never records).
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
-| No launchd or cron template ships in the published tarball | `test/repo-shape.test.mjs` — "the published package ships no job template" |
+| No job template is tracked at all, and the published files list excludes no path that is missing | `test/repo-shape.test.mjs` — "the published package ships no job template" |
 | The retired vocabulary appears in no tracked source, config, spec or doc (CHANGELOG and the removal pins excepted); no retired route prefix or deleted module returns | `test/repo-shape.test.mjs` — the vocabulary-sweep pins |
 | Nothing renders above the KPI strip on `/` | `test/e2e/home.spec.ts` — "nothing renders above the KPI strip" |
 | `∴ Ask` entry hidden + `/api/ask/status` `enabled:false` + `/ask` fails soft when Ask is off (default) | `test/e2e/ask.spec.ts` — "no ∴ Ask sidebar entry…" + "navigating to /ask fails soft" |
