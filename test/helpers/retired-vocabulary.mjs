@@ -1,10 +1,11 @@
 // The ONE definition of the vocabulary the shrink retired (spec #215, issue
-// #226), shared by the repo-shape pins (test/repo-shape.test.mjs) and the
-// LiteLLM runtime pins (test/litellm-runtime.test.mjs).
+// #226), read by the repo-shape pins (test/repo-shape.test.mjs).
 //
-// Two copies drifted apart once already: the runtime copy did not catch
-// `scripts/litellm/`, so live private-checkout paths sat in a contract file
-// while its guard test passed (issue #186). One definition, two callers.
+// Two copies drifted apart once already: the proxy runtime kept its own and it
+// did not catch the pre-move layout, so live private-checkout paths sat in a
+// contract file while its guard test passed (issue #186). That second copy and
+// the suite around it went with the proxy spine (issue #296); this file stayed,
+// because one definition is the point.
 
 /** Paths into the author's private checkout, and the machine-only dirs the
  *  runtime used to reach. No tracked file may name one. */
@@ -13,13 +14,10 @@ export const PRIVATE_PATHS = /chizhang-2|AIOS_HUB|CHRONICLE_HUB|\.aios\/|\.secre
 /** The retired checkout's own folders, named as a path a reader could follow. */
 export const PRIVATE_FOLDERS = /governance\//i;
 
-/** Where the LiteLLM files used to live inside that checkout, plus test paths
- *  that moved with them. A doc still citing `scripts/litellm/config.yaml` is
- *  pointing at a file that is not there. */
+/** Where the retired checkout kept its Python, plus the test paths that sat
+ *  beside it. A doc still citing `scripts/litellm/config.yaml` or
+ *  `scripts/tests/test_lane_c.py` is pointing at a file that is not there. */
 export const LEGACY_LAYOUT = /scripts\/litellm|scripts\/tests\/test_(litellm|lane_c)/i;
-
-/** `hub `scripts/...`` style location headers. */
-export const PRIVATE_LOCATION = /\bhub\s+`/i;
 
 /** Ticket ids from the private tracker. A reader who is not the author cannot
  *  open one, so prose citing them is prose that dead-ends (issue #187).

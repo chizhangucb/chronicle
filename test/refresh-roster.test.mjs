@@ -2,10 +2,10 @@
 //
 // The script maintains the volatile columns of the routing roster that
 // server/routing.ts reads and the Spend tab's ROUTING COMPLIANCE section
-// renders. It lived in litellm/ only because it was adjacent there in an older
-// layout: the proxy never reads the roster and the roster never configures the
-// proxy, so #192 moved it to scripts/ and its guards moved here with it, out of
-// the two LiteLLM suites.
+// renders. It sat beside the proxy spine only because an older layout put it
+// there: the proxy never read the roster and the roster never configured the
+// proxy, so #192 moved it to scripts/ and its guards moved here with it. The
+// spine itself is gone (#296); the refresher and its Python stay.
 //
 // The filename stays snake_case against the repo's kebab-case script
 // convention because it is an importable Python module, and `import
@@ -13,8 +13,8 @@
 // importing them; a dash would force every caller through importlib to buy
 // nothing.
 //
-// python3 is not optional in CI: test/helpers/python.mjs holds the one
-// skip-or-fail rule this suite shares with the LiteLLM ones.
+// test/helpers/python.mjs holds the one rule for what a machine without
+// python3 does here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -83,8 +83,8 @@ print(len(changes))`]);
 });
 
 // The judgment columns are hand-curated; a refresher that rewrote them would
-// quietly discard the curation on the next run. This was Promise 4 of
-// litellm/README.md before the move (issue #188).
+// quietly discard the curation on the next run. This was Promise 4 of the
+// refresher's runbook before the move (issue #188).
 test('the refresher rewrites price and context only, and adds or drops no row', (t) => {
   const dir = tmp(t, 'roster-guard-');
   const md = path.join(dir, 'model-routing.md');
@@ -161,7 +161,8 @@ print(json.dumps([c[0] for c in changes]))`]);
 
 test('npm run refresh-roster reaches the script from its new home', () => {
   // It had no npm script before the move, which is part of why it drifted out
-  // of sight in litellm/. The pin is that the wiring names a file that exists.
+  // of sight beside the proxy. The pin is that the wiring names a file that
+  // exists.
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const cmd = pkg.scripts?.['refresh-roster'];
   assert.ok(cmd, 'package.json declares no `refresh-roster` script');

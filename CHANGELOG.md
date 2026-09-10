@@ -7,6 +7,12 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Removed
 
+- **The local LiteLLM proxy is gone from the repo.** Its runtime, spend logger, job
+  template, installer and test suites are deleted, and the repo's CI no longer
+  installs Python to test them. Chronicle stopped reading that proxy's spend log
+  when the proxy-lane spend tile was removed, and nothing an operator does changes:
+  the proxy was never part of `npx chronicle-cli` and never shipped in the tarball.
+
 - **Context causality is gone from Playback.** A message row used to carry a `⛓` chip
   listing, with a confidence percentage, which earlier reads a file change "likely" came
   from. The links were a local guess from the shape of the tool calls — read the same file,

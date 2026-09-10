@@ -11,9 +11,10 @@ Match key = the roster's Route column with the `openrouter/` prefix stripped, lo
 up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g. a
 future direct-Anthropic route) are left untouched.
 
-This lives in scripts/, not litellm/, because it maintains an operator document
-rather than proxy runtime: the proxy never reads the roster and the roster never
-configures the proxy (issue #192). What does read the roster is server/routing.ts,
+This lives in scripts/ because it maintains an operator document rather than
+proxy runtime: it sat beside the proxy spine in an older layout, though the proxy
+never read the roster and the roster never configured the proxy (issue #192), and
+the spine is gone (issue #296). What does read the roster is server/routing.ts,
 behind the Spend tab's ROUTING COMPLIANCE section.
 
 The filename stays snake_case against the repo's kebab-case script convention
