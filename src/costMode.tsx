@@ -12,8 +12,6 @@ import type { CostMode } from './models.ts';
 import InfoTip from './InfoTip.tsx';
 import { STORAGE_KEYS } from './storage.ts';
 
-const STORAGE_KEY = STORAGE_KEYS.costMode;
-
 interface CostModeState {
   mode: CostMode;
   setMode: (m: CostMode) => void;
@@ -23,7 +21,7 @@ const CostModeContext = createContext<CostModeState>({ mode: 'theoretical', setM
 
 function initialMode(): CostMode {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'real' ? 'real' : 'theoretical';
+    return localStorage.getItem(STORAGE_KEYS.costMode) === 'real' ? 'real' : 'theoretical';
   } catch {
     return 'theoretical';
   }
@@ -35,7 +33,7 @@ export function CostModeProvider({ children }: { children: ReactNode }): JSX.Ele
     mode,
     setMode: (m: CostMode) => {
       setModeState(m);
-      try { localStorage.setItem(STORAGE_KEY, m); } catch { /* private mode — in-memory only */ }
+      try { localStorage.setItem(STORAGE_KEYS.costMode, m); } catch { /* private mode — in-memory only */ }
     },
   }), [mode]);
   return <CostModeContext.Provider value={value}>{children}</CostModeContext.Provider>;

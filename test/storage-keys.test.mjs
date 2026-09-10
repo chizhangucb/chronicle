@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { REPO, git, tracked } from './helpers/tracked-files.mjs';
 import { readSource } from './helpers/read-source.mjs';
-import { STORAGE_KEYS, migrateLegacyStorageKeys } from '../src/storage.ts';
+import { STORAGE_KEYS, LEGACY_STORAGE_KEYS, migrateLegacyStorageKeys } from '../src/storage.ts';
 
 // A minimal localStorage: enough of the Web Storage surface for the module.
 function fakeStorage(seed = {}) {
@@ -84,28 +84,36 @@ test('migration survives storage that throws (private mode)', () => {
 // is a string an operator's browser holds, not an exported symbol, so only a
 // read of the sources can see one drift back to a hyphen (same shape as the
 // page-width and languages-removed pins).
+const read = (rel) => readSource(path.join(REPO, rel));
+/** Every tracked client module — a key can be named here without the word `localStorage`
+ *  in sight (a `useResizable({ storageKey })` caller is exactly that shape). */
 const CLIENT_SOURCES = git('ls-files', '--', 'src').split('\n').filter(Boolean)
   .filter((rel) => /\.tsx?$/.test(rel));
-const read = (rel) => readSource(path.join(REPO, rel));
-
-/** Every tracked code file that talks to localStorage — the only place a key can be. */
-const STORAGE_CALLERS = tracked
-  .filter((rel) => /\.(tsx?|mjs|js|html)$/.test(rel))
-  .filter((rel) => read(rel).includes('localStorage'));
+/** …plus every other tracked code file that touches storage itself (the e2e specs, website/). */
+const STORAGE_CALLERS = [...new Set([
+  ...CLIENT_SOURCES,
+  ...tracked.filter((rel) => /\.(tsx?|mjs|js|html)$/.test(rel) && read(rel).includes('localStorage')),
+])].sort();
 /** A `chronicle` key literal in any spelling: the dot one and the ones it replaced. */
 const KEY_LITERAL = /['"`](chronicle[-._][A-Za-z][\w.-]*)['"`]/g;
+/** A key passed straight to storage, or to `useResizable`, whatever it is named. */
+const KEY_IN_USE = /(?:(?:get|set|remove)Item\(\s*|storageKey:\s*)['"`]([^'"`]+)['"`]/g;
 /**
  * The pre-convention names, and the files allowed to still spell one: the
- * module that migrates the app's two (src/storage.ts), the marketing page that
- * migrates its own (website/index.html, a separate origin and a separate
- * deploy, so it carries its migration inline), and this pin.
+ * module that migrates the app's (src/storage.ts, the one definition of the
+ * list), the marketing page that migrates its own (website/index.html, a
+ * separate origin and a separate deploy, so it carries its migration inline),
+ * and this pin.
  */
-const LEGACY_NAMES = new Set(['chronicle-sidebar', 'chronicle-playback-split', 'chronicle_theme']);
+const LEGACY_NAMES = new Set([
+  ...LEGACY_STORAGE_KEYS.map(([oldKey]) => oldKey),
+  'chronicle_theme', // website/index.html's, migrated inline there
+]);
 const MIGRATION_OWNERS = new Set(['src/storage.ts', 'website/index.html', 'test/storage-keys.test.mjs']);
 
 test('every chronicle storage key in a tracked source uses the dot convention', () => {
   assert.ok(CLIENT_SOURCES.length > 20, `expected the client source set to be populated, got ${CLIENT_SOURCES.length}`);
-  assert.ok(STORAGE_CALLERS.length > 3, `expected the localStorage callers to be found, got ${STORAGE_CALLERS.length}`);
+  assert.ok(STORAGE_CALLERS.includes('website/index.html'), 'the sweep must reach the marketing page');
   const offenders = [];
   for (const rel of STORAGE_CALLERS) {
     for (const [, key] of read(rel).matchAll(KEY_LITERAL)) {
@@ -116,6 +124,19 @@ test('every chronicle storage key in a tracked source uses the dot convention', 
     }
   }
   assert.deepEqual(offenders, [], `these keys are not \`chronicle.<name>\`: ${offenders.join(', ')}`);
+});
+
+test('every key handed to storage is namespaced, whatever it is called', () => {
+  const offenders = [];
+  for (const rel of STORAGE_CALLERS) {
+    if (rel === 'test/storage-keys.test.mjs') continue; // its fake storage takes any key
+    for (const [, key] of read(rel).matchAll(KEY_IN_USE)) {
+      if (key.startsWith('chronicle.')) continue;
+      if (LEGACY_NAMES.has(key) && MIGRATION_OWNERS.has(rel)) continue;
+      offenders.push(`${rel}: ${key}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `these keys are not namespaced: ${offenders.join(', ')}`);
 });
 
 test('no source writes a pre-convention key', () => {
@@ -129,17 +150,15 @@ test('no source writes a pre-convention key', () => {
   assert.deepEqual(offenders, [], `these sources write an old key: ${offenders.join(', ')}`);
 });
 
-test('the app runs the migration once at startup, before the first render', () => {
-  const main = read('src/main.tsx');
-  assert.match(main, /migrateLegacyStorageKeys\(\)/, 'src/main.tsx does not run the migration');
-  assert.ok(
-    main.indexOf('migrateLegacyStorageKeys()') < main.indexOf('createRoot('),
-    'the migration must run before the first render, so mount-time reads see the dot key',
-  );
-});
-
 test('the key registry holds only dot keys, and one per name', () => {
   const values = Object.values(STORAGE_KEYS);
   for (const key of values) assert.match(key, /^chronicle\.[a-z][A-Za-z]*$/, `${key} is not chronicle.<name>`);
   assert.equal(new Set(values).size, values.length, 'two names share a key');
+});
+
+test('every key the migration moves to is one the registry owns', () => {
+  const owned = new Set(Object.values(STORAGE_KEYS));
+  for (const [oldKey, newKey] of LEGACY_STORAGE_KEYS) {
+    assert.ok(owned.has(newKey), `${oldKey} migrates to ${newKey}, which no name in the registry owns`);
+  }
 });

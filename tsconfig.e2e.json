@@ -18,5 +18,13 @@
   // exactly the drift the registry exists to remove, and a spec is just as
   // capable of drifting as a page. It is a dependency-free data module, so
   // pulling it in costs the e2e project nothing else.
-  "include": ["playwright.config.ts", "test/e2e/**/*.ts", "src/reference/definitions.ts"]
+  // src/storage.ts joins it for the same reason: the localStorage keys and the
+  // list of pre-convention names have ONE definition, and a spec asserting on
+  // storage reads it rather than copying the literal (issue #202).
+  "include": [
+    "playwright.config.ts",
+    "test/e2e/**/*.ts",
+    "src/reference/definitions.ts",
+    "src/storage.ts"
+  ]
 }

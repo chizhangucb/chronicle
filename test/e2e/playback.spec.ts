@@ -37,6 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type Page } from '@playwright/test';
 import { test, expect, readSeedState, WIDTHS } from './helpers.ts';
+import { STORAGE_KEYS } from '../../src/storage.ts';
 
 const state = readSeedState();
 
@@ -385,11 +386,10 @@ test('dragging the chat/right-group divider resizes the chat pane and the split 
   expect(Math.abs(convAfterReload - convAfterDrag), 'persisted split must survive reload').toBeLessThan(5);
 });
 
-// Must match SessionView.tsx's PLAYBACK_SPLIT_KEY (not exported — the split
-// is an internal implementation detail; this is the one place a test needs
-// the literal key, to assert directly on what `useResizable`'s `reset()`
-// does to storage rather than inferring it from pixel widths alone).
-const PLAYBACK_SPLIT_STORAGE_KEY = 'chronicle.playbackSplit';
+// Read from the key registry, never copied: this is the one place a test needs
+// the key itself, to assert directly on what `useResizable`'s `reset()` does to
+// storage rather than inferring it from pixel widths alone.
+const PLAYBACK_SPLIT_STORAGE_KEY = STORAGE_KEYS.playbackSplit;
 
 test('double-clicking the divider resets the split to its default and clears the persisted override', async ({ page }) => {
   await gotoFixturePlayback(page);

@@ -6,6 +6,7 @@
 import { type Page } from '@playwright/test';
 import { test, expect, readSeedState } from './helpers.ts';
 import { getDefinition } from '../../src/reference/definitions.ts';
+import { STORAGE_KEYS, LEGACY_STORAGE_KEYS } from '../../src/storage.ts';
 
 /** The canonical wording of a definition, so specs cannot drift from it. */
 function defText(id: string): string {
@@ -157,5 +158,25 @@ test.describe('T17.4 — labeled Rename affordance', () => {
     // wording now has exactly one home, and a test that hardcoded it would be
     // the second copy this migration exists to remove.
     await expect(tip).toHaveAttribute('aria-label', new RegExp(escapeRe(defText('session.rename'))));
+  });
+});
+
+test.describe('#202 — one localStorage convention', () => {
+  test('a collapse state left under the pre-convention key still comes up collapsed', async ({ page }) => {
+    const [oldSidebarKey, newSidebarKey] = LEGACY_STORAGE_KEYS
+      .find(([, to]) => to === STORAGE_KEYS.sidebarCollapsed)!;
+    // Seeded BEFORE any app script runs — this is the operator who collapsed
+    // the sidebar on the old build and then upgraded.
+    await page.addInitScript(([key]) => { localStorage.setItem(key, 'collapsed'); }, [oldSidebarKey]);
+    await gotoHome(page);
+
+    // The observable thing the migration buys: the sidebar is still collapsed.
+    await expect(page.locator('aside.sidebar')).toHaveClass(/collapsed/);
+    const after = await page.evaluate(
+      ([oldKey, newKey]) => ({ old: localStorage.getItem(oldKey), current: localStorage.getItem(newKey) }),
+      [oldSidebarKey, newSidebarKey],
+    );
+    expect(after.current, 'the state moved onto the dot key').toBe('collapsed');
+    expect(after.old, 'the old key is read once and left behind').toBeNull();
   });
 });

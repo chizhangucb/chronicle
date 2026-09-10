@@ -51,7 +51,6 @@ export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'con
 // group's own floor (200px file-tree + 320px code-view, from
 // `.pb-grid .code-body`'s `minmax()`s below) — the chat column may never
 // eat into that reserve, at any width, dragged or not.
-const PLAYBACK_SPLIT_KEY = STORAGE_KEYS.playbackSplit;
 const PLAYBACK_SPLIT_MIN = 280;
 const PLAYBACK_SPLIT_RESERVED = 544;
 
@@ -121,7 +120,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const esRef = useRef<EventSource | null>(null);
   const atBottomRef = useRef(true);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const chatSplit = useResizable({ storageKey: PLAYBACK_SPLIT_KEY, fallback: 420, min: PLAYBACK_SPLIT_MIN, max: 900, edge: 'right' });
+  const chatSplit = useResizable({ storageKey: STORAGE_KEYS.playbackSplit, fallback: 420, min: PLAYBACK_SPLIT_MIN, max: 900, edge: 'right' });
   const searchRef = useRef<HTMLInputElement | null>(null);
   const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
   // Whether the CURRENT selectedSeq was set via the Timeline's own scrub/seek,

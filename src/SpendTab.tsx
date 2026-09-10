@@ -26,12 +26,11 @@ const RANGE_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d
 // Legacy home: the monthly budget used to live ONLY here (moved it
 // server-side so every surface reads one number). Read once on mount to migrate
 // an existing value up to /settings, then cleared.
-const LEGACY_BUDGET_KEY = STORAGE_KEYS.monthlyBudget;
 // Synthetic pseudo-model rows carry 0 real tokens — excluded from spend views.
 const PSEUDO_MODELS = new Set(['<synthetic>']);
 
 function readLegacyLocalBudget(): number | null {
-  try { const v = localStorage.getItem(LEGACY_BUDGET_KEY); const n = v ? Number(v) : NaN; return Number.isFinite(n) && n > 0 ? n : null; }
+  try { const v = localStorage.getItem(STORAGE_KEYS.monthlyBudget); const n = v ? Number(v) : NaN; return Number.isFinite(n) && n > 0 ? n : null; }
   catch { return null; }
 }
 
@@ -84,7 +83,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
           const local = readLegacyLocalBudget();
           if (local != null) {
             try { const saved = await api.patchSettings({ monthlyBudget: local }); b = saved.monthlyBudget; } catch { b = local; }
-            try { localStorage.removeItem(LEGACY_BUDGET_KEY); } catch { /* private mode */ }
+            try { localStorage.removeItem(STORAGE_KEYS.monthlyBudget); } catch { /* private mode */ }
           }
         }
         if (alive) { setBudget(b); setLoaded(true); }

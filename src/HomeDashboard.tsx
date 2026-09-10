@@ -94,8 +94,6 @@ export interface HomeDashboardProps {
 // `?since=` so the Activity block can show "since you left". Written on tab
 // hide / pagehide; read ONCE at mount BEFORE the writer fires, so `since`
 // reflects the PREVIOUS visit, not this one.
-const LAST_VISIT_KEY = STORAGE_KEYS.lastVisit;
-
 export default function HomeDashboard({ projects, onOpenSession, onImport, onRefresh }: HomeDashboardProps): JSX.Element {
   const [, navigate] = useLocation();
   const [range, setRange] = useState<RangeKey>('today');
@@ -126,12 +124,12 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 
   // Read the previous visit time once (before the unload writer overwrites it).
   const sinceRef = useRef<string | null>(null);
-  if (sinceRef.current === null) sinceRef.current = localStorage.getItem(LAST_VISIT_KEY);
+  if (sinceRef.current === null) sinceRef.current = localStorage.getItem(STORAGE_KEYS.lastVisit);
   useEffect(() => {
     const write = () => {
-      if (document.visibilityState === 'hidden') localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
+      if (document.visibilityState === 'hidden') localStorage.setItem(STORAGE_KEYS.lastVisit, new Date().toISOString());
     };
-    const onPageHide = () => localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
+    const onPageHide = () => localStorage.setItem(STORAGE_KEYS.lastVisit, new Date().toISOString());
     document.addEventListener('visibilitychange', write);
     window.addEventListener('pagehide', onPageHide);
     return () => {

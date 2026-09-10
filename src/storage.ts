@@ -8,7 +8,9 @@
 // `migrateLegacyStorageKeys()` runs once on load (src/main.tsx, before the
 // first render, so every component's mount-time read already sees the dot key),
 // copies each old value over and deletes the old key. Nothing writes an old key
-// again: the copy is one-way and the old names live only in `LEGACY_KEYS`.
+// again: the copy is one-way and the old names live only in
+// `LEGACY_STORAGE_KEYS`, which the pin reads too, so there is one definition
+// of what the old names were.
 //
 // All storage access is guarded — private mode, a full quota and any SSR/test
 // import path all have to be survivable, same as `useResizable.ts`'s reads.
@@ -21,7 +23,7 @@ export const STORAGE_KEYS = {
   sidebarWidth: 'chronicle.sidebarW',
   /** Playback's chat column width, px (SessionView.tsx via useResizable). */
   playbackSplit: 'chronicle.playbackSplit',
-  /** Real/theoretical cost toggle (costMode.tsx). */
+  /** Cost basis toggle: list price vs billed (costMode.tsx). */
   costMode: 'chronicle.costMode',
   /** ISO timestamp of the last visit, for the "since you were away" read. */
   lastVisit: 'chronicle.lastVisit',
@@ -29,8 +31,11 @@ export const STORAGE_KEYS = {
   monthlyBudget: 'chronicle.monthlyBudget',
 } as const;
 
-/** Old name → the dot key it moves to. Read-only: nothing writes the old name. */
-const LEGACY_KEYS: ReadonlyArray<readonly [string, string]> = [
+/**
+ * Old name → the dot key it moves to. Read-only: nothing writes the old name.
+ * Exported so test/storage-keys.test.mjs sweeps for the same list this migrates.
+ */
+export const LEGACY_STORAGE_KEYS: ReadonlyArray<readonly [string, string]> = [
   ['chronicle-sidebar', STORAGE_KEYS.sidebarCollapsed],
   ['chronicle-playback-split', STORAGE_KEYS.playbackSplit],
 ];
@@ -43,7 +48,7 @@ const LEGACY_KEYS: ReadonlyArray<readonly [string, string]> = [
  */
 export function migrateLegacyStorageKeys(): void {
   if (typeof localStorage === 'undefined') return;
-  for (const [oldKey, newKey] of LEGACY_KEYS) {
+  for (const [oldKey, newKey] of LEGACY_STORAGE_KEYS) {
     try {
       const value = localStorage.getItem(oldKey);
       if (value == null) continue;
