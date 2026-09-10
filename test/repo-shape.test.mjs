@@ -193,6 +193,20 @@ test('no proxy-spine file is tracked', () => {
   assert.deepEqual(back, [], `the proxy spine is tracked again: ${back}`);
 });
 
+test('CI sets up Node and no second toolchain', () => {
+  // The Python setup step and its require-python flag existed for the proxy
+  // guards and nothing else. A contributor reads the workflow to learn what a
+  // clone needs; Node is the whole answer.
+  const src = ci();
+  const toolchains = [...src.matchAll(/uses: actions\/setup-(\w+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(toolchains)], ['node'], 'CI sets up a second toolchain');
+  assert.equal(
+    src.includes('CHRONICLE_REQUIRE_PYTHON'),
+    false,
+    'CI still sets the require-python flag',
+  );
+});
+
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
   assert.ok(ciJobIds().includes('gitleaks'), 'ci.yml declares no `gitleaks` job');
   const src = ci();
