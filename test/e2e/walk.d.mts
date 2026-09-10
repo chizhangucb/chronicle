@@ -42,6 +42,9 @@ export interface WalkRoute {
 
 export const WIDTHS: number[];
 
+/** Source string for the browser-side RegExp that spots a loading placeholder. */
+export const LOADING_PATTERN: string;
+
 export function waitForLoadSettle(
   page: Page,
   options?: { timeoutMs?: number; pollMs?: number; allowLoadingIn?: string[]; notes?: string[] },

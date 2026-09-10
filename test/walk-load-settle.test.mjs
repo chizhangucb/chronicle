@@ -14,7 +14,10 @@
 // than the shape of the code under it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS } from './e2e/walk.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS, LOADING_PATTERN } from './e2e/walk.mjs';
 
 /**
  * A Playwright `Page` stand-in. `settlesAfter` is how many DOM scans still
@@ -91,6 +94,20 @@ test('a page stuck loading fails loudly inside the timeout instead of hanging th
   assert.ok(elapsed < 2_000, `must give up at the timeout, took ${elapsed}ms`);
 });
 
+test('a page too busy to answer the scan still fails inside the budget', async () => {
+  // The stuck case the walk actually fears is not a slow fetch, it is a page
+  // wedged hard enough that its own JS never answers — evaluate() has no
+  // timeout of its own, so the budget has to cover the scan too or the walk
+  // hangs on that one cell forever.
+  const page = fakePage({ settlesAfter: Infinity });
+  page.evaluate = () => new Promise(() => {});
+  const started = Date.now();
+
+  await assert.rejects(() => waitForLoadSettle(page, { timeoutMs: 100, pollMs: 5 }), /never settled/);
+
+  assert.ok(Date.now() - started < 2_000, 'the budget has to cover an unanswered scan');
+});
+
 test('a network that never goes idle is a disclosed note, not a failed capture', async () => {
   // A live session's SSE stream (or a polling surface) can hold a request open
   // for the whole walk: `networkidle` would never fire there, and refusing to
@@ -143,6 +160,45 @@ test('collectLoadingOffenders finds the placeholder, not the page around it', ()
   assert.equal(result.blocking.length, 1, 'only the leaf that renders the text counts');
   assert.equal(result.blocking[0].class, 'muted small pad8');
   assert.deepEqual(result.tolerated, []);
+});
+
+test('collectLoadingOffenders catches the session shell, not just the bare wording', () => {
+  // /session/:id renders `<div className="page center muted">Loading session…`
+  // (src/SessionView.tsx) while its fetch is in flight, and its setup() waits
+  // on the sidebar, which is already there. Four of the walk's routes are
+  // session routes: a gate that only knew the bare "Loading…" would wave
+  // through the cells most likely to be shot mid-load.
+  const result = scan([{ class: 'page center muted', text: 'Loading session…' }]);
+
+  assert.deepEqual(result.blocking.map((o) => o.text), ['Loading session…']);
+});
+
+test('collectLoadingOffenders does not trip on prose that merely says loading', () => {
+  const result = scan([
+    { class: 'muted small pad8', text: 'Loading is turned off in Settings' },
+    { class: 'eff-d muted', text: 'Reloading…' },
+  ]);
+
+  assert.deepEqual(result.blocking, []);
+});
+
+test('the gate matches every loading placeholder the client actually renders', () => {
+  // The pin that keeps the two in step: read the wordings out of src/ rather
+  // than listing them here, so a new placeholder that the gate cannot see
+  // fails this test instead of showing up as a mid-load cell in a walk.
+  const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
+  const files = fs.readdirSync(srcDir, { recursive: true }).filter((f) => String(f).endsWith('.tsx'));
+  const wordings = new Set();
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(srcDir, String(file)), 'utf8');
+    for (const [wording] of source.matchAll(/Loading[^<>'"`{}\n]*(?:…|\.\.\.)/g)) wordings.add(wording);
+  }
+
+  assert.ok(wordings.has('Loading…'), 'sanity: the common placeholder is in src/');
+  assert.ok(wordings.has('Loading session…'), 'sanity: the session shell placeholder is in src/');
+  for (const wording of wordings) {
+    assert.match(wording, new RegExp(LOADING_PATTERN), `the walk would shoot a cell reading "${wording}" mid-load`);
+  }
 });
 
 test('collectLoadingOffenders tolerates a placeholder inside an allowed region', () => {

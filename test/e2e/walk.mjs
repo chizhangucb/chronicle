@@ -289,17 +289,25 @@ const SETTLE_TIMEOUT_MS = 12_000;
 // have to be captured. The DOM scan is the authority.
 const NETWORK_IDLE_BUDGET_MS = 5_000;
 const SETTLE_POLL_MS = 150;
-// The client's one loading placeholder wording (src/*.tsx: `<div className=
-// "muted small pad8">Loading…</div>` and friends). Kept as a source string
-// because it is compiled inside the browser, not here.
-const LOADING_PATTERN = '^(Loading…|Loading\\.\\.\\.)$';
+// Sentinel for "the page never answered the scan" — see waitForLoadSettle.
+const UNANSWERED_SCAN = Symbol('unanswered-scan');
+// The client's loading placeholders, ALL of them: "Loading…" is the common
+// one, but a session shell reads "Loading session…" (src/SessionView.tsx) and
+// the code panel "Loading snapshot…" (src/CodePanel.tsx). Matching only the
+// bare wording would wave through exactly the routes #205 is about, so the
+// pattern is "Loading" + a short tail + an ellipsis, anchored so ordinary
+// prose that merely contains the word cannot trip it.
+// test/walk-load-settle.test.mjs pins this against the wordings actually in
+// src/, so a new placeholder cannot quietly slip past the gate.
+// Kept as a source string because it is compiled inside the browser, not here.
+const LOADING_PATTERN = '^Loading\\b[\\s\\S]{0,40}(…|\\.\\.\\.)$';
 
 // Runs IN THE BROWSER via page.evaluate — deliberately self-contained (no
 // module-scope references), because Playwright ships this function's source
 // across and re-compiles it there. Returns the loading placeholders still on
 // screen, split into the ones that block a capture and the ones a route has
 // disclosed as tolerable (see `allowLoadingIn` on a route).
-function collectLoadingOffenders({ allowSelectors = [], pattern = '^Loading…$' } = {}) {
+function collectLoadingOffenders({ allowSelectors = [], pattern = '^Loading\\b[\\s\\S]{0,40}(…|\\.\\.\\.)$' } = {}) {
   const re = new RegExp(pattern);
   const blocking = [];
   const tolerated = [];
@@ -315,9 +323,14 @@ function collectLoadingOffenders({ allowSelectors = [], pattern = '^Loading…$'
       class: typeof el.className === 'string' ? el.className : '',
       text: text.slice(0, 60),
     };
-    if (allowSelectors.some((sel) => el.closest(sel))) tolerated.push(offender);
-    else blocking.push(offender);
-    if (blocking.length + tolerated.length >= 20) break;
+    // Each list caps itself. A shared cap would let 20 tolerated placeholders
+    // end the scan before a BLOCKING one further down the document was ever
+    // looked at, which is a mid-load capture reported as settled.
+    if (allowSelectors.some((sel) => el.closest(sel))) {
+      if (tolerated.length < 20) tolerated.push(offender);
+    } else if (blocking.length < 20) {
+      blocking.push(offender);
+    }
   }
   return { blocking, tolerated };
 }
@@ -352,9 +365,20 @@ async function waitForLoadSettle(page, {
   }
 
   for (;;) {
-    const scan = await page.evaluate(collectLoadingOffenders, scanArgs);
-    const blocking = scan?.blocking ?? [];
-    const tolerated = scan?.tolerated ?? [];
+    // evaluate() carries no timeout of its own: a page wedged hard enough that
+    // its JS never answers would hang the walk on this one cell forever, which
+    // is the failure mode the budget exists to prevent. Racing it against the
+    // remaining budget turns that into the same loud errored cell as a page
+    // that answers but never settles.
+    const remaining = Math.max(0, timeoutMs - (Date.now() - started));
+    const scan = await Promise.race([
+      page.evaluate(collectLoadingOffenders, scanArgs),
+      new Promise((resolve) => setTimeout(() => resolve(UNANSWERED_SCAN), remaining + 1)),
+    ]);
+    const blocking = scan === UNANSWERED_SCAN
+      ? [{ tag: 'html', class: '', text: 'Loading… (the page never answered the settle scan)' }]
+      : scan?.blocking ?? [];
+    const tolerated = scan === UNANSWERED_SCAN ? [] : scan?.tolerated ?? [];
     if (blocking.length === 0) {
       if (tolerated.length) {
         notes?.push(`captured with ${tolerated.length} disclosed placeholder(s) still loading: ${describeOffenders(tolerated)}`);
@@ -688,7 +712,11 @@ async function main() {
   const ls = report.summary.loadSettle;
   console.log(`[walk] load settle: ${ls.settled}/${pages.length} settled (${ls.toleratedLoading} with a disclosed loading region), ${ls.neverSettled} never settled`);
   if (ls.neverSettled > 0) {
-    console.error(`[walk] ${ls.neverSettled} page(s) never finished loading inside the settle budget — see \`error\` in walk-report.json`);
+    // Named, not just counted: the walk's contract is that a per-cell problem
+    // is DATA in the report (exit 0, same as a 404 route or a failed probe),
+    // so stderr has to say which cells to go look at.
+    const stuck = pages.filter((p) => p.settle?.settled === false).map((p) => p.slug).join(', ');
+    console.error(`[walk] ${ls.neverSettled} page(s) never finished loading inside the ${SETTLE_TIMEOUT_MS}ms settle budget: ${stuck} — see \`error\` in walk-report.json`);
   }
 
   if (renderedCount === 0) {
@@ -707,4 +735,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS };
+export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, summarize, WIDTHS, LOADING_PATTERN };
