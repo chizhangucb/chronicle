@@ -114,7 +114,18 @@ https://github.com/chizhangucb/chronicle/releases
   say "window" now says "range". *Window* is left to mean only a plan window or a context
   window, so the two are never confused on the Spend tab.
 
+- **Explore's stacked chart now agrees with its own total.** On a range whose edge cuts
+  through a session, the time chart used to draw that session's whole billed usage on the
+  bar it started in while the ranked rows showed only the share inside the range, so the
+  chart read higher than the total beside it. Both now read the in-range share, and summing
+  a chart's bars reproduces its total at every granularity. Numbers on Explore move for
+  exactly this case; every other range is unchanged.
+
 ### Fixed
+
+- Explore's project, source and session error counts now include an erroring tool result
+  whose originating call is missing from the transcript. Those three read the error count
+  Chronicle stores per session at import, so the page answers faster too.
 
 - Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
   to do nothing.
