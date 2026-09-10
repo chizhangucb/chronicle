@@ -1,18 +1,19 @@
-// Removal pins for the view log (issue #297, slice 0 of the shared/
-// consolidation spec).
+// Removal pins for the view log (issue #297, part of #294).
 //
 // Chronicle kept a local record of which of its own surfaces were looked at.
 // It is gone: module, route, client hook, Settings block and reference entry
 // deleted, its table dropped by migration, its cache exception and its boot
-// prune removed. The file-level negatives (no module tracked, no module
-// imported, no route mounted) are pinned by the vocabulary registry in
-// test/repo-shape.test.mjs; what is left here is what that sweep cannot see:
-// the migration on a real upgraded data folder, WAL surviving on its own
-// reasons, and the prose that described the feature.
+// prune removed.
 //
-// The database half boots server/db.ts against a data folder seeded the way an
-// older Chronicle left it, so the drop is asserted where an operator would meet
-// it rather than by reading the DDL.
+// Two pins already exist elsewhere and are not repeated here: the deleted
+// modules and suites, and the unmounted route, are swept by the retired
+// vocabulary registry (test/helpers/retired-vocabulary.mjs, read by
+// test/repo-shape.test.mjs), and the route is asserted live at 404 in
+// test/removed-routes.test.mjs. That sweep matches quoted route prefixes and
+// import statements, so it does not see a client call built from
+// `/api/...`, a css block, a boot-time call, or prose. Those are what this
+// file holds, alongside the one thing no source read can answer: the migration
+// running against a data folder seeded the way an older Chronicle left it.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -86,23 +87,30 @@ test('WAL stays on', () => {
 });
 
 test('the WAL comment stands on the SQLite-backed parsers, not on the view log', () => {
-  // Story 10 of the spec: the next reader must not remove WAL because its
-  // stated justification vanished with the feature.
+  // WAL was justified by the view log's per-navigation write. That write is
+  // gone and WAL is not, so the comment has to carry a reason that outlives it,
+  // or the next reader turns WAL off for want of one.
   const lines = read('server/db.ts').split('\n');
   const at = lines.findIndex((l) => l.includes("PRAGMA journal_mode = WAL"));
   assert.ok(at > 0, 'server/db.ts no longer turns WAL on');
   const comment = [];
   for (let i = at - 1; i >= 0 && lines[i].trim().startsWith('//'); i--) comment.unshift(lines[i]);
   const text = comment.join('\n');
-  assert.ok(text.length > 100, 'WAL is turned on with no stated reason');
   assert.match(text, /parser/i, 'the WAL comment does not name the parsers as its reason');
   assert.equal(ANY_SPELLING.test(text), false, 'the WAL comment still rests on the view log');
 });
 
-test('the boot prunes nothing and mounts no such route', () => {
+test('the boot mounts no such route and runs no retention pass', () => {
   const src = read('server/api.ts');
   assert.equal(ANY_SPELLING.test(src), false, 'server/api.ts still reaches for the view log');
-  assert.equal(/prune/i.test(src), false, 'the boot still runs a retention prune');
+  // Everything server/api.ts calls at module scope. Mounting a router and
+  // starting auto-sync is the whole of the boot; a rolling 180-day DELETE over
+  // the recorded rows used to sit between them.
+  const boot = src.split('\n')
+    .filter((l) => /^[a-z][\w.]*\(.*\);$/.test(l))
+    .map((l) => l.trim())
+    .filter((l) => !l.startsWith('mount') && !l.startsWith('api.use'));
+  assert.deepEqual(boot, ['startAutoSync();'], `the boot does more than mount and sync: ${boot.join(' ')}`);
 });
 
 test('the cache carries no invalidation exception', () => {

@@ -359,7 +359,6 @@ never switches on a characteristic's `key`):
 
 Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
 (quota)** · **Ask (experimental)**.
-No other row, and no block: Settings sets things, it shows nothing back.
 
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 

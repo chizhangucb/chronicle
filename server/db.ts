@@ -78,14 +78,16 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
 
-// WAL, and it stays on. The SQLite-backed parsers are the reason: Cursor and
-// OpenCode keep a whole workspace in one database, so their parse is a single
-// pass that hands back every session at once and autosync writes the lot in
-// one run, holding this same synchronous handle while it is also serving heavy
-// analytics reads. That is precisely the shape rollback-journal's exclusive
-// per-write lock serializes worst (and the SQLITE_BUSY note on the
-// result_count backfill below is the existing evidence). WAL lets the readers
-// proceed against the last committed snapshot while a write is in flight.
+// WAL, and it stays on. The SQLite-backed parsers are what makes a write long:
+// Cursor and OpenCode keep a whole workspace in ONE database, so a parse is a
+// single pass that hands back every session at once and autosync writes the lot
+// in one run. This handle is synchronous and the server is single-threaded, so
+// that run blocks nothing in-process; the contention WAL exists for is across
+// processes. Ask holds a read-only handle on this same file from a `claude -p`
+// spawn, and a second Chronicle on the same data folder is the SQLITE_BUSY case
+// the result_count backfill below already guards. Under rollback-journal the
+// whole import holds an exclusive lock and those readers fail; WAL lets them
+// read the last committed snapshot while it runs.
 // Fail soft: a filesystem that cannot do WAL (some network mounts) keeps the
 // old journal mode rather than losing the database.
 try { db.exec('PRAGMA journal_mode = WAL'); } catch { /* keep the default journal mode */ }
@@ -398,14 +400,10 @@ PRAGMA user_version = 0;
 db.exec('DROP TABLE IF EXISTS gate_audit;');
 
 // Retired: Chronicle's record of which of its own surfaces were looked at is
-// gone. A data folder written by an older Chronicle still carries the table and
-// its index, so drop them once. Dropping the table drops its indexes with it;
-// the index is named anyway for a database that somehow kept one without the
-// other. Nothing reads either, and the app records nothing to put back.
-db.exec(`
-DROP INDEX IF EXISTS idx_view_log_ts;
-DROP TABLE IF EXISTS view_log;
-`);
+// gone. A data folder written by an older Chronicle still carries the table, so
+// drop it once (its index goes with it). Nothing reads either, and the app
+// records nothing to put back.
+db.exec('DROP TABLE IF EXISTS view_log;');
 
 // FTS5 full-text index over message content (external-content table kept in
 // sync inside replaceSession — delete+reinsert, no triggers). Node's bundled

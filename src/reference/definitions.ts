@@ -25,7 +25,7 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'ask' | 'settings'
+  | 'ask'
   | 'retired';
 
 export interface DefVars { [key: string]: string | number | undefined }
@@ -46,7 +46,7 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'ask', 'settings', 'retired',
+  'ask', 'retired',
 ];
 
 export const DEF_PAGE_LABEL: Record<DefPage, string> = {
@@ -58,7 +58,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   projects: 'Projects',
   session: 'Session view',
   ask: 'Ask',
-  settings: 'Settings',
   retired: 'Retired (kept for the vocabulary)',
 };
 
