@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { t } from './i18n.js';
 import { KIND_LABEL } from './kinds.ts';
 import type { DisplayKind, Event } from '@shared/types.ts';
 
@@ -21,7 +20,7 @@ interface KindMeta {
   color: string;
 }
 const KIND_META: Record<DisplayKind, KindMeta> = Object.fromEntries(
-  KIND_ORDER.map((k) => [k, { label: t(KIND_LABEL[k]).toUpperCase(), color: KIND_COLOR[k] }]),
+  KIND_ORDER.map((k) => [k, { label: KIND_LABEL[k].toUpperCase(), color: KIND_COLOR[k] }]),
 ) as Record<DisplayKind, KindMeta>;
 
 const tokens = (text: string | null | undefined) => Math.round((text || '').length / 4);
@@ -196,22 +195,22 @@ export default function RefineMode({ messages, session, project }: RefineModePro
       <div className="refine-panes">
         <div className="refine-left" ref={leftRef}>
           <div className="refine-bulk">
-            <button className="btn ghost small" onClick={() => insertAt(0)}>＋ {t('Insert at start')}</button>
-            <button className="btn ghost small" title={t('Keep every message')}
-              onClick={() => setAllDeleted(false)}>✓ {t('Keep All')}</button>
-            <button className="btn ghost small" title={t('Delete every message')}
-              onClick={() => setAllDeleted(true)}>⌫ {t('Delete All')}</button>
+            <button className="btn ghost small" onClick={() => insertAt(0)}>＋ Insert at start</button>
+            <button className="btn ghost small" title="Keep every message"
+              onClick={() => setAllDeleted(false)}>✓ Keep All</button>
+            <button className="btn ghost small" title="Delete every message"
+              onClick={() => setAllDeleted(true)}>⌫ Delete All</button>
           </div>
           {presentKinds.length > 1 && (
-            <div className="refine-bytype" title={t('Toggle whole message types in or out')}>
-              <span className="muted small bytype-label">{t('By type')}</span>
+            <div className="refine-bytype" title="Toggle whole message types in or out">
+              <span className="muted small bytype-label">By type</span>
               {presentKinds.map((k) => {
                 const anyKept = items.some((it) => it.kind === k && !it.deleted);
                 return (
                   <button key={k} className={`chip bytype-chip ${anyKept ? 'on' : 'off'}`}
-                    title={anyKept ? t('Delete all of this type') : t('Keep all of this type')}
+                    title={anyKept ? 'Delete all of this type' : 'Keep all of this type'}
                     onClick={() => setKindDeleted(k, anyKept)}>
-                    {t(KIND_LABEL[k])} <span className="bytype-count">{kindCounts[k]}</span>
+                    {KIND_LABEL[k]} <span className="bytype-count">{kindCounts[k]}</span>
                   </button>
                 );
               })}
@@ -227,17 +226,17 @@ export default function RefineMode({ messages, session, project }: RefineModePro
                 onClick={() => setSelected(it.id)}>
                 <div className="refine-item-head">
                   <span className="refine-kind" style={{ color: meta.color }}>
-                    {meta.label}{it.edited && !it.inserted ? <span className="muted"> · {t('edited')}</span> : ''}
+                    {meta.label}{it.edited && !it.inserted ? <span className="muted"> · edited</span> : ''}
                   </span>
                   <span className="refine-head-right">
                     <span className="refine-ops">
-                      <button className={`btn tiny ghost keep-btn ${!it.deleted ? 'on' : ''}`} title={`${t('Keep')} (K)`}
+                      <button className={`btn tiny ghost keep-btn ${!it.deleted ? 'on' : ''}`} title="Keep (K)"
                         onClick={(e) => { e.stopPropagation(); setDeleted(it.id, false); }}>✓</button>
-                      <button className="btn tiny ghost" title={`${t('Delete')} (D)`} aria-label={t('Delete')}
+                      <button className="btn tiny ghost" title="Delete (D)" aria-label="Delete"
                         onClick={(e) => { e.stopPropagation(); setDeleted(it.id, true); }}>⌫</button>
-                      <button className="btn tiny ghost" title={`${t('Edit')} (E)`}
+                      <button className="btn tiny ghost" title="Edit (E)"
                         onClick={(e) => { e.stopPropagation(); setSelected(it.id); setEditingId(it.id); }}>✎</button>
-                      <button className="btn tiny ghost" title={`${t('Insert after')} (I)`}
+                      <button className="btn tiny ghost" title="Insert after (I)"
                         onClick={(e) => { e.stopPropagation(); insertAfter(it.id); }}>＋</button>
                     </span>
                     <span className="pill tok-pill">{tokens(it.text)} tokens</span>
@@ -248,7 +247,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
                 </div>
                 {long && (
                   <button className="btn ghost tiny expand-btn" onClick={(e) => { e.stopPropagation(); toggleExpand(it.id); }}>
-                    {open ? `▴ ${t('Collapse')}` : `▾ ${t('Expand')}`}
+                    {open ? `▴ Collapse` : `▾ Expand`}
                   </button>
                 )}
               </div>
@@ -258,11 +257,11 @@ export default function RefineMode({ messages, session, project }: RefineModePro
 
         <div className="refine-right">
           <div className="refine-right-head">
-            <strong>{t('Compressed Preview')}</strong>
+            <strong>Compressed Preview</strong>
             <span className="filter-chips">
-              <button className={`chip ${previewMode === 'full' ? 'on' : ''}`} onClick={() => setPreviewMode('full')}>👁 {t('Full')}</button>
-              <button className={`chip ${previewMode === 'changes' ? 'on' : ''}`} onClick={() => setPreviewMode('changes')}>≶ {t('Changes Only')}</button>
-              <button className={`chip ${previewMode === 'hideDeleted' ? 'on' : ''}`} onClick={() => setPreviewMode('hideDeleted')}>⌦ {t('Hide Deleted')}</button>
+              <button className={`chip ${previewMode === 'full' ? 'on' : ''}`} onClick={() => setPreviewMode('full')}>👁 Full</button>
+              <button className={`chip ${previewMode === 'changes' ? 'on' : ''}`} onClick={() => setPreviewMode('changes')}>≶ Changes Only</button>
+              <button className={`chip ${previewMode === 'hideDeleted' ? 'on' : ''}`} onClick={() => setPreviewMode('hideDeleted')}>⌦ Hide Deleted</button>
             </span>
           </div>
           <div className="refine-right-body">
@@ -273,7 +272,7 @@ export default function RefineMode({ messages, session, project }: RefineModePro
                   <div className="preview-block-head">
                     <span className="refine-kind" style={{ color: meta.color }}>
                       {meta.label}
-                      {it.deleted ? <span className="bad"> · {t('deleted')}</span> : it.inserted ? <span className="ok"> · {t('inserted')}</span> : it.edited ? <span className="muted"> · {t('edited')}</span> : ''}
+                      {it.deleted ? <span className="bad"> · deleted</span> : it.inserted ? <span className="ok"> · inserted</span> : it.edited ? <span className="muted"> · edited</span> : ''}
                     </span>
                     <span className="pill tok-pill">{tokens(it.text)} tokens</span>
                   </div>
@@ -285,46 +284,46 @@ export default function RefineMode({ messages, session, project }: RefineModePro
                   ) : (
                     <div className="preview-text" onDoubleClick={() => { setSelected(it.id); setEditingId(it.id); }}>
                       {it.text ? (it.text.length > 600 && !expanded.has(it.id) ? it.text.slice(0, 600) + '…' : it.text)
-                        : <span className="muted">({t('empty — double-click to edit')})</span>}
+                        : <span className="muted">(empty — double-click to edit)</span>}
                     </div>
                   )}
                 </div>
               );
             })}
-            {!previewItems.length && <div className="muted center pad8">{t('Nothing to show in this view.')}</div>}
+            {!previewItems.length && <div className="muted center pad8">Nothing to show in this view.</div>}
           </div>
         </div>
       </div>
 
       <div className="refine-statusbar">
         <span className="refine-history">
-          <button className="btn tiny ghost" title={`${t('Undo')} (⌘Z)`} disabled={!undoStack.current.length} onClick={undo}>↶</button>
-          <button className="btn tiny ghost" title={`${t('Redo')} (⇧⌘Z)`} disabled={!redoStack.current.length} onClick={redo}>↷</button>
-          <button className="btn tiny ghost" title={t('Reset all changes')} disabled={!undoStack.current.length && !redoStack.current.length} onClick={reset}>⟲</button>
+          <button className="btn tiny ghost" title="Undo (⌘Z)" disabled={!undoStack.current.length} onClick={undo}>↶</button>
+          <button className="btn tiny ghost" title="Redo (⇧⌘Z)" disabled={!redoStack.current.length} onClick={redo}>↷</button>
+          <button className="btn tiny ghost" title="Reset all changes" disabled={!undoStack.current.length && !redoStack.current.length} onClick={reset}>⟲</button>
         </span>
         <span className="refine-totals"
-          title={t('Size of the export document (tool calls truncated to one-line previews) — not the model context window')}>
-          <span className="muted small">{t('Original')}</span> <b>{fmtTok(originalTokens)}</b>
+          title="Size of the export document (tool calls truncated to one-line previews) — not the model context window">
+          <span className="muted small">Original</span> <b>{fmtTok(originalTokens)}</b>
           <span className="muted">→</span>
-          <span className="muted small">{t('Compressed')}</span> <b className="token-stats">{fmtTok(compressedTokens)}</b>
-          <span className="muted small">{t('Saved')}</span> <b>{fmtTok(saved)}</b>
+          <span className="muted small">Compressed</span> <b className="token-stats">{fmtTok(compressedTokens)}</b>
+          <span className="muted small">Saved</span> <b>{fmtTok(saved)}</b>
         </span>
-        <span className="refine-bars" title={t('Share of the original tokens you have trimmed away — fills up as you delete')}>
+        <span className="refine-bars" title="Share of the original tokens you have trimmed away — fills up as you delete">
           <span className="refine-bar"><span className="ok-bar" style={{ width: `${savedPct}%` }} /></span>
-          <span className="small token-stats">{savedPct}% {t('saved')}</span>
+          <span className="small token-stats">{savedPct}% saved</span>
         </span>
-        <span className="refine-counts muted small" title={t('deleted / edited / inserted')}>
+        <span className="refine-counts muted small" title="deleted / edited / inserted">
           <span className="bad">− {nDeleted}</span> <span>✎ {nEdited}</span> <span className="ok">＋ {nInserted}</span>
         </span>
         <span className="refine-export">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <button className="btn small primary">{t('Export')} ▾</button>
+              <button className="btn small primary">Export ▾</button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content className="menu-pop export-pop" side="top" align="end" sideOffset={6}>
-                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(false)}>📄 {t('Export Markdown')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(true)}>⌁ {t('Export as Prompt')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(false)}>📄 Export Markdown</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => exportDoc(true)}>⌁ Export as Prompt</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>

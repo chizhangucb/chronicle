@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import { pluralize } from './format.js';
 import Modal from './Modal.tsx';
 import type { ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
@@ -59,11 +58,11 @@ interface Badge {
 function badgeOf(item: AnnotatedProject): Badge {
   if (granular(item)) {
     const done = item.sessions.filter((s) => s.imported).length;
-    if (done === item.sessions.length) return { kind: 'imported', text: t('Imported') };
-    if (done > 0) return { kind: 'partial', text: `${t('Partial')} ${done}/${item.sessions.length}` };
+    if (done === item.sessions.length) return { kind: 'imported', text: 'Imported' };
+    if (done > 0) return { kind: 'partial', text: `Partial ${done}/${item.sessions.length}` };
     return { kind: 'new', text: 'NEW' };
   }
-  return item.imported ? { kind: 'imported', text: t('Imported') } : { kind: 'new', text: 'NEW' };
+  return item.imported ? { kind: 'imported', text: 'Imported' } : { kind: 'new', text: 'NEW' };
 }
 
 // Import job payload — one of these per project with selected units, POSTed to
@@ -210,7 +209,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
     try {
       const result: Scan = await api.scan({ source, dir: dirForm.trim() });
       const found = result[source] || [];
-      if (!found.length) { setError(t('No importable sessions found in that directory')); return; }
+      if (!found.length) { setError('No importable sessions found in that directory'); return; }
       setExtraItems((prev) => [...prev, ...found]);
       setSelected((prev) => {
         const next = new Set(prev);
@@ -274,9 +273,9 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
   const progressDone = jobs.filter((j) => j.status === 'done' || j.status === 'failed').length;
 
   return (
-    <Modal onClose={onClose} className={`wizard ${step === 1 ? 'wiz-step1' : ''}`} title={t('Import Logs')} preventClose={step === 3}>
+    <Modal onClose={onClose} className={`wizard ${step === 1 ? 'wiz-step1' : ''}`} title="Import Logs" preventClose={step === 3}>
         <div className="modal-head">
-          <h3>{t('Import Logs')}</h3>
+          <h3>Import Logs</h3>
           {step !== 3 && <button className="btn ghost" onClick={onClose}>✕</button>}
         </div>
 
@@ -289,7 +288,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                 {i > 0 && <div className={`wiz-step-line ${n <= step ? 'done' : ''}`} />}
                 <div className={`wiz-step ${state}`}>
                   <span className="wiz-step-dot">{n < step ? '✓' : n}</span>
-                  <span className="wiz-step-label">{t(label)}</span>
+                  <span className="wiz-step-label">{label}</span>
                 </div>
               </React.Fragment>
             );
@@ -300,10 +299,10 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
 
         {step === 1 && (
           <div className="wiz-body">
-            {!scan && <div className="muted center" style={{ padding: 32 }}>{t('Scanning local sources…')}</div>}
+            {!scan && <div className="muted center" style={{ padding: 32 }}>Scanning local sources…</div>}
             {scan && (
               <>
-                <div className="wiz-source-section muted small">◎ {t('Local')}</div>
+                <div className="wiz-source-section muted small">◎ Local</div>
                 <div className="wiz-source-grid">
                   {SOURCES.filter((s) => (scan[s.key] || []).length).map((s) => {
                     const list = scan[s.key] as AnnotatedProject[];
@@ -312,16 +311,16 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                       <button key={s.key} className="wiz-source-card" onClick={() => chooseSource(s.key)}>
                         <span className="wiz-source-icon">{s.icon}</span>
                         <span className="wiz-source-name">{s.label}</span>
-                        <span className="muted small">{pluralize(sessions, t('session'), t('sessions'))}</span>
+                        <span className="muted small">{pluralize(sessions, 'session', 'sessions')}</span>
                       </button>
                     );
                   })}
                   {SOURCES.every((s) => !(scan[s.key] || []).length) && (
-                    <div className="muted pad8">{t('No local AI tool logs found.')}</div>
+                    <div className="muted pad8">No local AI tool logs found.</div>
                   )}
                 </div>
                 <p className="muted small" style={{ marginTop: 16 }}>
-                  {t('Chronicle scans each tool\'s standard log location. Importing is read-only — your original logs are never modified.')}
+                  Chronicle scans each tool's standard log location. Importing is read-only — your original logs are never modified.
                 </p>
               </>
             )}
@@ -331,28 +330,28 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
         {step === 2 && (
           <>
             <div className="wiz-toolbar">
-              <button className="btn small" disabled={rescanning} onClick={rescan}>◎ {rescanning ? t('Rescanning…') : t('Rescan')}</button>
-              <button className="btn small" onClick={() => setDirForm(dirForm === null ? '' : null)}>◫ {t('Select Directory Manually')}</button>
-              <input className="input wiz-search" placeholder={'⌕ ' + t('Search projects or sessions')}
+              <button className="btn small" disabled={rescanning} onClick={rescan}>◎ {rescanning ? 'Rescanning…' : 'Rescan'}</button>
+              <button className="btn small" onClick={() => setDirForm(dirForm === null ? '' : null)}>◫ Select Directory Manually</button>
+              <input className="input wiz-search" placeholder="⌕ Search projects or sessions"
                 value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
             {dirForm !== null && (
               <div className="wiz-dir-form">
-                <input className="input" style={{ flex: 1 }} autoFocus placeholder={t('Absolute path to a log directory…')}
+                <input className="input" style={{ flex: 1 }} autoFocus placeholder="Absolute path to a log directory…"
                   value={dirForm} onChange={(e) => setDirForm(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && scanDirectory()} />
-                <button className="btn small" onClick={scanDirectory}>{t('Scan')}</button>
+                <button className="btn small" onClick={scanDirectory}>Scan</button>
               </div>
             )}
             <div className="wiz-summary muted small">
-              <span>◫ {pluralize(items.length, t('project'), t('projects'))}</span>
-              <span className="accent">{selectedProjects} {t('selected')}</span>
-              <span>▤ {pluralize(totalSessions, t('session'), t('sessions'))}</span>
-              <span className="accent">{selectedSessions} {t('selected')}</span>
-              <span>⇩ {importedUnits} {t('imported')}</span>
+              <span>◫ {pluralize(items.length, 'project', 'projects')}</span>
+              <span className="accent">{selectedProjects} selected</span>
+              <span>▤ {pluralize(totalSessions, 'session', 'sessions')}</span>
+              <span className="accent">{selectedSessions} selected</span>
+              <span>⇩ {importedUnits} imported</span>
             </div>
             <div className="wiz-tree">
-              {!filtered.length && <div className="muted center pad8">{t('No projects match.')}</div>}
+              {!filtered.length && <div className="muted center pad8">No projects match.</div>}
               {filtered.map((item) => {
                 const pk = projKey(item);
                 const units = unitsOf(item).map((u) => u.key);
@@ -376,8 +375,8 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                         <span className="muted small mono-path">{item.physicalPath || item.logDir}</span>
                       </div>
                       <span className={`pill wiz-badge ${badge.kind}`}>{badge.text}</span>
-                      <span className="muted small wiz-count" title={t('Estimated raw log entries — imported message counts are lower after noise filtering')}>
-                        {pluralize(item.sessionCount, t('session'), t('sessions'))} · ~{pluralize(item.messageEstimate, t('entry'), t('entries'))}
+                      <span className="muted small wiz-count" title="Estimated raw log entries — imported message counts are lower after noise filtering">
+                        {pluralize(item.sessionCount, 'session', 'sessions')} · ~{pluralize(item.messageEstimate, 'entry', 'entries')}
                       </span>
                     </div>
                     {isOpen && granular(item) && (
@@ -389,9 +388,9 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                               <input type="checkbox" checked={selected.has(sk)} onChange={() => toggleUnit(sk)} />
                               <span className="wiz-sess-label" title={s.label || s.id}>{s.label || s.id}</span>
                               {s.modifiedAt && <span className="muted small">{new Date(s.modifiedAt).toLocaleDateString()}</span>}
-                              <span className="muted small" title={t('Estimated raw log entries — imported message counts are lower after noise filtering')}>~{s.messageEstimate}</span>
+                              <span className="muted small" title="Estimated raw log entries — imported message counts are lower after noise filtering">~{s.messageEstimate}</span>
                               {s.imported
-                                ? <span className="pill wiz-badge imported">{t('Imported')}</span>
+                                ? <span className="pill wiz-badge imported">Imported</span>
                                 : <span className="pill wiz-badge new">NEW</span>}
                             </label>
                           );
@@ -404,13 +403,13 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
             </div>
             <div className="wiz-footer">
               <div className="wiz-footer-left">
-                <button className="btn ghost small" onClick={() => selectAllNew()}>{t('Select All New')}</button>
-                <button className="btn ghost small" onClick={() => setSelected(new Set())}>{t('Clear')}</button>
-                <button className="btn ghost small" onClick={invert}>{t('Invert')}</button>
+                <button className="btn ghost small" onClick={() => selectAllNew()}>Select All New</button>
+                <button className="btn ghost small" onClick={() => setSelected(new Set())}>Clear</button>
+                <button className="btn ghost small" onClick={invert}>Invert</button>
               </div>
               <div className="wiz-footer-right">
-                <button className="btn" onClick={() => { setSource(null); setStep(1); }}>{t('Back')}</button>
-                <button className="btn primary" disabled={!selected.size} onClick={startImport}>{t('Start Import')}</button>
+                <button className="btn" onClick={() => { setSource(null); setStep(1); }}>Back</button>
+                <button className="btn primary" disabled={!selected.size} onClick={startImport}>Start Import</button>
               </div>
             </div>
           </>
@@ -419,7 +418,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
         {step === 3 && (
           <div className="wiz-body">
             <div className="wiz-progress-track"><div className="wiz-progress-fill" style={{ width: `${jobs.length ? (progressDone / jobs.length) * 100 : 0}%` }} /></div>
-            <div className="muted small center" style={{ margin: '6px 0 12px' }}>{progressDone}/{pluralize(jobs.length, t('project'), t('projects'))}</div>
+            <div className="muted small center" style={{ margin: '6px 0 12px' }}>{progressDone}/{pluralize(jobs.length, 'project', 'projects')}</div>
             {jobs.map((j, i) => (
               <div key={i} className="wiz-job-row">
                 <span className="wiz-job-status">
@@ -429,8 +428,8 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                   {j.status === 'failed' && <span className="bad">✗</span>}
                 </span>
                 <span>{j.item.name}</span>
-                <span className="muted small">{pluralize(j.count, t('session'), t('sessions'))}</span>
-                {j.status === 'done' && <span className="muted small">{pluralize(j.result?.totalMessages ?? 0, t('message'), t('messages'))}</span>}
+                <span className="muted small">{pluralize(j.count, 'session', 'sessions')}</span>
+                {j.status === 'done' && <span className="muted small">{pluralize(j.result?.totalMessages ?? 0, 'message', 'messages')}</span>}
                 {j.status === 'failed' && <span className="bad small">{j.error}</span>}
               </div>
             ))}
@@ -441,26 +440,26 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
           <div className="wiz-body">
             <div className="wiz-complete-head">
               <div className={`wiz-complete-icon ${failedJobs.length ? 'warn' : 'ok'}`}>{failedJobs.length ? '⚠' : '✓'}</div>
-              <h3>{t('Import Complete')}</h3>
+              <h3>Import Complete</h3>
               <p className="muted small">
-                {failedJobs.length ? t('Some files failed to import, please check the error messages') : t('All selected sessions were imported successfully')}
+                {failedJobs.length ? 'Some files failed to import, please check the error messages' : 'All selected sessions were imported successfully'}
               </p>
             </div>
             <div className="wiz-stat-cards">
-              <div className="wiz-stat-card"><div className="wiz-stat-num ok">{importedSessions}</div><div className="muted small">{t('Successfully Imported')}</div></div>
-              <div className="wiz-stat-card"><div className={`wiz-stat-num ${failedJobs.length ? 'bad' : ''}`}>{failedJobs.length}</div><div className="muted small">{t('Import Failed')}</div></div>
-              <div className="wiz-stat-card"><div className="wiz-stat-num accent">{resultProjects.length}</div><div className="muted small">{t('Projects')}</div></div>
+              <div className="wiz-stat-card"><div className="wiz-stat-num ok">{importedSessions}</div><div className="muted small">Successfully Imported</div></div>
+              <div className="wiz-stat-card"><div className={`wiz-stat-num ${failedJobs.length ? 'bad' : ''}`}>{failedJobs.length}</div><div className="muted small">Import Failed</div></div>
+              <div className="wiz-stat-card"><div className="wiz-stat-num accent">{resultProjects.length}</div><div className="muted small">Projects</div></div>
             </div>
             {resultProjects.length > 0 && (
               <>
-                <div className="muted small" style={{ margin: '14px 0 6px' }}>{t('Just Imported')}</div>
+                <div className="muted small" style={{ margin: '14px 0 6px' }}>Just Imported</div>
                 {resultProjects.map((p) => (
                   <div key={p.id} className="wiz-result-row">
                     <div>
                       <div>◫ {p.name}</div>
-                      <div className={`small ${p.created ? 'ok' : 'muted'}`}>{p.created ? `+ ${t('Created new project')}` : t('Updated existing project')}</div>
+                      <div className={`small ${p.created ? 'ok' : 'muted'}`}>{p.created ? `+ Created new project` : 'Updated existing project'}</div>
                     </div>
-                    <span className="muted small">▤ {p.sessions} · {pluralize(p.messages, t('message'), t('messages'))}</span>
+                    <span className="muted small">▤ {p.sessions} · {pluralize(p.messages, 'message', 'messages')}</span>
                   </div>
                 ))}
               </>
@@ -470,19 +469,19 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
             ))}
             {emptyJobs.length > 0 && (
               <div className="wiz-warn-box small">
-                <div>ⓘ {t('The following projects have all empty sessions')}</div>
-                <div className="muted">{t('Nothing importable was found in their logs (only noise or empty sessions)')}</div>
+                <div>ⓘ The following projects have all empty sessions</div>
+                <div className="muted">Nothing importable was found in their logs (only noise or empty sessions)</div>
                 {emptyJobs.map((j, i) => <div key={i}>◫ {j.item.name}</div>)}
               </div>
             )}
             <p className="muted small" style={{ marginTop: 12 }}>
-              {t('Imported message counts are lower than scan estimates: raw log entries such as subagent chatter, system reminders and command echoes are filtered out.')}
+              Imported message counts are lower than scan estimates: raw log entries such as subagent chatter, system reminders and command echoes are filtered out.
             </p>
             <div className="wiz-footer">
               <div />
               <div className="wiz-footer-right">
-                <button className="btn ghost small" onClick={() => { setJobs([]); setStep(2); rescan(); }}>{t('Import more')}</button>
-                <button className="btn primary" onClick={onClose}>{t('Done')}</button>
+                <button className="btn ghost small" onClick={() => { setJobs([]); setStep(2); rescan(); }}>Import more</button>
+                <button className="btn primary" onClick={onClose}>Done</button>
               </div>
             </div>
           </div>

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type AskTurn, type AskCostMode } from './api.js';
 import { useCostMode } from './costMode.js';
-import { t } from './i18n.js';
 import InfoTip from './InfoTip.js';
 
 // /ask: one conversation column answered from chronicle.db via the
@@ -9,7 +8,7 @@ import InfoTip from './InfoTip.js';
 // SQL expander + cost-basis label per answer. Judged against the approved D3 mock.
 
 const basisOf = (mode: string): AskCostMode => (mode === 'real' ? 'billed' : 'list');
-const basisLabel = (b: AskCostMode): string => (b === 'billed' ? t('Billed') : t('List price'));
+const basisLabel = (b: AskCostMode): string => (b === 'billed' ? 'Billed' : 'List price');
 const dayKey = (iso: string): string => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toDateString(); };
 const dayLabel = (iso: string): string =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -50,7 +49,7 @@ export default function AskPage(): React.JSX.Element {
       setTurns((prev) => [...prev, turn]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg.replace(/^\d+\s*/, '') || t('The query run failed'));
+      setError(msg.replace(/^\d+\s*/, '') || 'The query run failed');
     } finally {
       setPending(null);
     }
@@ -76,9 +75,9 @@ export default function AskPage(): React.JSX.Element {
 
   return (
     <div className="page ask-page">
-      <div className="eyebrow">{t('Ask')}</div>
+      <div className="eyebrow">Ask</div>
       <div className="ask-sub muted">
-        {t('Ask anything about your sessions, spend, and models — answered from chronicle.db, locally')}
+        Ask anything about your sessions, spend, and models — answered from chronicle.db, locally
         <InfoTip def="ask.local" />
       </div>
 
@@ -86,11 +85,11 @@ export default function AskPage(): React.JSX.Element {
         {turns.length === 0 && !pending && (
           <div className="ask-empty muted">
             <div className="ask-empty-mark">∴</div>
-            <p>{t('Ask a question about your sessions, spend, or models. Answers come straight from your local database.')}</p>
+            <p>Ask a question about your sessions, spend, or models. Answers come straight from your local database.</p>
             <ul className="ask-examples">
-              <li>{t('which mcp server cost most this week?')}</li>
-              <li>{t('how much did subagents cost me last month?')}</li>
-              <li>{t('which projects have the most error-heavy sessions?')}</li>
+              <li>which mcp server cost most this week?</li>
+              <li>how much did subagents cost me last month?</li>
+              <li>which projects have the most error-heavy sessions?</li>
             </ul>
           </div>
         )}
@@ -112,7 +111,7 @@ export default function AskPage(): React.JSX.Element {
             <div className="ask-q">{pending}</div>
             <div className="ask-answer ask-thinking">
               <span className="ask-dots"><i /><i /><i /></span>
-              {t('Querying chronicle.db…')}
+              Querying chronicle.db…
             </div>
           </>
         )}
@@ -122,13 +121,13 @@ export default function AskPage(): React.JSX.Element {
       <form className="ask-input" onSubmit={onSubmit}>
         <span className="ask-input-glyph" aria-hidden>?</span>
         <input ref={inputRef} type="text" className="ask-input-field" maxLength={2000}
-          placeholder={t('Ask about your sessions, spend, models…')}
-          aria-label={t('Ask a question')} disabled={!!pending} />
-        <button type="submit" className="ask-send" disabled={!!pending} aria-label={t('Send')}>↵</button>
+          placeholder="Ask about your sessions, spend, models…"
+          aria-label="Ask a question" disabled={!!pending} />
+        <button type="submit" className="ask-send" disabled={!!pending} aria-label="Send">↵</button>
         <span className="ask-kbd" aria-hidden>⌘J</span>
       </form>
       <div className="ask-foot muted">
-        {t('runs locally via your claude CLI · read-only SQL over chronicle.db · history stays in ~/.chronicle · nothing leaves your machine')}
+        runs locally via your claude CLI · read-only SQL over chronicle.db · history stays in ~/.chronicle · nothing leaves your machine
       </div>
     </div>
   );
@@ -138,7 +137,7 @@ function AskAnswer({ turn, onReask, disabled }: { turn: AskTurn; onReask: (b: As
   const [open, setOpen] = useState(false);
   const other: AskCostMode = turn.costBasis === 'billed' ? 'list' : 'billed';
   if (!turn.ok) {
-    return <div className="ask-answer ask-answer-err">{turn.prose || turn.error || t('Could not answer that one.')}</div>;
+    return <div className="ask-answer ask-answer-err">{turn.prose || turn.error || 'Could not answer that one.'}</div>;
   }
   const hasTable = turn.columns.length > 0 && turn.rows.length > 0;
   return (
@@ -155,18 +154,18 @@ function AskAnswer({ turn, onReask, disabled }: { turn: AskTurn; onReask: (b: As
               ))}
             </tbody>
           </table>
-          {turn.truncated && <div className="ask-tbl-more muted">{t('showing the first rows')} ({turn.rowCount})</div>}
+          {turn.truncated && <div className="ask-tbl-more muted">showing the first rows ({turn.rowCount})</div>}
         </div>
       )}
       <div className="ask-answer-foot">
         {turn.sql
           ? <button type="button" className="ask-sql-toggle" onClick={() => setOpen((o) => !o)}>SQL {open ? '▾' : '▸'}</button>
-          : <span className="ask-sql-toggle disabled">{t('no query')}</span>}
+          : <span className="ask-sql-toggle disabled">no query</span>}
         <span className="ask-basis muted">
           {basisLabel(turn.costBasis)}
           {' · '}
           <button type="button" className="ask-reask" disabled={disabled} onClick={() => onReask(other)}>
-            {t('re-ask under')} {basisLabel(other)}
+            re-ask under {basisLabel(other)}
           </button>
         </span>
       </div>

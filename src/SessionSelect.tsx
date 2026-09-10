@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as Toast from '@radix-ui/react-toast';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import { invalidateClientCache } from './useCachedFetch.js';
 
 // Shared session-level multi-select delete, mounted verbatim in BOTH the Home
@@ -164,15 +163,15 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
     <div className="select-toolbar">
       {confirming ? (
         <>
-          <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
-          <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>{t('Cancel')}</button>
+          <span className="muted small">Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.</span>
+          <button className="btn ghost" onClick={() => setConfirming(false)} disabled={deleting}>Cancel</button>
           <button className="btn danger-btn" onClick={deleteSelected} disabled={deleting}>
-            {deleting ? t('Removing…') : `⌫ ${t('Remove')} ${selected.size}`}
+            {deleting ? 'Removing…' : `⌫ Remove ${selected.size}`}
           </button>
         </>
       ) : (
         <>
-          <span className="muted small">{selected.size} {t('selected')}</span>
+          <span className="muted small">{selected.size} selected</span>
           {/* Select all UNIONs the visible ids into the current selection, and
               Clear SUBTRACTS only the visible ids — selection composes across
               a filter change or an out-of-list quick-select (e.g. minor
@@ -181,17 +180,17 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
               always reflects the real Set, so it never lies about what
               Remove would remove. */}
           <button className="btn ghost" onClick={() => setMany(sessions.map((s) => s.id), !allVisibleSelected)}>
-            {allVisibleSelected ? t('Clear') : t('Select all')}
+            {allVisibleSelected ? 'Clear' : 'Select all'}
           </button>
-          <button className="btn ghost" onClick={exitSelect}>{t('Cancel')}</button>
+          <button className="btn ghost" onClick={exitSelect}>Cancel</button>
           <button className="btn danger-btn" disabled={!selected.size} onClick={() => setConfirming(true)}>
-            ⌫ {t('Remove')}{selected.size ? ` (${selected.size})` : ''}
+            ⌫ Remove{selected.size ? ` (${selected.size})` : ''}
           </button>
         </>
       )}
     </div>
   ) : (
-    <button className="btn small" onClick={enterSelect}>☑ {t('Select')}</button>
+    <button className="btn small" onClick={enterSelect}>☑ Select</button>
   );
 
   const UndoToast = undoEntries ? (
@@ -199,12 +198,12 @@ export function useSessionSelect(sessions: SelectableSession[], onRefresh: () =>
       onOpenChange={(o) => { if (!o) { if (undoTimer.current) clearTimeout(undoTimer.current); setUndoEntries(null); } }}>
       <div>
         <div className="update-toast-title">
-          {undoEntries.length === 1 ? t('Session removed') : `${undoEntries.length} ${t('sessions removed')}`}
+          {undoEntries.length === 1 ? 'Session removed' : `${undoEntries.length} sessions removed`}
         </div>
-        <div className="update-toast-sub">{t('From Chronicle only — source logs untouched.')}</div>
+        <div className="update-toast-sub">From Chronicle only — source logs untouched.</div>
       </div>
-      <Toast.Action asChild altText={t('Undo')}>
-        <button className="btn primary" onClick={undo}>{t('Undo')}</button>
+      <Toast.Action asChild altText="Undo">
+        <button className="btn primary" onClick={undo}>Undo</button>
       </Toast.Action>
     </Toast.Root>
   ) : null;

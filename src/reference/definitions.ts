@@ -6,12 +6,6 @@
 // carried its own inline string and a reference page would have been a second,
 // silently diverging copy of them.
 //
-// i18n: `plain`/`good`/`tech` return ENGLISH SOURCE STRINGS. Callers pass
-// them through the existing `t()` (src/i18n.ts is an English-keyed dictionary
-// with English fallback), so tips behave byte-identically to before the
-// migration and /reference translates exactly as far as the dictionary reaches.
-// No new key namespace.
-//
 // `vars` exists for the handful of tips that quote a live number (a live count
 // from the page, say). On /reference there is no call
 // site, so `vars` is absent and the definition must still read correctly: write

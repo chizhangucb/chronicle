@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
@@ -145,9 +144,9 @@ interface FilterChip {
 }
 
 const FILTER_CHIPS: FilterChip[] = [
-  { key: 'conversation', label: t('Conversation'), kinds: ['user', 'assistant'] },
-  { key: 'tool', label: t('Tool'), kinds: ['tool_use', 'tool_result'] },
-  { key: 'thinking', label: t('Thinking'), kinds: ['thinking'] },
+  { key: 'conversation', label: 'Conversation', kinds: ['user', 'assistant'] },
+  { key: 'tool', label: 'Tool', kinds: ['tool_use', 'tool_result'] },
+  { key: 'thinking', label: 'Thinking', kinds: ['thinking'] },
 ];
 
 export default function SessionView({ sessionId, onBack, onLiveChange, onRailChange, onSwitchSession }: SessionViewProps): JSX.Element {
@@ -258,9 +257,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     if (!data) return;
     onRailChange?.({
       modes: [
-        { key: 'overview', icon: '⬚', label: t('Overview'), title: 'Session Overview (⌘1)' },
-        { key: 'playback', icon: '▶', label: t('Playback'), title: 'Playback Mode (⌘2)' },
-        { key: 'refine', icon: '✂', label: t('Refine'), title: 'Refine Mode (⌘3)' },
+        { key: 'overview', icon: '⬚', label: 'Overview', title: 'Session Overview (⌘1)' },
+        { key: 'playback', icon: '▶', label: 'Playback', title: 'Playback Mode (⌘2)' },
+        { key: 'refine', icon: '✂', label: 'Refine', title: 'Refine Mode (⌘3)' },
       ],
       active: mode,
       securityOpen,
@@ -412,14 +411,14 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       <div className="session-main">
       <div className="session-toolbar">
         <div className="crumbs">
-          <button className="crumb" title={`${data.project.name} — ${t('Project home page')}`} onClick={() => onBack(undefined, data.project.id)}>◫ {data.project.name}</button>
+          <button className="crumb" title={`${data.project.name} — Project home page`} onClick={() => onBack(undefined, data.project.id)}>◫ {data.project.name}</button>
           <span className="crumb-sep">›</span>
           <SessionSwitcher projectId={data.project.id} current={{ ...data.session, message_count: messages.length, first_prompt: data.session.first_prompt }}
             onSwitch={onSwitchSession} />
         </div>
         {mode === 'playback' && <><div className="filter-chips">
           {errorsOnly ? (
-            <button className="chip on" onClick={() => setErrorsOnly(false)}>{t('Errors')} ✕</button>
+            <button className="chip on" onClick={() => setErrorsOnly(false)}>Errors ✕</button>
           ) : FILTER_CHIPS.map((c) => (
             <button key={c.key} className={`chip ${chips.has(c.key) ? 'on' : ''}`}
               onClick={() => setChips((prev) => {
@@ -429,15 +428,15 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
               })}>{c.label}</button>
           ))}
           {(chips.size > 0 || debounced || errorsOnly) && (
-            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(false); }}>{t('Clear filter')}</button>
+            <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(false); }}>Clear filter</button>
           )}
         </div>
-        <input ref={searchRef} className="search" placeholder={t('Search messages…  ⌘F')}
+        <input ref={searchRef} className="search" placeholder="Search messages…  ⌘F"
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         <span className="muted small">Match: <span className="num">{visible.length}/{messages.length}</span></span></>}
         <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
-          title={`${t('Sync this session')} (⇧⌘U)`} onClick={syncThisSession} disabled={syncingSession}
-          aria-label={t('Sync this session')}>{syncingSession ? '◌' : '⟳'}</button>
+          title="Sync this session (⇧⌘U)" onClick={syncThisSession} disabled={syncingSession}
+          aria-label="Sync this session">{syncingSession ? '◌' : '⟳'}</button>
         {syncErr && <span className="menu-err small">{syncErr}</span>}
       </div>
 
@@ -468,9 +467,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
               }}>↓ {newCount} new message{newCount > 1 ? 's' : ''}</button>
             )}
             messages={visible} selectedSeq={selectedSeq} keyword={debounced} causality={causality}
-            onSelect={selectMessage} emptyText={t('No messages match the current filter.')} />
+            onSelect={selectMessage} emptyText="No messages match the current filter." />
           <div className="pane-handle" role="separator" aria-orientation="vertical"
-            aria-label={t('Resize chat / code panels')} tabIndex={0} title={t('Drag to resize · double-click to reset')}
+            aria-label="Resize chat / code panels" tabIndex={0} title="Drag to resize · double-click to reset"
             onPointerDown={chatSplit.onHandlePointerDown} onDoubleClick={chatSplit.reset} />
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
@@ -490,7 +489,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       {mode === 'content' && (
         <div className="page">
           <button className="btn ghost small" style={{ marginBottom: 10 }} onClick={() => setMode('overview')}>
-            ← {t('back to session')}
+            ← back to session
           </button>
           <ContentTab scope={{ type: 'session', id: sessionId }} days={null} />
         </div>
@@ -500,22 +499,22 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
         <div className="page">
           <div className="subagent-head">
             <button className="btn ghost small" onClick={() => { setSubagentType(null); setMode('overview'); }}>
-              ← {t('back to session')}
+              ← back to session
             </button>
             <span className="subagent-title">
-              <strong className="subagent-name">{t('Subagent runs')} · {subagentType}</strong>
-              <span className="subagent-parent muted small" title={`${t('Parent session')} · ${sessionDisplayName(data.session)}`}>{t('Parent session')} · {sessionDisplayName(data.session)}</span>
+              <strong className="subagent-name">Subagent runs · {subagentType}</strong>
+              <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session)}`}>Parent session · {sessionDisplayName(data.session)}</span>
             </span>
           </div>
           <div className="card">
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left' }}>{t('Start')}</th>
-                  <th>{t('Duration')}</th>
-                  <th>{t('Turns')}</th>
-                  <th>{t('Tokens')}</th>
-                  <th style={{ textAlign: 'left' }}>{t('Description')}</th>
+                  <th style={{ textAlign: 'left' }}>Start</th>
+                  <th>Duration</th>
+                  <th>Turns</th>
+                  <th>Tokens</th>
+                  <th style={{ textAlign: 'left' }}>Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -523,7 +522,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
                   const durMs = r.startTs && r.endTs ? new Date(r.endTs).getTime() - new Date(r.startTs).getTime() : null;
                   return (
                     <tr key={r.id} className="rowlink" role="button" tabIndex={0}
-                      title={t('Open this run\'s transcript')}
+                      title="Open this run's transcript"
                       onClick={() => setSubagentRunId(r.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSubagentRunId(r.id); } }}>
                       <td style={{ textAlign: 'left' }}>{r.startTs ? new Date(r.startTs).toLocaleString() : '—'}</td>
@@ -536,7 +535,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
                 })}
               </tbody>
             </table>
-            {!subagentRunRows.length && <div className="muted small">{t('No runs found for this subagent type.')}</div>}
+            {!subagentRunRows.length && <div className="muted small">No runs found for this subagent type.</div>}
           </div>
         </div>
       )}
@@ -544,17 +543,17 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       {mode === 'subagent' && subagentType && subagentRunId && <>
         <div className="subagent-head">
           <button className="btn ghost small" onClick={() => setSubagentRunId(null)}>
-            ← {t('back to run list')}
+            ← back to run list
           </button>
           <span className="subagent-title">
-            <strong className="subagent-name">{t('Subagent')} · {subagentType}</strong>
-            <span className="subagent-parent muted small" title={`${t('Parent session')} · ${sessionDisplayName(data.session)}`}>{t('Parent session')} · {sessionDisplayName(data.session)}</span>
+            <strong className="subagent-name">Subagent · {subagentType}</strong>
+            <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session)}`}>Parent session · {sessionDisplayName(data.session)}</span>
           </span>
         </div>
         <div className="panes">
           <WindowedConvPane className="subagent-conv" messages={subagentMessages} selectedSeq={selectedSeq}
             keyword="" causality={causality} onSelect={selectMessage}
-            emptyText={t('No messages match the current filter.')} />
+            emptyText="No messages match the current filter." />
         </div>
       </>}
 

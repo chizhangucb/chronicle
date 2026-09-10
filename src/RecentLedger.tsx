@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
-import { t } from './i18n.js';
 import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
 import { sessionDisplayName } from './ProjectDetail.js';
 import InfoTip from './InfoTip.js';
@@ -72,8 +71,8 @@ function startOfDay(d: Date): number {
 }
 
 function dayLabel(d: Date, diffDays: number): string {
-  if (diffDays === 0) return t('Today');
-  if (diffDays === 1) return t('Yesterday');
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
   const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
   const month = d.toLocaleDateString(undefined, { month: 'short' });
   return `${weekday} · ${month} ${d.getDate()}`;
@@ -288,10 +287,10 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
         commandBarSlot,
       )}
       <div className="page-title-row">
-        <h2 className="page-title">{t('Recent sessions')}</h2>
+        <h2 className="page-title">Recent sessions</h2>
         {!recentSelect.selectMode && (
           <div className="page-title-actions">
-            <button className="btn small" onClick={handleEnterSelect}>☑ {t('Select')}</button>
+            <button className="btn small" onClick={handleEnterSelect}>☑ Select</button>
           </div>
         )}
       </div>
@@ -301,8 +300,8 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
       )}
       <div className={`colhead ${recentSelect.selectMode ? 'selectable' : ''}`}>
         {recentSelect.selectMode && <span aria-hidden="true" />}
-        <span>{t('Session')}</span><span>{t('Project')}</span><span className="num-col">{t('Cost')}</span>
-        <span className="num-col">{t('Active')}</span><span className="num-col">{t('Msgs')}</span><span className="ts-col">{t('When')}</span>
+        <span>Session</span><span>Project</span><span className="num-col">Cost</span>
+        <span className="num-col">Active</span><span className="num-col">Msgs</span><span className="ts-col">When</span>
       </div>
       {groups.map((g) => {
         const ids = g.rows.map((r) => r.id);
@@ -317,13 +316,13 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
                   <input type="checkbox" checked={dayAllSelected}
                     ref={(el) => { if (el) el.indeterminate = dayIndeterminate; }}
                     onChange={() => recentSelect.setMany(ids, !dayAllSelected)}
-                    aria-label={`${t('Select')} ${g.label}`} />
+                    aria-label={`Select ${g.label}`} />
                 </label>
               )}
               <span className="d">{g.label}</span>
               {g.sum && (
                 <span className="sum">
-                  {pluralize(g.sum.count, t('session'), t('sessions'))}{g.sum.cost != null && ` · ${fmtMoney(g.sum.cost, 2)}`}
+                  {pluralize(g.sum.count, 'session', 'sessions')}{g.sum.cost != null && ` · ${fmtMoney(g.sum.cost, 2)}`}
                 </span>
               )}</div>
             {g.rows.map((s) => (
@@ -332,7 +331,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
                 {recentSelect.selectMode && (
                   <div className="rowcheck" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={recentSelect.isSelected(s.id)}
-                      onChange={() => recentSelect.toggle(s.id)} aria-label={t('Select session')} />
+                      onChange={() => recentSelect.toggle(s.id)} aria-label="Select session" />
                   </div>
                 )}
                 <div className="title"><div className="t" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
@@ -363,26 +362,26 @@ function SessionCommandBarControls({ api, minorCount, onSelectMinor }: { api: Us
   if (api.confirming) {
     return (
       <>
-        <span className="muted small">{t('Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.')}</span>
-        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.deleting}>{t('Cancel')}</button>
+        <span className="muted small">Remove these sessions from Chronicle? Source logs are not touched — you can undo right after.</span>
+        <button className="btn ghost" onClick={api.cancelConfirm} disabled={api.deleting}>Cancel</button>
         <button className="btn danger-btn" onClick={api.confirmRemove} disabled={api.deleting}>
-          {api.deleting ? t('Removing…') : `⌫ ${t('Remove')} ${api.selectedCount}`}
+          {api.deleting ? 'Removing…' : `⌫ Remove ${api.selectedCount}`}
         </button>
       </>
     );
   }
   return (
     <>
-      <span className="muted small">{api.selectedCount} {t('sessions selected')}</span>
-      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allVisibleSelected ? t('Clear') : t('Select all')}</button>
-      <button className="btn ghost" onClick={api.exitSelect}>{t('Cancel')}</button>
+      <span className="muted small">{api.selectedCount} sessions selected</span>
+      <button className="btn ghost" onClick={api.selectAllOrClear}>{api.allVisibleSelected ? 'Clear' : 'Select all'}</button>
+      <button className="btn ghost" onClick={api.exitSelect}>Cancel</button>
       {minorCount > 0 && (
         <button className="chip minor-quick-select" onClick={onSelectMinor}>
-          {t('Select minor sessions')} ({minorCount})
+          Select minor sessions ({minorCount})
         </button>
       )}
       <button className="btn danger-btn" disabled={!api.selectedCount} onClick={api.requestRemove}>
-        ⌫ {t('Remove')}{api.selectedCount ? ` (${api.selectedCount})` : ''}
+        ⌫ Remove{api.selectedCount ? ` (${api.selectedCount})` : ''}
       </button>
     </>
   );
@@ -439,13 +438,13 @@ function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
         <button className="btn tiny ghost minor-notice-toggle" onClick={() => setOpen((o) => !o)}
           aria-expanded={open}>
           <span className="tw" aria-hidden="true">{open ? '▾' : '▸'}</span>
-          <b>{pluralize(items.length, t('session'), t('sessions'))} {t('hidden by the minor-session filter')}</b>
+          <b>{pluralize(items.length, 'session', 'sessions')} hidden by the minor-session filter</b>
         </button>
         <InfoTip def="sessions.minor" />
       </div>
       {!open && (
-        <div className="why">{t('Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.')}{' '}
-          <button className="linklike" onClick={() => setOpen(() => true)}>{t('Show them')}</button>
+        <div className="why">Short, low-activity sessions are parked out of the main lists so they don’t clutter — they synced fine, nothing is missing.{' '}
+          <button className="linklike" onClick={() => setOpen(() => true)}>Show them</button>
         </div>
       )}
       {open && (
@@ -459,8 +458,8 @@ function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
                 <span>{s.message_count} messages</span>
               </div>
               <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
-                <button className="btn tiny ghost" disabled={busy === s.id} onClick={() => promote(s.id)}>⬆ {t('Promote')}</button>
-                <button className="btn tiny ghost danger" disabled={busy === s.id} onClick={() => ignore(s.id)}>✕ {t('Ignore')}</button>
+                <button className="btn tiny ghost" disabled={busy === s.id} onClick={() => promote(s.id)}>⬆ Promote</button>
+                <button className="btn tiny ghost danger" disabled={busy === s.id} onClick={() => ignore(s.id)}>✕ Ignore</button>
               </div>
             </div>
           ))}

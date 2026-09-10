@@ -4,7 +4,6 @@ import type { InsightsResult, InsightsSessionRow } from './api.js';
 import { useCostMode } from './costMode.tsx';
 import { groupByKey, costOfBucketedCells, tokensOfCells, sumByKeyModel } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
-import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import SortCaret from './SortCaret.tsx';
 import type { RangeKey } from './RangeBar.tsx';
@@ -19,8 +18,6 @@ import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
 // cost|duration|recent, cost default), click-to-extend. All spend is priced
 // client-side from the ranged cells.
 
-const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
-function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
 function fmtActive(ms: number): string {
   const h = Math.floor(ms / 3600000); const m = Math.round((ms % 3600000) / 60000);
   return h ? `${h}h ${m}m` : `${m}m`;
@@ -92,42 +89,42 @@ export default function SessionsTab({ insights }: { insights: InsightsResult | n
     return [...m.entries()].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 8);
   }, [rows, costBySession, tokBySession]);
 
-  if (!insights) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!insights) return <div className="card"><div className="muted small pad8">Loading…</div></div>;
 
   const visible = sorted.slice(0, shown);
 
   return (
     <div className="sessions-tab">
       <div className="sh-head">
-        <span className="muted small">{fmtInt(rows.length)} {t('sessions')}</span>
+        <span className="muted small">{fmtInt(rows.length)} sessions</span>
       </div>
 
       <div className="grid2b">
         <div className="card">
-          <h3>{t('Busiest days')}</h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Day')}</th><th>{t('Sessions')}</th><th>{t('Active')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
+          <h3>Busiest days</h3>
+          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>Day</th><th>Sessions</th><th>Active</th><th>Tokens</th><th className="sort-on">Cost<SortCaret on /></th></tr></thead>
             <tbody>{busiestDays.map((d) => (
-              <tr key={d.day}><td style={{ textAlign: 'left' }}>{fmtDayLabel(d.day, localeOf())}</td><td>{d.sessions}</td><td>{fmtActive(d.active)}</td><td>{fmtTok(d.tokens)}</td><td className="cost">{fmtMoney(d.cost, 2)}</td></tr>
+              <tr key={d.day}><td style={{ textAlign: 'left' }}>{fmtDayLabel(d.day, 'en-US')}</td><td>{d.sessions}</td><td>{fmtActive(d.active)}</td><td>{fmtTok(d.tokens)}</td><td className="cost">{fmtMoney(d.cost, 2)}</td></tr>
             ))}</tbody></table>
-          {!busiestDays.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
+          {!busiestDays.length && <div className="muted small pad8">No sessions in range.</div>}
         </div>
         <div className="card">
-          <h3>{t('Busiest projects')}</h3>
-          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>{t('Project')}</th><th>{t('Sessions')}</th><th>{t('Msgs')}</th><th>{t('Tokens')}</th><th className="sort-on">{t('Cost')}<SortCaret on /></th></tr></thead>
+          <h3>Busiest projects</h3>
+          <table className="tbl"><thead><tr><th style={{ textAlign: 'left' }}>Project</th><th>Sessions</th><th>Msgs</th><th>Tokens</th><th className="sort-on">Cost<SortCaret on /></th></tr></thead>
             <tbody>{busiestProjects.map((p) => (
               <tr key={p.id}><td style={{ textAlign: 'left' }}><span className="dot" style={{ background: projectColors.get(p.id) ?? 'var(--ink-3)' }} />{p.name}</td><td>{p.sessions}</td><td>{fmtInt(p.msgs)}</td><td>{fmtTok(p.tokens)}</td><td className="cost">{fmtMoney(p.cost, 2)}</td></tr>
             ))}</tbody></table>
-          {!busiestProjects.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
+          {!busiestProjects.length && <div className="muted small pad8">No sessions in range.</div>}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: 10 }}>
         <div className="sh-tablehead">
-          <h3 style={{ margin: 0 }}>{t('Sessions')}</h3>
-          <div className="stack-toggle" role="group" aria-label={t('Sort by')}>
-            <button type="button" className={`st-opt ${sort === 'cost' ? 'on' : ''}`} onClick={() => setSort('cost')}>{t('cost')}</button>
-            <button type="button" className={`st-opt ${sort === 'duration' ? 'on' : ''}`} onClick={() => setSort('duration')}>{t('duration')}</button>
-            <button type="button" className={`st-opt ${sort === 'recent' ? 'on' : ''}`} onClick={() => setSort('recent')}>{t('recent')}</button>
+          <h3 style={{ margin: 0 }}>Sessions</h3>
+          <div className="stack-toggle" role="group" aria-label="Sort by">
+            <button type="button" className={`st-opt ${sort === 'cost' ? 'on' : ''}`} onClick={() => setSort('cost')}>cost</button>
+            <button type="button" className={`st-opt ${sort === 'duration' ? 'on' : ''}`} onClick={() => setSort('duration')}>duration</button>
+            <button type="button" className={`st-opt ${sort === 'recent' ? 'on' : ''}`} onClick={() => setSort('recent')}>recent</button>
           </div>
         </div>
         <div className="pane">
@@ -137,12 +134,12 @@ export default function SessionsTab({ insights }: { insights: InsightsResult | n
               <col className="c-ctx" /><col className="c-active" /><col className="c-cost" /><col className="c-when" />
             </colgroup>
             <thead><tr>
-              <th style={{ textAlign: 'left' }}>{t('Session')}</th><th style={{ textAlign: 'left' }}>{t('Project')}</th>
-              <th style={{ textAlign: 'left' }}>{t('Source')}</th>
-              <th>{t('Ctx')} <InfoTip def="sessions.context-tokens" /></th>
-              <th className={sort === 'duration' ? 'sort-on' : ''}>{t('Active')}<SortCaret on={sort === 'duration'} /></th>
-              <th className={sort === 'cost' ? 'sort-on' : ''}>{t('Cost')}<SortCaret on={sort === 'cost'} /></th>
-              <th className={sort === 'recent' ? 'sort-on' : ''}>{t('When')}<SortCaret on={sort === 'recent'} /></th>
+              <th style={{ textAlign: 'left' }}>Session</th><th style={{ textAlign: 'left' }}>Project</th>
+              <th style={{ textAlign: 'left' }}>Source</th>
+              <th>Ctx <InfoTip def="sessions.context-tokens" /></th>
+              <th className={sort === 'duration' ? 'sort-on' : ''}>Active<SortCaret on={sort === 'duration'} /></th>
+              <th className={sort === 'cost' ? 'sort-on' : ''}>Cost<SortCaret on={sort === 'cost'} /></th>
+              <th className={sort === 'recent' ? 'sort-on' : ''}>When<SortCaret on={sort === 'recent'} /></th>
             </tr></thead>
             <tbody>{visible.map(({ s, cost, active }) => (
               <tr key={s.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(s.id)}`)}>
@@ -157,10 +154,10 @@ export default function SessionsTab({ insights }: { insights: InsightsResult | n
             ))}</tbody>
           </table>
         </div>
-        {!sorted.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
+        {!sorted.length && <div className="muted small pad8">No sessions in range.</div>}
         {shown < sorted.length && (
           <button type="button" className="more-btn" onClick={() => setShown((n) => n + PAGE)}>
-            {fmtInt(sorted.length - shown)} {t('more sessions')}
+            {fmtInt(sorted.length - shown)} more sessions
           </button>
         )}
       </div>

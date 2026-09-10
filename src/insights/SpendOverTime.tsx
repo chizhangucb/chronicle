@@ -8,7 +8,6 @@ import { densifyBuckets, capDenseBuckets, fmtDayLabel, fmtHourLabel } from '../c
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.tsx';
 import { CATEGORICAL_COLORS } from '../colors.ts';
 import { fmtMoney } from '../format.js';
-import { t, lang } from '../i18n.js';
 import { useCostMode } from '../costMode.tsx';
 import { providerOf, PROVIDER_ORDER, type Provider } from '../../shared/provider.ts';
 
@@ -21,8 +20,6 @@ import { providerOf, PROVIDER_ORDER, type Provider } from '../../shared/provider
 // every bucket at its own day's rate and honors the List/Billed
 // toggle.
 
-const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
-function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
 
 const MAX_DENSE_BUCKETS = 2000;
 type Stack = 'project' | 'provider';
@@ -83,7 +80,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
     // Dense-fill so equal bar spacing = equal time, capped to avoid runaway.
     const denseKeys = densifyBuckets([...byBucket.keys()], bucketUnit);
     const { keys: bucketKeys } = capDenseBuckets(denseKeys, MAX_DENSE_BUCKETS);
-    const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, localeOf()) : fmtDayLabel(k, localeOf()));
+    const labelOf = (k: string) => (useHourly ? fmtHourLabel(k, 'en-US') : fmtDayLabel(k, 'en-US'));
     return bucketKeys.map((bucket) => {
       const byGroupModel = sumByKeyModel(byBucket.get(bucket) ?? [], groupKeyOf);
       const day = bucket.slice(0, 10); // every cell in this bucket shares one pricing day
@@ -112,10 +109,10 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   return (
     <div className="card sot-card">
       <div className="sot-head">
-        <h3>{t('Spend over time')}{useHourly ? ` · ${t('Hourly')}` : ''}</h3>
-        <div className="stack-toggle" role="group" aria-label={t('Stack by')}>
-          <button type="button" className={`st-opt ${stack === 'project' ? 'on' : ''}`} onClick={() => setStack('project')}>{t('project')}</button>
-          <button type="button" className={`st-opt ${stack === 'provider' ? 'on' : ''}`} onClick={() => setStack('provider')}>{t('provider')}</button>
+        <h3>Spend over time{useHourly ? ` · Hourly` : ''}</h3>
+        <div className="stack-toggle" role="group" aria-label="Stack by">
+          <button type="button" className={`st-opt ${stack === 'project' ? 'on' : ''}`} onClick={() => setStack('project')}>project</button>
+          <button type="button" className={`st-opt ${stack === 'provider' ? 'on' : ''}`} onClick={() => setStack('provider')}>provider</button>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={220}>
@@ -128,12 +125,12 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
           <Tooltip content={(p) => <ChartTooltip {...(p as unknown as Parameters<typeof ChartTooltip>[0])} formatValue={(v) => fmtMoney(Number(v), 2)} />} />
           {median != null && (
             <ReferenceLine y={median} stroke="var(--ink-3)" strokeDasharray="4 3" strokeWidth={1}
-              label={{ value: `${t('median')} ${fmtMoney(median, median < 1 ? 2 : 0)}`, position: 'insideTopLeft', fill: 'var(--ink-3)', fontSize: 10 }} />
+              label={{ value: `median ${fmtMoney(median, median < 1 ? 2 : 0)}`, position: 'insideTopLeft', fill: 'var(--ink-3)', fontSize: 10 }} />
           )}
           {series.map((s) => (
             <Bar key={s.key} dataKey={s.key} stackId="a" name={s.name} fill={s.color} />
           ))}
-          {hasOtherSpend && <Bar dataKey="other" stackId="a" name={t('Other')} fill={OTHER_COLOR} />}
+          {hasOtherSpend && <Bar dataKey="other" stackId="a" name="Other" fill={OTHER_COLOR} />}
         </BarChart>
       </ResponsiveContainer>
       <div className="legend">
@@ -141,7 +138,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
           <span key={s.key}><span className="dot" style={{ background: s.color }} />{s.name}</span>
         ))}
         {hasOtherSpend && (
-          <span><span className="dot" style={{ background: OTHER_COLOR }} />{t('Other')} (+{otherProjectIds.size})</span>
+          <span><span className="dot" style={{ background: OTHER_COLOR }} />Other (+{otherProjectIds.size})</span>
         )}
       </div>
     </div>

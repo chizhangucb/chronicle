@@ -1,5 +1,4 @@
 import React, { useMemo, type JSX } from 'react';
-import { t, lang } from '../i18n.ts';
 import { currentStreak, longestStreak, activeDaysCount, peakHour, shakespeareMultiple } from './stats.ts';
 import type { InsightsResult } from '../api.ts';
 
@@ -10,11 +9,7 @@ export interface WorkingRhythmProps {
 const CAL_WEEKS = 26;
 const HOURLY_WINDOW_DAYS = 30;
 
-const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
 
-function localeOf(): string {
-  return INTL_LOCALE[lang()] ?? 'en-US';
-}
 
 // UTC-safe: `dailyActivity`/`hourlyActivity` days are `substr(ts,1,10)` — the
 // UTC calendar date of each message — so all date math here stays in UTC to
@@ -99,7 +94,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
     // timeZone:'UTC' — weekMonday is a UTC-midnight Date; formatting it in the
     // browser's local zone would shift it back a day for west-of-UTC users,
     // mislabelling a month boundary (a Jun-1 00:00 UTC week reading "May").
-    const fmt = new Intl.DateTimeFormat(localeOf(), { month: 'short', timeZone: 'UTC' });
+    const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
     const labels: { label: string; col: number }[] = [];
     let lastMonth = -1;
     for (let w = 0; w < CAL_WEEKS; w++) {
@@ -116,7 +111,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
   // timeZone:'UTC' for the same reason as the month formatter above — the ref
   // dates are UTC-midnight, so local-zone formatting drifted the weekday row
   // labels back a day (Mon/Wed/Fri/Sun rows reading Sun/Tue/Thu/Sat).
-  const weekdayFmt = new Intl.DateTimeFormat(localeOf(), { weekday: 'short', timeZone: 'UTC' });
+  const weekdayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' });
   // A known UTC Monday to derive any weekday's localized short name from.
   const REF_MONDAY = new Date(Date.UTC(2024, 0, 1)); // 2024-01-01 is a Monday
   const calDayLabels = [0, 2, 4, 6].map((mondayOffset) => weekdayFmt.format(addDaysUtc(REF_MONDAY, mondayOffset)));
@@ -132,20 +127,20 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
   const ROW_DOWS = [1, 2, 3, 4, 5, 6, 0];
   const rowLabels = ROW_DOWS.map((dow) => weekdayFmt.format(addDaysUtc(REF_MONDAY, (dow + 6) % 7)));
 
-  const peakHourLabel = peak == null ? '—' : `${peak % 12 || 12} ${peak < 12 ? t('AM') : t('PM')}`;
+  const peakHourLabel = peak == null ? '—' : `${peak % 12 || 12} ${peak < 12 ? 'AM' : 'PM'}`;
 
   return (
     <div className="card">
-      <h3>{t('Working rhythm')}</h3>
+      <h3>Working rhythm</h3>
       <div className="rhythm">
-        <div className="r"><span className="rl2">{t('Active days')}</span><b className="num">{activeDays30}<i>/30</i></b></div>
-        <div className="r"><span className="rl2">{t('Current streak')}</span><b className="num">{streak}d</b></div>
-        <div className="r"><span className="rl2">{t('Longest streak')}</span><b className="num">{longest}d</b></div>
-        <div className="r"><span className="rl2">{t('Peak hour')}</span><b className="num">{peakHourLabel}</b></div>
-        <div className="r"><span className="rl2">{t('Favorite model')}</span><b className="num">{favoriteModel}</b></div>
+        <div className="r"><span className="rl2">Active days</span><b className="num">{activeDays30}<i>/30</i></b></div>
+        <div className="r"><span className="rl2">Current streak</span><b className="num">{streak}d</b></div>
+        <div className="r"><span className="rl2">Longest streak</span><b className="num">{longest}d</b></div>
+        <div className="r"><span className="rl2">Peak hour</span><b className="num">{peakHourLabel}</b></div>
+        <div className="r"><span className="rl2">Favorite model</span><b className="num">{favoriteModel}</b></div>
       </div>
 
-      <h4 className="subhead">{t('Daily activity · last 26 weeks')}</h4>
+      <h4 className="subhead">Daily activity · last 26 weeks</h4>
       <div className="cal-months" style={{ gridTemplateColumns: `repeat(${CAL_WEEKS}, minmax(0, 1fr))` }}>
         {monthLabels.map((m) => <span key={m.col} style={{ gridColumnStart: m.col + 1 }}>{m.label}</span>)}
       </div>
@@ -159,7 +154,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
         </div>
       </div>
 
-      <h4 className="subhead" style={{ marginTop: 16 }}>{t('By hour of day · 30d')}</h4>
+      <h4 className="subhead" style={{ marginTop: 16 }}>By hour of day · 30d</h4>
       <div className="heat">
         {ROW_DOWS.map((dow, r) => (
           <React.Fragment key={dow}>
@@ -177,11 +172,11 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
         0
         <i style={{ background: 'var(--bg2)' }} />
         <i className="h1" /><i className="h2" /><i className="h3" /><i className="h4" /><i className="h5" />
-        {' '}{t('messages per hour-slot · 30d (weighted by message count)')}
+        {' '}messages per hour-slot · 30d (weighted by message count)
       </div>
 
       <div className="fun">
-        {t("You've used ~{n}× more tokens than the complete works of Shakespeare.").replace('{n}', String(shakespeare))}
+        {"You've used ~{n}× more tokens than the complete works of Shakespeare.".replace('{n}', String(shakespeare))}
       </div>
     </div>
   );

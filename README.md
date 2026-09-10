@@ -72,7 +72,6 @@ The highlights:
   session data in plain English. Each question spawns a local `claude -p` on your own
   Claude subscription, confined to one read-only, SELECT-only handle on your database.
   Off by default; off means no model runs.
-- **i18n** — English · 简体中文 · 日本語.
 
 ## Develop
 

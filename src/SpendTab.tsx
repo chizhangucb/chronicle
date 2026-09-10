@@ -6,7 +6,6 @@ import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
 import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
-import { t } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import SortCaret from './SortCaret.tsx';
 import type { RangeKey } from './RangeBar.tsx';
@@ -52,7 +51,7 @@ export default function SpendTab({ insights, activity, range, days }: {
           laid out horizontally so it fills the row with no empty half. */}
       <BudgetBand monthInsights={monthInsights} today={today} />
       <div className="grid2">
-        {insights ? <SpendOverTime result={insights} /> : <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>}
+        {insights ? <SpendOverTime result={insights} /> : <div className="card"><div className="muted small pad8">Loading…</div></div>}
         <SpendBreakdownCard insights={insights} range={range} />
       </div>
       <PlanWindowsCard />
@@ -125,7 +124,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
     setEditing(false);
   };
 
-  if (!posture || !loaded) return <div className="card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!posture || !loaded) return <div className="card"><div className="muted small pad8">Loading…</div></div>;
   const share = posture.share;
   const fillPct = share != null ? Math.min(share * 100, 100) : 0;
   const projPct = budget && posture.projected ? Math.min((posture.projected / budget) * 100, 100) : null;
@@ -133,27 +132,27 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   return (
     <div className="card budget-band">
       <div className="bb-head">
-        <span className="eyebrow">{t('Budget')} · {monthName} · {t('list price')} <InfoTip def="spend.budget" /></span>
+        <span className="eyebrow">Budget · {monthName} · list price <InfoTip def="spend.budget" /></span>
         {!editing && (
-          <button type="button" className="edit-aff" onClick={() => { setDraft(budget ? String(budget) : ''); setEditing(true); }}>✎ {t('edit')}</button>
+          <button type="button" className="edit-aff" onClick={() => { setDraft(budget ? String(budget) : ''); setEditing(true); }}>✎ edit</button>
         )}
       </div>
       {editing ? (
         <div className="budget-edit">
-          <span className="muted small">{t('Monthly budget')} $</span>
+          <span className="muted small">Monthly budget $</span>
           <input type="number" min="0" step="1" value={draft} autoFocus
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') saveBudget(); if (e.key === 'Escape') setEditing(false); }} />
-          <button type="button" className="mini-btn" onClick={saveBudget}>{t('Save')}</button>
-          <button type="button" className="mini-btn ghost" onClick={() => setEditing(false)}>{t('Cancel')}</button>
+          <button type="button" className="mini-btn" onClick={saveBudget}>Save</button>
+          <button type="button" className="mini-btn ghost" onClick={() => setEditing(false)}>Cancel</button>
         </div>
       ) : (
         <div className="bb-body">
           <div className="bb-num">
             <span className="bb-mtd">{fmtMoney(posture.monthToDate, 0)}</span>
             {budget != null
-              ? <span className="bb-cap muted">{t('of')} {fmtMoney(budget, 0)} · {Math.round((share ?? 0) * 100)}%{posture.state && <> <span className={`stw ${posture.state.severity}`}>{t(posture.state.word)}</span></>}</span>
-              : <span className="bb-cap muted">{t('month to date')} · {t('no budget set')}</span>}
+              ? <span className="bb-cap muted">of {fmtMoney(budget, 0)} · {Math.round((share ?? 0) * 100)}%{posture.state && <> <span className={`stw ${posture.state.severity}`}>{posture.state.word}</span></>}</span>
+              : <span className="bb-cap muted">month to date · no budget set</span>}
           </div>
           {budget != null && (
             <div className="bb-meter">
@@ -161,14 +160,14 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
                 <div className="bt-fill" style={{ width: `${fillPct}%` }} />
                 {projPct != null && <div className="bt-proj" style={{ left: `${projPct}%` }} />}
               </div>
-              {posture.projected != null && <div className="bb-proj-lbl muted small">{t('projected')} ≈ {fmtMoney(posture.projected, 0)} {t('month-end')}</div>}
+              {posture.projected != null && <div className="bb-proj-lbl muted small">projected ≈ {fmtMoney(posture.projected, 0)} month-end</div>}
             </div>
           )}
           <div className="bb-stats muted">
-            <span>{fmtMoney(posture.perDayPace, 2)}<span className="bb-unit">/{t('day pace')}</span></span>
-            <span>{t('peak day')} {fmtMoney(peakDay, 0)}</span>
-            <span>{fmtMoney(perActiveDay, 2)}<span className="bb-unit">/{t('active-day')}</span></span>
-            {budget == null && posture.projected != null && <span>{t('on pace for')} ≈{fmtMoney(posture.projected, 0)}</span>}
+            <span>{fmtMoney(posture.perDayPace, 2)}<span className="bb-unit">/day pace</span></span>
+            <span>peak day {fmtMoney(peakDay, 0)}</span>
+            <span>{fmtMoney(perActiveDay, 2)}<span className="bb-unit">/active-day</span></span>
+            {budget == null && posture.projected != null && <span>on pace for ≈{fmtMoney(posture.projected, 0)}</span>}
           </div>
         </div>
       )}
@@ -202,7 +201,7 @@ function SpendBreakdownCard({ insights, range }: { insights: InsightsResult | nu
   const srcMax = sources[0]?.value || 1;
   return (
     <div className="card">
-      <h3>{t('Spend by model')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
+      <h3>Spend by model <span className="sub3">· {RANGE_LABEL[range]}</span></h3>
       {rows.map((r, i) => (
         <div className="hbar" key={r.name}>
           <span className="n" title={r.name}>{r.name}</span>
@@ -210,8 +209,8 @@ function SpendBreakdownCard({ insights, range }: { insights: InsightsResult | nu
           <span className="v num">{fmtMoney(r.value, 0)}</span>
         </div>
       ))}
-      {!rows.length && <div className="muted small pad8">{t('No spend in range.')}</div>}
-      <h3>{t('Sources')}</h3>
+      {!rows.length && <div className="muted small pad8">No spend in range.</div>}
+      <h3>Sources</h3>
       {sources.map((r, i) => (
         <div className="hbar" key={r.name}>
           <span className="n" title={r.name}>{r.name}</span>
@@ -251,7 +250,7 @@ function AccountCard({ a }: { a: PlanAccount }): JSX.Element {
     <div className="acct">
       <div className="acct-head">
         <span className="acct-n">{a.name}{a.plan ? <span className="muted"> · {a.plan}</span> : null}</span>
-        <span className="cov-tag">{t('covered')}</span>
+        <span className="cov-tag">covered</span>
       </div>
       {a.windows.map((w) => <PlanWindowMeter key={w.label} w={w} />)}
     </div>
@@ -263,17 +262,17 @@ function PlanWindowsCard(): JSX.Element {
   const hasClaude = pw?.accounts.some((a) => a.kind === 'claude');
   return (
     <div className="card">
-      <h3>{t('Plan windows')} <span className="sub3">· {t('per account')}</span></h3>
-      {pw == null ? <div className="muted small pad8">{t('Loading…')}</div> : (
+      <h3>Plan windows <span className="sub3">· per account</span></h3>
+      {pw == null ? <div className="muted small pad8">Loading…</div> : (
         <>
           {pw.accounts.length > 0 && <div className="acct-grid">{pw.accounts.map((a) => <AccountCard key={`${a.kind}:${a.name}`} a={a} />)}</div>}
           {!hasClaude && !pw.claudeEnabled && (
-            <div className="muted small pad8">{t('Claude windows are turned off in Settings (they read your Claude 5h / 7d / Fable quota with one outbound call to api.anthropic.com, using Claude Code’s own token). Codex windows above are read locally. Re-enable in Settings.')}</div>
+            <div className="muted small pad8">Claude windows are turned off in Settings (they read your Claude 5h / 7d / Fable quota with one outbound call to api.anthropic.com, using Claude Code’s own token). Codex windows above are read locally. Re-enable in Settings.</div>
           )}
           {!hasClaude && pw.claudeUnauthed && (
-            <div className="muted small pad8">{t('Claude windows are on but temporarily unavailable — no credentials found, or Anthropic’s usage endpoint is rate-limiting. Reloads on its own.')}</div>
+            <div className="muted small pad8">Claude windows are on but temporarily unavailable — no credentials found, or Anthropic’s usage endpoint is rate-limiting. Reloads on its own.</div>
           )}
-          {pw.accounts.length > 0 && <div className="muted small pad8">{t('quota-read, not billed · Codex local · Claude via the usage endpoint (Settings opt-out).')}</div>}
+          {pw.accounts.length > 0 && <div className="muted small pad8">quota-read, not billed · Codex local · Claude via the usage endpoint (Settings opt-out).</div>}
         </>
       )}
     </div>
@@ -335,15 +334,15 @@ function EfficiencyCard({ insights, range, days }: { insights: InsightsResult | 
     const cacheDenom = det.cacheReadTokens + det.inputTokens;
     if (cacheDenom > 0) {
       const rate = det.cacheReadTokens / cacheDenom;
-      out.push({ name: t('Cache hit rate'), pct: rate * 100, state: gradeCacheHit(rate, th.stateWords), barPct: rate * 100, def: t('input tokens served from the prompt cache') });
+      out.push({ name: 'Cache hit rate', pct: rate * 100, state: gradeCacheHit(rate, th.stateWords), barPct: rate * 100, def: 'input tokens served from the prompt cache' });
     }
     // Jumbo outputs — share of assistant outputs past the jumbo threshold.
     if (det.assistantRows > 0) {
       const share = det.jumboRows / det.assistantRows;
-      out.push({ name: t('Jumbo outputs'), pct: share * 100, state: gradeShareLowerBetter(share, th.stateWords.jumboHealthyMax), barPct: Math.min(share * 100, 100), def: t('share of outputs past 3k tokens') });
+      out.push({ name: 'Jumbo outputs', pct: share * 100, state: gradeShareLowerBetter(share, th.stateWords.jumboHealthyMax), barPct: Math.min(share * 100, 100), def: 'share of outputs past 3k tokens' });
       // Long context — share of assistant turns fed over the long-context threshold.
       const lc = det.longContextRows / det.assistantRows;
-      out.push({ name: t('Long context'), pct: lc * 100, state: gradeShareLowerBetter(lc, th.stateWords.longContextHealthyMax), barPct: Math.min(lc * 100, 100), def: t('share of turns fed over 150k tokens') });
+      out.push({ name: 'Long context', pct: lc * 100, state: gradeShareLowerBetter(lc, th.stateWords.longContextHealthyMax), barPct: Math.min(lc * 100, 100), def: 'share of turns fed over 150k tokens' });
     }
     // Error rows — assistant rows that recorded an API error (from insights).
     if (insights) {
@@ -351,7 +350,7 @@ function EfficiencyCard({ insights, range, days }: { insights: InsightsResult | 
       const errs = insights.errorsByProject.reduce((s, r) => s + r.error_count, 0);
       if (head > 0) {
         const rate = errs / head;
-        out.push({ name: t('Error rows'), pct: rate * 100, state: gradeShareLowerBetter(rate, th.stateWords.errorHealthyMax), barPct: Math.min(rate * 100, 100), def: t('assistant rows that recorded an API error') });
+        out.push({ name: 'Error rows', pct: rate * 100, state: gradeShareLowerBetter(rate, th.stateWords.errorHealthyMax), barPct: Math.min(rate * 100, 100), def: 'assistant rows that recorded an API error' });
       }
     }
     return out;
@@ -360,31 +359,31 @@ function EfficiencyCard({ insights, range, days }: { insights: InsightsResult | 
   return (
     <div className="card">
       <div className="eff-head">
-        <h3 style={{ margin: 0 }}>{t('Efficiency')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
-        <span className="muted small">{t('whole scan')}</span>
+        <h3 style={{ margin: 0 }}>Efficiency <span className="sub3">· {RANGE_LABEL[range]}</span></h3>
+        <span className="muted small">whole scan</span>
       </div>
-      <div className="eff-sub">— {t('detectors')}</div>
+      <div className="eff-sub">— detectors</div>
       {rows.map((r) => (
         <div className="eff-row" key={r.name}>
           <span className="eff-n">{r.name}</span>
           <span className="eff-v">{r.pct < 1 ? r.pct.toFixed(2) : r.pct.toFixed(1)}%</span>
-          <span className="eff-w"><span className={`sw ${r.state.severity}`}>{t(r.state.word)}</span></span>
+          <span className="eff-w"><span className={`sw ${r.state.severity}`}>{r.state.word}</span></span>
           <div className="track"><div className={`seg sev-${r.state.severity}`} style={{ width: `${r.barPct}%` }} /></div>
           <span className="eff-d muted">{r.def}</span>
         </div>
       ))}
-      {!rows.length && <div className="muted small pad8">{t('Loading…')}</div>}
+      {!rows.length && <div className="muted small pad8">Loading…</div>}
 
       <div className="eff-cols">
         <div>
-          <div className="eff-sub">— {t('waste signals · estimates')} <InfoTip def="spend.waste" /></div>
+          <div className="eff-sub">— waste signals · estimates <InfoTip def="spend.waste" /></div>
           {wasteRows ? (
             <>
-              <div className="waste-row"><span className="eff-n">{t('Right-sizing')}</span><span className="eff-v">≈{fmtMoney(wasteRows.rsSavings, 2)}</span><span className="muted small">{fmtInt(wasteRows.rsMessages)} {t('premium small turns')}</span></div>
-              <div className="waste-row"><span className="eff-n">{t('Cache churn')}</span><span className="eff-v">{fmtMoney(wasteRows.churnCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.churnSessions)} {t('sessions')}</span></div>
-              <div className="waste-row"><span className="eff-n">{t('Repeat file reads')}</span><span className="eff-v">{fmtMoney(wasteRows.rereadCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.rereadCalls)} {t('re-reads')}</span></div>
+              <div className="waste-row"><span className="eff-n">Right-sizing</span><span className="eff-v">≈{fmtMoney(wasteRows.rsSavings, 2)}</span><span className="muted small">{fmtInt(wasteRows.rsMessages)} premium small turns</span></div>
+              <div className="waste-row"><span className="eff-n">Cache churn</span><span className="eff-v">{fmtMoney(wasteRows.churnCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.churnSessions)} sessions</span></div>
+              <div className="waste-row"><span className="eff-n">Repeat file reads</span><span className="eff-v">{fmtMoney(wasteRows.rereadCost, 2)}</span><span className="muted small">{fmtInt(wasteRows.rereadCalls)} re-reads</span></div>
             </>
-          ) : <div className="muted small pad8">{t('Loading…')}</div>}
+          ) : <div className="muted small pad8">Loading…</div>}
         </div>
       </div>
     </div>
@@ -420,14 +419,14 @@ function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null })
   return (
     <div className="grid2b">
       <div className="card">
-        <h3>{t('Priced skills')} <span className="sub3">· {t(RANGE_LABEL[range])}</span> <InfoTip def="spend.priced-skills" /></h3>
+        <h3>Priced skills <span className="sub3">· {RANGE_LABEL[range]}</span> <InfoTip def="spend.priced-skills" /></h3>
         <table className="tbl">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>{t('Skill')}</th>
-              <th>{t('Runs')}</th>
-              <th>{t('Tokens')}</th>
-              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
+              <th style={{ textAlign: 'left' }}>Skill</th>
+              <th>Runs</th>
+              <th>Tokens</th>
+              <th className="sort-on">Cost<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
@@ -441,10 +440,10 @@ function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null })
             ))}
           </tbody>
         </table>
-        {!skills.length && <div className="muted small pad8">{t('No skill spend in range.')}</div>}
+        {!skills.length && <div className="muted small pad8">No skill spend in range.</div>}
       </div>
       <div className="card">
-        <h3>{t('MCP server spend')} <span className="sub3">· {t(RANGE_LABEL[range])}</span></h3>
+        <h3>MCP server spend <span className="sub3">· {RANGE_LABEL[range]}</span></h3>
         {/* A table (not hbars) to match Priced skills AND because MCP spend spans
             orders of magnitude — the double-count inflates the top server so far
             that bars leave every other row an invisible sliver. Calls makes the
@@ -453,10 +452,10 @@ function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null })
           <colgroup><col className="c-srv" /><col /><col /><col /></colgroup>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>{t('Server')}</th>
-              <th>{t('Calls')}</th>
-              <th>{t('Tokens')}</th>
-              <th className="sort-on"><InfoTip def="spend.mcp-exposure" /> {t('Turn $')}<SortCaret on /></th>
+              <th style={{ textAlign: 'left' }}>Server</th>
+              <th>Calls</th>
+              <th>Tokens</th>
+              <th className="sort-on"><InfoTip def="spend.mcp-exposure" /> Turn $<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
@@ -470,8 +469,8 @@ function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null })
             ))}
           </tbody>
         </table>
-        {!mcp.length && <div className="muted small pad8">{t('No MCP spend in range.')}</div>}
-        {mcp.length > 0 && <div className="muted small pad8">{t('A call can fan out to several servers — rows double-count and do not sum to the day total.')}</div>}
+        {!mcp.length && <div className="muted small pad8">No MCP spend in range.</div>}
+        {mcp.length > 0 && <div className="muted small pad8">A call can fan out to several servers — rows double-count and do not sum to the day total.</div>}
       </div>
     </div>
   );

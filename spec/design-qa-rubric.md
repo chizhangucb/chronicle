@@ -167,8 +167,8 @@ axis. There is no documented per-axis flip toggle (`sticky` only governs the ali
   (`x >= 0`, `x + width <= innerWidth`) AND its `top >= trigger.bottom` (still opened downward,
   never flipped above). After outside-click / Escape / hovering 5 tips rapidly then moving off,
   `document.querySelectorAll('.info-bubble').length === 0`.
-- `.info-bubble` is 250px wide so long explainers stay short; i18n explainer keys are the full
-  English sentence (`src/i18n.ts` — English is the dictionary key itself).
+- `.info-bubble` is 250px wide so long explainers stay short; an explainer is a full English
+  sentence written at its call site.
 
 ## Reference widths
 

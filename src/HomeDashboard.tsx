@@ -11,7 +11,6 @@ import { useCachedFetch } from './useCachedFetch.ts';
 import { costOf, type CostMode } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';
 import { formatRelativeTime } from './relativeTime.js';
-import { t, lang } from './i18n.js';
 import InfoTip from './InfoTip.tsx';
 import { ProvenanceStrip } from './home/ProvenanceStrip.tsx';
 import { useSyncStatus } from './useSyncStatus.ts';
@@ -48,8 +47,6 @@ type Tab = 'overview' | 'explore' | 'content' | 'spend' | 'sessions';
 // option set + labels + `days` resolution are shared with ProjectDetail via
 // RangeBar.tsx (D10, Task 17) so the two vocabularies cannot drift again.
 
-const INTL_LOCALE: Record<string, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
-function localeOf(): string { return INTL_LOCALE[lang()] ?? 'en-US'; }
 
 // ---- Local formatters (shared with the old InsightsPage body). `fmtMoney`/
 // `fmtInt` are the SHARED grouped money/int formatters from format.ts. ----
@@ -161,23 +158,23 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
   return (
     <div className="page home-dashboard">
       <div className="dash-head">
-        <h1 className="page-title">{t('Insights')}</h1>
+        <h1 className="page-title">Insights</h1>
         <div className="home-ctl">
           <div className="tabs">
             <button type="button" className={`tab ${tab === 'overview' ? 'on' : ''}`} onClick={() => selectTab('overview')}>
-              {t('Overview')}
+              Overview
             </button>
             <button type="button" className={`tab ${tab === 'explore' ? 'on' : ''}`} onClick={() => selectTab('explore')}>
-              {t('Explore')}
+              Explore
             </button>
             <button type="button" className={`tab ${tab === 'content' ? 'on' : ''}`} onClick={() => selectTab('content')}>
-              {t('Content')}
+              Content
             </button>
             <button type="button" className={`tab ${tab === 'spend' ? 'on' : ''}`} onClick={() => selectTab('spend')}>
-              {t('Spend')}
+              Spend
             </button>
             <button type="button" className={`tab ${tab === 'sessions' ? 'on' : ''}`} onClick={() => selectTab('sessions')}>
-              {t('Sessions')}
+              Sessions
             </button>
           </div>
           <RangeBar value={range} onChange={setRange} />
@@ -192,7 +189,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
           <>
             {insights
               ? <KpiStrip result={insights} />
-              : <div className="muted pad8">{t('Loading…')}</div>}
+              : <div className="muted pad8">Loading…</div>}
 
             {isToday && <ActivityBlock activity={activity} onOpenSession={onOpenSession} />}
 
@@ -253,49 +250,49 @@ export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
       sessionCount: result.sessions.length, projectCount: projectsTouched.size, commits: result.commits,
     };
   }, [result, mode]);
-  const modeLabel = mode === 'real' ? t('billed ~$0 under subscription') : t('list price');
+  const modeLabel = mode === 'real' ? 'billed ~$0 under subscription' : 'list price';
 
   return (
     <div className="kpis">
       <div className="kpi">
-        <div className="l">{t('Spend')} <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
+        <div className="l">Spend <span className="lbl" title={modeLabel}>· {modeLabel}</span> <InfoTip def="overview.spend" /></div>
         <div className="v">{fmtMoney(kpis.cost, 0)}</div>
-        <div className="s" title={t('estimated from sessions')}>{t('estimated from sessions')}</div>
+        <div className="s" title="estimated from sessions">estimated from sessions</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Sessions')} <InfoTip def="overview.sessions" /></div>
+        <div className="l">Sessions <InfoTip def="overview.sessions" /></div>
         <div className="v">{kpis.sessionCount}</div>
-        <div className="s" title={`${kpis.projectCount} ${t('projects')}`}>{kpis.projectCount} {t('projects')}</div>
+        <div className="s" title={`${kpis.projectCount} projects`}>{kpis.projectCount} projects</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tokens')} <InfoTip def="overview.tokens" /></div>
+        <div className="l">Tokens <InfoTip def="overview.tokens" /></div>
         <div className="v">{fmtTok(kpis.tokens)}</div>
-        <div className="s">{kpis.cachedPct.toFixed(0)}% {t('cached')}</div>
+        <div className="s">{kpis.cachedPct.toFixed(0)}% cached</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Agent active')} <InfoTip def="overview.agent-active" /></div>
+        <div className="l">Agent active <InfoTip def="overview.agent-active" /></div>
         <div className="v">{fmtHours(kpis.agentActiveMs)}<span className="u">h</span></div>
         <div className="s">{fmtActive(kpis.agentActiveMs)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Your engaged')} <InfoTip def="overview.engaged" /></div>
+        <div className="l">Your engaged <InfoTip def="overview.engaged" /></div>
         <div className="v">{fmtHours(kpis.engagedMs)}<span className="u">h</span></div>
-        <div className="s">{t('leverage')} ×{kpis.leverage.toFixed(1)}</div>
+        <div className="s">leverage ×{kpis.leverage.toFixed(1)}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Tool calls')} <InfoTip def="overview.tool-calls" /></div>
+        <div className="l">Tool calls <InfoTip def="overview.tool-calls" /></div>
         <div className="v">{fmtCount(kpis.toolCalls)}</div>
-        <div className="s">{kpis.topTool ? `${kpis.topTool}-${t('heavy')}` : '—'}</div>
+        <div className="s">{kpis.topTool ? `${kpis.topTool}-heavy` : '—'}</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Error rate')} <InfoTip def="overview.error-rate" /></div>
+        <div className="l">Error rate <InfoTip def="overview.error-rate" /></div>
         <div className="v">{kpis.errorRate.toFixed(1)}<span className="u">%</span></div>
-        <div className="s">{result.errors} {t('errors')}</div>
+        <div className="s">{result.errors} errors</div>
       </div>
       <div className="kpi">
-        <div className="l">{t('Commits')} <InfoTip def="overview.commits" /></div>
+        <div className="l">Commits <InfoTip def="overview.commits" /></div>
         <div className="v">{kpis.commits}</div>
-        <div className="s">{t('linked')}</div>
+        <div className="s">linked</div>
       </div>
     </div>
   );
@@ -310,11 +307,11 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
   const live = activity?.live ?? [];
   const recent = activity?.recent ?? [];
 
-  if (!activity) return <div className="card activity-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!activity) return <div className="card activity-card"><div className="muted small pad8">Loading…</div></div>;
   if (!live.length && !recent.length) {
     return (
       <div className="card activity-card">
-        <div className="muted small pad8">{t('No activity yet today — your live and recently-ended sessions will show here.')}</div>
+        <div className="muted small pad8">No activity yet today — your live and recently-ended sessions will show here.</div>
       </div>
     );
   }
@@ -324,8 +321,8 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
       <span className={`live-dot ${s.live ? 'on' : ''}`} aria-hidden="true" />
       <span className="ar-name" title={s.name}>{s.name}</span>
       <span className="ar-proj muted" title={s.projectName}>{s.projectName}</span>
-      {s.errorCount > 0 && <span className="ar-err">{pluralize(s.errorCount, t('error'), t('errors'))}</span>}
-      <span className="ar-when muted">{s.live ? t('live') : formatRelativeTime(s.endedAt)}</span>
+      {s.errorCount > 0 && <span className="ar-err">{pluralize(s.errorCount, 'error', 'errors')}</span>}
+      <span className="ar-when muted">{s.live ? 'live' : formatRelativeTime(s.endedAt)}</span>
       <span className="ar-cost num-col">{fmtMoney(priceCells(s.tokensByModel, mode), 2)}</span>
     </div>
   );
@@ -334,13 +331,13 @@ function ActivityBlock({ activity, onOpenSession }: { activity: ActivityResult |
     <div className="card activity-card">
       {live.length > 0 && (
         <div className="activity-group">
-          <div className="eyebrow">{t('Live now')}</div>
+          <div className="eyebrow">Live now</div>
           {live.map((s) => <Row key={s.id} s={s} />)}
         </div>
       )}
       {recent.length > 0 && (
         <div className="activity-group">
-          <div className="eyebrow">{t('Since you left')}</div>
+          <div className="eyebrow">Since you left</div>
           {recent.map((s) => <Row key={s.id} s={s} />)}
         </div>
       )}
@@ -376,22 +373,22 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
     return best;
   }, [insights, mode]);
 
-  if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">{t('Loading…')}</div></div>;
+  if (!activity || !burn || !anom) return <div className="card burn-card"><div className="muted small pad8">Loading…</div></div>;
 
   const { current, baseline, hasBaseline, ratio, hot, topProject, topModel, flaggedDays } = anom;
-  const baselineLabel = range === 'today' ? t('typical day (14-day median)')
-    : range === '7d' ? t('prior 7 days')
-    : range === '30d' ? t('prior 30 days')
-    : range === '90d' ? t('prior 90 days')
+  const baselineLabel = range === 'today' ? 'typical day (14-day median)'
+    : range === '7d' ? 'prior 7 days'
+    : range === '30d' ? 'prior 30 days'
+    : range === '90d' ? 'prior 90 days'
     : '';
   // Range span for the no-baseline support line, so a bounded range that just
   // lacks a full PRIOR period (not enough history yet) never mislabels as "all
   // time" (review — 90d had no prior-90d in range).
-  const rangeSpanLabel = range === '7d' ? t('last 7 days')
-    : range === '30d' ? t('last 30 days')
-    : range === '90d' ? t('last 90 days')
-    : range === 'today' ? t('today')
-    : t('all time');
+  const rangeSpanLabel = range === '7d' ? 'last 7 days'
+    : range === '30d' ? 'last 30 days'
+    : range === '90d' ? 'last 90 days'
+    : range === 'today' ? 'today'
+    : 'all time';
   const fillPct = hasBaseline ? Math.min((current / baseline) * 100, 100) : 0;
 
   const openTop = () => {
@@ -406,17 +403,17 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
   return (
     <div className={`card burn-card ${hot ? 'warn' : ''}`}>
       <div className="burn-head">
-        <span className="eyebrow">{t('Spend anomaly')}</span>
+        <span className="eyebrow">Spend anomaly</span>
         <InfoTip def="overview.anomaly" />
       </div>
       <div className="burn-row">
         <div className="burn-now">
           {ratio != null
-            ? <div className="v">×{ratio.toFixed(1)}{hot && <span className="burn-flag"> {t('high')}</span>}</div>
+            ? <div className="v">×{ratio.toFixed(1)}{hot && <span className="burn-flag"> high</span>}</div>
             : <div className="v">{fmtMoney(current, current < 1 ? 2 : 0)}</div>}
           {hasBaseline
-            ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} {t('vs')} {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
-            : <div className="s muted">{range === 'all' ? t('all time · no baseline') : `${rangeSpanLabel} · ${t('no prior period to compare yet')}`}</div>}
+            ? <div className="s muted">{fmtMoney(current, current < 1 ? 2 : 0)} vs {fmtMoney(baseline, baseline < 1 ? 2 : 0)} · {baselineLabel}</div>
+            : <div className="s muted">{range === 'all' ? 'all time · no baseline' : `${rangeSpanLabel} · no prior period to compare yet`}</div>}
         </div>
       </div>
       {hasBaseline && (
@@ -433,7 +430,7 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
           {topProject && (
             <span>
               <span className="anom-glyph">{MOVER_GLYPH.project}</span>{' '}
-              <span className="muted">{t('top project')} </span>
+              <span className="muted">top project </span>
               <b>{topProject.value}</b> {fmtMoney(topProject.cost, topProject.cost < 1 ? 2 : 0)}
             </span>
           )}
@@ -441,7 +438,7 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
           {topModel && (
             <span>
               <span className="anom-glyph">{MOVER_GLYPH.model}</span>{' '}
-              <span className="muted">{t('top model')} </span>
+              <span className="muted">top model </span>
               <b>{topModel.value}</b> {fmtMoney(topModel.cost, topModel.cost < 1 ? 2 : 0)}
             </span>
           )}
@@ -453,8 +450,8 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
       {showFlaggedDays && (
         <div className="anom-flagged" onClick={() => navigate('/?tab=spend')} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') navigate('/?tab=spend'); }}>
-          {pluralize(flaggedDays.length, t('flagged day'), t('flagged days'))}
-          {flaggedDays.length === 1 && <>{' · '}{fmtDayLabel(flaggedDays[0].day, localeOf())}</>}
+          {pluralize(flaggedDays.length, 'flagged day', 'flagged days')}
+          {flaggedDays.length === 1 && <>{' · '}{fmtDayLabel(flaggedDays[0].day, 'en-US')}</>}
           {' '}<span className="anom-arrow">→</span>
         </div>
       )}
@@ -462,7 +459,7 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
       {topSession && (
         <div className="burn-top" onClick={openTop} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') openTop(); }}>
-          <span className="eyebrow">{t('Top session')}</span>
+          <span className="eyebrow">Top session</span>
           <span className="bt-name" title={sessionDisplayName(topSession.row)}>{sessionDisplayName(topSession.row)}</span>
           <span className="bt-cost num-col">{fmtMoney(topSession.cost, 2)}</span>
         </div>
@@ -481,7 +478,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   // Same fix as ExploreTab.tsx's rangeLabel: days<1 (fractional
   // days-since-local-midnight, the Today range) reads "Today", not "0d" —
   // Math.round alone would silently round Today down to zero days.
-  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
+  const rangeLabel = days == null ? 'All' : days < 1 ? 'Today' : `${Math.round(days)}d`;
 
   const projectById = useMemo(() => new Map(result.projects.map((p) => [p.id, p.name])), [result]);
   const projectColors = useMemo(() => projectColorMap(result.projects.map((p) => p.id)), [result]);
@@ -494,7 +491,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
   const toolMix = useMemo(() => {
     const top = result.toolDist.slice(0, 5).map((r) => ({ name: r.name, value: r.count }));
     const rest = result.toolDist.slice(5).reduce((n, r) => n + r.count, 0);
-    return rest ? [...top, { name: t('Other'), value: rest }] : top;
+    return rest ? [...top, { name: 'Other', value: rest }] : top;
   }, [result]);
 
   // ---- Error rate by project (top 6) ----
@@ -544,7 +541,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
       <div className="grid2b">
         <WorkingRhythm result={result} />
         <div className="card">
-          <h3>{t('Global tool mix')}</h3>
+          <h3>Global tool mix</h3>
           {toolMix.map((r, i) => {
             const max = toolMix[0]?.value || 1;
             return (
@@ -555,7 +552,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               </div>
             );
           })}
-          <h3>{t('Error rate by project')}</h3>
+          <h3>Error rate by project</h3>
           {errorRateByProject.map((r, i) => {
             const max = errorRateByProject[0]?.value || 1;
             return (
@@ -566,24 +563,24 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
               </div>
             );
           })}
-          {!errorRateByProject.length && <div className="muted small">{t('No errors in range.')}</div>}
+          {!errorRateByProject.length && <div className="muted small">No errors in range.</div>}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: 10 }}>
-        <h3>{t('Token usage by model')} · {rangeLabel}</h3>
+        <h3>Token usage by model · {rangeLabel}</h3>
         <table className="tbl">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>{t('Model')}</th>
-              <th>{t('Input')}</th>
-              <th>{t('Output')}</th>
-              <th>{t('Cache Read')}</th>
-              <th>{t('Cache Write')} <span className="ttl-tag">5m</span></th>
-              <th>{t('Cache Write')} <span className="ttl-tag">1h</span></th>
-              <th>{t('Hit rate')} <InfoTip def="overview.cache-hit" /></th>
-              <th>{t('Msgs')} <InfoTip def="overview.messages" /></th>
-              <th className="sort-on">{t('Cost')}<SortCaret on /></th>
+              <th style={{ textAlign: 'left' }}>Model</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Cache Read</th>
+              <th>Cache Write <span className="ttl-tag">5m</span></th>
+              <th>Cache Write <span className="ttl-tag">1h</span></th>
+              <th>Hit rate <InfoTip def="overview.cache-hit" /></th>
+              <th>Msgs <InfoTip def="overview.messages" /></th>
+              <th className="sort-on">Cost<SortCaret on /></th>
             </tr>
           </thead>
           <tbody>
@@ -603,7 +600,7 @@ function InsightsCharts({ result, days }: { result: InsightsResult; days: number
           </tbody>
           <tfoot>
             <tr>
-              <td>{t('All models')}</td>
+              <td>All models</td>
               <td>{fmtTok(tokenTotals.input)}</td>
               <td>{fmtTok(tokenTotals.output)}</td>
               <td>{fmtTok(tokenTotals.cacheRead)}</td>

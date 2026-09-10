@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useLocation, useRoute, useSearch } from 'wouter';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Toast from '@radix-ui/react-toast';
 import { api, type Settings, type ViewLogSummary } from './api.js';
 import ImportWizard from './ImportWizard.tsx';
@@ -17,16 +16,9 @@ import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
 import { CostModeProvider, CostModeToggle } from './costMode.tsx';
-import { t, lang, setLang, type Lang } from './i18n.js';
 import type { Project } from '@shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
 import type { DeletedEntry } from './SessionSelect.js';
-
-const LANGS: { key: Lang; label: string }[] = [
-  { key: 'en', label: 'EN' },
-  { key: 'zh', label: '中文' },
-  { key: 'ja', label: '日本語' },
-];
 
 // The `/api/projects` list response: a Project row plus per-project aggregates
 // (session_count/message_count/last_active/sources — server/routes/projects.ts
@@ -45,8 +37,7 @@ export interface ProjectListItem extends Project {
 
 // Navigation is now driven by real URL routes (wouter): `/` (Home),
 // `/project/:id`, `/session/:id`. The URL itself is the persisted state, so a
-// reload (including the language switch's `location.reload()` in i18n.ts)
-// restores the current view for free — no sessionStorage hack needed.
+// reload restores the current view for free — no sessionStorage hack needed.
 
 // Live-streaming pill state and session-mode rail config are owned by
 // SessionView (the producer, via `onLiveChange`/`onRailChange`) — reuse its
@@ -184,27 +175,27 @@ export default function App() {
         </div>
 
         <nav className="sb-top">
-          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title={t('Insights')}
+          <button className={`sb-item ${atHome && !rail ? 'on' : ''}`} title="Insights"
             onClick={() => navigate('/')}>
-            <span className="sb-icon">∑</span><span className="sb-label">{t('Insights')}</span>
+            <span className="sb-icon">∑</span><span className="sb-label">Insights</span>
           </button>
-          <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title={t('Projects')}
+          <button className={`sb-item ${inProjectArea && !rail ? 'on' : ''}`} title="Projects"
             onClick={() => navigate('/projects')}>
-            <span className="sb-icon">◫</span><span className="sb-label">{t('Projects')}</span>
+            <span className="sb-icon">◫</span><span className="sb-label">Projects</span>
           </button>
           {rail && (
             <>
               <div className="sb-sep" />
-              <div className="sb-sec-head eyebrow">{t('Session')}</div>
+              <div className="sb-sec-head eyebrow">Session</div>
               {rail.modes.map((m) => (
                 <button key={m.key} className={`sb-item mode ${rail.active === m.key && !rail.securityOpen ? 'on' : ''}`}
                   title={m.title} onClick={() => rail.select(m.key)}>
                   <span className="sb-icon">{m.icon}</span><span className="sb-label">{m.label}</span>
                 </button>
               ))}
-              <button className={`sb-item mode security ${rail.securityOpen ? 'on' : ''}`} title={t('Security Check')}
+              <button className={`sb-item mode security ${rail.securityOpen ? 'on' : ''}`} title="Security Check"
                 onClick={() => rail.select('security-check')}>
-                <span className="sb-icon">◈</span><span className="sb-label">{t('Security Check')}</span>
+                <span className="sb-icon">◈</span><span className="sb-label">Security Check</span>
               </button>
             </>
           )}
@@ -219,42 +210,42 @@ export default function App() {
           {askEnabled && (
             <>
               <div className="sb-sep" />
-              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title={`${t('Ask')}  ⌘J`}
+              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title="Ask  ⌘J"
                 onClick={() => { navigate('/ask'); window.dispatchEvent(new Event('ask:focus')); }}>
-                <span className="sb-icon">∴</span><span className="sb-label">{t('Ask')}</span>
+                <span className="sb-icon">∴</span><span className="sb-label">Ask</span>
               </button>
               <div className="sb-sep" />
             </>
           )}
-          <Link className={`sb-item util ${atReference ? 'on' : ''}`} href="/reference" title={t('Reference')}>
-            <span className="sb-icon">※</span><span className="sb-label">{t('Reference')}</span>
+          <Link className={`sb-item util ${atReference ? 'on' : ''}`} href="/reference" title="Reference">
+            <span className="sb-icon">※</span><span className="sb-label">Reference</span>
           </Link>
-          <button className="sb-item util" title={t('Settings')} onClick={() => setSettingsOpen(true)}>
-            <span className="sb-icon">⚙</span><span className="sb-label">{t('Settings')}</span>
+          <button className="sb-item util" title="Settings" onClick={() => setSettingsOpen(true)}>
+            <span className="sb-icon">⚙</span><span className="sb-label">Settings</span>
           </button>
-          <a className="sb-item util" href="https://github.com/chizhangucb/chronicle/issues" target="_blank" rel="noreferrer" title={t('Feedback')}>
-            <span className="sb-icon">⊞</span><span className="sb-label">{t('Feedback')}</span>
+          <a className="sb-item util" href="https://github.com/chizhangucb/chronicle/issues" target="_blank" rel="noreferrer" title="Feedback">
+            <span className="sb-icon">⊞</span><span className="sb-label">Feedback</span>
           </a>
           <div className="sb-sep" />
-          <button className="sb-item util collapse" title={collapsed ? t('Expand') : t('Collapse')}
+          <button className="sb-item util collapse" title={collapsed ? 'Expand' : 'Collapse'}
             onClick={toggleCollapsed}>
-            <span className="sb-icon">{collapsed ? '⟩' : '⟨'}</span><span className="sb-label">{t('Collapse')}</span>
+            <span className="sb-icon">{collapsed ? '⟩' : '⟨'}</span><span className="sb-label">Collapse</span>
           </button>
         </nav>
       </aside>
 
       {!collapsed && (
         <div className="drag-handle" role="separator" aria-orientation="vertical"
-          aria-label={t('Resize sidebar')} onPointerDown={sidebar.onHandlePointerDown} />
+          aria-label="Resize sidebar" onPointerDown={sidebar.onHandlePointerDown} />
       )}
 
       <div className="app-main">
         <header className="topbar">
-          <span className="brand-sub">{t('AI Session Time Machine')}</span>
+          <span className="brand-sub">AI Session Time Machine</span>
           <div className="topbar-right">
             <CostModeToggle />
             <button type="button" className={`sync sync-btn ${sync.running ? 'running' : ''} ${sync.failed ? 'failed' : ''}`}
-              title={t('Sync now')} onClick={sync.runNow} disabled={sync.running}>
+              title="Sync now" onClick={sync.runNow} disabled={sync.running}>
               {sync.text}
             </button>
             {liveInfo && atSession && (
@@ -262,25 +253,8 @@ export default function App() {
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
               </span>
             )}
-            <button className="btn icon-btn" title={`${t('Search')}  ⌘K`} onClick={() => setSearchOpen(true)}>⌕</button>
-            <button className="btn primary" onClick={() => setWizardOpen(true)}>{t('+ Import Sessions')}</button>
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button className="lang-select" title="Language / 语言">
-                  {LANGS.find((l) => l.key === lang())?.label ?? 'EN'}
-                  <span className="car">▾</span>
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content className="menu-pop" align="end" sideOffset={6}>
-                  {LANGS.map((l) => (
-                    <DropdownMenu.Item key={l.key} className="menu-item" onSelect={() => setLang(l.key)}>
-                      {l.label}
-                    </DropdownMenu.Item>
-                  ))}
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
+            <button className="btn icon-btn" title="Search  ⌘K" onClick={() => setSearchOpen(true)}>⌕</button>
+            <button className="btn primary" onClick={() => setWizardOpen(true)}>+ Import Sessions</button>
           </div>
         </header>
 
@@ -297,7 +271,7 @@ export default function App() {
         {atReference && <ReferencePage />}
         {atAsk && (askEnabled
           ? <AskPage />
-          : <div className="page center muted">{t('Ask is not available. Enable it in Settings (requires the claude CLI).')}</div>)}
+          : <div className="page center muted">Ask is not available. Enable it in Settings (requires the claude CLI).</div>)}
         {(atProject || atProjExplore || atProjContent) && projectId != null && (
           <ProjectDetail key={projectId} id={projectId}
             onBack={() => navigate('/')}
@@ -363,34 +337,34 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
     if (key === 'ask') onAskChanged?.();
   }
   return (
-    <Modal onClose={onClose} title={t('Settings')}>
+    <Modal onClose={onClose} title="Settings">
         <div className="modal-head">
-          <h3>{t('Settings')}</h3>
+          <h3>Settings</h3>
           <button className="btn ghost" onClick={onClose}>✕</button>
         </div>
         {!settings ? <div className="muted pad8">…</div> : (
           <div className="pad8">
             <label className="settings-row">
               <input type="checkbox" checked={settings.autoSync !== false} onChange={() => toggle('autoSync')} />
-              <span>{t('Auto-sync sessions')}</span>
-              <span className="muted small">{t('Keep imported projects up to date automatically (on launch, periodically, and when source logs change)')}</span>
+              <span>Auto-sync sessions</span>
+              <span className="muted small">Keep imported projects up to date automatically (on launch, periodically, and when source logs change)</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.autoSyncPaused === true} disabled={settings.autoSync === false}
                 onChange={() => toggle('autoSyncPaused')} />
-              <span>{t('Pause auto-sync')}</span>
-              <span className="muted small">{t('Temporarily stop importing new sessions without turning auto-sync off — resume any time')}</span>
+              <span>Pause auto-sync</span>
+              <span className="muted small">Temporarily stop importing new sessions without turning auto-sync off — resume any time</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.planWindows !== false} onChange={() => toggle('planWindows')} />
-              <span>{t('Claude plan windows (quota)')}</span>
-              <span className="muted small">{t('The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.')}</span>
+              <span>Claude plan windows (quota)</span>
+              <span className="muted small">The ONE outbound call in Chronicle: reads your Claude 5h / 7d / Fable quota from api.anthropic.com using Claude Code’s own token, exactly as Claude Code does. On by default (reads only your own quota); turn it off for a fully offline instance. The token is never stored or logged. Codex windows are always local.</span>
             </label>
             <label className="settings-row">
               <input type="checkbox" checked={settings.ask === true} onChange={() => toggle('ask')} />
-              <span>{t('Ask (alpha version)')}</span>
+              <span>Ask (alpha version)</span>
               <span className="muted small">
-                {t('Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.')}
+                Enable the ∴ Ask page: a local chat that answers metric questions from chronicle.db by running your claude CLI with a single read-only query tool. Requires the claude CLI on your PATH. Nothing leaves your machine.
                 {/* Ask needs the toggle AND the claude CLI AND a non-demo console
                     (all decided server-side). With the toggle on and one of the
                     others missing, ticking the box appeared to do nothing at all:
@@ -399,10 +373,10 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
                 {settings.ask === true && askStatus && !askStatus.enabled ? (
                   <span className="settings-why">
                     {askStatus.demo
-                      ? t('Not available in demo mode: Ask runs your real claude CLI against your real sessions, so it stays off on a synthetic console.')
+                      ? 'Not available in demo mode: Ask runs your real claude CLI against your real sessions, so it stays off on a synthetic console.'
                       : !askStatus.claudePresent
-                        ? t('The claude CLI was not found on your PATH, so the ∴ Ask item stays hidden. Install it and reload.')
-                        : t('Ask is unavailable right now.')}
+                        ? 'The claude CLI was not found on your PATH, so the ∴ Ask item stays hidden. Install it and reload.'
+                        : 'Ask is unavailable right now.'}
                   </span>
                 ) : null}
               </span>
@@ -449,22 +423,22 @@ function ViewLogSettings() {
             setBusy(false);
           }}
         />
-        <span>{t('Local view log')}</span>
+        <span>Local view log</span>
       </label>
       <p className="muted small">
-        {t('Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.')}
+        Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.
       </p>
       {summary.rows === 0 ? (
-        <p className="muted small">{t('Nothing recorded yet.')}</p>
+        <p className="muted small">Nothing recorded yet.</p>
       ) : (
         <>
           <p className="muted small">
-            {summary.rows} {t('events')} · {summary.humanRows} {t('you')} · {summary.agentRows} {t('agent')} · {day(summary.firstTs)} → {day(summary.lastTs)}
+            {summary.rows} events · {summary.humanRows} you · {summary.agentRows} agent · {day(summary.firstTs)} → {day(summary.lastTs)}
           </p>
           <table className="tbl">
             <thead>
               <tr>
-                <th>{t('Surface')}</th><th>{t('You')}</th><th>{t('Agent')}</th><th>{t('Typical visit')}</th>
+                <th>Surface</th><th>You</th><th>Agent</th><th>Typical visit</th>
               </tr>
             </thead>
             <tbody>
@@ -488,7 +462,7 @@ function ViewLogSettings() {
               setBusy(false);
             }}
           >
-            {t('Clear the log')}
+            Clear the log
           </button>
         </>
       )}

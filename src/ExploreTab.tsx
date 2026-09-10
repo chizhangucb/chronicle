@@ -2,7 +2,6 @@ import React, { useMemo, useState, type JSX } from 'react';
 import { useLocation } from 'wouter';
 import { BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exploreUrl, type ExploreResult, type ExploreRow, type ExploreCell, type ExploreQueryParams, type ExploreRollup } from './api.ts';
-import { t, lang } from './i18n.ts';
 import InfoTip from './InfoTip.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from './charts/ChartWrapper.tsx';
@@ -50,7 +49,7 @@ function fmtHours(ms: number): string {
 function fmtSubgroupLabel(key: string, label: string | undefined, subgroup: string): string {
   const displayLabel = label ?? key;
   if (subgroup === 'hour') {
-    return fmtHourOfDay(displayLabel, lang());
+    return fmtHourOfDay(displayLabel, 'en-US');
   }
   return displayLabel;
 }
@@ -158,15 +157,15 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
 
   // days<1 (e.g. fractional days-since-local-midnight for "Today") reads as
   // "Today" rather than a fractional day count like "0.9960218055555555D".
-  const rangeLabel = days == null ? t('All') : days < 1 ? t('Today') : `${Math.round(days)}d`;
+  const rangeLabel = days == null ? 'All' : days < 1 ? 'Today' : `${Math.round(days)}d`;
   const metricChipLabel = useMemo(() => metricOptions().find((o) => o.key === pivot.metric)?.label ?? pivot.metric, [pivot.metric]);
   const groupChipLabel = useMemo(() => groupOptions().find((o) => o.key === pivot.group)?.label ?? pivot.group, [pivot.group]);
   const subgroupChipLabel = useMemo(
     () => (pivot.subgroup !== 'none' ? groupOptions().find((o) => o.key === pivot.subgroup)?.label ?? pivot.subgroup : null),
     [pivot.subgroup],
   );
-  const cardTitle = `${metricChipLabel} ${t('by')} ${groupChipLabel}`
-    + (subgroupChipLabel ? ` · ${t('subgrouped by')} ${subgroupChipLabel}` : '')
+  const cardTitle = `${metricChipLabel} by ${groupChipLabel}`
+    + (subgroupChipLabel ? ` · subgrouped by ${subgroupChipLabel}` : '')
     + ` · ${rangeLabel}`;
 
   // Ranked bars: re-sort by the CLIENT's own metric value (server's sort is
@@ -205,7 +204,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
 
   // ---- Time-rollup chart (rollup !== 'total') ----
   const ROLLUP_LABEL: Record<PivotRollup, string> = {
-    total: t('Total'), hourly: t('Hourly'), daily: t('Daily'), weekly: t('Weekly'), monthly: t('Monthly'),
+    total: 'Total', hourly: 'Hourly', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
   };
   // Series colour by ranked index — the SAME mapping the Detail table dots use,
   // so a series' bar-segment colour matches its table row. 'Other' is always
@@ -225,7 +224,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   // Relabeled here rather than server-side so the raw model group key stays a
   // faithful passthrough of the source data.
   const rowDisplayLabel = (row: ExploreRow): string =>
-    (pivot.group === 'model' && row.key === '<synthetic>') ? t('client-generated') : row.label;
+    (pivot.group === 'model' && row.key === '<synthetic>') ? 'client-generated' : row.label;
   // Server bucket-key unit per effective rollup, for densifyBuckets. 'total'
   // never reaches here (result.buckets is undefined for it).
   const ROLLUP_UNIT: Record<Exclude<ExploreRollup, 'total'>, BucketUnit> = {
@@ -300,7 +299,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
   };
 
   const canRowLink = scope.type === 'project' && scope.id != null;
-  const rowLinkTitle = canRowLink ? undefined : t('Filtered session list coming soon');
+  const rowLinkTitle = canRowLink ? undefined : 'Filtered session list coming soon';
 
   // EXP-01: the Detail table renders a dynamic metric column AND fixed
   // Tokens/Requests/Sessions columns. When the selected metric IS one of those
@@ -319,13 +318,13 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
     <>
       <PivotControls value={pivot} onChange={setPivot} />
       {!result ? (
-        <div className="muted pad8">{t('Loading…')}</div>
+        <div className="muted pad8">Loading…</div>
       ) : (
         <>
           <div className="card">
             <h3>
               {result.buckets
-                ? `${metricChipLabel} ${t('by')} ${groupChipLabel} · ${ROLLUP_LABEL[result.rollup]} · ${rangeLabel}`
+                ? `${metricChipLabel} by ${groupChipLabel} · ${ROLLUP_LABEL[result.rollup]} · ${rangeLabel}`
                 : cardTitle}
               {result.calibrated && (
                 <>
@@ -334,11 +333,11 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 </>
               )}
               {result.rollup !== result.requestedRollup && (
-                <span className="muted small"> · {ROLLUP_LABEL[result.requestedRollup]} {t('too dense — showing')} {ROLLUP_LABEL[result.rollup]}</span>
+                <span className="muted small"> · {ROLLUP_LABEL[result.requestedRollup]} too dense — showing {ROLLUP_LABEL[result.rollup]}</span>
               )}
               {rollupChart.truncated && (
                 <span className="muted small">
-                  {' '}· {t('showing the most recent')} {MAX_DENSE_BUCKETS.toLocaleString()} {t('of')} {rollupChart.total.toLocaleString()} {t('buckets')}
+                  {' '}· showing the most recent {MAX_DENSE_BUCKETS.toLocaleString()} of {rollupChart.total.toLocaleString()} buckets
                 </span>
               )}
             </h3>
@@ -374,12 +373,12 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                     {otherRow && (
                       <span style={{ color: 'var(--ink-3)' }}>
                         <span className="dot" style={{ background: 'var(--ink-3)' }} />
-                        + {otherRow.row.otherCount ?? ''} {t('in Other')}
+                        + {otherRow.row.otherCount ?? ''} in Other
                       </span>
                     )}
                   </div>
                 </>
-              ) : <div className="muted small pad8">{t('No sessions in range.')}</div>
+              ) : <div className="muted small pad8">No sessions in range.</div>
             ) : (
               <>
                 {ranked.map(({ row, value }) => {
@@ -407,7 +406,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                     </div>
                   );
                 })}
-                {!ranked.length && <div className="muted small">{t('No sessions in range.')}</div>}
+                {!ranked.length && <div className="muted small">No sessions in range.</div>}
                 {subgroupChipLabel && subgroupKeys.length > 0 && (
                   <div className="legend">
                     {subgroupKeys.slice(0, CATEGORICAL_COLORS.length).map((key) => {
@@ -419,7 +418,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                     {subgroupKeys.length > CATEGORICAL_COLORS.length && (
                       <span style={{ color: 'var(--ink-3)' }}>
                         <span className="dot" style={{ background: 'var(--ink-3)' }} />
-                        + {subgroupKeys.length - CATEGORICAL_COLORS.length} {t('more')}
+                        + {subgroupKeys.length - CATEGORICAL_COLORS.length} more
                       </span>
                     )}
                   </div>
@@ -429,17 +428,17 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
           </div>
 
           <div className="card">
-            <h3>{t('Detail')}</h3>
+            <h3>Detail</h3>
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left' }}>{t('Group')}</th>
-                  {showMetricCol && <th className="sort-on">{t(METRIC_COLUMN_KEY[pivot.metric])}<SortCaret on /></th>}
-                  <th>{t('Share')}</th>
-                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens' ? 'sort-on' : ''}>{t('Tokens')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens'} /></th>
-                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Requests' ? 'sort-on' : ''}>{t('Requests')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Requests'} /></th>
-                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions' ? 'sort-on' : ''}>{t('Sessions')}<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions'} /></th>
-                  <th>{t('$/session')}</th>
+                  <th style={{ textAlign: 'left' }}>Group</th>
+                  {showMetricCol && <th className="sort-on">{METRIC_COLUMN_KEY[pivot.metric]}<SortCaret on /></th>}
+                  <th>Share</th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens' ? 'sort-on' : ''}>Tokens<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Tokens'} /></th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Requests' ? 'sort-on' : ''}>Requests<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Requests'} /></th>
+                  <th className={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions' ? 'sort-on' : ''}>Sessions<SortCaret on={METRIC_COLUMN_KEY[pivot.metric] === 'Sessions'} /></th>
+                  <th>$/session</th>
                 </tr>
               </thead>
               <tbody>
@@ -475,7 +474,7 @@ export default function ExploreTab({ scope, days }: ExploreTabProps): JSX.Elemen
                 })}
               </tbody>
             </table>
-            {!ranked.length && <div className="muted small pad8">{t('No sessions in range.')}</div>}
+            {!ranked.length && <div className="muted small pad8">No sessions in range.</div>}
           </div>
         </>
       )}

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearch } from 'wouter';
 import { DEFINITIONS, DEF_PAGE_ORDER, DEF_PAGE_LABEL, type DefPage } from './reference/definitions.js';
-import { t } from './i18n.js';
 
 // The unified reference. Every metric and term on
 // the console, rendered from the SAME registry the small "ⓘ" tips read, so this
@@ -61,9 +60,9 @@ export default function ReferencePage() {
     <div className="page reference-page">
       <div className="ref-head">
         <div>
-          <div className="eyebrow">{t('Reference')}</div>
+          <div className="eyebrow">Reference</div>
           <p className="muted small ref-intro">
-            {t('What every number on this console means. Definitions render from the same registry the small ⓘ tips use, so this page cannot drift from the surfaces. Terms from surfaces Chronicle deliberately retired are kept at the end, so the vocabulary survives even where the page did not.')}
+            What every number on this console means. Definitions render from the same registry the small ⓘ tips use, so this page cannot drift from the surfaces. Terms from surfaces Chronicle deliberately retired are kept at the end, so the vocabulary survives even where the page did not.
           </p>
         </div>
         <label className="ref-search">
@@ -71,17 +70,17 @@ export default function ReferencePage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('search definitions')}
-            aria-label={t('Search definitions')}
+            placeholder="search definitions"
+            aria-label="Search definitions"
           />
         </label>
       </div>
 
       {groups.length === 0 ? (
-        <p className="muted small">{t('Nothing matches')} “{query}”.</p>
+        <p className="muted small">Nothing matches “{query}”.</p>
       ) : groups.map(({ page, defs }) => (
         <section className="card ref-group" key={page}>
-          <h3>{t(DEF_PAGE_LABEL[page as DefPage])}</h3>
+          <h3>{DEF_PAGE_LABEL[page as DefPage]}</h3>
           <dl className="ref-list">
             {defs.map((d) => {
               // No call site here, so no `vars`: every definition must read
@@ -90,11 +89,11 @@ export default function ReferencePage() {
               const tech = d.tech?.({});
               return (
                 <div className="ref-def" key={d.id} data-anchor={`def-${d.id}`} id={`def-${d.id}`}>
-                  <dt>{t(d.title)}</dt>
+                  <dt>{d.title}</dt>
                   <dd>
-                    {t(d.plain({}))}
-                    {good ? <span className="ref-good">{t('Good looks like')}: {t(good)}</span> : null}
-                    {tech ? <span className="ref-tech">{t(tech)}</span> : null}
+                    {d.plain({})}
+                    {good ? <span className="ref-good">Good looks like: {good}</span> : null}
+                    {tech ? <span className="ref-tech">{tech}</span> : null}
                   </dd>
                 </div>
               );

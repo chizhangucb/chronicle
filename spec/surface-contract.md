@@ -76,7 +76,7 @@ drag-resizable when expanded. Contents, top to bottom:
   across the app prices at the selected mode. `List price` = metered list price; `Billed` = what Chi
   pays, so subscription-covered models (Claude tiers, gpt-5.6 / Codex) read ~$0. The active mode is
   ALWAYS visibly labeled next to spend figures so no number silently changes meaning.
-- Search (`⌕`, ⌘K) · "+ Import Sessions" · language dropdown (EN / 中文 / 日本語) — all every-route.
+- Search (`⌕`, ⌘K) · "+ Import Sessions" — both every-route.
 - NO "← Projects" back link anywhere (real URL routes; browser back/forward).
 - **⌘J** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled (so the
   shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
