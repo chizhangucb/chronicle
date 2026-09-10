@@ -1,14 +1,16 @@
 // Ticket #274: the Insights engine's fixed-window aggregates
-// (dailyActivity/hourlyActivity/modelDistFixed) are memoized through
+// (dailyActivity/hourlyActivity/modelDistFixed) are cached through
 // server/cache.ts instead of a private TTL map in server/insights.ts.
 //
-// What that buys, and what this file pins: the shared cache is
-// GENERATION-keyed, so a session landing in the database makes the memo stale
-// at once. The private map was expiry-only, so a fresh import stayed invisible
-// on the calendar and the hour grid for the whole 20s window even though the
-// range control was re-fetching. Both calls below pass the SAME `range`, which
-// is what makes the memo key identical across them (the cutoffs are quantized
-// to the minute) — that is the case the private cache got wrong.
+// Two properties, one per test. The aggregates are still CACHED, so a second
+// request for the same scope and cutoffs does not re-run the three queries.
+// And the shared cache is GENERATION-keyed, so a session landing in the
+// database makes that cache entry stale at once: the private map was
+// expiry-only, so a fresh import stayed invisible on the calendar and the hour
+// grid for the whole 20s window even though the range control was re-fetching.
+// Every call below passes the SAME `range`, which is what makes the key
+// identical across them (the cutoffs are quantized to the minute), and that is
+// the case the private cache got wrong.
 //
 // Same shared-temp-db-for-the-whole-file pattern as test/insights.test.mjs.
 import { test, before, after } from 'node:test';
@@ -58,12 +60,22 @@ after(() => teardown());
 
 const totalMessages = (dailyActivity) => dailyActivity.reduce((sum, d) => sum + d.count, 0);
 
-test('the fixed windows are memoized: the same range twice reads the same result', async () => {
+// The write goes straight to the table, NOT through replaceSession, so no
+// invalidation fires: an uncached engine would report the extra message and a
+// cached one cannot. That is the only way to see the cache hit from outside.
+test('the fixed windows are cached: a write nothing invalidated is not picked up', async () => {
   const range = rangeOf(7);
   const first = await insightsModule.computeInsights({ type: 'all' }, range);
+  dbModule.db.prepare(
+    'INSERT INTO messages (session_id, seq, ts, kind, text) VALUES (?, ?, ?, ?, ?)',
+  ).run('f1', 999, new Date(BASE.getTime()).toISOString(), 'user', 'uninvalidated');
   const second = await insightsModule.computeInsights({ type: 'all' }, range);
-  assert.equal(totalMessages(second.dailyActivity), totalMessages(first.dailyActivity));
+  assert.equal(totalMessages(second.dailyActivity), totalMessages(first.dailyActivity),
+    'the fixed windows re-ran their queries instead of reading the cache');
   assert.deepEqual(second.hourlyActivity, first.hourlyActivity);
+  // Taken back out the same way it went in, so the next test starts from the
+  // row count the fixtures set up.
+  dbModule.db.prepare('DELETE FROM messages WHERE seq = 999').run();
 });
 
 test('an import makes the fixed windows stale at once, not when a TTL runs out', async () => {

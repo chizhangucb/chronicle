@@ -248,11 +248,12 @@ function probeClaudeBin(env: NodeJS.ProcessEnv): string | null {
 
 // Cached: /ask/status is an unauthenticated GET that a poll loop could hammer,
 // and each probe spawns `which`. The CLI doesn't appear/disappear mid-session,
-// so a short TTL memo is safe — it goes through the one server cache
-// (server/cache.ts) with that TTL rather than a map of its own. A `null` (no
-// CLI installed) is memoized too: the poll loop hits that case hardest. Only
-// the default-env call is cached (tests pass a custom env and must not be
-// memoized).
+// so a short TTL is safe, and it goes through the one server cache
+// (server/cache.ts) with that TTL rather than a map of its own. The probe
+// reads the filesystem, not the database, so the TTL is its whole staleness
+// rule. A `null` (no CLI installed) is cached too: the poll loop hits that
+// case hardest. Only the default-env call is cached (tests pass a custom env
+// and must not be).
 const CLAUDE_BIN_TTL_MS = 60 * 1000;
 export function findClaudeBin(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env !== process.env) return probeClaudeBin(env);

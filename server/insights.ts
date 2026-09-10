@@ -143,20 +143,21 @@ export function computeScopedAggregates(scope: Scope, range: Range): ScopedAggre
 const CALENDAR_WINDOW_DAYS = 182;
 const HOURLY_WINDOW_DAYS = 30;
 
-// Short-lived commit-count memo, keyed by `path::cutoff`. `computeInsights`
+// Short-lived commit-count cache, keyed by `path::cutoff`. `computeInsights`
 // used to shell out to `git rev-list --count` once per project, SERIALLY and
-// SYNCHRONOUSLY, on every single request — including every 7d/30d/90d/All
+// SYNCHRONOUSLY, on every single request, including every 7d/30d/90d/All
 // range-control click, blocking the whole server's event loop for the full
 // duration each time (perf finding from the PR review). Two changes fix
 // this: (1) the shell-outs below now run CONCURRENTLY via
 // `commitCountSinceAsync` (libuv thread pool, not the main thread) instead
-// of serially; (2) this memo means rapid successive requests for the same
+// of serially; (2) this cache means rapid successive requests for the same
 // project+cutoff (e.g. clicking between range buttons and back within a few
-// seconds) don't re-spawn git at all. It carries a TTL because its input is
-// Git, not the database, so no import bumps the cache generation when the
-// answer changes — a real new commit becomes visible once the TTL expires,
-// which is fine for an analytics KPI. The Promise is what is cached, so
-// concurrent callers for the same project share one `git rev-list`.
+// seconds) don't re-spawn git at all. It goes in server/cache.ts under a TTL
+// rather than the generation, because its input is Git: an import says
+// nothing about it, and autosync re-imports every few seconds. A real new
+// commit becomes visible once the TTL expires, which is fine for an analytics
+// KPI. The Promise itself is what is cached, so concurrent callers for the
+// same project share one `git rev-list`.
 const COMMIT_CACHE_TTL_MS = 5 * 60_000;
 
 function cachedCommitCountSince(path: string, cutoff: string | null): Promise<number> {
@@ -165,13 +166,20 @@ function cachedCommitCountSince(path: string, cutoff: string | null): Promise<nu
 }
 
 // The fixed-window aggregates (dailyActivity/hourlyActivity/modelDistFixed)
-// don't depend on `days=` at all, yet used to re-run on every range click —
-// most of the remaining repeat-click latency after the index fix. Memoized in
+// don't depend on `days=` at all, yet used to re-run on every range click,
+// most of the remaining repeat-click latency after the index fix. Cached in
 // server/cache.ts under a key built from the scope and the minute-quantized
 // cutoffs, so range clicks reuse the identical result. Purely a database read,
-// so the cache generation is the whole staleness rule: an import invalidates
-// it at once and no TTL is needed.
+// so the generation is the whole staleness rule: an import invalidates it at
+// once and no TTL is needed.
 type FixedWindows = Pick<InsightsResult, 'dailyActivity' | 'hourlyActivity' | 'modelDistFixed'>;
+
+// Key built here, next to the query it stands for, the same way
+// cachedCommitCountSince builds its own.
+function cachedFixedWindows(scope: Scope, q: QueryContext, calendarCutoff: string, hourlyCutoff: string): FixedWindows {
+  const key = `insights:fixed:${scope.type}:${scope.id ?? ''}::${calendarCutoff}::${hourlyCutoff}`;
+  return cached(key, () => computeFixedWindows(q, calendarCutoff, hourlyCutoff));
+}
 
 function computeFixedWindows(q: QueryContext, calendarCutoff: string, hourlyCutoff: string): FixedWindows {
   // The same day-bucketed message count the project page's `activity` is,
@@ -248,13 +256,12 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
     ? bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'hour')
     : null;
 
-  // Fixed trailing windows — NOT filtered by `days=` (see file header).
-  // Memoized (see computeFixedWindows above) since they're identical across
-  // range clicks; an import invalidates the cache, so a fresh session shows up
-  // on the very next request.
-  const fixedKey = `insights:fixed:${scope.type}:${scope.id ?? ''}::${calendarCutoff}::${hourlyCutoff}`;
+  // Fixed trailing windows, NOT filtered by `days=` (see file header). Cached
+  // (see cachedFixedWindows above) since they're identical across range
+  // clicks; an import invalidates the cache, so a fresh session shows up on
+  // the very next request.
   const { dailyActivity, hourlyActivity, modelDistFixed } =
-    cached(fixedKey, () => computeFixedWindows(q, calendarCutoff, hourlyCutoff));
+    cachedFixedWindows(scope, q, calendarCutoff, hourlyCutoff);
 
   const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 

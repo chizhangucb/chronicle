@@ -95,11 +95,14 @@ write path that does not call `invalidateCache()` serves stale analytics indefin
 bug looks like a UI that will not refresh.
 
 `cached()` takes an optional TTL as its third argument, and it is the one server-side cache:
-every server memo goes through it rather than keeping a map of its own. Reach for the TTL only
-when the value's input is not the database (a `git rev-list` count, a `which claude` probe), so
-nothing bumps the generation when the answer changes. A TTL entry is still generation-keyed on
-top, so an import makes it stale at once. The client's stale-while-revalidate cache
-(`src/useCachedFetch.ts`) is a separate thing and stays that way.
+every cached value on the server goes through it rather than keeping a map of its own. An entry
+has exactly one staleness rule. Reach for the TTL only when the value's input is not the
+database (a `git rev-list` count, a `which claude` probe), where nothing bumps the generation
+when the answer changes; everything read out of the database takes the generation instead.
+Adding both to one entry is not an option on purpose: autosync re-imports a live session every
+few seconds, so a generation-keyed five-minute Git cache would be wiped before it ever paid for
+itself. The client's stale-while-revalidate cache (`src/useCachedFetch.ts`) is a separate thing
+and stays that way.
 
 ## Ranging is overlap, not a start-time cutoff
 
