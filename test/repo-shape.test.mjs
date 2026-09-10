@@ -374,7 +374,7 @@ test('the roster refresher keeps its Python', () => {
 // be named. Word-anchored, so the e2e suite's `launchDemo` is not a launchd
 // job and a future `install-jobsomething` is still a hit.
 const SPINE_POINTERS =
-  /\blitellm\b|\blaunchd\b|\binstall-jobs\b|\blane_c|CHRONICLE_REQUIRE_PYTHON/i;
+  /\blitellm\b|\blaunchd\b|\binstall-jobs|\blane_c|CHRONICLE_REQUIRE_PYTHON/i;
 
 // Two files, exempted by name for the reason WORD_EXEMPT exempts a word: each
 // is a place this repo has already decided a removed thing may still be named.
