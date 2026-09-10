@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const { seedDemo, demoDataDir } = await import('../server/demo/seed.ts');
+const { seedDemo, demoDataDir, pruneStaleDemoDirs } = await import('../server/demo/seed.ts');
 
 // A scratch temp root, so a pruning test cannot reach the demo cache of the
 // machine it runs on (or of another test file running beside it).
@@ -49,6 +49,43 @@ test("a successful seed removes yesterday's demo dir and leaves unrelated temp d
   assert.ok(fs.existsSync(path.join(unrelated, 'payload.txt')), 'an unrelated temp dir was deleted');
   assert.ok(fs.existsSync(path.join(lookalike, 'payload.txt')), 'a chronicle-demo LOOKALIKE was deleted');
   assert.ok(fs.existsSync(path.join(today, '.seed-complete')), "today's dir lost its completion marker");
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a symlink wearing the demo prefix is not followed, so its target survives', async () => {
+  // The temp dir is world-writable, so a link named like a demo cache is the
+  // cheapest way to aim the sweep at something it was never meant to touch.
+  const root = scratchRoot();
+  const elsewhere = scratchRoot();
+  const target = dirWithFile(path.join(elsewhere, 'precious'));
+  const link = path.join(root, 'chronicle-demo-0-2000-01-01');
+  fs.symlinkSync(target, link, 'dir');
+  const today = path.join(root, path.basename(demoDataDir()));
+  fs.mkdirSync(today, { recursive: true });
+
+  const removed = pruneStaleDemoDirs(today);
+
+  assert.deepEqual(removed, [], 'the sweep walked through a symlink');
+  assert.ok(fs.existsSync(path.join(target, 'payload.txt')), "a symlink's target was emptied");
+
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(elsewhere, { recursive: true, force: true });
+});
+
+test('nothing outside the OS temp dir is swept, whatever the seed dir says', async (t) => {
+  // The sweep is scoped to the seed dir's own parent, so the pin is: point the
+  // OS temp dir somewhere else and the same siblings become untouchable.
+  const root = scratchRoot();
+  const stale = dirWithFile(path.join(root, 'chronicle-demo-0-2000-01-01'));
+  const today = path.join(root, path.basename(demoDataDir()));
+  fs.mkdirSync(today, { recursive: true });
+  t.mock.method(os, 'tmpdir', () => path.join(root, 'somewhere-else'));
+
+  const removed = pruneStaleDemoDirs(today);
+
+  assert.deepEqual(removed, [], 'the sweep deleted outside the OS temp dir');
+  assert.ok(fs.existsSync(path.join(stale, 'payload.txt')), 'a dir outside the OS temp dir was deleted');
 
   fs.rmSync(root, { recursive: true, force: true });
 });
