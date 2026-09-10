@@ -7,6 +7,15 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Removed
 
+- **Context causality is gone from Playback.** A message row used to carry a `⛓` chip
+  listing, with a confidence percentage, which earlier reads a file change "likely" came
+  from. The links were a local guess from the shape of the tool calls — read the same file,
+  read a sibling, match a search pattern, or simply read shortly before — and a percentage on
+  a guess reads as a measurement. Playback still shows every read and every change, in order,
+  each against its snapshot: what the tool actually did, with nothing layered on top. The
+  analysis engine and its per-session route go with the chip, so opening a session makes one
+  request fewer.
+
 - **Chronicle is now only a session-analysis tool.** It was built as the console for a
   personal operations folder and grew a second product's worth of surfaces to do that job.
   That folder is gone, and every page that read it rendered empty or refused to load on any

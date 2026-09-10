@@ -10,29 +10,11 @@ export interface PlaybackMessage extends Event {
   live?: boolean;
 }
 
-// Context Causality (FR-CC) source: what likely drove this message, surfaced
-// via the ⛓ button. Mirrors the (unexported) ChangeSource shape produced by
-// server/causality.ts — see the report for the suggested shared-type addition.
-export interface CausalitySource {
-  seq: number;
-  file: string | null;
-  pattern: string | null;
-  tool: string | null;
-  confidence: number;
-  reason: string | null;
-}
-
-export interface MessageCausality {
-  sources: CausalitySource[];
-}
-
 export interface MessageRowProps {
   m: PlaybackMessage;
   selected: boolean;
   keyword: string;
   onClick: () => void;
-  causality?: MessageCausality;
-  onJump: (seq: number) => void;
 }
 
 // Labels/icons come from the shared canonical map (src/kinds.ts) so Playback and
@@ -45,9 +27,8 @@ const KIND_META: Record<string, KindMeta> = Object.fromEntries(
   (Object.keys(KIND_CLS) as DisplayKind[]).map((k) => [k, { icon: KIND_ICON[k], label: KIND_LABEL[k], cls: KIND_CLS[k] }]),
 );
 
-export default function MessageRow({ m, selected, keyword, onClick, causality, onJump }: MessageRowProps): JSX.Element {
+export default function MessageRow({ m, selected, keyword, onClick }: MessageRowProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const [ctxOpen, setCtxOpen] = useState(false);
   const meta: KindMeta = KIND_META[m.kind] || { icon: '•', label: m.kind, cls: '' };
   let body = m.text || '';
   let title: string | null = null;
@@ -64,28 +45,9 @@ export default function MessageRow({ m, selected, keyword, onClick, causality, o
       <div className="msg-head">
         <span className="msg-kind">{meta.icon} {title || meta.label}</span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {causality && causality.sources.length > 0 && (
-            <button className="btn tiny ghost ctx-btn" title="Context Causality — what drove this change?"
-              onClick={(e) => { e.stopPropagation(); setCtxOpen(!ctxOpen); }}>
-              ⛓ {causality.sources.length}
-            </button>
-          )}
           {m.ts && <span className="msg-ts muted">{new Date(m.ts).toLocaleTimeString()}</span>}
         </span>
       </div>
-      {ctxOpen && causality && (
-        <div className="ctx-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="small muted">What likely drove this change:</div>
-          {causality.sources.map((s) => (
-            <div key={s.seq} className={`ctx-source ${s.confidence > 0.8 ? 'direct' : s.confidence < 0.3 ? 'background' : ''}`}
-              onClick={() => onJump(s.seq)} title="Jump to source message">
-              <span className="ctx-conf" style={{ width: `${s.confidence * 100}%` }} />
-              <span className="ctx-label">{Math.round(s.confidence * 100)}% · {s.tool} {(s.file || s.pattern || '').split('/').pop()}</span>
-              <span className="muted small"> — {s.reason}</span>
-            </div>
-          ))}
-        </div>
-      )}
       <div className={`msg-body ${expanded ? 'expanded' : ''}`}>{highlight(shown, keyword)}</div>
       {isLong && (
         <button className="btn ghost tiny msg-expand" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>

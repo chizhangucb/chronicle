@@ -1,6 +1,5 @@
 import React, { type JSX } from 'react';
 import MessageRow, { type PlaybackMessage } from './MessageRow.tsx';
-import type { CausalityData } from '../SessionView.tsx';
 
 // FR-COMPAT-2: degrade gracefully on huge sessions — render a window of
 // messages around the selection instead of the full list. Shared by the
@@ -12,7 +11,6 @@ export interface WindowedConvPaneProps {
   messages: PlaybackMessage[];
   selectedSeq: number | null;
   keyword?: string;
-  causality?: CausalityData | null;
   onSelect: (seq: number, scroll?: boolean) => void;
   className?: string;
   paneRef?: React.Ref<HTMLDivElement>;
@@ -22,7 +20,7 @@ export interface WindowedConvPaneProps {
 }
 
 export default function WindowedConvPane({
-  messages, selectedSeq, keyword = '', causality, onSelect, className = '', paneRef, onScroll, header, emptyText,
+  messages, selectedSeq, keyword = '', onSelect, className = '', paneRef, onScroll, header, emptyText,
 }: WindowedConvPaneProps): JSX.Element {
   const selIdx = Math.max(0, messages.findIndex((m) => m.seq === selectedSeq));
   const winStart = messages.length > WINDOW ? Math.max(0, Math.min(selIdx - WINDOW / 2, messages.length - WINDOW)) : 0;
@@ -39,9 +37,7 @@ export default function WindowedConvPane({
       )}
       {windowed.map((m) => (
         <MessageRow key={m.seq} m={m} selected={m.seq === selectedSeq}
-          keyword={keyword} onClick={() => onSelect(m.seq)}
-          causality={causality?.changes.find((c) => c.seq === m.seq)}
-          onJump={(seq) => onSelect(seq, true)} />
+          keyword={keyword} onClick={() => onSelect(m.seq)} />
       ))}
       {winEnd < messages.length && (
         <button className="btn small window-btn" onClick={() => onSelect(messages[Math.min(messages.length - 1, winEnd + WINDOW / 2 - 1)].seq, true)}>

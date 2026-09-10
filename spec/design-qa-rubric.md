@@ -258,7 +258,7 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
   `⧖`=time `◫`=project `▤`=chat/session `⬚`=overview `◈`=security `∑`=insights (the single sidebar
   Insights item, `∑ Insights`; may NOT appear anywhere else in chrome or page content, pinned by
   `test/e2e/home.spec.ts`) `⚙`=settings
-  `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓`=causality (`src/session/MessageRow.tsx`)
+  `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓✕`=unlink a source (`src/ProjectDetail.tsx`)
   `↶`/`↷`=undo/redo (`src/RefineMode.tsx`). This list is canonical but not exhaustive — any
   other MONO glyph used consistently for one meaning is legitimate; a COLORED emoji is not, full
   stop. **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use`

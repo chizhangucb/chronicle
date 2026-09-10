@@ -366,7 +366,8 @@ export interface Settings {
 }
 
 // Subscription plan windows — mirrors server/planWindows.ts. One
-// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND + opt-in-off.
+// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND, opt-out,
+// default ON.
 export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
 export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
 export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
