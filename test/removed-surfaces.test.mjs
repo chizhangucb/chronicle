@@ -7,17 +7,16 @@
 // glossary, not the surfaces.
 //
 // Three seams, one per suite:
-//   1. HTTP  - a retired route answers 404, its surviving neighbours do not.
-//   2. HTTP  - the routes that outlived the contract_* views still answer.
-//   3. CLI   - the launcher's exit code and stderr, plus the source text that
-//              could re-introduce a retired env knob or config key.
+//   1. HTTP: a retired route answers 404, its surviving neighbours do not.
+//   2. HTTP: the routes that outlived the contract_* views still answer.
+//   3. CLI: the launcher's exit code and stderr, plus the source text that
+//      could re-introduce a retired env knob or config key.
 //
-// Everything server-side is imported DYNAMICALLY, after DATA_DIR is set below:
-// server/db.ts opens <dir>/chronicle.db and server/config.ts freezes its data
-// folder AT IMPORT TIME, and a static import would run before this file gets to
-// point them at a temp dir. One dir, one database, one config module for the
-// whole file, so the suites below share state on purpose rather than by
-// accident: each seeds under its own ids and reads only what it seeded.
+// One temp data folder for the whole file, via the shared withTempDb helper.
+// server/db.ts opens its database and server/config.ts freezes its data folder
+// AT IMPORT TIME, and one process holds one instance of each, so the suites
+// below share a database on purpose rather than by accident: each seeds under
+// its own ids and asserts only on what it seeded.
 //
 // The routers are mounted directly rather than importing server/api.ts, which
 // starts auto-sync watchers and would never let the test process exit.
@@ -28,12 +27,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { withTempDb } from './helpers.mjs';
+import { REPO, tracked } from './helpers/tracked-files.mjs';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-removed-'));
-process.env.CHRONICLE_DATA_DIR = DATA_DIR;
+// Top level, so CHRONICLE_DATA_DIR points at the temp folder and server/db.ts
+// is bound to it before any suite below runs.
+const { dbModule, dir: DATA_DIR, teardown } = await withTempDb();
+after(teardown);
 
 /** Mounts the named routers on a fresh app and listens on an ephemeral port.
  *  Returns the base URL and a close function for the suite's `after`. */
@@ -51,6 +51,22 @@ async function serve(mounts) {
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
+
+// The fold itself, pinned the way the single-home consolidations pin theirs:
+// three overlapping pins became one, and a fourth file growing back is the
+// drift this file exists to prevent.
+test('the folded removal pins have one home, not four', () => {
+  const back = [
+    'test/removed-routes.test.mjs',
+    'test/routes-after-contract-views.test.mjs',
+    'test/cli-removed-inputs.test.mjs',
+  ].filter((rel) => tracked.includes(rel));
+  assert.deepEqual(back, [], `a folded removal pin is tracked again: ${back}`);
+  assert.ok(
+    tracked.includes('test/removed-surfaces.test.mjs'),
+    'the merged pin is not tracked',
+  );
+});
 
 // --- 1. Removed routes ------------------------------------------------------
 //
@@ -73,9 +89,8 @@ describe('the routes a removal unmounted', () => {
   let baseUrl, close;
 
   before(async () => {
-    const { db, upsertProject } = await import('../server/db.ts');
-    const project = upsertProject('/proj');
-    db.prepare(
+    const project = dbModule.upsertProject('/proj');
+    dbModule.db.prepare(
       `INSERT INTO sessions (id, project_id, source, file_path, message_count)
        VALUES (?, ?, 'claude-code', '/proj/session.jsonl', 0)`,
     ).run(SEEDED_SESSION, project.id);
@@ -165,7 +180,7 @@ describe('the routes a removal unmounted', () => {
 // The views were never in a route's query path, so this is a pin rather than a
 // discovery: it fails loudly if a later removal pass takes a base column or a
 // join the engines actually read. One seeded session with real token cells is
-// enough -- each route is asserted on its shape and on the session being
+// enough, because each route is asserted on its shape and on the session being
 // visible, not on a magic number.
 describe('the routes that outlived the contract views', () => {
   const HOUR = 3600000;
@@ -173,7 +188,7 @@ describe('the routes that outlived the contract views', () => {
   const now = Date.now();
   const MODEL = 'claude-sonnet-5';
 
-  let dbModule, baseUrl, close, projectId;
+  let baseUrl, close, projectId;
 
   const get = async (p) => {
     const res = await fetch(`${baseUrl}${p}`);
@@ -182,8 +197,6 @@ describe('the routes that outlived the contract views', () => {
   };
 
   before(async () => {
-    dbModule = await import('../server/db.ts');
-
     const p = dbModule.upsertProject('/tmp/views-proj');
     projectId = p.id;
 
@@ -258,7 +271,7 @@ describe('the routes that outlived the contract views', () => {
 // are gone. The launcher takes flags only.
 //
 // The launcher is exercised as a real child process rather than imported: it
-// starts a server on import, and the exit code + stderr are what a user
+// starts a server on import, and the exit code + stderr are what an operator
 // actually sees.
 describe('the CLI inputs a removal took away', () => {
   const BIN = path.join(REPO, 'bin', 'chronicle.mjs');
@@ -326,22 +339,34 @@ describe('the CLI inputs a removal took away', () => {
   });
 
   test('a config file that still holds the legacy hubRoot key loads and round-trips', async () => {
-    // The shared data folder, not a fresh one: server/config.ts freezes its
-    // folder at import and db.ts already imported it above, so a second temp
-    // dir would only be read by a second module instance. Writing the legacy
-    // file into the folder this process is actually bound to is what makes the
-    // read and the write below go through the SAME reader the product uses.
-    // This suite runs last, so nothing else reads the file after it changes.
-    const { readConfig, writeConfig } = await import('../server/config.ts');
-    const configPath = path.join(DATA_DIR, 'config.json');
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ hubRoot: '/some/old/hub', autoSync: false }, null, 2),
-    );
-    assert.equal(readConfig().autoSync, false);
-    writeConfig({ autoSync: true });
-    const after = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    assert.equal(after.autoSync, true);
-    assert.equal(after.hubRoot, '/some/old/hub', 'legacy key must survive a write');
+    // A fresh folder AND a fresh module instance, because the guarantee is about
+    // import time: server/config.ts freezes its data folder when it loads, and
+    // db.ts already loaded it above, bound to DATA_DIR. The `?legacy-hubroot`
+    // query is what buys a second instance, so the legacy file is on disk BEFORE
+    // the reader binds to the folder, exactly as it is on a real upgrade.
+    // test/helpers.mjs avoids that same query for the opposite reason: a db
+    // helper must hand back the SHARED handle, while a config reader has nothing
+    // to share.
+    //
+    // Isolated this way, this test neither reads nor writes the folder the other
+    // suites use, so it does not care what order they run in.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-hubcfg-'));
+    const outerDataDir = process.env.CHRONICLE_DATA_DIR;
+    process.env.CHRONICLE_DATA_DIR = dir;
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'config.json'),
+        JSON.stringify({ hubRoot: '/some/old/hub', autoSync: false }, null, 2),
+      );
+      const { readConfig, writeConfig } = await import('../server/config.ts?legacy-hubroot');
+      assert.equal(readConfig().autoSync, false);
+      writeConfig({ autoSync: true });
+      const written = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+      assert.equal(written.autoSync, true);
+      assert.equal(written.hubRoot, '/some/old/hub', 'legacy key must survive a write');
+    } finally {
+      process.env.CHRONICLE_DATA_DIR = outerDataDir;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
