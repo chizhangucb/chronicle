@@ -6,7 +6,7 @@ import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } fro
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 import { bucketedUsage, type BucketedUsageCell } from '../rangeUsage.ts';
-import { queryContext, rangeOf, whereOf } from '../scope.ts';
+import { queryContext, rangeOf, tsNotNull, whereOf } from '../scope.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -134,7 +134,7 @@ export function mountProjects(app: Express): void {
         WHERE ${kindWhere.sql} GROUP BY m.kind`).all(...kindWhere.params);
       // LOCAL-time bucket keys (Task 2 / plan's timezone convention) — see
       // server/insights.ts's dailyActivity for the same fix.
-      const activityWhere = whereOf(q.messageRows, 'AND m.ts IS NOT NULL');
+      const activityWhere = whereOf(q.messageRows, tsNotNull('m'));
       const activity = db.prepare(`SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE ${activityWhere.sql}

@@ -117,6 +117,18 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
   };
 }
 
+// The guard a query KEYED by a message timestamp needs on top of messages()
+// above, in one spelling, so the rule that comment states lives in one place.
+// Under All the message range filters nothing, so a message with no timestamp
+// survives to the GROUP BY and keys a bucket with SQL NULL, which reaches the
+// client as the literal string "null". Counting an undated message under All is
+// the rule; giving it a bucket of its own is not. Call sites: the activity
+// query in server/routes/projects.ts, the rollup in server/explore.ts.
+// Bind-free, so it composes into whereOf(...) or straight into a WHERE body.
+export function tsNotNull(alias = 'm'): string {
+  return `AND ${alias}.ts IS NOT NULL`;
+}
+
 // Composes fragments into one WHERE body: empty fragments drop out, the
 // leading AND is stripped, params follow fragment order, and an all-empty
 // composition is `1=1` rather than a syntax error. A plain string is taken as
