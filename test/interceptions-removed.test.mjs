@@ -3,9 +3,9 @@
 // Chronicle once scanned a tool call BEFORE the model saw it and recorded what
 // it blocked: `preToolUseCheck()`, `listInterceptions()`, the `HIGH_SEVERITY`
 // set and the `interceptions` table. They served a hook the shrink removed, so
-// the alarm was wired to a door that is no longer there. Redaction — the half
-// of `server/security.ts` an operator can still reach — stays, and is asserted
-// here beside the removal so a sweep can never pass by deleting the module.
+// the alarm was wired to a door that is no longer there. Redaction, the half of
+// `server/security.ts` an operator can still reach, stays, and is asserted here
+// beside the removal so a sweep can never pass by deleting the module.
 //
 // Three things no source read can answer are asserted live, against a real
 // temp data folder: the migration running over a folder an older Chronicle
@@ -92,18 +92,26 @@ test('server/db.ts is what creates the security_rules table', () => {
   );
 });
 
-test('the security module executes no table DDL of its own', () => {
+test('the security module executes no schema DDL of its own', () => {
+  // Every statement that shapes the database, not just the table: an index or a
+  // column added here would put schema back in a module whose import graph
+  // decides whether it runs at all.
   const src = read('server/security.ts');
-  const ddl = [...src.matchAll(/CREATE TABLE[^(]*/gi)].map((m) => m[0].trim());
+  const ddl = [...src.matchAll(/\b(?:CREATE|ALTER|DROP)\s+(?:VIRTUAL\s+)?(?:TABLE|INDEX|VIEW)[^(\n]*/gi)]
+    .map((m) => m[0].trim());
   assert.deepEqual(ddl, [], `server/security.ts still declares schema: ${ddl.join(', ')}`);
 });
 
 // Every spelling the feature ever had: the table and the prose (`intercept`,
 // word-anchored, so `interceptions`, `interception` and `Interception records`
-// are all one arm), the hook it served (`preToolUse`, `pre-tool-use`), and the
-// severity set that decided what it blocked. `HIGH_SEVERITY` is
-// case-SENSITIVE — it is an identifier, not a word an operator reads.
-const SPELLINGS = [/\bintercept/i, /pre[-_ ]?tool[-_ ]?use/i, /HIGH_SEVERITY/];
+// are all one arm), and the two identifiers, case-SENSITIVE because they are
+// code a reader greps for, not words an operator meets.
+//
+// Deliberately NOT a loose `pre-tool-use` arm. `PreToolUse` is the name of a
+// hook event Claude Code itself fires, and Chronicle reads the transcripts
+// Claude Code writes, so the reference docs may one day have to name it. What
+// is retired is Chronicle's own scan, and `preToolUseCheck` names that.
+const SPELLINGS = [/\bintercept/i, /\b(?:preToolUseCheck|listInterceptions|HIGH_SEVERITY)\b/];
 const namesTheFeature = (text) => SPELLINGS.some((re) => re.test(text));
 
 // Files allowed to name it, each for a reason that is not the feature living
@@ -122,7 +130,7 @@ const PIN_EXEMPT = new Set([
 
 // This pin's own path is a spelling of the feature, and the surface contract's
 // pin inventory has to cite it by that path. Strip the literal before matching,
-// so citing the suite is allowed and everything else in the same file is not —
+// so citing the suite is allowed and everything else in the same file is not,
 // the same trick repo-shape plays with the frozen migration name.
 const withoutPinPath = (text) => text.split(PIN).join('');
 
@@ -143,10 +151,16 @@ test('server/db.ts names the feature only where it drops it', () => {
   const lines = read('server/db.ts').split('\n');
   const at = lines.findIndex((l) => l.includes("DROP TABLE IF EXISTS interceptions"));
   assert.ok(at > 0, 'server/db.ts no longer drops the interceptions table');
-  // The drop plus the contiguous comment above it: the retirement block, and
-  // the only place in this module the word may appear.
+  // The drop plus the comment block above it: the retirement block, and the only
+  // place in this module the word may appear. Blank lines are walked through,
+  // so reflowing the comment cannot fail this pin without a real regression;
+  // the first line of code above it is what stops the walk.
   const block = new Set([at]);
-  for (let i = at - 1; i >= 0 && lines[i].trim().startsWith('//'); i--) block.add(i);
+  for (let i = at - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (line === '' || line.startsWith('//')) block.add(i);
+    else break;
+  }
   const stray = lines
     .map((line, i) => [i, line])
     .filter(([i, line]) => !block.has(i) && namesTheFeature(line))
@@ -161,12 +175,20 @@ test('server/db.ts names the feature only where it drops it', () => {
 // server/db.ts now declares. Each test cleans up the rules it adds, because
 // they are global to the scan that follows.
 
+// Sample secrets are shaped to trip Chronicle's own rules and nothing else: no
+// provider's real key format, and no `NAME=value` around them. CI scans every
+// commit with gitleaks, and a realistic literal here would fail that gate on
+// the way in rather than testing anything extra. The fake key is also joined at
+// runtime: gitleaks' generic rule reads any `api_key` next to a key-shaped
+// string as a leak, so the literal never appears whole in the source.
+const FAKE_KEY = ['anthropic', 'abcd1234'].join('-');
+
 test('scanText redacts the built-in secrets and reports where they were', () => {
-  const text = 'export AWS_KEY=AKIAIOSFODNN7EXAMPLE and mail dev@example.com';
+  const text = `the key is ${FAKE_KEY}, mail dev@example.com`;
   const { findings, redacted } = security.scanText(text);
-  assert.equal(redacted, 'export AWS_KEY=AKI**** and mail ***@***.com');
+  assert.equal(redacted, 'the key is anthropic-****, mail ***@***.com');
   assert.deepEqual(findings.map((f) => [f.rule, f.match]), [
-    ['api_key', 'AKIAIOSFODNN7EXAMPLE'],
+    ['api_key', FAKE_KEY],
     ['email', 'dev@example.com'],
   ]);
   // Spans are what the Security Check tab highlights, so they are part of the
