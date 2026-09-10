@@ -249,7 +249,6 @@ export interface SessionSyncResult {
 
 export interface DeleteSessionResult {
   ok: true;
-  sourceDeleted: boolean;
   source: string;
   projectId: number;
 }
@@ -688,10 +687,8 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
   }),
   syncSession: (id: string): Promise<SessionSyncResult> => j(`/api/sessions/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
-  deleteSessionSource: (id: string): Promise<{ ok: true }> =>
-    j(`/api/sessions/${encodeURIComponent(id)}/source-file`, { method: 'DELETE' }),
-  deleteSession: (id: string, withSource?: boolean): Promise<DeleteSessionResult> =>
-    j(`/api/sessions/${encodeURIComponent(id)}${withSource ? '?source=1' : ''}`, { method: 'DELETE' }),
+  deleteSession: (id: string): Promise<DeleteSessionResult> =>
+    j(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   undoDeleteSession: (source: string, id: string): Promise<{ ok: true }> => j('/api/sessions/undo-delete', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, id }),
   }),

@@ -12,7 +12,12 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { withTempDb } from './helpers.mjs';
+import { readSource } from './helpers/read-source.mjs';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const SOURCE = 'claude-code';
 
@@ -93,4 +98,26 @@ test('session delete tombstones, so a following sync does not resurrect it', asy
   dbModule.replaceSession(session, events());
   assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined,
     'a tombstoned session was resurrected by the next sync');
+});
+
+// The client half of the pin. The delete-transcript control was the only way an
+// operator could reach either removed route, so the pin is source-level: no
+// tracked client file names them or offers a control that would call them. Read
+// off disk (like the page-width and reference-registry pins) because a label and
+// a URL string are what an operator meets, not an exported symbol.
+const CLIENT_SOURCES = execFileSync('git', ['ls-files', '--', 'src'], { encoding: 'utf8' })
+  .split('\n').filter(Boolean);
+
+const TRANSCRIPT_DELETE = [
+  { what: 'the source-file route', re: /source-file/ },
+  { what: 'the source=1 delete query', re: /source=1/ },
+  { what: 'a delete-the-transcript control', re: /Delete source file|Delete everywhere/ },
+];
+
+test('no client file offers a delete-the-transcript control', () => {
+  assert.ok(CLIENT_SOURCES.length > 20, `expected the client source set to be populated, got ${CLIENT_SOURCES.length}`);
+  for (const { what, re } of TRANSCRIPT_DELETE) {
+    const offenders = CLIENT_SOURCES.filter((rel) => re.test(readSource(path.join(REPO, rel))));
+    assert.deepEqual(offenders, [], `${what} is back in ${offenders.join(', ')}`);
+  }
 });

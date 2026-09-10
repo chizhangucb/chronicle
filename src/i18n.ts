@@ -180,18 +180,10 @@ const zh = {
   'Total': '共',
   'No tool calls recorded.': '没有记录到工具调用。',
   'Source file': '源文件',
-  'Delete source file': '删除源文件',
   'Confirm delete': '确认删除',
   'Cancel': '取消',
   'Deleting…': '删除中…',
-  'Source file deleted.': '源文件已删除。',
-  'The imported copy stays in Chronicle.': 'Chronicle 中的导入副本会保留。',
-  'Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.':
-    '永久删除磁盘上的原始日志文件？此操作不可撤销。Chronicle 中的导入副本会保留。',
-  'Delete everywhere': '彻底删除',
   'Delete from Chronicle': '从 Chronicle 删除',
-  'Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.':
-    '永久删除原始日志文件以及 Chronicle 中的导入副本？此操作不可撤销。',
   'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
     '从 Chronicle 删除导入副本？原始日志仍保留在磁盘上，之后可以重新导入。',
   'Estimated context size (~4 characters per token)': '估算的上下文大小（约 4 字符/词元）',
@@ -272,8 +264,6 @@ const zh = {
   'Context Window': '上下文窗口',
   'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
     '导出文档的大小（工具调用截断为单行预览）—— 不是模型上下文窗口',
-  'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':
-    '该来源的所有会话存放在共享存储中——无法按会话删除文件。',
   'Session is live — deletion is disabled while the log is being written.':
     '会话正在直播——日志写入期间禁止删除。',
   // Cost & Usage
@@ -777,18 +767,10 @@ const ja = {
   'Total': '合計',
   'No tool calls recorded.': '記録されたツール呼び出しはありません。',
   'Source file': 'ソースファイル',
-  'Delete source file': 'ソースファイルを削除',
   'Confirm delete': '削除を確認',
   'Cancel': 'キャンセル',
   'Deleting…': '削除中…',
-  'Source file deleted.': 'ソースファイルを削除しました。',
-  'The imported copy stays in Chronicle.': 'インポートされたコピーは Chronicle に残ります。',
-  'Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.':
-    'ディスク上の元のログファイルを完全に削除しますか？この操作は取り消せません。インポートされたコピーは Chronicle に残ります。',
-  'Delete everywhere': 'すべて削除',
   'Delete from Chronicle': 'Chronicle から削除',
-  'Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.':
-    '元のログファイルと Chronicle 内のインポートコピーを完全に削除しますか？この操作は取り消せません。',
   'Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.':
     'インポートされたコピーを Chronicle から削除しますか？元のログはディスクに残り、後で再インポートできます。',
   'Estimated context size (~4 characters per token)': '推定コンテキストサイズ（1トークンあたり約4文字）',
@@ -875,8 +857,6 @@ const ja = {
   'Context Window': 'コンテキストウィンドウ',
   'Size of the export document (tool calls truncated to one-line previews) — not the model context window':
     'エクスポート文書のサイズ（ツール呼び出しは1行プレビューに短縮）— モデルのコンテキストウィンドウではありません',
-  'This source keeps all sessions in shared storage — its file cannot be deleted per-session.':
-    'このソースはすべてのセッションを共有ストレージに保存するため、セッション単位でファイルを削除できません。',
   'Session is live — deletion is disabled while the log is being written.':
     'セッションはライブ中です — ログの書き込み中は削除が無効になります。',
   // Cost & Usage

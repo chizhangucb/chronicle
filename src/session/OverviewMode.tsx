@@ -11,7 +11,7 @@ import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
 import { sessionDisplayName } from '../ProjectDetail.jsx';
 import {
-  FRIENDLY_CALL, DELETABLE_SOURCES, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
+  FRIENDLY_CALL, isErrorResult, isHumanPrompt, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, activeDurationMs, engagedDurationMs, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
 import type { PlaybackMessage } from './MessageRow.tsx';
@@ -130,7 +130,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
   const [nameErr, setNameErr] = useState<string | null>(null);
   function startRename() { setNameErr(null); setDraft(session.name || ''); setEditing(true); }
   // Honest, simple live signal: this tab's own SSE connection
-  // (liveStatus — the same status the source-file zone below already uses),
+  // (liveStatus — the same status the delete zone below already uses),
   // OR'd with an open live watcher for this session from ANY source (another
   // tab, or a live stream this view hasn't auto-opened yet), polled from the
   // existing /api/live/status endpoint — mirrors server/activity.ts's
@@ -536,49 +536,34 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         )}
       </div>
 
-      <SourceFileZone session={session} liveStatus={liveStatus} onDeleted={onDeleted} />
+      <DeleteZone session={session} liveStatus={liveStatus} onDeleted={onDeleted} />
     </div>
   );
 }
 
-interface SourceFileZoneProps {
+interface DeleteZoneProps {
   session: Session;
   liveStatus: LiveStatus;
   onDeleted: (undo?: DeletedEntry) => void;
 }
 
-type ConfirmKind = 'file' | 'everywhere' | 'chronicle';
-
-// Danger zone: delete the original log file, the Chronicle copy, or both.
-// Every action is a two-step inline confirm; deletion is permanent (no backup).
-function SourceFileZone({ session, liveStatus, onDeleted }: SourceFileZoneProps): JSX.Element {
-  const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
+// Danger zone: remove Chronicle's imported copy. The source transcript is never
+// touched, by any route (ADR 0008) — the copy is what this deletes, behind a
+// two-step inline confirm, and Undo brings it back.
+function DeleteZone({ session, liveStatus, onDeleted }: DeleteZoneProps): JSX.Element {
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [fileDeleted, setFileDeleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const deletable = DELETABLE_SOURCES.has(session.source);
   const live = liveStatus === 'live' || liveStatus === 'reconnecting';
 
-  const CONFIRM_TEXT: Record<ConfirmKind, string> = {
-    file: t('Permanently delete the original log file from disk? This cannot be undone. The imported copy stays in Chronicle.'),
-    everywhere: t('Permanently delete the original log file AND the imported copy in Chronicle? This cannot be undone.'),
-    chronicle: t('Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.'),
-  };
-
-  async function run(action: ConfirmKind) {
+  async function run() {
     setBusy(true);
     setError(null);
     try {
-      if (action === 'file') {
-        await api.deleteSessionSource(session.id);
-        setFileDeleted(true);
-        setConfirming(null);
-      } else {
-        const r = await api.deleteSession(session.id, action === 'everywhere');
-        // session no longer exists — back to the project page, carrying the
-        // undo payload so the destination can surface the shared undo toast.
-        onDeleted({ id: session.id, source: r.source, projectId: r.projectId });
-      }
+      const r = await api.deleteSession(session.id);
+      // session no longer exists — back to the project page, carrying the
+      // undo payload so the destination can surface the shared undo toast.
+      onDeleted({ id: session.id, source: r.source, projectId: r.projectId });
     } catch (e) { setError(String((e as Error).message)); }
     finally { setBusy(false); }
   }
@@ -587,39 +572,19 @@ function SourceFileZone({ session, liveStatus, onDeleted }: SourceFileZoneProps)
     <div className="card ov-block ov-danger">
       <div className="ov-block-head"><strong>{t('Source file')}</strong></div>
       <div className="muted small mono-path">{session.file_path}</div>
-      {fileDeleted && (
-        <div className="ok small" style={{ marginTop: 8 }}>
-          ✓ {t('Source file deleted.')} {t('The imported copy stays in Chronicle.')}
-        </div>
-      )}
-      {!deletable && (
-        <div className="muted small" style={{ marginTop: 8 }}>
-          {t('This source keeps all sessions in shared storage — its file cannot be deleted per-session.')}
-        </div>
-      )}
       {live ? (
         <div className="muted small" style={{ marginTop: 8 }}>● {t('Session is live — deletion is disabled while the log is being written.')}</div>
       ) : confirming ? (
         <div className="ov-confirm">
-          <span className="small">{CONFIRM_TEXT[confirming]}</span>
-          <button className="btn small danger-btn" disabled={busy} onClick={() => run(confirming)}>
+          <span className="small">{t('Delete the imported copy from Chronicle? The original log stays on disk and can be re-imported later.')}</span>
+          <button className="btn small danger-btn" disabled={busy} onClick={run}>
             {busy ? t('Deleting…') : t('Confirm delete')}
           </button>
-          <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(null)}>{t('Cancel')}</button>
+          <button className="btn small ghost" disabled={busy} onClick={() => setConfirming(false)}>{t('Cancel')}</button>
         </div>
       ) : (
         <div className="ov-actions">
-          {deletable && !fileDeleted && (
-            <button className="btn small danger-btn" onClick={() => setConfirming('file')}>
-              ⌫ {t('Delete source file')}
-            </button>
-          )}
-          {deletable && !fileDeleted && (
-            <button className="btn small danger-btn" onClick={() => setConfirming('everywhere')}>
-              ⌫ {t('Delete everywhere')}
-            </button>
-          )}
-          <button className="btn small danger-btn" onClick={() => setConfirming('chronicle')}>
+          <button className="btn small danger-btn" onClick={() => setConfirming(true)}>
             ⌫ {t('Delete from Chronicle')}
           </button>
         </div>
