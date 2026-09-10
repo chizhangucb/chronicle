@@ -56,6 +56,20 @@ test('a write patches the config rather than replacing it', () => {
   assert.equal(after.autoSync, false, 'the earlier key survived the patch');
 });
 
+test('the noise gate reads its thresholds from the same config', async () => {
+  // The gate used to parse config.json itself, to dodge the db.ts <-> autosync.ts
+  // import cycle. It now goes through the one module, so a threshold written
+  // here is the threshold the gate applies.
+  const { isMinorSession, DEFAULT_MINOR_ACTIVE_MS } = await import('../server/noiseGate.ts');
+  const twentyMinutes = 20 * 60 * 1000;
+  assert.equal(isMinorSession(DEFAULT_MINOR_ACTIVE_MS + 1, 3), false, 'above the default active threshold');
+
+  config.writeConfig({ minorActiveMsThreshold: twentyMinutes, minorMessageCountThreshold: 5 });
+  assert.equal(isMinorSession(DEFAULT_MINOR_ACTIVE_MS + 1, 3), true, 'the written threshold now applies');
+  assert.equal(isMinorSession(twentyMinutes, 3), false, 'still strict less-than');
+  assert.equal(isMinorSession(60 * 1000, 5), false, 'the written message count applies too');
+});
+
 test('an absent or unparseable config reads as empty', () => {
   // Last in the file on purpose: it takes the config.json the tests above wrote
   // away again. An empty read is what makes every caller's `?? default` decide.
