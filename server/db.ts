@@ -73,7 +73,8 @@ export interface MessageRow {
   cache_w1h_tokens: number | null;
 }
 
-export { dataDir };
+// The folder comes from the one config module (server/config.ts); db.ts is
+// what freezes it, because this handle is bound here at import time.
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
