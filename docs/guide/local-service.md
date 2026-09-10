@@ -1,6 +1,6 @@
 # Running Chronicle as an always-on local service
 
-Chronicle is local-first: it reads your session history and local git repos on your machine, with zero outbound traffic. That also means it only works while it's running. If you want your Chronicle available at a stable URL all day (bookmarkable, survives reboots), run it as a login service instead of starting it by hand.
+Chronicle is local-first: it reads your session history and local git repos on your machine, your session data never leaves it, and it has no server of its own. The one outbound call is the Claude plan-window quota read — your own token to its own issuer for your own quota, on by default and off in Settings. That also means Chronicle only works while it's running. If you want your Chronicle available at a stable URL all day (bookmarkable, survives reboots), run it as a login service instead of starting it by hand.
 
 Do not deploy the Chronicle app to a hosting platform. It has no access to your local data from a server, and uploading session history would defeat the point of local-first.
 
