@@ -33,7 +33,11 @@ export interface RangeUsageCell {
   cells: UsageCell;
 }
 
-export type UsageBucket = 'hour' | 'day';
+// Granularities the primitive buckets by. hour/day serve Insights' spend-over-time;
+// week/month were added for Explore's weekly/monthly rollups (#306), which used to
+// place a session's whole billed cell on its started_at bucket instead of scaling it
+// to in-range share the way the ranked rows do.
+export type UsageBucket = 'hour' | 'day' | 'week' | 'month';
 
 export interface BucketedUsageCell extends RangeUsageCell {
   bucket: string;
@@ -65,21 +69,39 @@ function pad2(n: number): string {
 // Local-time bucket key for a fallback (zero-message-row) session, derived from
 // `started_at` via JS Date's local getters instead of a SQL `strftime(...,'localtime')`
 // round trip — both read the OS timezone, so the two stay in step, and this avoids a
-// query just for one row.
+// query just for one row. A week key names the Monday that opens the week, matching
+// the SQL expression below (and server/explore.ts's own weekly bucketExpr).
 function localBucketKeyFromIso(iso: string, bucket: UsageBucket): string {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const mo = pad2(d.getMonth() + 1);
-  const day = pad2(d.getDate());
-  return bucket === 'day' ? `${y}-${mo}-${day}` : `${y}-${mo}-${day}T${pad2(d.getHours())}`;
+  const ymd = (x: Date) => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+  switch (bucket) {
+    case 'hour': return `${ymd(d)}T${pad2(d.getHours())}`;
+    case 'day': return ymd(d);
+    case 'week': {
+      // getDay() is 0=Sunday, so (day + 6) % 7 is days back to Monday. Stepping the
+      // local date (not the epoch ms) keeps the arithmetic right across a DST shift.
+      const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+      return ymd(monday);
+    }
+    case 'month': return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  }
 }
 
 // SQL local-time bucket key expression for a timestamp column — format matches
-// localBucketKeyFromIso exactly (day: 'YYYY-MM-DD', hour: 'YYYY-MM-DDTHH').
+// localBucketKeyFromIso exactly (hour: 'YYYY-MM-DDTHH', day: 'YYYY-MM-DD', week: the
+// opening Monday as 'YYYY-MM-DD', month: 'YYYY-MM').
+//
+// 'localtime' is applied exactly ONCE per value, never chained: the week branch's
+// inner strftime('%w', …, 'localtime') is a separate call computing the LOCAL weekday,
+// and the outer date(…, 'localtime', '-N days') converts to local first and then
+// subtracts. Same rule (and same expression) as server/explore.ts's bucketExpr.
 function bucketKeyExpr(bucket: UsageBucket, column: string): string {
-  return bucket === 'day'
-    ? `strftime('%Y-%m-%d', ${column}, 'localtime')`
-    : `strftime('%Y-%m-%dT%H', ${column}, 'localtime')`;
+  switch (bucket) {
+    case 'hour': return `strftime('%Y-%m-%dT%H', ${column}, 'localtime')`;
+    case 'day': return `strftime('%Y-%m-%d', ${column}, 'localtime')`;
+    case 'week': return `date(${column}, 'localtime', '-' || ((CAST(strftime('%w', ${column}, 'localtime') AS INTEGER) + 6) % 7) || ' days')`;
+    case 'month': return `strftime('%Y-%m', ${column}, 'localtime')`;
+  }
 }
 
 interface SessionUsageRow {

@@ -102,6 +102,20 @@ before(async () => {
       { kind: 'assistant', ts: '2026-05-03T09:00:00.000Z', model: 'model-a', input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
     ],
   );
+
+  // --- coarse bucket fixture (#306) ---
+  // Two messages five weeks apart, in different calendar months, so the week and
+  // month buckets are distinct under ANY host timezone (no local offset moves a
+  // June 10 noon message into July, or into the other message's ISO week).
+  replaceSession(
+    { id: 'bkt2', project_id: proj.id, source: 'claude-code', file_path: '/tmp/bkt2.jsonl',
+      started_at: '2026-06-10T12:00:00.000Z', ended_at: '2026-07-15T12:00:00.000Z',
+      usage: JSON.stringify({ 'model-a': { input: 100, output: 40, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } }) },
+    [
+      { kind: 'assistant', ts: '2026-06-10T12:00:00.000Z', model: 'model-a', input_tokens: 30, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-07-15T12:00:00.000Z', model: 'model-a', input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+    ],
+  );
 });
 
 after(() => teardown());
@@ -248,4 +262,60 @@ test('bucketedUsage: a zero-message-row model lands its full billed cell on the 
   const d = new Date('2026-05-01T03:00:00.000Z'); // bkt1.started_at
   const p2 = (n) => String(n).padStart(2, '0');
   assert.equal(fallback[0].bucket, `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
+});
+
+// ---------------------------------------------------------------------------
+// bucketedUsage: week and month granularity (#306) — Explore's weekly/monthly
+// rollups need the same in-range-share scaling the day/hour buckets already do.
+// ---------------------------------------------------------------------------
+
+const p2 = (n) => String(n).padStart(2, '0');
+const localDay = (iso) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
+
+test('bucketedUsage: week buckets are the LOCAL Monday that opens each message\'s week', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-06-01T00:00:00.000Z'; // before both messages, inside the session span
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'week');
+  const buckets = cells.map((c) => c.bucket).sort();
+  assert.equal(buckets.length, 2, 'two messages five weeks apart occupy two week buckets');
+  assert.notEqual(buckets[0], buckets[1]);
+  for (const [i, iso] of ['2026-06-10T12:00:00.000Z', '2026-07-15T12:00:00.000Z'].entries()) {
+    const bucket = buckets[i];
+    assert.match(bucket, /^\d{4}-\d{2}-\d{2}$/, 'a week bucket key is the calendar date of its Monday');
+    // Properties, asserted independently of how the key is computed: the key names
+    // a Monday, and it is the Monday on or before the message's own local day.
+    const [y, m, d] = bucket.split('-').map(Number);
+    assert.equal(new Date(y, m - 1, d).getDay(), 1, `${bucket} must be a Monday`);
+    const msgDay = localDay(iso);
+    assert.ok(bucket <= msgDay, `${bucket} must not be after the message's local day ${msgDay}`);
+    const daysBack = (Date.parse(`${msgDay}T00:00:00Z`) - Date.parse(`${bucket}T00:00:00Z`)) / 86400000;
+    assert.ok(daysBack >= 0 && daysBack < 7, `${msgDay} must sit inside the week opening ${bucket}`);
+  }
+});
+
+test('bucketedUsage: month buckets are the LOCAL year-month of each message', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-06-01T00:00:00.000Z';
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'month');
+  const buckets = cells.map((c) => c.bucket).sort();
+  assert.deepEqual(buckets, ['2026-06-10T12:00:00.000Z', '2026-07-15T12:00:00.000Z'].map((iso) => localDay(iso).slice(0, 7)));
+});
+
+test('bucketedUsage: a coarse bucket carries the summed in-range share of the days inside it', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  // Cutoff before both messages: whole-session per-message tokens = 40, so the
+  // June message holds 30/40 of the billed cell and the July message 10/40.
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], '2026-06-01T00:00:00.000Z', 'month');
+  const june = cells.find((c) => c.bucket === localDay('2026-06-10T12:00:00.000Z').slice(0, 7));
+  const july = cells.find((c) => c.bucket === localDay('2026-07-15T12:00:00.000Z').slice(0, 7));
+  assert.equal(june.cells.input, 75, 'billed input 100 * 30/40');
+  assert.equal(july.cells.input, 25, 'billed input 100 * 10/40');
+  assert.equal(june.cells.output, 30, 'billed output 40 * 30/40');
+  assert.equal(july.cells.output, 10, 'billed output 40 * 10/40');
 });
