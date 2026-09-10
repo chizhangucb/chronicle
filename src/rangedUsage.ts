@@ -12,7 +12,7 @@
 // group's per-model breakdown is always preserved until the moment of
 // pricing (never flatten different models' tokens into one bag first) since
 // each model has its own $/token rate.
-import { costOf, type RawUsageCell, type CostMode } from './models.ts';
+import { costOf, type CostMode } from './models.ts';
 import { addCell, emptyCell, type UsageCell } from '../shared/usage.ts';
 
 export interface RangeCell {
@@ -71,7 +71,7 @@ export function groupByBucket<T extends BucketedCell>(cells: T[]): Map<string, T
 export function costOfCells(byModel: Map<string, UsageCell> | undefined, day?: string | null, mode: CostMode = 'theoretical'): number {
   if (!byModel) return 0;
   let total = 0;
-  for (const [model, cell] of byModel) total += costOf(model, cell as RawUsageCell, day, mode) ?? 0;
+  for (const [model, cell] of byModel) total += costOf(model, cell, day, mode) ?? 0;
   return total;
 }
 

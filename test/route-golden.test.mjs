@@ -11,7 +11,12 @@
 //     route is asked for the All range (`days` absent → null), so nothing the
 //     routes return is derived from the wall clock at test time;
 //   - /activity takes its clock from mountActivity({ now }), pinned here;
-//   - the projects are /tmp paths, not Git repos, so no commit counts vary.
+//   - the projects are /tmp paths, not Git repos, so no commit counts vary;
+//   - the timezone is pinned to UTC below. Day/hour buckets are LOCAL by
+//     design (server/explore.ts bucketExpr, server/rangeUsage.ts
+//     bucketKeyExpr), so an unpinned TZ moves bucket keys and re-splits
+//     sessions that straddle a local midnight — the golden was captured in
+//     UTC and only reproduces there.
 // Regenerate (only when a route's JSON is meant to change) with
 // `UPDATE_ROUTE_GOLDEN=1 node --test test/route-golden.test.mjs`.
 //
@@ -25,6 +30,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { withTempDb } from './helpers.mjs';
+
+// Pin the clock's timezone before any route runs (SQLite's 'localtime' and JS
+// Date both read process.env.TZ per call — see test/explore.test.mjs, which
+// flips it the same way).
+process.env.TZ = 'UTC';
 
 const GOLDEN_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'route-golden.json');
 const UPDATE = process.env.UPDATE_ROUTE_GOLDEN === '1';
