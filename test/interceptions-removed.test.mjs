@@ -97,3 +97,52 @@ test('the security module executes no table DDL of its own', () => {
   const ddl = [...src.matchAll(/CREATE TABLE[^(]*/gi)].map((m) => m[0].trim());
   assert.deepEqual(ddl, [], `server/security.ts still declares schema: ${ddl.join(', ')}`);
 });
+
+// Every spelling the feature ever had: the table and the prose (`intercept`,
+// word-anchored, so `interceptions`, `interception` and `Interception records`
+// are all one arm), the hook it served (`preToolUse`, `pre-tool-use`), and the
+// severity set that decided what it blocked. `HIGH_SEVERITY` is
+// case-SENSITIVE — it is an identifier, not a word an operator reads.
+const SPELLINGS = [/\bintercept/i, /pre[-_ ]?tool[-_ ]?use/i, /HIGH_SEVERITY/];
+const namesTheFeature = (text) => SPELLINGS.some((re) => re.test(text));
+
+// Files allowed to name it, each for a reason that is not the feature living
+// on. CHANGELOG.md is history and the audit is the record that found this dead
+// code, same exemption shape as the vocabulary sweep in repo-shape; this file
+// is the pin, so it has to spell what it forbids; server/db.ts carries the
+// drop, which cannot drop a table without naming it, and is swept on its own
+// terms by the test below instead.
+const PIN_EXEMPT = new Set([
+  'CHANGELOG.md',
+  'docs/agents/design-audit-2026-09-04.md',
+  'test/interceptions-removed.test.mjs',
+  'server/db.ts',
+]);
+
+test('no tracked file carries an interception string, key or identifier', () => {
+  // This is what stands in for the locale dictionaries the ticket names: the
+  // `Interception records` keys went with the zh and ja dictionaries (#295),
+  // and this sweep is what keeps them from coming back with a dictionary.
+  assert.ok(tracked.length > 100, `expected a populated tracked file list, got ${tracked.length}`);
+  const offenders = tracked.filter((rel) => {
+    // Lockfiles everywhere, not just the root one: website/ ships its own.
+    if (PIN_EXEMPT.has(rel) || BINARY.test(rel) || rel.endsWith('package-lock.json')) return false;
+    return namesTheFeature(read(rel));
+  });
+  assert.deepEqual(offenders, [], `these tracked files still name the feature: ${offenders.join(', ')}`);
+});
+
+test('server/db.ts names the feature only where it drops it', () => {
+  const lines = read('server/db.ts').split('\n');
+  const at = lines.findIndex((l) => l.includes("DROP TABLE IF EXISTS interceptions"));
+  assert.ok(at > 0, 'server/db.ts no longer drops the interceptions table');
+  // The drop plus the contiguous comment above it: the retirement block, and
+  // the only place in this module the word may appear.
+  const block = new Set([at]);
+  for (let i = at - 1; i >= 0 && lines[i].trim().startsWith('//'); i--) block.add(i);
+  const stray = lines
+    .map((line, i) => [i, line])
+    .filter(([i, line]) => !block.has(i) && namesTheFeature(line))
+    .map(([i]) => i + 1);
+  assert.deepEqual(stray, [], `server/db.ts names the feature outside its drop, at line(s) ${stray.join(', ')}`);
+});
