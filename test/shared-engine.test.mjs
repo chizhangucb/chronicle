@@ -17,12 +17,14 @@ import express from 'express';
 import { withTempDb } from './helpers.mjs';
 import { anchorNow, buildCorpus } from './helpers/golden-corpus.mjs';
 
-let teardown, server, baseUrl, alpha, beta, insights, rangeOf;
+let teardown, server, baseUrl, alpha, beta, insights, rangeOf, dbModule, now;
 
 before(async () => {
   const temp = await withTempDb();
   teardown = temp.teardown;
-  const corpus = buildCorpus(temp.dbModule, anchorNow());
+  dbModule = temp.dbModule;
+  now = anchorNow();
+  const corpus = buildCorpus(temp.dbModule, now);
   alpha = corpus.alpha;
   beta = corpus.beta;
 
@@ -74,4 +76,46 @@ test('the scoped aggregates narrow to their project: alpha and beta disagree', (
   // The noise-gated session (g-minor, on alpha) stays out of both.
   assert.equal(a.rangedTokensByModel.some((c) => c.sessionId === 'g-minor'), false);
   assert.equal(all.rangedTokensByModel.some((c) => c.sessionId === 'g-minor'), false);
+});
+
+// Records the SQL of every statement prepared while `fn` runs, so a test can
+// ask how many times an aggregate was actually computed. The engine and the
+// test share one DatabaseSync (see test/helpers.mjs), so shadowing `prepare`
+// on it is what the engine calls.
+async function preparedDuring(fn) {
+  const had = Object.prototype.hasOwnProperty.call(dbModule.db, 'prepare');
+  const original = dbModule.db.prepare;
+  const real = original.bind(dbModule.db);
+  const sql = [];
+  dbModule.db.prepare = (text) => { sql.push(text); return real(text); };
+  try {
+    return { sql, value: await fn() };
+  } finally {
+    if (had) dbModule.db.prepare = original; else delete dbModule.db.prepare;
+  }
+}
+
+// The day-bucketed billed cells (server/rangeUsage.ts bucketedUsage, 'day')
+// and their hour-bucketed sibling, told apart by their bucket key expression.
+const DAY_BUCKETED_USAGE = /CASE WHEN m\.ts >= \? THEN strftime\('%Y-%m-%d', m\.ts, 'localtime'\)/;
+const HOUR_BUCKETED_USAGE = /CASE WHEN m\.ts >= \? THEN strftime\('%Y-%m-%dT%H', m\.ts, 'localtime'\)/;
+const count = (sql, re) => sql.filter((text) => re.test(text)).length;
+
+test('Insights computes bucketed usage once per bucket, not twice', async () => {
+  // Today: the one range that also asks for the hour buckets, so both
+  // granularities are on the table and each must be computed exactly once.
+  const { sql, value } = await preparedDuring(() => insights.computeInsights({ type: 'all' }, rangeOf(1, now)));
+  assert.equal(count(sql, DAY_BUCKETED_USAGE), 1, 'the day-bucketed usage query ran more than once');
+  assert.equal(count(sql, HOUR_BUCKETED_USAGE), 1, 'the hour-bucketed usage query ran more than once');
+  // dailySpend is the ranged cells under the contract's second name — the same
+  // cells, not a second computation of them.
+  assert.deepEqual(value.dailySpend, value.rangedTokensByModel);
+  assert.ok(value.rangedTokensByModel.length > 0, 'the corpus should bill something inside Today');
+});
+
+test('Insights skips the hour buckets outside a short range', async () => {
+  const { sql, value } = await preparedDuring(() => insights.computeInsights({ type: 'all' }, rangeOf(30, now)));
+  assert.equal(count(sql, DAY_BUCKETED_USAGE), 1);
+  assert.equal(count(sql, HOUR_BUCKETED_USAGE), 0);
+  assert.equal(value.hourlySpend, null);
 });
