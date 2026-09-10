@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 import type { UsageCell } from '../../shared/usage.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
+import type { Source } from './source.ts';
 
 export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
@@ -684,4 +685,41 @@ function blockText(content: unknown): string {
 
 function safeStringify(v: unknown): string | null {
   try { return JSON.stringify(v); } catch { return null; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Source interface (#308)
+
+// Claude Code is a per-file source: one JSONL transcript per session under
+// <root>/<project>/, appended to as the session runs — so it tails, and its
+// mtime folds in the session's subagents tree.
+export const claudeCodeSource: Source = {
+  id: 'claude-code',
+
+  defaultRoot: () => CLAUDE_PROJECTS_DIR,
+
+  scan: (root: string = CLAUDE_PROJECTS_DIR): ScannedProject[] => scanClaudeProjects(root),
+
+  async parse({ logDir, files }): Promise<ParseResult[]> {
+    const sessionFiles = files?.length
+      ? files.filter((f) => fs.existsSync(f))
+      : sessionFilesIn(logDir);
+    const parsed: ParseResult[] = [];
+    for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
+    return parsed;
+  },
+
+  mtime: (file: string): number | null => claudeSessionMtimeMs(file),
+
+  tail(line: string): Event[] {
+    try { return parseClaudeLine(JSON.parse(line) as ClaudeLine); } catch { return []; }
+  },
+};
+
+// The session transcripts of one project log dir, newest layout only: the
+// .jsonl files sitting directly in it (a session's subagents live in a sibling
+// folder and are read by parseClaudeSession itself, never imported on their own).
+function sessionFilesIn(logDir: string | null | undefined): string[] {
+  if (!logDir || !fs.existsSync(logDir)) return [];
+  return fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
 }

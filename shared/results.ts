@@ -12,7 +12,7 @@
 // token-cell dialect, lives in shared/explore.ts.
 //
 // Framework-free, like the rest of `shared/`: relative imports only.
-import type { Project, ScannedProject, ScannedSession, SourceId } from './types.ts';
+import type { ParseTarget, Project, ScannedProject, ScannedSession, SourceId } from './types.ts';
 import type { BucketedUsageCell, UsageByModel } from './usage.ts';
 import type {
   Commit, DayCount, InsightsSessionRow, KindCount, MessageRow, ProjectErrorCount,
@@ -38,16 +38,13 @@ export interface ScanParams {
 export type ScanResult = Partial<Record<SourceId | string, AnnotatedScannedProject[]>>;
 
 /** What the client sends to POST /api/import: a subset of a scanned item, or a
- * hand-typed directory. `logDir`, `directory` and `physicalPath` are optional
- * because the four sources need different ones (a SQLite source has no log
- * directory; a hand-typed import has no scanned item). */
-export interface ImportPayload {
+ * hand-typed directory. That is exactly a `ParseTarget` (shared/types.ts) plus
+ * the source that owns it — the same shape `Source.parse` takes, never a second
+ * copy of it. Which of the target's fields a payload carries depends on the
+ * source (a SQLite source has no log directory; a hand-typed import has no
+ * scanned item), which is why they are all optional there. */
+export interface ImportPayload extends ParseTarget {
   source: SourceId;
-  logDir?: string | null;
-  files?: string[];
-  directory?: string;
-  sessionIds?: string[];
-  physicalPath?: string | null;
 }
 export interface ImportProjectAgg {
   id: number;

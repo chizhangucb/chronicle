@@ -178,6 +178,24 @@ export interface ScannedSession {
   messageEstimate?: number;
 }
 
+// What a parser is pointed at to produce sessions and messages: a log dir, an
+// explicit file subset, a store directory, a session-id subset, or the physical
+// project path a shared store groups by. Which fields a source reads is that
+// source's business; a `ScannedProject` satisfies this shape, so scan output
+// feeds parse directly (`Source.parse`, server/parsers/source.ts).
+export interface ParseTarget {
+  logDir?: string | null;
+  // The source root this target was scanned under, when it is not this
+  // machine's default (a fixture, a hand-picked directory). Read only by a
+  // source whose records reach past the target itself — Cursor's composer
+  // bubbles live in the global store beside the workspace, under that root.
+  root?: string;
+  files?: string[];
+  directory?: string;
+  sessionIds?: string[];
+  physicalPath?: string | null;
+}
+
 // One importable project group returned by scan<Tool>Projects().
 export interface ScannedProject {
   source: SourceId;
@@ -195,4 +213,9 @@ export interface ScannedProject {
   // OpenCode groups by directory (== physicalPath here); autosync/live re-parse
   // by directory directly rather than re-deriving it from physicalPath.
   directory?: string;
+  // The root this project was scanned under, stamped by the scan so the scanned
+  // item is a complete `ParseTarget`: a source whose records reach past the
+  // target itself (Cursor's global store) parses the root it was found under
+  // rather than this machine's default.
+  root?: string;
 }

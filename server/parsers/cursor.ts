@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
+import type { Source } from './source.ts';
+import { newestMtimeMs } from './source.ts';
 
 interface Snapshot {
   db: DatabaseSync;
@@ -472,8 +474,14 @@ export function scanCursorProjects(userDir: string = cursorUserDir()): ScannedPr
   return results;
 }
 
+// A parse target pointing at a project's Agent transcripts rather than a
+// workspaceStorage directory (agentTranscriptRoot() writes this spelling).
+function isAgentTranscriptRoot(dir: string): boolean {
+  return dir.endsWith(`${path.sep}agent-transcripts`) || dir.endsWith('/agent-transcripts');
+}
+
 export function parseCursorWorkspace(wsDir: string, userDir: string = cursorUserDir(), physicalPath: string | null = null): ParseResult[] {
-  if (wsDir.endsWith(`${path.sep}agent-transcripts`) || wsDir.endsWith('/agent-transcripts')) {
+  if (isAgentTranscriptRoot(wsDir)) {
     const folder = physicalPath || null;
     return parseCursorAgentSessions(folder, userDir).filter((s) => s.events.length);
   }
@@ -571,3 +579,45 @@ function bubbleToEvent(b: CursorBubble, anchorMs: number | string | null | undef
   }
   return events.length ? events : null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Source interface (#308)
+
+// Cursor is a store-backed source: many sessions live in one workspace SQLite
+// file (plus the global store its bubbles hang off), so there is no line to
+// tail — live re-reads the store instead, and `tail` is left off.
+export const cursorSource: Source = {
+  id: 'cursor',
+
+  defaultRoot: () => cursorUserDir(),
+
+  // Each scanned project carries the root it was found under, so the scanned
+  // item is a complete target: `parse(scan(root)[0])` reaches the same global
+  // store the scan walked, not this machine's.
+  scan: (root: string = cursorUserDir()): ScannedProject[] =>
+    scanCursorProjects(root).map((p) => ({ ...p, root })),
+
+  // A workspace holds only half a session: the composer bubbles hang off the
+  // global store beside it, so the parse needs the same user dir the scan
+  // walked — `root` carries it, and only falls back to this machine's when the
+  // target does not name one.
+  // An Agent-transcript target names a directory that need not exist: a project
+  // whose composers were never flushed to disk is read straight out of the
+  // global store, so only the workspace spelling is gated on being there.
+  async parse({ logDir, physicalPath, root }): Promise<ParseResult[]> {
+    if (!logDir) return [];
+    if (!isAgentTranscriptRoot(logDir) && !fs.existsSync(logDir)) return [];
+    return parseCursorWorkspace(logDir, root ?? cursorUserDir(), physicalPath ?? null);
+  },
+
+  // Cursor spells an importable unit three ways: a workspace directory holding
+  // state.vscdb, that store file itself, or an Agent transcript JSONL. Reading
+  // every spelling (with the WAL sidecar, where a SQLite write can land without
+  // touching the main file) keeps one signature over the three.
+  mtime: (unit: string): number | null => newestMtimeMs(
+    unit,
+    unit + '-wal',
+    path.join(unit, 'state.vscdb'),
+    path.join(unit, 'state.vscdb-wal'),
+  ),
+};
