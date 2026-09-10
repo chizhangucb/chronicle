@@ -33,12 +33,6 @@ export interface ChronicleConfig {
   // null / absent = no budget set. Local app pref, written like the toggles
   // above via /settings.
   monthlyBudget?: number | null;
-  // Local-only view log, default ON (opt-OUT). Records which
-  // surfaces get used, actor-tagged, in chronicle.db. Nothing about it is
-  // outbound — the no-telemetry floor is untouched — but it records the
-  // operator's own behavior, so it gets a visible switch and a Clear button in
-  // Settings rather than being invisible machinery. See server/viewlog.ts.
-  viewLog?: boolean;
   [key: string]: unknown;
 }
 

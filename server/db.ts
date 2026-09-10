@@ -78,13 +78,16 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
 
-// WAL. Until the view log there was exactly one writer, at import
-// time, so rollback-journal's exclusive per-write lock never contended. The
-// view log writes on every navigation against this same synchronous handle
-// while it is also serving heavy analytics reads, which is precisely the shape
-// rollback-journal serializes worst (and the SQLITE_BUSY note on the
-// result_count backfill below is the existing evidence). WAL lets the readers
-// proceed against the last committed snapshot while a write is in flight.
+// WAL, and it stays on. The SQLite-backed parsers are what makes a write long:
+// Cursor and OpenCode keep a whole workspace in ONE database, so a parse is a
+// single pass that hands back every session at once and autosync writes the lot
+// in one run. This handle is synchronous and the server is single-threaded, so
+// that run blocks nothing in-process; the contention WAL exists for is across
+// processes. Ask holds a read-only handle on this same file from a `claude -p`
+// spawn, and a second Chronicle on the same data folder is the SQLITE_BUSY case
+// the result_count backfill below already guards. Under rollback-journal the
+// whole import holds an exclusive lock and those readers fail; WAL lets them
+// read the last committed snapshot while it runs.
 // Fail soft: a filesystem that cannot do WAL (some network mounts) keeps the
 // old journal mode rather than losing the database.
 try { db.exec('PRAGMA journal_mode = WAL'); } catch { /* keep the default journal mode */ }
@@ -152,33 +155,6 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   deleted_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (source, session_id)
 );
--- Local-only view log (3a, decision D5-D8). Which surfaces actually get
--- used, actor-tagged, so a boundary question like "is this surface earning its
--- space" is answered with data instead of file mtimes. NEVER leaves the machine: no route reads it out
--- except the operator's own Settings block, and there is no outbound path.
---
--- The route column is a PATTERN ('/session/:id'), never an instance.
--- The log answers "which surfaces earn their space", not "which session did I
--- read". Pattern-only keeps it from becoming a second copy of the history.
---
--- The four actor columns are stored UNCOLLAPSED on purpose. No detector
--- catches an agent driving a real browser profile today; when a better
--- fingerprint is found, the retained rows can be re-tagged. Collapsing to one
--- verdict at write time would repeat the error permanently. Readers
--- collapse via collapseActor() in server/viewlog.ts.
-CREATE TABLE IF NOT EXISTS view_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ts TEXT NOT NULL,
-  route TEXT NOT NULL,
-  event TEXT NOT NULL,          -- 'visit' | 'tab' | 'action'
-  detail TEXT,                  -- tab name / action id, null for a bare visit
-  dwell_ms INTEGER,             -- capped at DWELL_CEILING_MS; null when unclosed
-  actor_client TEXT,            -- 'human' | 'agent' (browser's own verdict)
-  actor_server TEXT,            -- 'human' | 'agent' (UA verdict on this POST)
-  ua TEXT,                      -- raw, for later re-derivation
-  gesture INTEGER               -- 1 = a trusted input event preceded this nav
-);
-CREATE INDEX IF NOT EXISTS idx_view_log_ts ON view_log(ts);
 `);
 
 // Idempotent migrations
@@ -423,6 +399,20 @@ PRAGMA user_version = 0;
 // still carries the table, so drop it once — nothing reads it any more.
 db.exec('DROP TABLE IF EXISTS gate_audit;');
 
+// Retired: Chronicle's record of which of its own surfaces were looked at is
+// gone. A data folder written by an older Chronicle still carries the table, so
+// drop it once (its index goes with it). Nothing reads either, and the app
+// records nothing to put back.
+// Fail soft, same rule as the backfills above: on the one boot that actually
+// drops it this is a real write, so a second Chronicle holding the write lock
+// (SQLITE_BUSY) would otherwise take startup down with it. A skipped drop costs
+// a dead table until the next boot retries.
+try {
+  db.exec('DROP TABLE IF EXISTS view_log;');
+} catch (err) {
+  console.warn('[chronicle] view_log drop deferred (will retry next start):', (err as Error).message);
+}
+
 // FTS5 full-text index over message content (external-content table kept in
 // sync inside replaceSession — delete+reinsert, no triggers). Node's bundled
 // SQLite ships FTS5, but verify at startup and fail soft: search falls back
@@ -451,6 +441,12 @@ export function snapshotDb(force = false): string | null {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const dest = path.join(dir, `chronicle-${stamp}.db`);
     db.exec('BEGIN'); db.exec('COMMIT'); // barrier: no open write txn while copying
+    // WAL means committed pages can still be sitting in chronicle.db-wal, and
+    // the copy below takes the main file only (restoring deletes the sidecars).
+    // Checkpoint first or a snapshot silently omits everything since the last
+    // auto-checkpoint. Best-effort: a busy checkpoint leaves the copy exactly as
+    // stale as it would have been, which beats losing the snapshot entirely.
+    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* copy what is on disk */ }
     fs.copyFileSync(path.join(dataDir, 'chronicle.db'), dest);
     // Keep the newest two snapshots total (the one just written + one prior).
     for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {

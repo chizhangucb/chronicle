@@ -25,7 +25,7 @@
 export type DefPage =
   | 'overview' | 'spend' | 'sessions' | 'explore' | 'content'
   | 'projects' | 'session'
-  | 'ask' | 'settings'
+  | 'ask'
   | 'retired';
 
 export interface DefVars { [key: string]: string | number | undefined }
@@ -46,7 +46,7 @@ export interface Definition {
 export const DEF_PAGE_ORDER: DefPage[] = [
   'overview', 'spend', 'sessions', 'explore', 'content',
   'projects', 'session',
-  'ask', 'settings', 'retired',
+  'ask', 'retired',
 ];
 
 export const DEF_PAGE_LABEL: Record<DefPage, string> = {
@@ -58,7 +58,6 @@ export const DEF_PAGE_LABEL: Record<DefPage, string> = {
   projects: 'Projects',
   session: 'Session view',
   ask: 'Ask',
-  settings: 'Settings',
   retired: 'Retired (kept for the vocabulary)',
 };
 
@@ -264,15 +263,6 @@ export const DEFINITIONS: Definition[] = [
     page: 'ask',
     title: 'How Ask answers',
     plain: () => 'Each answer is generated locally by your claude CLI, which may run only ONE tool: a read-only, SELECT-only query over ~/.chronicle/chronicle.db. No data leaves your machine. Dollar figures use the cost basis shown and reconcile with the Insights dashboards.',
-  },
-
-  // ---- Settings ----
-  {
-    id: 'settings.view-log',
-    page: 'settings',
-    title: 'Local view log',
-    plain: () => 'Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.',
-    tech: () => 'server/viewlog.ts; routes are stored as patterns (/session/:id), never as instances',
   },
 
   // ---- Retired: surfaces dropped by past releases ----
