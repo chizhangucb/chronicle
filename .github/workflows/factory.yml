@@ -56,7 +56,8 @@ jobs:
     with:
       factory_ref: main
       # chronicle is public: anyone can open an issue, and a ticket body is what the
-      # implementer executes. Only the owner's own tickets run (ADR 0002 amendment).
+      # implementer executes. Only the owner's own tickets run (software-factory's
+      # ADR 0002, 2026-09-07 amendment).
       trusted_author_associations: OWNER
   implement:
     if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent:implement'
