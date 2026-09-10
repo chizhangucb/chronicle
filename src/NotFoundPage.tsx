@@ -13,7 +13,7 @@ import { ROUTES } from './routes.ts';
 // are indistinguishable from here, and a guess would be wrong for one of them.
 export default function NotFoundPage() {
   return (
-    <div className="page center empty-state not-found">
+    <div className="page center empty-state">
       <div className="empty-icon">◷</div>
       <h2>This page does not exist</h2>
       <p className="muted">Chronicle has no page at this address. Check the link, or start again from Insights.</p>

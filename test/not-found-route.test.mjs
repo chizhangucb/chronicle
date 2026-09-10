@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSource } from './helpers/read-source.mjs';
+import { RETIRED_ROUTE_PREFIXES, RETIRED_WORDS } from './helpers/retired-vocabulary.mjs';
 import { ROUTES, KNOWN_ROUTES, isKnownPath } from '../src/routes.ts';
 
 // Every route the app mounts, spelled as a path a visitor can land on. A page
@@ -113,4 +114,56 @@ test('every surviving page keeps its own match as its gate', () => {
   ]) {
     assert.match(app, gate, `a page lost its own render gate: ${gate}`);
   }
+});
+
+// --- What the surface says ------------------------------------------------
+
+const surface = readSource(path.join(REPO, 'src', 'NotFoundPage.tsx'));
+
+/** The words a visitor actually reads: JSX text nodes, no markup, no comment. */
+const copy = [...surface.replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ').matchAll(/>([^<>{}]+)</g)]
+  .map((m) => m[1].trim())
+  .filter(Boolean)
+  .join(' ');
+
+test('the surface says the page does not exist and offers the way back to Insights', () => {
+  assert.match(copy, /does not exist/i, `the surface never says the page is not there: ${copy}`);
+  assert.match(copy, /\bInsights\b/, 'the surface offers no way back to Insights');
+  assert.match(surface, /<Link className="[^"]*" href=\{ROUTES\.home\}>/,
+    'the way back must be a link to the Insights home route');
+});
+
+test('the surface renders in the existing page grammar', () => {
+  // The same classes the welcome empty state uses, inside the app frame App
+  // renders it in — not a new layout invented for one page.
+  assert.match(surface, /className="page center empty-state/,
+    'the surface invents its own layout instead of the shared empty-state grammar');
+});
+
+test('the surface neither names a removed surface nor guesses why the page is missing', () => {
+  // A bookmark from an older release and a typo are indistinguishable from
+  // here, so any explanation would be wrong for one of them. The Reference
+  // page's retired group is the one place a dropped surface is explained.
+  const removedSurfaces = RETIRED_ROUTE_PREFIXES
+    .map((prefix) => prefix.replace(/[^a-z]/gi, ''))
+    .filter(Boolean);
+  for (const name of removedSurfaces) {
+    assert.doesNotMatch(copy, new RegExp(`\\b${name}\\b`, 'i'), `the copy names ${name}`);
+  }
+  for (const { word, re } of RETIRED_WORDS) {
+    assert.doesNotMatch(copy, re, `the copy uses the retired word "${word}"`);
+  }
+  // Speculation about a cause, in any of the shapes it usually takes.
+  assert.doesNotMatch(copy, /\b(removed|retired|moved|deleted|renamed|no longer|not connected|disconnected|used to)\b/i,
+    `the copy guesses why the page is missing: ${copy}`);
+});
+
+// --- The contract carries it ----------------------------------------------
+
+test('the surface contract carries the fallback as a route of its own', () => {
+  // A surface exists once it is in the contract: spec/surface-contract.md is
+  // the only place a surface is added, renamed or removed.
+  const contract = readSource(path.join(REPO, 'spec', 'surface-contract.md'));
+  assert.match(contract, /src\/NotFoundPage\.tsx/, 'the contract does not name the fallback component');
+  assert.match(contract, /test\/not-found-route\.test\.mjs/, 'the contract does not name the pin guarding it');
 });
