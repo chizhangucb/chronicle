@@ -93,6 +93,18 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
     },
     // A message counts only if its own timestamp falls in the range — not
     // every message of a session that merely overlaps it.
+    //
+    // A message whose `ts` is NULL (a transcript line with no timestamp —
+    // `shared/types.ts`'s `ts?: string | null`, written through by
+    // server/db.ts) therefore falls OUT of every bounded range, and IN under
+    // All: no range means no time filter, so nothing is filtered on a column
+    // it has no value for. That is a deliberate change from the pre-slice
+    // spelling, which bound the empty string as an "All" sentinel and so
+    // silently dropped those rows from All as well (`NULL >= ''` is NULL) —
+    // an accident of the sentinel, not a rule. Pinned in both directions by
+    // test/message-range-null-ts.test.mjs. A query whose output is keyed BY
+    // the timestamp (a day bucket) still needs its own `AND m.ts IS NOT NULL`
+    // — see server/routes/projects.ts's activity query.
     messages(alias = 'm'): SqlFragment {
       if (cutoff == null) return { sql: '', params: [] };
       return { sql: `AND ${alias}.ts >= ?`, params: [cutoff] };
