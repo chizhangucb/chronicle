@@ -35,6 +35,13 @@ test.describe('walk.mjs popoverClip probe', () => {
   });
 
   test('still tests a reachable .info-tip normally when no overlay is open', async ({ page }) => {
+    // The probe judges clipping against the width it is handed, so the viewport
+    // has to BE that width -- `npm run walk` resizes before each probe and this
+    // pin has to do the same. Left at the config's 1366 the probe measured a
+    // 1366-wide page against a 1024 ruler, so a tip that sits inside the
+    // viewport (and inside the clamp `InfoTip.tsx` applies at `window.innerWidth`)
+    // still read as clipped once the topbar's right cluster moved.
+    await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto(`${state.baseURL}/`);
     await expect(page.locator('.info-tip').first()).toBeVisible();
 

@@ -457,7 +457,7 @@ export default function ImportWizard({ onClose, onImported }: ImportWizardProps)
                   <div key={p.id} className="wiz-result-row">
                     <div>
                       <div>◫ {p.name}</div>
-                      <div className={`small ${p.created ? 'ok' : 'muted'}`}>{p.created ? `+ Created new project` : 'Updated existing project'}</div>
+                      <div className={`small ${p.created ? 'ok' : 'muted'}`}>{p.created ? '+ Created new project' : 'Updated existing project'}</div>
                     </div>
                     <span className="muted small">▤ {p.sessions} · {pluralize(p.messages, 'message', 'messages')}</span>
                   </div>

@@ -47,7 +47,6 @@ type Tab = 'overview' | 'explore' | 'content' | 'spend' | 'sessions';
 // option set + labels + `days` resolution are shared with ProjectDetail via
 // RangeBar.tsx (D10, Task 17) so the two vocabularies cannot drift again.
 
-
 // ---- Local formatters (shared with the old InsightsPage body). `fmtMoney`/
 // `fmtInt` are the SHARED grouped money/int formatters from format.ts. ----
 function fmtTok(tokens: number): string {

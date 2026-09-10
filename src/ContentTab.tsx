@@ -203,7 +203,7 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               <span className="v">×{s.count}</span>
             </div>
           ))}
-          {skillsView.more > 0 && <div className="muted small">{'+{n} more'.replace('{n}', String(skillsView.more))}</div>}
+          {skillsView.more > 0 && <div className="muted small">+{skillsView.more} more</div>}
           {!skillsView.rows.length && <div className="muted small">No sessions in range.</div>}
         </div>
         <div className="card">
@@ -217,16 +217,14 @@ export default function ContentTab({ scope, days }: ContentTabProps): JSX.Elemen
               <span className="v">×{s.runs}</span>
             </div>
           ))}
-          {subagentsView.more > 0 && <div className="muted small">{'+{n} more'.replace('{n}', String(subagentsView.more))}</div>}
+          {subagentsView.more > 0 && <div className="muted small">+{subagentsView.more} more</div>}
           {!subagentsView.rows.length && <div className="muted small">No sessions in range.</div>}
         </div>
       </div>
 
       <div className="fun">
-        {'Calibrated tokens {range}: {total} — about {n}× the complete works of Shakespeare.'
-          .replace('{range}', rangeLabel)
-          .replace('{total}', result.calibratedTotalTokens.toLocaleString())
-          .replace('{n}', String(shakespeareMultiple(result.calibratedTotalTokens)))}
+        Calibrated tokens {rangeLabel}: {result.calibratedTotalTokens.toLocaleString()} — about{' '}
+        {shakespeareMultiple(result.calibratedTotalTokens)}× the complete works of Shakespeare.
       </div>
     </>
   );

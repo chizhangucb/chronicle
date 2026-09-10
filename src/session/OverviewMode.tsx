@@ -60,7 +60,7 @@ function SessionIdChip({ id }: { id: string }): JSX.Element {
     <span className="session-id-chip" title="Session ID">
       <span className="mono-path small">{id}</span>
       <button className={`btn tiny ${copied ? 'ok-btn' : ''}`} onClick={copy}>
-        {copied ? `✓ Copied!` : `⧉ Copy`}
+        {copied ? '✓ Copied!' : '⧉ Copy'}
       </button>
     </span>
   );

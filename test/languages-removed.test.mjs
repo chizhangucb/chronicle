@@ -76,17 +76,31 @@ test('no language menu, language state or language setter survives', () => {
   }
 });
 
-test('every Intl locale helper formats on en-US', () => {
-  // The `Intl` formatting is the part the removal KEEPS. Dropping the locale
-  // (`toLocaleDateString()` with no argument, `Intl.DateTimeFormat(undefined)`)
-  // would silently re-point these labels at the browser's locale, which is the
-  // one regression this removal could cause and is invisible on a US machine.
+test('every locale the language map used to feed still resolves to en-US', () => {
+  // These are the call sites the deleted `INTL_LOCALE` map fed: the month, day,
+  // weekday and hour labels on Insights, Sessions, Explore and Spend. Losing
+  // the locale here (`Intl.DateTimeFormat(undefined)`, a dropped second
+  // argument) would re-point them at the browser's locale, which is the one
+  // regression this removal could cause and is invisible on a US machine.
+  //
+  // The call sites elsewhere that deliberately format in the BROWSER's locale
+  // (`toLocaleString()`, `toLocaleDateString(undefined, …)` in Timeline,
+  // RecentLedger, CodePanel and friends) are none of this pin's business: they
+  // read that way on `main` too, whatever the language was set to.
   const LOCALE_ARG = [
     /new Intl\.DateTimeFormat\(\s*([^,)]+)/g,
     /\bfmtDayLabel\(\s*[^,]+,\s*([^)]+)\)/g,
     /\bfmtHourLabel\(\s*[^,]+,\s*([^)]+)\)/g,
     /\bfmtHourOfDay\(\s*[^,]+,\s*([^)]+)\)/g,
   ];
+  /** The argument as written, or what a same-file `const` binds it to, so
+   *  hoisting the literal into one named constant still reads as en-US. */
+  const resolve = (arg, src) => {
+    const written = arg.trim();
+    if (/^['"]/.test(written)) return written.slice(1, -1);
+    const bound = src.match(new RegExp(`\\bconst ${written}\\s*(?::[^=]+)?=\\s*'([^']*)'`));
+    return bound ? bound[1] : written;
+  };
   const bad = [];
   let seen = 0;
   for (const rel of CLIENT_SOURCES) {
@@ -95,7 +109,7 @@ test('every Intl locale helper formats on en-US', () => {
     for (const re of LOCALE_ARG) {
       for (const m of src.matchAll(re)) {
         seen++;
-        if (m[1].trim() !== "'en-US'") bad.push(`${rel}: ${m[0].trim()}`);
+        if (resolve(m[1], src) !== 'en-US') bad.push(`${rel}: ${m[0].trim()}`);
       }
     }
   }

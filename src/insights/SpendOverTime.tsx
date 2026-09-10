@@ -20,7 +20,6 @@ import { providerOf, PROVIDER_ORDER, type Provider } from '../../shared/provider
 // every bucket at its own day's rate and honors the List/Billed
 // toggle.
 
-
 const MAX_DENSE_BUCKETS = 2000;
 type Stack = 'project' | 'provider';
 // Pseudo-models carry no real spend (synthetic events with 0 tokens) — never a
@@ -109,7 +108,7 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   return (
     <div className="card sot-card">
       <div className="sot-head">
-        <h3>Spend over time{useHourly ? ` · Hourly` : ''}</h3>
+        <h3>Spend over time{useHourly ? ' · Hourly' : ''}</h3>
         <div className="stack-toggle" role="group" aria-label="Stack by">
           <button type="button" className={`st-opt ${stack === 'project' ? 'on' : ''}`} onClick={() => setStack('project')}>project</button>
           <button type="button" className={`st-opt ${stack === 'provider' ? 'on' : ''}`} onClick={() => setStack('provider')}>provider</button>

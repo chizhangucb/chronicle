@@ -82,8 +82,7 @@ function rollupOptions(): Option<PivotRollup>[] {
 const TOPN_OPTIONS: Option<number>[] = [5, 10, 20, 50].map((n) => ({ key: n, label: String(n) }));
 
 // One pivot chip: a Radix DropdownMenu styled as `.pv` (label eyebrow +
-// current value + caret). Markup/pattern copied from App.tsx's language
-// switcher so styling matches exactly.
+// current value + caret).
 function PvChip<T extends string | number>({
   label, options, current, onSelect, disabled, disabledTitle,
 }: {

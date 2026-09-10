@@ -58,7 +58,7 @@ export type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
 
 export interface Characteristic {
   key: string;
-  label: string;   // bold lead-in text, after the formatted value (i18n key = literal English)
+  label: string;   // bold lead-in text, after the formatted value
   why: string;      // one-line plain-language explainer
   info: string;      // full-sentence InfoTip copy
   format: CharacteristicFormat;

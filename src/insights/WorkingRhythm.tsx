@@ -9,8 +9,6 @@ export interface WorkingRhythmProps {
 const CAL_WEEKS = 26;
 const HOURLY_WINDOW_DAYS = 30;
 
-
-
 // UTC-safe: `dailyActivity`/`hourlyActivity` days are `substr(ts,1,10)` — the
 // UTC calendar date of each message — so all date math here stays in UTC to
 // match, rather than drifting against the browser's local timezone.
@@ -107,12 +105,13 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
   }, [gridStartMonday.getTime()]);
 
   // Mon/Wed/Fri/Sun row labels (a sparse subset of the 7 weekday rows, per the
-  // mockup's `.cal-days` axis) — computed from real weekday names, not hardcoded English.
+  // mockup's `.cal-days` axis) — formatted from real dates, so the spelling and
+  // the row order cannot drift apart.
   // timeZone:'UTC' for the same reason as the month formatter above — the ref
   // dates are UTC-midnight, so local-zone formatting drifted the weekday row
   // labels back a day (Mon/Wed/Fri/Sun rows reading Sun/Tue/Thu/Sat).
   const weekdayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' });
-  // A known UTC Monday to derive any weekday's localized short name from.
+  // A known UTC Monday to derive any weekday's short name from.
   const REF_MONDAY = new Date(Date.UTC(2024, 0, 1)); // 2024-01-01 is a Monday
   const calDayLabels = [0, 2, 4, 6].map((mondayOffset) => weekdayFmt.format(addDaysUtc(REF_MONDAY, mondayOffset)));
 
@@ -176,7 +175,7 @@ export default function WorkingRhythm({ result }: WorkingRhythmProps): JSX.Eleme
       </div>
 
       <div className="fun">
-        {"You've used ~{n}× more tokens than the complete works of Shakespeare.".replace('{n}', String(shakespeare))}
+        You've used ~{shakespeare}× more tokens than the complete works of Shakespeare.
       </div>
     </div>
   );

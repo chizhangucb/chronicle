@@ -29,7 +29,7 @@ export interface Definition {
   id: string;
   page: DefPage;
   title: string;
-  /** The plain-language answer to "what is this number". English source string. */
+  /** The plain-language answer to "what is this number". */
   plain: (ctx: DefContext) => string;
   /** Optional "Good looks like: ..." line. */
   good?: (ctx: DefContext) => string;
