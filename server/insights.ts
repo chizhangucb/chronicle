@@ -175,9 +175,12 @@ function cachedCommitCountSince(path: string, cutoff: string | null): Promise<nu
 type FixedWindows = Pick<InsightsResult, 'dailyActivity' | 'hourlyActivity' | 'modelDistFixed'>;
 
 // Key built here, next to the query it stands for, the same way
-// cachedCommitCountSince builds its own.
-function cachedFixedWindows(scope: Scope, q: QueryContext, calendarCutoff: string, hourlyCutoff: string): FixedWindows {
-  const key = `insights:fixed:${scope.type}:${scope.id ?? ''}::${calendarCutoff}::${hourlyCutoff}`;
+// cachedCommitCountSince builds its own. The scope comes off the query context
+// rather than being passed a second time: q.where IS that scope compiled to
+// SQL, so reading both from one place is what keeps the key and the query it
+// stands for from drifting apart.
+function cachedFixedWindows(q: QueryContext, calendarCutoff: string, hourlyCutoff: string): FixedWindows {
+  const key = `insights:fixed:${q.scope.type}:${q.scope.id ?? ''}::${calendarCutoff}::${hourlyCutoff}`;
   return cached(key, () => computeFixedWindows(q, calendarCutoff, hourlyCutoff));
 }
 
@@ -261,7 +264,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // clicks; an import invalidates the cache, so a fresh session shows up on
   // the very next request.
   const { dailyActivity, hourlyActivity, modelDistFixed } =
-    cachedFixedWindows(scope, q, calendarCutoff, hourlyCutoff);
+    cachedFixedWindows(q, calendarCutoff, hourlyCutoff);
 
   const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 

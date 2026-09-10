@@ -100,3 +100,15 @@ test('cached: stale entries are swept, so the map does not grow without bound', 
   assert.ok(cacheSize() < grown, `expected the sweep to drop stale entries, size stayed at ${cacheSize()}`);
   assert.equal(cached('sweep-after', () => 'recomputed'), 'fresh', 'the sweep dropped a live entry');
 });
+
+// Sweeping alone bounds nothing: a key can rotate while every entry stays
+// FRESH (the fixed-window key carries a minute-quantized cutoff, and a
+// read-only process never bumps the generation that would kill the old ones).
+// So the cap has to hold on its own, with no invalidation anywhere.
+test('cached: the map is capped even when nothing in it is stale', () => {
+  const before = cacheSize();
+  for (let i = 0; i < 1000; i++) cached(`cap-${i}`, () => i);
+  assert.ok(cacheSize() <= before + 300,
+    `expected the cap to bound a map of live entries, size is ${cacheSize()}`);
+  assert.equal(cached('cap-999', () => 'recomputed'), 999, 'the cap dropped the newest entry');
+});

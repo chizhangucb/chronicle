@@ -43,14 +43,28 @@ function isFresh(entry: CacheEntry<unknown>, now: number): boolean {
 // The map only ever grows on a miss, so that is where it is pruned. Cache keys
 // rotate by design (a URL carrying a day range, a minute-quantized cutoff), so
 // without this a long-lived process accumulates one dead entry per rotation
-// forever. Sweeping only once the map is past a threshold keeps the ordinary
+// forever. Pruning only once the map is past a threshold keeps the ordinary
 // miss O(1); the threshold sits well above the number of live keys a busy
 // session holds (one per analytics URL, one per project's commit count).
 const SWEEP_ABOVE = 256;
 
-function sweepStale(now: number): void {
+// Two passes, because the first one on its own does not bound anything.
+// Sweeping drops the entries a staleness rule already killed, which on a busy
+// server is most of them. But a rotating key can stay FRESH forever: the
+// fixed-window key carries a minute-quantized cutoff, so a process that is
+// only being read from mints a new generation entry every minute and never
+// bumps the generation that would kill the old ones, so the sweep frees nothing
+// and re-scans a map that keeps growing. So cap on top, oldest insertion
+// first (Map iterates in insertion order). Every value in here is
+// recomputable by definition, so an over-eager drop costs one recompute.
+function prune(now: number): void {
   for (const [key, entry] of state.map) {
     if (!isFresh(entry, now)) state.map.delete(key);
+  }
+  if (state.map.size <= SWEEP_ABOVE) return;
+  for (const key of state.map.keys()) {
+    if (state.map.size <= SWEEP_ABOVE) break;
+    state.map.delete(key);
   }
 }
 
@@ -82,7 +96,7 @@ export function cached<T>(key: string, compute: () => T, ttlMs?: number): T {
     return entry.value as T;
   }
   const value = compute();
-  if (state.map.size > SWEEP_ABOVE) sweepStale(now);
+  if (state.map.size > SWEEP_ABOVE) prune(now);
   state.map.set(key, ttlMs === undefined
     ? { rule: 'generation', gen: state.gen, value }
     : { rule: 'ttl', expiresAt: now + ttlMs, value });
