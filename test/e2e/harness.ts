@@ -9,10 +9,10 @@
 // worker: each worker gets its own seeded directory and its own server, keyed
 // by worker index, with no fixed shared path.
 //
-// Seeding goes THROUGH THE REAL IMPORT API — a guarded
-// `GET /api/scan?dir=<fixtureDir>` (the `?dir=` override in
-// server/routes/import-sync.ts is only live under CHRONICLE_E2E=1) then a
-// normal `POST /api/import` — not a direct DB write. That needs a live
+// Seeding goes THROUGH THE REAL IMPORT API — a
+// `GET /api/scan?source=claude-code&dir=<fixtureDir>` (the manual-directory
+// scan the import wizard itself uses) then a normal `POST /api/import` — not a
+// direct DB write. That needs a live
 // server, so `seedDataDir()` launches a throwaway one, imports, and stops it;
 // the returned directory is then a plain seeded data dir that any later
 // server can be pointed at.
@@ -452,7 +452,7 @@ async function importFixtures(
   fixtureDir: string,
   ids: Omit<SeededData, 'dataDir' | 'fixtureDir'>,
 ): Promise<void> {
-  const scanRes = await fetch(`${baseURL}/api/scan?dir=${encodeURIComponent(fixtureDir)}`);
+  const scanRes = await fetch(`${baseURL}/api/scan?source=claude-code&dir=${encodeURIComponent(fixtureDir)}`);
   if (!scanRes.ok) throw new Error(`Seed scan failed (${scanRes.status}): ${await scanRes.text()}`);
   const scanJson = (await scanRes.json()) as ScanResponse;
   const project = (scanJson['claude-code'] ?? []).find((p) => p.sessions?.some((s) => s.id === ids.sessionId));

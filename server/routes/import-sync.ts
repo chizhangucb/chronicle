@@ -1,18 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import type { Express, Request, Response } from 'express';
 import { db, upsertProject, replaceSession } from '../db.ts';
 import type { ProjectRow, SessionRow } from '../../shared/rows.ts';
-import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts';
-import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
-import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';
-import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.ts';
+import { SOURCES, sourceById } from '../parsers/registry.ts';
+import { importableFiles } from '../parsers/source.ts';
 import type { ParseResult, ScannedProject } from '../../shared/types.ts';
-
-// The sources where one transcript file == one session, so a re-parse can be
-// scoped to that single file. Shared stores (OpenCode/Cursor DBs) hold many
-// sessions per file and have to be re-parsed whole.
-const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
 
 interface StatusError extends Error {
   status?: number;
@@ -42,27 +34,10 @@ import type {
 // directly. They only ever closed over module imports, so this is a pure move.
 // Gather parsed {session, events} pairs per source. files/sessionIds restrict
 // the import to a user-selected subset of sessions.
-export async function gatherParsed({ source, logDir, files, directory, sessionIds, physicalPath }: GatherParsedParams): Promise<ParseResult[]> {
-  if (source === 'claude-code') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Log directory not found');
-    const sessionFiles = files?.length
-      ? files.filter((f) => fs.existsSync(f))
-      : fs.readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(logDir, f));
-    const parsed: ParseResult[] = [];
-    for (const f of sessionFiles) parsed.push(await parseClaudeSession(f));
-    return parsed;
-  }
-  if (source === 'codex') {
-    const parsed: ParseResult[] = [];
-    for (const f of (files || []).filter((f) => fs.existsSync(f))) parsed.push(await parseCodexSession(f));
-    return parsed;
-  }
-  if (source === 'opencode') return parseOpencodeSessions(logDir || OPENCODE_DB, directory, sessionIds);
-  if (source === 'cursor') {
-    if (!logDir || !fs.existsSync(logDir)) throw bad('Workspace directory not found');
-    return parseCursorWorkspace(logDir, undefined, physicalPath || null);
-  }
-  throw bad(`Unsupported source: ${source}`);
+export async function gatherParsed(target: GatherParsedParams): Promise<ParseResult[]> {
+  const source = sourceById(target.source);
+  if (!source) throw bad(`Unsupported source: ${target.source}`);
+  return source.parse(target);
 }
 
 // Import parsed sessions; reports per-project aggregates so the UI can show
@@ -107,41 +82,28 @@ export function mountImportSync(app: Express): void {
   app.get('/scan', (req: Request, res: Response) => {
     const { source, dir } = req.query as { source?: string; dir?: string };
     if (source && dir) {
-      // Manual directory scan for one source (FR: "Select Directory Manually")
-      const scanners: Record<string, (d: string) => ScannedProject[]> = {
-        'claude-code': (d) => scanClaudeProjects(d),
-        codex: (d) => scanCodexProjects(d),
-        opencode: (d) => scanOpencodeProjects(d),
-        cursor: (d) => scanCursorProjects(d),
-      };
-      if (!scanners[source]) return res.status(400).json({ error: `Unsupported source: ${source}` });
+      // Manual directory scan for one source (FR: "Select Directory Manually").
+      // Also how the E2E harness and the seeded walk point a scan at a
+      // generated fixture dir instead of the machine's real logs.
+      const one = sourceById(source);
+      if (!one) return res.status(400).json({ error: `Unsupported source: ${source}` });
       if (!fs.existsSync(dir)) return res.status(400).json({ error: 'Directory not found' });
-      try { return res.json({ [source]: annotateScan(scanners[source](dir)) }); }
+      try { return res.json({ [source]: annotateScan(one.scan(dir)) }); }
       catch (err) { return res.status(500).json({ error: errMessage(err) }); }
     }
-    // Test-only: the E2E harness (test/e2e/helpers.ts) points the DEFAULT
-    // claude-code scan at a generated fixture dir instead of the real
-    // CLAUDE_PROJECTS_DIR, so it can seed a big fixture session without
-    // touching the machine's real Claude Code logs. `dir` alone (no `source`)
-    // is a no-op unless CHRONICLE_E2E=1 — airtight in production, where the
-    // env var is never set.
-    const e2eClaudeDir = process.env.CHRONICLE_E2E === '1' && dir ? dir : undefined;
-    const scan: ScanResult = {
-      'claude-code': annotateScan(scanClaudeProjects(e2eClaudeDir)),
-      codex: annotateScan(scanCodexProjects()),
-      cursor: annotateScan(scanCursorProjects()),
-      opencode: annotateScan(scanOpencodeProjects()),
-    };
+    // Every source at its own default root.
+    const scan = Object.fromEntries(SOURCES.map((s) => [s.id, annotateScan(s.scan())])) as ScanResult;
     res.json(scan);
   });
 
   app.post('/import', async (req: Request, res: Response) => {
     try {
       const body: GatherParsedParams = { ...req.body };
-      // Test-only: same CHRONICLE_E2E-gated `?dir=` override as GET /scan
-      // above, so the E2E harness can seed an import without a body `logDir`
-      // — a plain `POST /import` with `?dir=<fixtureDir>` is enough. Only
-      // fills a MISSING body.logDir; a caller-supplied logDir always wins.
+      // Test-only: a CHRONICLE_E2E-gated `?dir=` override, so a harness can
+      // seed an import without a body `logDir` — a plain `POST /import` with
+      // `?dir=<fixtureDir>` is enough. Only fills a MISSING body.logDir; a
+      // caller-supplied logDir always wins. Airtight in production, where the
+      // env var is never set.
       if (process.env.CHRONICLE_E2E === '1' && !body.logDir && typeof req.query.dir === 'string') {
         body.logDir = req.query.dir;
       }
@@ -156,13 +118,7 @@ export function mountImportSync(app: Express): void {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     try {
-      const bySource: Record<string, ScannedProject[]> = {
-        'claude-code': scanClaudeProjects(),
-        codex: scanCodexProjects(),
-        cursor: scanCursorProjects(),
-        opencode: scanOpencodeProjects(),
-      };
-      const matches = Object.values(bySource).flat().filter((i) => i.physicalPath === project.path);
+      const matches = SOURCES.flatMap((s) => s.scan()).filter((i) => i.physicalPath === project.path);
       if (!matches.length) return res.status(404).json({ error: 'No source logs found for this project path' });
       let imported = 0, skippedSessions = 0, totalMessages = 0;
       for (const item of matches) {
@@ -185,19 +141,15 @@ export function mountImportSync(app: Express): void {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Project not found' });
     try {
-      const bySource: Record<string, ScannedProject[]> = {
-        'claude-code': scanClaudeProjects(),
-        codex: scanCodexProjects(),
-        cursor: scanCursorProjects(),
-        opencode: scanOpencodeProjects(),
-      };
-      const matches = (bySource[session.source] || [])
-        .filter((i) => i.physicalPath === project.path);
+      const source = sourceById(session.source);
+      const matches = (source?.scan() ?? []).filter((i) => i.physicalPath === project.path);
       if (!matches.length) return res.status(404).json({ error: 'No source logs found for this session' });
       let imported = 0, totalMessages = 0;
       for (const item of matches) {
-        // Restrict the parse to this session's file where the source is per-file.
-        const scoped: GatherParsedParams = PER_FILE_SOURCES.has(session.source) && session.file_path
+        // Restrict the parse to this session's file where the scan lists it:
+        // a per-file source names one transcript per session, a store-backed
+        // one names none and has to be re-parsed whole.
+        const scoped: GatherParsedParams = session.file_path && importableFiles(item).includes(session.file_path)
           ? { ...item, files: [session.file_path] } : item;
         const parsed = (await gatherParsed(scoped)).filter((p) => p.session.id === session.id);
         if (!parsed.length) continue;

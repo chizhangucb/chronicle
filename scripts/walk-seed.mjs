@@ -100,7 +100,7 @@ async function main() {
     await waitForServer(`${baseURL}/api/settings`);
 
     // Seed through the real import API (scan -> import), guarded by the boot token.
-    const scanRes = await fetch(`${baseURL}/api/scan?dir=${encodeURIComponent(fixtureDir)}`);
+    const scanRes = await fetch(`${baseURL}/api/scan?source=claude-code&dir=${encodeURIComponent(fixtureDir)}`);
     if (!scanRes.ok) throw new Error(`scan failed (${scanRes.status}): ${await scanRes.text()}`);
     const scan = await scanRes.json();
     const projects = scan['claude-code'] ?? [];

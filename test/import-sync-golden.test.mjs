@@ -15,8 +15,16 @@
 //     ~/.claude/projects, and CHRONICLE_CURSOR_DIR points at the Cursor
 //     fixture. The parsers read those roots at import time, so the env is set
 //     before the first dynamic import;
-//   - absolute paths are scrubbed to <home>/<repo>/<data> tokens, and the
-//     DB-stamped created_at/imported_at to <seeded>, before comparing.
+//   - absolute paths are scrubbed to <home>/<repo>/<data> tokens, and the times
+//     stamped by the machine rather than by the fixtures (a scanned file's
+//     modifiedAt, the DB's created_at/imported_at) to <seeded>, before
+//     comparing.
+//
+// The slice has exactly one intended difference, visible as the only change in
+// this file's golden: a Cursor scan item now carries the `root` it was scanned
+// under, because `Source.scan` stamps it so a scanned item is a complete parse
+// target (#308). Additive; every other key is byte-identical to the pre-slice
+// capture.
 // Regenerate (only when import/sync JSON is meant to change) with
 // `UPDATE_IMPORT_SYNC_GOLDEN=1 node --test test/import-sync-golden.test.mjs`.
 import { test, before, after } from 'node:test';
@@ -89,7 +97,7 @@ after(async () => {
 // that are a function of where and when the test ran rather than of the
 // fixtures. Tokenize them (keeping the key and the path's tail, so a route
 // dropping or re-rooting one still fails).
-const SEED_STAMPED = new Set(['created_at', 'imported_at']);
+const SEED_STAMPED = new Set(['created_at', 'imported_at', 'modifiedAt']);
 function scrub(value) {
   if (typeof value === 'string') {
     return value.split(home).join('<home>').split(dataDir).join('<data>').split(REPO_ROOT).join('<repo>');

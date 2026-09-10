@@ -15,7 +15,7 @@
               "id": "fixture-session",
               "file": "<home>/.claude/projects/fixture-project/fixture-session.jsonl",
               "label": null,
-              "modifiedAt": "2026-09-10T09:54:53.935Z",
+              "modifiedAt": "<seeded>",
               "messageEstimate": 1,
               "imported": false
             }
@@ -32,6 +32,7 @@
           "physicalPath": "/Users/dev/example-repo",
           "sessionCount": 3,
           "messageEstimate": 4,
+          "root": "<repo>/test/fixtures/cursor-user",
           "imported": false
         }
       ],
@@ -57,7 +58,7 @@
               "id": "rollout-2026-07-01T10-00-00-abc",
               "file": "<repo>/test/fixtures/codex-sessions/2026/07/01/rollout-2026-07-01T10-00-00-abc.jsonl",
               "label": null,
-              "modifiedAt": "2026-09-10T09:48:36.081Z",
+              "modifiedAt": "<seeded>",
               "messageEstimate": 40,
               "imported": false
             }
@@ -84,7 +85,7 @@
               "id": "ses_live1",
               "file": null,
               "label": "Live test",
-              "modifiedAt": "2026-07-04T08:57:26.884Z",
+              "modifiedAt": "<seeded>",
               "messageEstimate": 2,
               "imported": false
             }
@@ -105,6 +106,7 @@
           "physicalPath": "/Users/dev/example-repo",
           "sessionCount": 3,
           "messageEstimate": 4,
+          "root": "<repo>/test/fixtures/cursor-user",
           "imported": false
         }
       ]
