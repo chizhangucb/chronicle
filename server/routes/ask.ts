@@ -2,7 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readConfig } from '../autosync.ts';
+import { readConfig } from '../config.ts';
 import {
   findClaudeBin, readAskHistory, appendAskTurn, normalizeAskCostMode,
   type AskTurn,

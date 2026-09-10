@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
-import { readConfig, writeConfig, startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync, type ConfigPatch } from '../autosync.ts';
+import { startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync } from '../autosync.ts';
+import { readConfig, writeConfig, type ConfigPatch } from '../config.ts';
 import { DEFAULT_MINOR_ACTIVE_MS, DEFAULT_MINOR_MESSAGE_COUNT } from '../noiseGate.ts';
 
 // A stored budget is only meaningful as a positive number; anything else reads

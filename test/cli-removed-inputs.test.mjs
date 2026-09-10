@@ -81,7 +81,7 @@ test('a config file that still holds the legacy hubRoot key loads and round-trip
     path.join(dir, 'config.json'),
     JSON.stringify({ hubRoot: '/some/old/hub', autoSync: false }, null, 2),
   );
-  const { readConfig, writeConfig } = await import('../server/autosync.ts');
+  const { readConfig, writeConfig } = await import('../server/config.ts');
   assert.equal(readConfig().autoSync, false);
   writeConfig({ autoSync: true });
   const after = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
