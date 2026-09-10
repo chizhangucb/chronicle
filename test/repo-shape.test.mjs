@@ -252,6 +252,11 @@ test('the sweep covers source, config, spec and docs, not just docs', () => {
 const WORD_EXEMPT = new Map([
   ['causality', 'docs/agents/design-audit-2026-09-04.md'],
 ]);
+// Blanks the exempt word's one file for that word only. Applied inside the
+// report (rather than as a sweep-wide filter) so the sweepable set the other
+// pins read stays exactly the same set.
+const stripExemptFile = (word, rel, line) =>
+  (WORD_EXEMPT.get(word) === rel ? '' : line);
 
 // The glossary's `_Avoid_:` lines are the one place a retired word or phrase is
 // supposed to appear: CONTEXT.md cannot say which one lost without naming it.
@@ -265,14 +270,12 @@ const stripAvoidLine = (rel, line) =>
 for (const { word, re } of RETIRED_WORDS) {
   test(`no tracked file outside the CHANGELOG names "${word}"`, () => {
     // Per LINE, so the failure names the line a reader has to go fix.
-    const offenders = sweep(
-      (rel, src) =>
-        src.split('\n').flatMap((line, i) =>
-          re.test(stripAvoidLine(rel, stripSchemaLiterals(line)))
-            ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
-            : [],
-        ),
-      { skip: (rel) => WORD_EXEMPT.get(word) === rel },
+    const offenders = sweep((rel, src) =>
+      src.split('\n').flatMap((line, i) =>
+        re.test(stripExemptFile(word, rel, stripAvoidLine(rel, stripSchemaLiterals(line))))
+          ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
+          : [],
+      ),
     );
     assert.deepEqual(offenders, [], `"${word}" is back:\n  ${offenders.join('\n  ')}`);
   });

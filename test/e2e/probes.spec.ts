@@ -33,8 +33,8 @@ const WIDTH = 1366;
 // horizontal gap to their paired sibling, and never overflow their own box.
 // The last rule is the brief's generic scan (not one of the 3 known
 // classes above): any APP-AUTHORED element whose class contains "label"
-// (`.sb-label`, `.wiz-step-label`, `.wiz-sess-label`, `.bytype-label`, …),
-// checked against whatever immediately follows it in the
+// (`.sb-label`, `.wiz-step-label`, `.wiz-sess-label`, `.bytype-label`,
+// `.ctx-label`, …), checked against whatever immediately follows it in the
 // DOM — the exact `[class*=label] + *` shape from the brief. Reuses the same
 // selector+sibling mechanism as the 3 known-class rules (not a separate
 // implementation), so a single shared skip/gap/overflow logic covers both.
