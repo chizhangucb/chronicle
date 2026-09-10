@@ -565,6 +565,8 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     return Object.values(r.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   };
   rows.sort((a, b) => mag(b) - mag(a));
+  // Snapshot the group values before the fold below rewrites the tail to 'Other'.
+  const preFoldGroupValues = new Set(rows.map((r) => r.key));
   if (rows.length > query.topN) {
     const keep = rows.slice(0, query.topN);
     const rest = rows.slice(query.topN);
@@ -623,7 +625,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     effectiveRollup = query.rollup === 'hourly' ? 'hourly' : pickRollup(query.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(query, effectiveRollup, rows, { q, messageWhere, base, g, projectNameById, dayBucketedCells });
+    buckets = computeRollupBuckets(query, effectiveRollup, rows, { q, messageWhere, base, g, projectNameById, dayBucketedCells, preFoldGroupValues });
   }
 
   return {
@@ -699,10 +701,13 @@ interface RollupCtx {
   // rows (EXACT_USAGE_GROUPS only, null otherwise), reused verbatim when this rollup's
   // granularity is 'day', since the call would take identical arguments.
   dayBucketedCells: BucketedUsageCell[] | null;
+  // The ranked rows' group values before the topN fold collapsed the tail into
+  // 'Other'. Only the two errors branches below read it; the why is written there.
+  preFoldGroupValues: Set<string>;
 }
 function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { q, messageWhere, base, g, projectNameById, dayBucketedCells } = ctx;
+  const { q, messageWhere, base, g, projectNameById, dayBucketedCells, preFoldGroupValues } = ctx;
   // `base` (from computeExplore) carries the session range, scope+minor gate and
   // the message range, in that order — its binds are messageWhere's, plus any
   // caller-supplied extras.
@@ -809,15 +814,19 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     // so the clamp's bind is repeated to match rather than assumed to appear once.
     const clamped = bucketExpr(effective, 'MAX(s.started_at, ?)');
     const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(q.range.cutoffIso ?? '');
-    // Only series the ranked rows actually carry: the rows drop a group value with no
-    // in-range messages, so crediting it here would draw a bar the table has no line
-    // for and break the reconciliation between them.
-    const seriesInRows = new Set(rows.map((r) => r.key));
+    // Only group values the ranked rows carry: the rows come from in-range MESSAGES
+    // and drop a group value with none, while this query reads a whole-session column
+    // and still sees that session (it overlaps the range). Test the group value
+    // PRE-fold, not the series key it lands on (#330): under folding seriesKeyFor maps
+    // every non-topN value to 'Other', a key the rows do carry, so a post-fold test
+    // waved through the very sessions this drops and inflated the Other bar past its
+    // own row. Pre-fold keeps a value the rows folded (it is in the table, inside
+    // Other) and drops one the rows never had.
     for (const e of sessionErrorRows(query.group, q, clamped, clampBinds)) {
       if (e.gk == null) continue;
-      const sk = seriesKeyFor(String(e.gk));
-      if (!seriesInRows.has(sk)) continue;
-      cell(String(e.bkt), sk).errors += e.errors;
+      const gv = String(e.gk);
+      if (!preFoldGroupValues.has(gv)) continue;
+      cell(String(e.bkt), seriesKeyFor(gv)).errors += e.errors;
     }
   } else if (query.metric === 'errors') {
     const errCol = errorGroupCol(query.group);
@@ -828,7 +837,18 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
       JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
       WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${rollupErrWhere.sql}`).all(...rollupErrWhere.params) as unknown as { bkt: string; gk: string|number|null; head: string }[];
-    for (const e of er) { if (e.gk == null || !ERROR_RE.test(e.head)) continue; cell(String(e.bkt), seriesKeyFor(String(e.gk))).errors++; }
+    // Same pre-fold membership test as the session branch above, for the same reason:
+    // this query attributes through the PAIRED tool_use (u), which is only gated by the
+    // RESULT's ts, so a call made just before the cutoff whose result landed just after
+    // names a group value the ranked rows never built a line for (they key off in-range
+    // `m` rows). Post-fold that value lands on 'Other', a key the rows do carry, and
+    // inflates the Other bar past its own row.
+    for (const e of er) {
+      if (e.gk == null || !ERROR_RE.test(e.head)) continue;
+      const gv = String(e.gk);
+      if (!preFoldGroupValues.has(gv)) continue;
+      cell(String(e.bkt), seriesKeyFor(gv)).errors++;
+    }
   } else if (query.metric === 'active') {
     const rr = db.prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
       FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string; gk: string|number; sid: string; ms: number }[];
