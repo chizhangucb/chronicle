@@ -51,7 +51,6 @@ const FRIENDLY_CALL: Record<string, string> = {
   Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
-const DELETABLE_SOURCES = new Set(['claude-code', 'codex']);
 
 function isErrorResult(m: StatMessage): boolean {
   return m.kind === 'tool_result'
@@ -329,7 +328,6 @@ function engagedDurationMs(messages: StatMessage[]): number {
 export {
   summarizeToolInput,
   FRIENDLY_CALL,
-  DELETABLE_SOURCES,
   isErrorResult,
   errorDrillIn,
   toolMixSorted,

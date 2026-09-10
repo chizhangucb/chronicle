@@ -560,7 +560,7 @@ server binds `127.0.0.1`.
 | --- | --- |
 | Import & scan | `GET /scan`, `POST /import`, `POST /projects/:id/sync`, `POST /sessions/:id/sync` |
 | Projects | `GET /projects`, `GET /projects/:id`, `PATCH /projects/:id`, `DELETE /projects/:id`, `POST /projects/:id/associate`, `POST /projects/:id/unlink` |
-| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `DELETE /sessions/:id/source-file`, `POST /sessions/undo-delete`, `GET /sessions/minor`, `POST /sessions/:id/promote`, `GET /sessions/:id/causality`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted` |
+| Sessions | `GET /sessions/:id/messages`, `PATCH /sessions/:id`, `DELETE /sessions/:id`, `POST /sessions/undo-delete`, `GET /sessions/minor`, `POST /sessions/:id/promote`, `GET /sessions/:id/causality`, `GET /sessions/:id/live` (SSE), `GET /sessions/:id/security-check`, `GET /sessions/:id/export-redacted` |
 | Git | `GET /git/at`, `GET /git/tree`, `GET /git/file` |
 | Search | `GET /search` |
 | Live | `GET /live/status` |

@@ -1,11 +1,10 @@
-import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
 import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { analyzeCausality } from '../causality.ts';
 import { invalidateCache } from '../cache.ts';
-import { PER_FILE_SOURCES, backupDbBeforeDelete } from './_shared.ts';
+import { backupDbBeforeDelete } from './_shared.ts';
 
 type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
 
@@ -83,45 +82,14 @@ export function mountSessions(app: Express): void {
       liveCandidate: isLiveCandidate(session.file_path, session, peers) });
   });
 
-  app.delete('/sessions/:id/source-file', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
-    if (!session) return res.status(404).json({ error: 'Not found' });
-    if (!PER_FILE_SOURCES.has(session.source)) {
-      return res.status(400).json({ error: `${session.source} keeps sessions in shared storage — deleting the file would remove other sessions too` });
-    }
-    if (!fs.existsSync(session.file_path) || !fs.statSync(session.file_path).isFile()) {
-      return res.status(400).json({ error: 'Source file no longer exists on disk' });
-    }
-    const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
-    if (isLiveCandidate(session.file_path, session, peers)) {
-      return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting its log' });
-    }
-    try {
-      fs.unlinkSync(session.file_path);
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ error: String((err as Error).message || err) });
-    }
-  });
-
-  // Delete a session's imported copy from Chronicle; ?source=1 also permanently
-  // deletes the original log file (same per-file-source restriction as above).
+  // Delete a session's imported copy from Chronicle. The source transcript is
+  // never touched: nothing in Chronicle removes one (ADR 0008, issue #299).
   app.delete('/sessions/:id', (req: Request, res: Response) => {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
     const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
     if (isLiveCandidate(session.file_path, session, peers)) {
       return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting' });
-    }
-    let sourceDeleted = false;
-    if (req.query.source === '1') {
-      if (!PER_FILE_SOURCES.has(session.source)) {
-        return res.status(400).json({ error: `${session.source} keeps sessions in shared storage — deleting the file would remove other sessions too` });
-      }
-      if (fs.existsSync(session.file_path) && fs.statSync(session.file_path).isFile()) {
-        try { fs.unlinkSync(session.file_path); sourceDeleted = true; }
-        catch (err) { return res.status(500).json({ error: String((err as Error).message || err) }); }
-      }
     }
     backupDbBeforeDelete();
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
@@ -131,7 +99,7 @@ export function mountSessions(app: Express): void {
     // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.
     tombstoneSession(session.source, session.id);
     invalidateCache();
-    res.json({ ok: true, sourceDeleted, source: session.source, projectId: session.project_id });
+    res.json({ ok: true, source: session.source, projectId: session.project_id });
   });
 
   // ---- Live streaming (FR-LS): SSE tail of the session's log file ----
