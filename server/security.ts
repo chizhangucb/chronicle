@@ -1,4 +1,10 @@
 import { db } from './db.ts';
+// The rule row, the finding, the scanned message and the scan result are the
+// four shapes this engine answers the redaction preview with. They are declared
+// in shared/ (#307) so the preview renders what the route sends.
+import type { SecurityRuleRow } from '../shared/rows.ts';
+import type { SecurityCheckMessage, SecurityFinding, SecurityScanResult } from '../shared/results.ts';
+
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS security_rules (
@@ -22,16 +28,6 @@ CREATE TABLE IF NOT EXISTS interceptions (
   action TEXT          -- 'blocked' | 'flagged'
 );`);
 
-export interface SecurityRuleRow {
-  id: number;
-  name: string;
-  pattern: string;
-  replacement: string;
-  kind: 'redact' | 'allow';
-  enabled: number;
-  builtin_override: string | null;
-}
-
 export interface InterceptionRow {
   id: number;
   ts: string;
@@ -42,14 +38,9 @@ export interface InterceptionRow {
   action: string | null;
 }
 
-export interface Finding {
-  rule: string;
-  ruleName: string;
-  match: string;
-  start: number;
-  end: number;
-  replacement: string;
-}
+/** A finding before it is attributed to one of a message's two scanned fields
+ * — `SecurityFinding` (shared/results.ts) with `field` still to come. */
+export type Finding = Omit<SecurityFinding, 'field'>;
 
 export interface ScanTextResult {
   findings: Finding[];
@@ -247,27 +238,9 @@ export interface ScanMessage {
   tool_input?: string | null;
 }
 
-export interface ScannedMessage {
-  seq: number;
-  kind: string;
-  ts?: string | null;
-  tool_name?: string | null;
-  findings: (Finding & { field: 'text' | 'tool_input' })[];
-  redactedText: string | null | undefined;
-  redactedInput: string | null | undefined;
-  originalText: string | null | undefined;
-  originalInput: string | null | undefined;
-}
-
-export interface ScanSessionResult {
-  messages: ScannedMessage[];
-  totals: Record<string, number>;
-  findingCount: number;
-}
-
 // Scan a whole session's messages (FR-SEC-4 preview payload)
-export function scanSession(messages: ScanMessage[]): ScanSessionResult {
-  const results: ScannedMessage[] = [];
+export function scanSession(messages: ScanMessage[]): SecurityScanResult {
+  const results: SecurityCheckMessage[] = [];
   const totals: Record<string, number> = {};
   for (const m of messages) {
     const perMessage: (Finding & { field: 'text' | 'tool_input' })[] = [];

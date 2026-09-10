@@ -53,6 +53,8 @@ export interface MessageRow {
   seq: number;
   uuid: string | null;
   ts: string | null;
+  // One of the five closed kinds: a parser only ever emits those, and the
+  // column is written from a parsed `Event` (shared/types.ts).
   kind: Kind;
   text: string | null;
   tool_name: string | null;
@@ -175,10 +177,24 @@ export interface SearchResultItem {
   agent_active_ms?: number | null;
 }
 
+/** A custom redaction or allow rule (the `security_rules` row). `enabled` is
+ * the stored INTEGER 0/1, and `builtin_override` names the built-in rule this
+ * one supersedes, when it does. */
+export interface SecurityRuleRow {
+  id: number;
+  name: string;
+  pattern: string;
+  replacement: string;
+  kind: 'redact' | 'allow';
+  enabled: number;
+  builtin_override: string | null;
+}
+
 // ---- Aggregate count rows ----
 
-/** Calls per tool name, over a scope and range. */
-export interface ToolCount { name: string | null; count: number }
+/** Calls per tool name, over a scope and range. The query counts `tool_use`
+ * rows with a tool name, so the name is always there. */
+export interface ToolCount { name: string; count: number }
 /** Messages per kind. */
 export interface KindCount { kind: string; count: number }
 /** Messages per LOCAL calendar day (`YYYY-MM-DD`). */

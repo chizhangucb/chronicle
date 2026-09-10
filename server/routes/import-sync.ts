@@ -33,7 +33,9 @@ function errMessage(err: unknown): string {
 
 // What the import wizard POSTs, and what it gets back: shared/results.ts owns
 // both shapes (#307), so the wizard reads the contract this route writes.
-import type { ImportPayload as GatherParsedParams, ImportProjectAgg as ProjectAgg, ImportResult } from '../../shared/results.ts';
+import type {
+  ImportPayload as GatherParsedParams, ImportProjectAgg as ProjectAgg, ImportResult, ScanResult, SyncRunResult,
+} from '../../shared/results.ts';
 
 // Lifted to module scope so the demo seeder can drive the SAME
 // parse+import path the HTTP route uses, instead of writing rows into the DB
@@ -124,12 +126,13 @@ export function mountImportSync(app: Express): void {
     // is a no-op unless CHRONICLE_E2E=1 — airtight in production, where the
     // env var is never set.
     const e2eClaudeDir = process.env.CHRONICLE_E2E === '1' && dir ? dir : undefined;
-    res.json({
+    const scan: ScanResult = {
       'claude-code': annotateScan(scanClaudeProjects(e2eClaudeDir)),
       codex: annotateScan(scanCodexProjects()),
       cursor: annotateScan(scanCursorProjects()),
       opencode: annotateScan(scanOpencodeProjects()),
-    });
+    };
+    res.json(scan);
   });
 
   app.post('/import', async (req: Request, res: Response) => {
@@ -168,7 +171,8 @@ export function mountImportSync(app: Express): void {
         skippedSessions += result.skippedSessions;
         totalMessages += result.totalMessages;
       }
-      res.json({ ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) });
+      const synced: SyncRunResult = { ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) };
+      res.json(synced);
     } catch (err) {
       res.status(errStatus(err)).json({ error: errMessage(err) });
     }

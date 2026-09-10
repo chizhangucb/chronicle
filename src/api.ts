@@ -8,14 +8,14 @@
 // compute them and by the components that render them, so a response shape has
 // one declaration and no component keeps a copy.
 import type { Project } from '../shared/types.ts';
-import type { Commit, MinorSessionRow } from '../shared/rows.ts';
+import type { Commit, MinorSessionRow, SecurityRuleRow } from '../shared/rows.ts';
 import type { ExploreQueryParams, ExploreWireResult } from '../shared/explore.ts';
 import type {
   ActivityResult, AskCostMode, AskStatus, AskTurn, AutosyncStatus, ContentResult,
   DeleteSessionResult, DetectorCounts, GitAtResult, GitFileResult, GitTreeResult,
   ImportPayload, ImportResult, InsightsResult, LiveWatcher, ProjectDetailResult,
   ProjectListItem, RenameSessionResult, ResolveSessionResult, ScanParams, ScanResult,
-  SearchParams, SearchResponse, SecurityRule, SecurityScanResult, SessionMessagesResult,
+  SearchParams, SearchResponse, SecurityScanResult, SessionMessagesResult,
   SessionSyncResult, Settings, SettingsPatch, SyncRunResult,
 } from '../shared/results.ts';
 import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
@@ -186,7 +186,7 @@ export const api = {
   // SecurityCheck.tsx, with their own copies of the two shapes).
   securityCheck: (sessionId: string): Promise<SecurityScanResult> =>
     j(securityCheckUrl(sessionId)),
-  securityRules: (): Promise<SecurityRule[]> => j(securityRulesUrl()),
+  securityRules: (): Promise<SecurityRuleRow[]> => j(securityRulesUrl()),
   // Demo mode. `available` is false under `npm run dev`, where
   // there is no CLI to restart the process.
   demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),

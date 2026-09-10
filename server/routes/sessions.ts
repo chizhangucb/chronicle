@@ -10,7 +10,9 @@ type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
 
 // The minor bucket's row and the session payload live in shared/ (#307).
 import type { MinorSessionRow } from '../../shared/rows.ts';
-import type { SessionMessagesResult } from '../../shared/results.ts';
+import type {
+  DeleteSessionResult, RenameSessionResult, ResolveSessionResult, SessionMessagesResult,
+} from '../../shared/results.ts';
 
 export function mountSessions(app: Express): void {
   // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----
@@ -44,7 +46,7 @@ export function mountSessions(app: Express): void {
 
   // Tiny resolver for chronicle://session/<id> deep links.
   app.get('/sessions/:id/resolve', (req: Request, res: Response) => {
-    const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string));
+    const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string)) as unknown as ResolveSessionResult | undefined;
     if (!s) return res.status(404).json({ error: 'Not found' });
     res.json(s);
   });
@@ -58,7 +60,9 @@ export function mountSessions(app: Express): void {
       db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, (req.params.id as string));
       invalidateCache();
     }
-    res.json(db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?').get((req.params.id as string)));
+    const renamed = db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?')
+      .get((req.params.id as string)) as unknown as RenameSessionResult;
+    res.json(renamed);
   });
 
   app.get('/sessions/:id/messages', (req: Request, res: Response) => {
@@ -91,7 +95,8 @@ export function mountSessions(app: Express): void {
     // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.
     tombstoneSession(session.source, session.id);
     invalidateCache();
-    res.json({ ok: true, source: session.source, projectId: session.project_id });
+    const deleted: DeleteSessionResult = { ok: true, source: session.source, projectId: session.project_id };
+    res.json(deleted);
   });
 
   // ---- Live streaming (FR-LS): SSE tail of the session's log file ----

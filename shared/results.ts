@@ -15,8 +15,8 @@
 import type { Project, ScannedProject, ScannedSession, SourceId } from './types.ts';
 import type { BucketedUsageCell, UsageByModel } from './usage.ts';
 import type {
-  Commit, DayCount, InsightsSessionRow, KindCount, MessageRow, MinorSessionRow,
-  ProjectErrorCount, ProjectSessionSummary, RepoInfo, SearchResultItem, SessionRow, ToolCount,
+  Commit, DayCount, InsightsSessionRow, KindCount, MessageRow, ProjectErrorCount,
+  ProjectSessionSummary, RepoInfo, SearchResultItem, SessionRow, ToolCount,
 } from './rows.ts';
 
 // ---- Scan / import (the import wizard) ----
@@ -38,9 +38,11 @@ export interface ScanParams {
 export type ScanResult = Partial<Record<SourceId | string, AnnotatedScannedProject[]>>;
 
 /** What the client sends to POST /api/import: a subset of a scanned item, or a
- * hand-typed directory. */
+ * hand-typed directory. `logDir`, `directory` and `physicalPath` are optional
+ * because the four sources need different ones (a SQLite source has no log
+ * directory; a hand-typed import has no scanned item). */
 export interface ImportPayload {
-  source: string;
+  source: SourceId;
   logDir?: string | null;
   files?: string[];
   directory?: string;
@@ -138,8 +140,6 @@ export interface ResolveSessionResult {
   id: string;
   project_id: number;
 }
-/** GET /api/sessions/minor — the noise gate's bucket. */
-export type MinorSessionsResult = MinorSessionRow[];
 
 // ---- Search ----
 
@@ -183,6 +183,9 @@ export interface AutosyncStatus {
     | { ok: true; skipped: string }
     | { ok: false; error: string }
     | null;
+  /** When the first change that has not been synced yet was seen (epoch ms),
+   * or null when nothing is pending — the max-wait timer reads it. */
+  firstPendingAt: number | null;
 }
 
 // ---- Plan windows (the one outbound read, opt-out) ----
@@ -394,39 +397,38 @@ export type GitFileResult =
 
 // ---- Security check (redaction preview) ----
 
-/** A custom redaction / allow rule. */
-export interface SecurityRule {
-  id: number;
-  pattern: string;
-  replacement: string;
-  kind: 'redact' | 'allow';
-  enabled: boolean;
-  name?: string;
-}
-/** One pattern match within a scanned message's text or tool_input. */
+/** One pattern match inside a scanned message, with the rule that made it and
+ * what that rule would put in its place. `field` says which of the message's
+ * two scanned strings it was found in. */
 export interface SecurityFinding {
-  field: 'text' | 'tool_input';
+  rule: string;
+  ruleName: string;
+  match: string;
   start: number;
   end: number;
-  match: string;
-  name?: string;
+  replacement: string;
+  field: 'text' | 'tool_input';
 }
+
+/** One scanned message: the original strings beside their redacted twins, so
+ * the preview can highlight what would change. */
 export interface SecurityCheckMessage {
   seq: number;
   kind: string;
+  ts?: string | null;
   tool_name?: string | null;
-  originalText?: string | null;
-  originalInput?: string | null;
-  redactedText?: string | null;
-  redactedInput?: string | null;
   findings: SecurityFinding[];
+  redactedText: string | null | undefined;
+  redactedInput: string | null | undefined;
+  originalText: string | null | undefined;
+  originalInput: string | null | undefined;
 }
-/** GET /api/sessions/:id/security-check. */
+
+/** GET /api/sessions/:id/security-check. `totals` is findings per rule name. */
 export interface SecurityScanResult {
-  error?: string;
-  findingCount: number;
-  totals: Record<string, number>;
   messages: SecurityCheckMessage[];
+  totals: Record<string, number>;
+  findingCount: number;
 }
 
 // ---- Live ----

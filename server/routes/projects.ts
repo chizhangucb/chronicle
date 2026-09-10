@@ -9,7 +9,7 @@ import { backupDbBeforeDelete } from './_shared.ts';
 import { computeScopedAggregates } from '../insights.ts';
 import { queryContext, rangeOf, whereOf, type Scope } from '../scope.ts';
 import type { ProjectSessionSummary } from '../../shared/rows.ts';
-import type { ProjectDetailResult } from '../../shared/results.ts';
+import type { ProjectDetailResult, ProjectListItem } from '../../shared/results.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -74,7 +74,8 @@ export function mountProjects(app: Express): void {
         liveProjectIds.add(r.project_id);
       }
     }
-    res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) })));
+    const list: ProjectListItem[] = projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) }));
+    res.json(list);
   });
 
   app.get('/projects/:id', (req: Request, res: Response) => {

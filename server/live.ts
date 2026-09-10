@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Response } from 'express';
 import { db } from './db.ts';
 import type { SessionRow } from '../shared/rows.ts';
+import type { LiveWatcher } from '../shared/results.ts';
 import { parseClaudeLine } from './parsers/claudeCode.ts';
 import { parseOpencodeSessions } from './parsers/opencode.ts';
 import { parseCursorWorkspace, parseAgentTranscriptJsonl } from './parsers/cursor.ts';
@@ -330,7 +331,7 @@ export function attachLiveStream(sessionId: string, res: Response): boolean {
   return true;
 }
 
-export function liveStatus(): { sessionId: string; file: string | undefined; clients: number; offset: number | undefined }[] {
+export function liveStatus(): LiveWatcher[] {
   return [...live.watchers.values()].map((w) => ({
     sessionId: w.sessionId, file: w.filePath, clients: w.clients.size, offset: w.offset,
   }));
