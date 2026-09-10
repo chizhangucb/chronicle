@@ -3,8 +3,9 @@
 //
 // It was written for two callers because two copies drifted apart once already
 // (issue #186). The second caller was the proxy runtime suite, deleted with the
-// spine it pinned (#296), and the patterns only it read moved into the sweep
-// below rather than going with it.
+// spine it pinned (#296), and the patterns only it read either moved into the
+// sweep below or, where the sweep already forbids every string they could
+// match, went with it (the `hub `scripts/...`` location header is a `hub`).
 //
 // It stays its own file on one caller because it is the registry, not the pin:
 // repo-shape exempts it BY PATH from its own vocabulary sweep, and a registry a
@@ -17,9 +18,6 @@ export const PRIVATE_PATHS = /chizhang-2|AIOS_HUB|CHRONICLE_HUB|\.aios\/|\.secre
 
 /** The retired checkout's own folders, named as a path a reader could follow. */
 export const PRIVATE_FOLDERS = /governance\//i;
-
-/** `hub `scripts/...`` style location headers. */
-export const PRIVATE_LOCATION = /\bhub\s+`/i;
 
 /** Ticket ids from the private tracker. A reader who is not the author cannot
  *  open one, so prose citing them is prose that dead-ends (issue #187).

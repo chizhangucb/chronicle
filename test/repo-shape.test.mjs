@@ -165,12 +165,15 @@ test('the published package ships no job template', () => {
   );
   assert.deepEqual(strays, [], `a job template is tracked again: ${strays}`);
 
-  // Every `!` exclusion has to name a tracked file. One that does not is an
-  // instruction about a path nobody can go read -- which is what the job
-  // installer's exclusion became the moment the installer was deleted.
+  // Every `!` exclusion that names a literal path has to name a tracked file.
+  // One that does not is an instruction about a path nobody can go read --
+  // which is what the job installer's exclusion became the moment the
+  // installer was deleted. Glob exclusions are skipped: `files` entries are
+  // patterns, and `!scripts/*.mjs` names no single path to look up.
   const dangling = files
     .filter((entry) => entry.startsWith('!'))
     .map((entry) => entry.slice(1))
+    .filter((rel) => !/[*?[\]{}!]/.test(rel))
     .filter((rel) => !tracked.includes(rel));
   assert.deepEqual(
     dangling,
