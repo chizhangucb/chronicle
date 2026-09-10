@@ -11,6 +11,8 @@ import HomeDashboard from './HomeDashboard.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
+import NotFoundPage from './NotFoundPage.tsx';
+import { ROUTES, isKnownPath } from './routes.ts';
 import { useAskStatus } from './useAskStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -29,22 +31,22 @@ import type { DeletedEntry } from './SessionSelect.js';
 // exported types here instead of duplicating them, so the two stay in sync.
 
 export default function App() {
-  const [, navigate] = useLocation();
-  const [atHome] = useRoute('/');
-  const [atProjects] = useRoute('/projects');
-  const [atProject, projectParams] = useRoute('/project/:id');
+  const [currentPath, navigate] = useLocation();
+  const [atHome] = useRoute(ROUTES.home);
+  const [atProjects] = useRoute(ROUTES.projects);
+  const [atProject, projectParams] = useRoute(ROUTES.project);
   // Project sub-tabs (5e-4): Explore/Content are deep-linkable routes, but
   // ProjectDetail owns the actual tab logic (it re-reads these same routes
   // itself) — App only needs to know these paths resolve to the project view.
-  const [atProjExplore, peParams] = useRoute('/project/:id/explore');
-  const [atProjContent, pcParams] = useRoute('/project/:id/content');
-  const [atSession, sessionParams] = useRoute('/session/:id');
+  const [atProjExplore, peParams] = useRoute(ROUTES.projectExplore);
+  const [atProjContent, pcParams] = useRoute(ROUTES.projectContent);
+  const [atSession, sessionParams] = useRoute(ROUTES.session);
   // `/insights` is the OLD Insights URL (may be bookmarked). It now redirects to
   // `/` (the merged Home/Insights view), preserving a `?tab=` deep-link if present.
-  const [atInsights] = useRoute('/insights');
-  const [atAsk] = useRoute('/ask');
+  const [atInsights] = useRoute(ROUTES.insights);
+  const [atAsk] = useRoute(ROUTES.ask);
   // Reference (3b, D4): product vocabulary, always present.
-  const [atReference] = useRoute('/reference');
+  const [atReference] = useRoute(ROUTES.reference);
   const { status: askStatus, refresh: refreshAsk } = useAskStatus();
   const askEnabled = askStatus?.enabled ?? false;
   const search = useSearch();
@@ -261,6 +263,13 @@ export default function App() {
               navigate(backProjectId != null ? `/project/${backProjectId}` : '/');
             }} />
         )}
+
+        {/* The fallback surface. Every page above is gated on its own route
+            match, so a path matching NONE of them would otherwise render this
+            frame around an empty main area. Reads the same route table those
+            matches do (src/routes.ts), so a page added there is never shadowed
+            by this one. Surface: spec/surface-contract.md */}
+        {!isKnownPath(currentPath) && <NotFoundPage />}
       </div>
 
       {wizardOpen && (
