@@ -8,12 +8,11 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
+import { overlapGate, rangedUsage, bucketedUsage } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
-// count can't say WHICH tool errored), so this engine keeps its head query for
-// those groups, but the heuristic itself is the shared server-side copy, and the
-// session-level groups read the precomputed column instead (SESSION_ERROR_GROUPS).
+// count can't say WHICH tool errored), so this engine keeps its head queries —
+// but the heuristic itself is the shared server-side copy.
 import { ERROR_RE } from '../shared/errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
 // precedence as the Task 13 Activity route, instead of re-deriving it here.
@@ -86,24 +85,32 @@ export interface ExploreResult {
 export const ROLLUP_BUCKET_CAP = 90;
 const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'weekly', 'monthly'];
 
-// Each time rollup's granularity in server/rangeUsage.ts's vocabulary. Explore's wire
-// names the four rollups hourly/daily/weekly/monthly and the bucketing primitive names
-// the same four granularities hour/day/week/month, so this is the one place the two
-// vocabularies meet. The rollup's token magnitude goes through that primitive (#306),
-// which is what puts a session sitting on the range edge into each bucket at its
-// in-range share instead of dropping its whole billed cell on its started_at bucket.
-const USAGE_BUCKET_FOR: Record<Exclude<ExploreRollup, 'total'>, UsageBucket> = {
-  hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
-};
-
-// SQL expression yielding a bucket key for a timestamp column: hourly
-// "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date "2026-08-03",
-// monthly "2026-08". LOCAL time, and the exact expression server/rangeUsage.ts's
-// bucketKeyExpr owns, so this file's message-level queries and the bucketed-usage
-// primitive can never key the same instant differently. It stays exported under the
-// rollup names because that is the vocabulary every caller here, and its tests, speaks.
+// SQL expression yielding a bucket key for a timestamp column. Keys are chosen
+// to sort chronologically as plain strings and to be directly labelable:
+// hourly "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date
+// "2026-08-03" (%w is 0=Sun..6=Sat; Monday offset = (%w+6)%7 days back),
+// monthly "2026-08".
+//
+// LOCAL time, via SQLite's 'localtime' modifier — matching the round's
+// convention that every user-facing day/hour bucketing is local, not UTC
+// (server/rangeUsage.ts's `bucketKeyExpr`; see the Home spend-over-time
+// "Aug 12 on Aug 13" defect this convention exists to prevent). `ts` columns
+// are stored as UTC ISO strings, so a bare `substr`/un-adorned `strftime`
+// (the old form here) sliced/split the UTC string directly — wrong bucket
+// for any session near a local day boundary in a non-UTC timezone (review
+// finding, Task 18 fix-round). 'localtime' is applied exactly ONCE per
+// SQLite call: the weekly branch's inner `strftime('%w', …, 'localtime')`
+// computes the LOCAL weekday (a separate, independent call), and the outer
+// `date(…, 'localtime', '-N days')` converts to local first, then subtracts
+// — never chaining two 'localtime' modifiers onto the same value, which
+// would double-apply the offset.
 export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string): string {
-  return bucketKeyExpr(USAGE_BUCKET_FOR[rollup], ts);
+  switch (rollup) {
+    case 'hourly': return `strftime('%Y-%m-%dT%H', ${ts}, 'localtime')`;
+    case 'daily': return `strftime('%Y-%m-%d', ${ts}, 'localtime')`;
+    case 'weekly': return `date(${ts}, 'localtime', '-' || ((CAST(strftime('%w', ${ts}, 'localtime') AS INTEGER) + 6) % 7) || ' days')`;
+    case 'monthly': return `strftime('%Y-%m', ${ts}, 'localtime')`;
+  }
 }
 
 // Pure cap-coarsening: from the requested rollup, return the finest rollup whose
@@ -141,54 +148,6 @@ const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill', 'mcp'];
 // stay per-message by design. session is EXACT trivially: a session's own
 // sessions.usage IS its group value's usage, no aggregation needed.
 const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'session'];
-
-// Groups whose error count needs no attribution INSIDE the session: the group value
-// is a property of the session itself, so `sessions.error_count` (precomputed at
-// import with the one shared heuristic (server/db.ts replaceSession, shared/errors.ts)
-// already answers it. Every other group (tool/skill/model/subagent/mcp/provider/
-// hour) has to say WHICH tool, model or hour errored, which only the per-message head
-// query can, so those keep it.
-//
-// KNOWN RANGE TRADEOFF, the same one server/insights.ts's errorsByProject documents
-// at length: error_count is a WHOLE-SESSION total, so under a range a session that
-// overlaps the edge contributes its full historical error count rather than only the
-// errors inside the range. Re-slicing it per request would mean re-running exactly
-// the tool_result/tool_use pairing query this path exists to avoid. The rollup below
-// buckets the same column by session start, so the total bar and the stacked chart
-// still agree.
-const SESSION_ERROR_GROUPS: ExploreGroup[] = ['project', 'source', 'session'];
-
-// Which row an in-range usage cell belongs to, for the four groups whose magnitude is
-// sourced from sessions.usage. The ranked rows and the rollup buckets both key off
-// this, so they cannot disagree about where a cell lands. group='project' is keyed by
-// project NAME, the way groupExpr('project') keys the message-level rows, since a
-// usage cell carries only the id.
-function usageRowKey(group: ExploreGroup, c: BucketedUsageCell, projectNameById: Map<number, string>): string {
-  switch (group) {
-    case 'model': return c.model;
-    case 'project': return projectNameById.get(c.projectId) ?? '';
-    case 'session': return c.sessionId;
-    default: return c.source;
-  }
-}
-
-// Precomputed per-session error counts per group value, optionally split across time
-// buckets. One query shape for the ranked rows and the rollup, so the scope, the
-// overlap gate and the minor gate are written once (see SESSION_ERROR_GROUPS).
-// `bucketExpr` is the caller's, so its binds (if any) come first, ahead of the overlap
-// gate's cutoff and the scope's params.
-function sessionErrorRows(
-  group: ExploreGroup, scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] },
-  bucketExpr: string | null, bucketBinds: (string|number)[] = [],
-): { gk: string|number|null; bkt: string; errors: number }[] {
-  const bkt = bucketExpr ? `${bucketExpr} AS bkt` : `'' AS bkt`;
-  return db.prepare(`
-    SELECT ${errorGroupCol(group)} AS gk, ${bkt}, SUM(COALESCE(s.error_count, 0)) AS errors
-    FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}
-    GROUP BY gk, bkt
-  `).all(...bucketBinds, cutoff, ...sc.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
-}
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
 // project name + source so a single scan feeds model/project/source grouping,
@@ -348,30 +307,23 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // message in the session, and misattributed for tool/skill/subagent since
   // an arbitrary same-session tool_result isn't the one that actually errored
   // for that group value).
-  if (SESSION_ERROR_GROUPS.includes(q.group)) {
-    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, null)) {
-      if (e.gk == null) continue;
-      const r = rowMap.get(String(e.gk));
-      if (r) r.errors = e.errors;
-    }
-  } else {
-    const errRows = db.prepare(`
-      SELECT ${errorGroupCol(q.group)} AS gk, substr(r.text,1,200) AS head
-      FROM messages r
-      JOIN messages u ON u.id = (
-        SELECT MIN(u2.id) FROM messages u2
-        WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
-      )
-      JOIN sessions s ON s.id = r.session_id
-      JOIN projects p ON p.id = s.project_id
-      WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
-        AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?
-    `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
-    for (const e of errRows) {
-      if (e.gk == null || !ERROR_RE.test(e.head)) continue;
-      const r = rowMap.get(String(e.gk));
-      if (r) r.errors++;
-    }
+  const errCol = errorGroupCol(q.group);
+  const errRows = db.prepare(`
+    SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
+    FROM messages r
+    JOIN messages u ON u.id = (
+      SELECT MIN(u2.id) FROM messages u2
+      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
+    )
+    JOIN sessions s ON s.id = r.session_id
+    JOIN projects p ON p.id = s.project_id
+    WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
+      AND ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql} AND r.ts >= ?
+  `).all(...bind()) as unknown as { gk: string|number|null; head: string }[];
+  for (const e of errRows) {
+    if (e.gk == null || !ERROR_RE.test(e.head)) continue;
+    const r = rowMap.get(String(e.gk));
+    if (r) r.errors++;
   }
 
   // Active ms per group value (session agent_active_ms attributed to each group
@@ -408,10 +360,6 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     : new Map<number, string>();
 
   let usageRows: SessionUsageParsed[] = [];
-  // Hoisted so the rollup below can reuse this exact scan when its granularity is also
-  // 'day' (the two calls take identical arguments) instead of paying for a second
-  // sessions×messages pass over the same rows.
-  let dayBucketedCells: BucketedUsageCell[] | null = null;
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
     // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; day-
     // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
@@ -422,11 +370,11 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
     const bucketedCells = bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, 'day');
-    dayBucketedCells = bucketedCells;
     const acc = new Map<string, Record<string, UsageCell>>();
     const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
     for (const c of bucketedCells) {
-      const rowKey = usageRowKey(q.group, c, projectNameById);
+      const rowKey = q.group === 'model' ? c.model : q.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
+        : q.group === 'session' ? c.sessionId : c.source;
       let byModel = acc.get(rowKey);
       if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
       addCellInto(byModel, c.model, c.cells);
@@ -622,7 +570,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells });
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, sc, base, g });
   }
 
   return {
@@ -689,38 +637,28 @@ export function toWire(result: ExploreResult): ExploreWireResult {
 // `rows` supplies the series identity (its keys = topN group values + 'Other'),
 // so the time-series stacks the SAME series the ranked/Detail views show, in the
 // same colors. Non-topN group values fold into 'Other' per bucket.
-interface RollupCtx {
-  cutoff: string; cutoffIso: string | null;
-  sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string };
-  // Project id → name, so a usage cell (which carries projectId) can be keyed the way
-  // groupExpr('project') keys the ranked rows. Populated only for group='project'.
-  projectNameById: Map<number, string>;
-  // The day-granularity bucketedUsage scan computeExplore already ran for the ranked
-  // rows (EXACT_USAGE_GROUPS only, null otherwise), reused verbatim when this rollup's
-  // granularity is 'day', since the call would take identical arguments.
-  dayBucketedCells: BucketedUsageCell[] | null;
-}
+interface RollupCtx { cutoff: string; sc: { sql: string; params: (string|number)[] }; base: string; g: { col: string; where: string }; }
 function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells } = ctx;
+  const { cutoff, sc, base, g } = ctx;
   // `base` (from computeExplore) now carries overlapGate + a trailing `AND m.ts >= ?`
   // placeholder — see the computeExplore `base` comment. Bind order: cutoff (overlap),
   // sc.params (scope), cutoff again (m.ts), then any caller-supplied extras.
   const bind = (extra: (string|number)[] = []): (string|number)[] => [cutoff, ...sc.params, cutoff, ...extra];
   const bm = bucketExpr(effective, 'm.ts');
   const bs = bucketExpr(effective, 's.started_at');
-  // Billed `sessions.usage` cells for this rollup's granularity, scaled to each
-  // bucket's share of the session's per-message tokens (#306). This replaces the old
-  // started_at scan, which placed a session's WHOLE billed cell on the bucket it began
-  // in: for a range whose edge splits a session that over-counted the rollup against
-  // the ranked rows above (already rangedUsage/bucketedUsage-scaled), so the stacked
-  // chart and the total bar disagreed. bucketedUsage's buckets sum to exactly the
-  // ranged cell, so they now agree by construction.
-  const grain = USAGE_BUCKET_FOR[effective];
-  const usageCells = (): BucketedUsageCell[] =>
-    (grain === 'day' && dayBucketedCells)
-      ? dayBucketedCells
-      : bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, grain);
+  // Session scan (used by usage-sourced token magnitude + calibrated billed),
+  // bucketed by started_at — a session lands wholly in one bucket. overlapGate
+  // fixes the P0 vanishing bug for rollup token/spend charts too — a
+  // spanning session is no longer dropped — but bucket PLACEMENT stays at
+  // started_at (unscaled) rather than routing through bucketedUsage: that
+  // primitive only supports hour/day granularity, not the weekly/monthly
+  // rollups this file also serves, so per-message-scaled bucket placement for
+  // this session-usage-sourced path is left as a known follow-up, not this
+  // task's scope (the total/ranked `rows` above ARE fully rangedUsage-scaled).
+  const sessionSql = `SELECT ${bs} AS bkt, s.id AS id, p.name AS project, s.source AS source, s.usage AS usage
+    FROM sessions s JOIN projects p ON p.id = s.project_id
+    WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}`;
 
   // series identity: topN group values are their own series; everything else
   // (present iff `rows` was folded) collapses to 'Other'.
@@ -737,10 +675,14 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
 
   if (q.metric === 'tokens' || q.metric === 'spend') {
     if (EXACT_USAGE_GROUPS.includes(q.group)) {
-      // model/project/source/session magnitude from sessions.usage, bucketed and scaled
-      // to in-range share by the same primitive the ranked rows read.
-      for (const c of usageCells()) {
-        addCellInto(cell(c.bucket, seriesKeyFor(usageRowKey(q.group, c, projectNameById))).tokensByModel, c.model, c.cells);
+      // model/project/source/session magnitude from sessions.usage, bucketed by started_at.
+      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; id: string; project: string; source: string; usage: string|null }[];
+      for (const r of srows) {
+        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
+          const gv = q.group === 'model' ? model : q.group === 'project' ? r.project
+            : q.group === 'session' ? r.id : r.source;
+          addCellInto(cell(r.bkt, seriesKeyFor(gv)).tokensByModel, model, u);
+        }
       }
     } else if (CALIBRATED_GROUPS.includes(q.group)) {
       // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
@@ -748,16 +690,15 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
       const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
         COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
         FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; chars: number }[];
-      // The per-bucket billed base is the same in-range-scaled cell set the exact
-      // branch reads, so a calibrated tool/skill bucket prices off the range's real
-      // billed total rather than a spanning session's whole history.
+      const srows = db.prepare(sessionSql).all(cutoff, ...sc.params) as unknown as { bkt: string; usage: string|null }[];
       const billedByBucket = new Map<string, number>();
       const splitByBucket = new Map<string, Map<string, { input: number; output: number }>>();
-      for (const c of usageCells()) {
-        billedByBucket.set(c.bucket, (billedByBucket.get(c.bucket) ?? 0) + c.cells.input + c.cells.output);
-        let sp = splitByBucket.get(c.bucket); if (!sp) { sp = new Map(); splitByBucket.set(c.bucket, sp); }
-        const cur = sp.get(c.model) ?? { input: 0, output: 0 };
-        cur.input += c.cells.input; cur.output += c.cells.output; sp.set(c.model, cur);
+      for (const r of srows) {
+        for (const [model, u] of Object.entries(parseUsage(r.usage))) {
+          billedByBucket.set(r.bkt, (billedByBucket.get(r.bkt) ?? 0) + u.input + u.output);
+          let sp = splitByBucket.get(r.bkt); if (!sp) { sp = new Map(); splitByBucket.set(r.bkt, sp); }
+          const cur = sp.get(model) ?? { input: 0, output: 0 }; cur.input += u.input; cur.output += u.output; sp.set(model, cur);
+        }
       }
       const charByBucket = new Map<string, { key: string; chars: number }[]>();
       for (const cr of charRows) { const a = charByBucket.get(cr.bkt) ?? []; a.push({ key: String(cr.gk), chars: cr.chars }); charByBucket.set(cr.bkt, a); }
@@ -792,32 +733,6 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   } else if (q.metric === 'sessions') {
     const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${base} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string; gk: string|number; c: number }[];
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
-  } else if (q.metric === 'errors' && SESSION_ERROR_GROUPS.includes(q.group)) {
-    // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
-    // start, the same placement `metric === 'active'` below uses for the other
-    // whole-session precomputed column, agent_active_ms. Bucketing this column by the
-    // erroring message's own ts is not available: the column is one number per
-    // session, with no per-error timestamp to slice by.
-    //
-    // Clamped to the range with MAX(started_at, cutoff): a session that began months
-    // before the range still overlaps it, and its unclamped start bucket would draw a
-    // bar months outside the range the operator selected. The All range binds '',
-    // where MAX is the start itself. (`metric === 'active'` below is unclamped and has
-    // the same shape; changing what it draws is not this ticket's number change.)
-    // bucketExpr repeats its timestamp argument (the weekly key reads it three times),
-    // so the clamp's bind is repeated to match rather than assumed to appear once.
-    const clamped = bucketExpr(effective, 'MAX(s.started_at, ?)');
-    const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(cutoff);
-    // Only series the ranked rows actually carry: the rows drop a group value with no
-    // in-range messages, so crediting it here would draw a bar the table has no line
-    // for and break the reconciliation between them.
-    const seriesInRows = new Set(rows.map((r) => r.key));
-    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, clamped, clampBinds)) {
-      if (e.gk == null) continue;
-      const sk = seriesKeyFor(String(e.gk));
-      if (!seriesInRows.has(sk)) continue;
-      cell(String(e.bkt), sk).errors += e.errors;
-    }
   } else if (q.metric === 'errors') {
     const errCol = errorGroupCol(q.group);
     const br = bucketExpr(effective, 'r.ts');

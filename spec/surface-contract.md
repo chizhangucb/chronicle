@@ -149,22 +149,6 @@ constant; readability is solved on the TEXT, not by moving the frame.
   nothing scores what drove it. The engine and its per-session route are gone with the chip,
   so opening a session issues no request for either. Guards:
   `test/removed-routes.test.mjs`, `test/repo-shape.test.mjs`.
-- **Explore's total bar and its stacked time chart report the same number.** A rollup bucket holds
-  a session's billed usage in proportion to the messages that fall in it, and a session on the
-  range edge contributes only its in-range share, exactly as it already did to the ranked rows. So
-  summing a chart's buckets reproduces that chart's own total, at every rollup granularity. Spec
-  #294 changed these numbers on purpose: the rollup used to drop a session's whole billed usage on
-  the single bucket it started in, so the chart read higher than the total beside it and a session
-  spanning two buckets showed on one. Chi's confirmation on #271 and #294 is the sign-off. Guards:
-  `test/explore-rollup.test.mjs`, `test/route-golden.test.mjs`.
-- **Explore attributes an error per message only where it must.** The `project`, `source` and
-  `session` dimensions read the per-session error count precomputed at import, so they carry the
-  same whole-session range tradeoff Insights' error rate does: a session overlapping the range
-  edge reports its full error count, and the rollup charts a session's errors on the bucket it
-  started in, clamped to the first bucket of the range so no bar falls outside the range selected. `tool`, `skill`, `model`, `subagent`, `mcp`, `provider` and
-  `hour` name something inside the session, so they stay on the per-message heuristic and an
-  erroring result with no pairable call attributes to none of them. Guard:
-  `test/explore-errors.test.mjs`.
 - **The retired vocabulary stays retired.** The words for the private checkout Chronicle was the
   operator's front end for, the two sibling repos it named, the private tracker's ticket ids, and
   the word for the read-to-change links spec #294 removed, appear in NO tracked source, config,
@@ -443,8 +427,6 @@ Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude
 | Monthly budget is server-backed: the Spend tab round-trips it through `/settings` → `~/.chronicle/config.json` (migrating a legacy localStorage value once) | `test/settings-budget.test.mjs` — `/settings` normalizes monthlyBudget |
 | Sessions tab = count line + 2-up aggregates + ONE flat sessions table (chips cost\|duration\|recent, cost default), click-to-extend | `test/e2e/sessions-tab.spec.ts` — "Sessions tab two-up aggregates + one flat table" |
 | Exactly two session lists product-wide: /projects ledger + Sessions tab (no third) | `test/e2e/sessions-tab.spec.ts` — "no day sub-headers in the Sessions-tab table (grouping is ledger-only)" |
-| Explore's rollup buckets sum to its own total at every granularity, including a range whose edge splits a session | `test/explore-rollup.test.mjs` (node), the reconciliation pin |
-| Explore reads precomputed per-session error counts for `project`/`source`/`session` and the per-message heuristic for every other dimension | `test/explore-errors.test.mjs` (node) |
 | Explore dimensions include `mcp` (per-server, calibrated) + `provider` (model vendor) | `test/explore-mcp-provider.test.mjs` (node) — mcp derivation + provider mapping + calibrated flag |
 | Explore session grouping / Other segment | `test/e2e/explore.spec.ts` |
 | Content characteristics: 7 shares at all/project scope, 6 session facts at session scope, merged into one "What your usage says" card | `test/e2e/content-characteristics.spec.ts` |
