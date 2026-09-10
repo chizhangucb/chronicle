@@ -392,10 +392,10 @@
         "source": "codex",
         "bucket": "D-1H20",
         "cells": {
-          "input": 167,
-          "output": 33,
-          "cacheRead": 83,
-          "cacheWrite5m": 17,
+          "input": 166,
+          "output": 34,
+          "cacheRead": 84,
+          "cacheWrite5m": 16,
           "cacheWrite1h": 4
         }
       },
@@ -410,7 +410,7 @@
           "output": 33,
           "cacheRead": 83,
           "cacheWrite5m": 17,
-          "cacheWrite1h": 4
+          "cacheWrite1h": 5
         }
       },
       {
@@ -434,10 +434,10 @@
         "source": "codex",
         "bucket": "D0H7",
         "cells": {
-          "input": 167,
-          "output": 33,
-          "cacheRead": 83,
-          "cacheWrite5m": 17,
+          "input": 166,
+          "output": 34,
+          "cacheRead": 84,
+          "cacheWrite5m": 16,
           "cacheWrite1h": 4
         }
       },
@@ -2021,8 +2021,8 @@
         "exact": true,
         "warn": false,
         "label": "of usage ran past 70% of the model's context window",
-        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
-        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
+        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger \u2014 long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
+        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point \u2014 Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2033,8 +2033,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2045,8 +2045,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from marathon sessions (8h+ active)",
-        "why": "Sessions where the agent was actively working — not just open — for 8 hours or more.",
-        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Sessions where the agent was actively working \u2014 not just open \u2014 for 8 hours or more.",
+        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it \u2014 a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "marathon session",
         "countMany": "marathon sessions"
       },
@@ -2058,7 +2058,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2070,7 +2070,7 @@
         "exact": true,
         "label": "of usage ran above 150k context tokens",
         "why": "Sessions carrying a large context regardless of the model's window size.",
-        "info": "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+        "info": "Flags sessions whose stored context size passed 150,000 tokens \u2014 an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2081,7 +2081,7 @@
         "count": 3,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
         "countOne": "session with cache activity",
         "countMany": "sessions with cache activity"
@@ -2093,8 +2093,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage ran mostly unattended",
-        "why": "Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.",
-        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Engaged (wall-clock) time stayed under a quarter of active time \u2014 the agent worked largely without you watching.",
+        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) \u2014 for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       }
@@ -2147,8 +2147,8 @@
         "exact": true,
         "warn": false,
         "label": "of usage ran past 70% of the model's context window",
-        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
-        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
+        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger \u2014 long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
+        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point \u2014 Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2159,8 +2159,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2171,8 +2171,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from marathon sessions (8h+ active)",
-        "why": "Sessions where the agent was actively working — not just open — for 8 hours or more.",
-        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Sessions where the agent was actively working \u2014 not just open \u2014 for 8 hours or more.",
+        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it \u2014 a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "marathon session",
         "countMany": "marathon sessions"
       },
@@ -2184,7 +2184,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2196,7 +2196,7 @@
         "exact": true,
         "label": "of usage ran above 150k context tokens",
         "why": "Sessions carrying a large context regardless of the model's window size.",
-        "info": "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+        "info": "Flags sessions whose stored context size passed 150,000 tokens \u2014 an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2207,7 +2207,7 @@
         "count": 4,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
         "countOne": "session with cache activity",
         "countMany": "sessions with cache activity"
@@ -2219,8 +2219,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage ran mostly unattended",
-        "why": "Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.",
-        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Engaged (wall-clock) time stayed under a quarter of active time \u2014 the agent worked largely without you watching.",
+        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) \u2014 for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       }
@@ -2273,8 +2273,8 @@
         "exact": true,
         "warn": false,
         "label": "of usage ran past 70% of the model's context window",
-        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
-        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
+        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger \u2014 long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
+        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point \u2014 Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2285,8 +2285,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2297,8 +2297,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from marathon sessions (8h+ active)",
-        "why": "Sessions where the agent was actively working — not just open — for 8 hours or more.",
-        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Sessions where the agent was actively working \u2014 not just open \u2014 for 8 hours or more.",
+        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it \u2014 a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "marathon session",
         "countMany": "marathon sessions"
       },
@@ -2310,7 +2310,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2322,7 +2322,7 @@
         "exact": true,
         "label": "of usage ran above 150k context tokens",
         "why": "Sessions carrying a large context regardless of the model's window size.",
-        "info": "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+        "info": "Flags sessions whose stored context size passed 150,000 tokens \u2014 an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2333,7 +2333,7 @@
         "count": 2,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
         "countOne": "session with cache activity",
         "countMany": "sessions with cache activity"
@@ -2345,8 +2345,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage ran mostly unattended",
-        "why": "Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.",
-        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Engaged (wall-clock) time stayed under a quarter of active time \u2014 the agent worked largely without you watching.",
+        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) \u2014 for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       }
@@ -2399,8 +2399,8 @@
         "exact": true,
         "warn": false,
         "label": "of usage ran past 70% of the model's context window",
-        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger — long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
-        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point — Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
+        "why": "Chronicle's own heuristic threshold, not a documented Claude Code auto-compact trigger \u2014 long sessions are pricier even when cached; splitting tasks or compacting mid-task cuts cache-write spend.",
+        "info": "Compares each session's stored context size against its model's context window. 70% is a heuristic threshold Chronicle chose to flag rising cost, not a documented auto-compact point \u2014 Claude Code doesn't publish a fixed default for the 200K window, and the 1M window auto-compacts around 97%, well past 70%. Sessions with no stored context size are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2411,8 +2411,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2423,8 +2423,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from marathon sessions (8h+ active)",
-        "why": "Sessions where the agent was actively working — not just open — for 8 hours or more.",
-        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it — a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Sessions where the agent was actively working \u2014 not just open \u2014 for 8 hours or more.",
+        "info": "Agent-active time sums every gap between messages except the ones spent waiting on you to type a prompt, capped at 10 minutes per gap unless a long-running tool call fills it \u2014 a session counts here once that total reaches 8 hours. Sessions without a stored duration (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "marathon session",
         "countMany": "marathon sessions"
       },
@@ -2436,7 +2436,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2448,7 +2448,7 @@
         "exact": true,
         "label": "of usage ran above 150k context tokens",
         "why": "Sessions carrying a large context regardless of the model's window size.",
-        "info": "Flags sessions whose stored context size passed 150,000 tokens — an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
+        "info": "Flags sessions whose stored context size passed 150,000 tokens \u2014 an absolute cutoff, independent of which model or context-window size was in use. Sessions with no stored context size (some non-Claude-Code sources, or an import from before context tracking was added) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       },
@@ -2459,7 +2459,7 @@
         "count": 2,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage.",
         "countOne": "session with cache activity",
         "countMany": "sessions with cache activity"
@@ -2471,8 +2471,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage ran mostly unattended",
-        "why": "Engaged (wall-clock) time stayed under a quarter of active time — the agent worked largely without you watching.",
-        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) — for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
+        "why": "Engaged (wall-clock) time stayed under a quarter of active time \u2014 the agent worked largely without you watching.",
+        "info": "Flags sessions where engaged time (your wall-clock presence) is under 25% of agent-active time (the agent's working time) \u2014 for example, a long build or tool call that ran while you stepped away. Sessions without stored duration data (not yet re-synced) are left out of this share entirely, on both sides of the percentage.",
         "countOne": "session",
         "countMany": "sessions"
       }
@@ -2534,7 +2534,7 @@
         "value": 33,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage."
       },
       {
@@ -2544,8 +2544,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2557,7 +2557,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2568,8 +2568,8 @@
         "exact": true,
         "warn": false,
         "label": "engaged time as a share of agent-active time",
-        "why": "Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.",
-        "info": "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import."
+        "why": "Lower means you were around for less of the time the agent was working \u2014 engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.",
+        "info": "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged \u00f7 active for this session, capped the same way both durations are capped at import."
       }
     ],
     "calibratedTotalTokens": 1440,
@@ -2629,7 +2629,7 @@
         "value": 33,
         "exact": true,
         "label": "of input tokens were served from cache",
-        "why": "Higher is cheaper — a cache read costs a fraction of a fresh input token.",
+        "why": "Higher is cheaper \u2014 a cache read costs a fraction of a fresh input token.",
         "info": "The share of input-side tokens (fresh input plus cache reads) that came from cache reads, computed directly from each session's billed usage."
       },
       {
@@ -2639,8 +2639,8 @@
         "count": 0,
         "exact": true,
         "label": "of usage came from subagent turns",
-        "why": "Work delegated to Task-launched subagents rather than answered on the main thread — each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
-        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns — includes both workflow and standalone subagent runs.",
+        "why": "Work delegated to Task-launched subagents rather than answered on the main thread \u2014 each subagent pays its own context, worth it for parallel work but worth watching on simple tasks.",
+        "info": "Counts every reply a subagent produced, exact from Chronicle's per-message sidechain token columns \u2014 includes both workflow and standalone subagent runs.",
         "countOne": "subagent turn",
         "countMany": "subagent turns"
       },
@@ -2652,7 +2652,7 @@
         "exact": true,
         "label": "of usage ran inside a multi-agent workflow",
         "why": "Tokens spent on groups of subagents launched together to divide one task.",
-        "info": "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
+        "info": "A workflow run is a group of subagents nested under one shared workflow folder \u2014 this is their exact share of billed tokens, not a text-length estimate.",
         "countOne": "workflow run",
         "countMany": "workflow runs"
       },
@@ -2663,8 +2663,8 @@
         "exact": true,
         "warn": false,
         "label": "engaged time as a share of agent-active time",
-        "why": "Lower means you were around for less of the time the agent was working — engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.",
-        "info": "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged ÷ active for this session, capped the same way both durations are capped at import."
+        "why": "Lower means you were around for less of the time the agent was working \u2014 engaged (wall-clock) time under a quarter of active time means the session ran mostly unattended.",
+        "info": "Engaged is your wall-clock presence; agent-active is the agent's working time. This is engaged \u00f7 active for this session, capped the same way both durations are capped at import."
       }
     ],
     "calibratedTotalTokens": 1440,
@@ -2899,11 +2899,11 @@
           "g-span": {
             "tokensByModel": {
               "claude-sonnet-5": {
-                "input": 2000,
-                "output": 400,
-                "cacheRead": 1000,
-                "cw5m": 200,
-                "cw1h": 50
+                "input": 1333,
+                "output": 267,
+                "cacheRead": 667,
+                "cw5m": 133,
+                "cw1h": 33
               }
             },
             "requests": 0,
@@ -2925,6 +2925,21 @@
                 "cacheRead": 600,
                 "cw5m": 120,
                 "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "g-span": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 667,
+                "output": 133,
+                "cacheRead": 333,
+                "cw5m": 67,
+                "cw1h": 17
               }
             },
             "requests": 0,
@@ -3035,11 +3050,11 @@
           "g-span": {
             "tokensByModel": {
               "claude-sonnet-5": {
-                "input": 2000,
-                "output": 400,
-                "cacheRead": 1000,
-                "cw5m": 200,
-                "cw1h": 50
+                "input": 1333,
+                "output": 267,
+                "cacheRead": 667,
+                "cw5m": 133,
+                "cw1h": 33
               }
             },
             "requests": 0,
@@ -3061,6 +3076,21 @@
                 "cacheRead": 600,
                 "cw5m": 120,
                 "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "g-span": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 667,
+                "output": 133,
+                "cacheRead": 333,
+                "cw5m": 67,
+                "cw1h": 17
               }
             },
             "requests": 0,

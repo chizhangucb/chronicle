@@ -102,6 +102,37 @@ before(async () => {
       { kind: 'assistant', ts: '2026-05-03T09:00:00.000Z', model: 'model-a', input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
     ],
   );
+
+  // --- rounding-drift fixture (#306) ---
+  // Three in-range messages of one token each against a billed cell that does NOT
+  // divide by three: rounding each bucket independently gives 33+33+33 = 99, one
+  // token short of the 100 the same session's rangedUsage cell reports. The buckets
+  // must sum back to the cell exactly, so Explore's stacked chart cannot disagree
+  // with its own total bar.
+  replaceSession(
+    { id: 'drift1', project_id: proj.id, source: 'claude-code', file_path: '/tmp/drift1.jsonl',
+      started_at: '2026-08-01T00:00:00.000Z', ended_at: '2026-08-01T06:00:00.000Z',
+      usage: JSON.stringify({ 'model-a': { input: 100, output: 10, cacheRead: 1, cacheWrite5m: 0, cacheWrite1h: 0 } }) },
+    [
+      { kind: 'assistant', ts: '2026-08-01T01:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-08-01T02:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-08-01T03:00:00.000Z', model: 'model-a', input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+    ],
+  );
+
+  // --- coarse bucket fixture (#306) ---
+  // Two messages five weeks apart, in different calendar months, so the week and
+  // month buckets are distinct under ANY host timezone (no local offset moves a
+  // June 10 noon message into July, or into the other message's ISO week).
+  replaceSession(
+    { id: 'bkt2', project_id: proj.id, source: 'claude-code', file_path: '/tmp/bkt2.jsonl',
+      started_at: '2026-06-10T12:00:00.000Z', ended_at: '2026-07-15T12:00:00.000Z',
+      usage: JSON.stringify({ 'model-a': { input: 100, output: 40, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } }) },
+    [
+      { kind: 'assistant', ts: '2026-06-10T12:00:00.000Z', model: 'model-a', input_tokens: 30, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+      { kind: 'assistant', ts: '2026-07-15T12:00:00.000Z', model: 'model-a', input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0 },
+    ],
+  );
 });
 
 after(() => teardown());
@@ -248,4 +279,111 @@ test('bucketedUsage: a zero-message-row model lands its full billed cell on the 
   const d = new Date('2026-05-01T03:00:00.000Z'); // bkt1.started_at
   const p2 = (n) => String(n).padStart(2, '0');
   assert.equal(fallback[0].bucket, `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
+});
+
+// ---------------------------------------------------------------------------
+// bucketedUsage: week and month granularity (#306). Explore's weekly/monthly
+// rollups need the same in-range-share scaling the day/hour buckets already do.
+// ---------------------------------------------------------------------------
+
+const p2 = (n) => String(n).padStart(2, '0');
+const localDay = (iso) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
+
+test('bucketedUsage: week buckets are the LOCAL Monday that opens each message\'s week', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-06-01T00:00:00.000Z'; // before both messages, inside the session span
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'week');
+  const buckets = cells.map((c) => c.bucket).sort();
+  assert.equal(buckets.length, 2, 'two messages five weeks apart occupy two week buckets');
+  assert.notEqual(buckets[0], buckets[1]);
+  for (const [i, iso] of ['2026-06-10T12:00:00.000Z', '2026-07-15T12:00:00.000Z'].entries()) {
+    const bucket = buckets[i];
+    assert.match(bucket, /^\d{4}-\d{2}-\d{2}$/, 'a week bucket key is the calendar date of its Monday');
+    // Properties, asserted independently of how the key is computed: the key names
+    // a Monday, and it is the Monday on or before the message's own local day.
+    const [y, m, d] = bucket.split('-').map(Number);
+    assert.equal(new Date(y, m - 1, d).getDay(), 1, `${bucket} must be a Monday`);
+    const msgDay = localDay(iso);
+    assert.ok(bucket <= msgDay, `${bucket} must not be after the message's local day ${msgDay}`);
+    const daysBack = (Date.parse(`${msgDay}T00:00:00Z`) - Date.parse(`${bucket}T00:00:00Z`)) / 86400000;
+    assert.ok(daysBack >= 0 && daysBack < 7, `${msgDay} must sit inside the week opening ${bucket}`);
+  }
+});
+
+test('bucketedUsage: month buckets are the LOCAL year-month of each message', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-06-01T00:00:00.000Z';
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'month');
+  const buckets = cells.map((c) => c.bucket).sort();
+  assert.deepEqual(buckets, ['2026-06-10T12:00:00.000Z', '2026-07-15T12:00:00.000Z'].map((iso) => localDay(iso).slice(0, 7)));
+});
+
+test('bucketedUsage: a coarse bucket carries the summed in-range share of the days inside it', () => {
+  const { bucketedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  // Cutoff before both messages: whole-session per-message tokens = 40, so the
+  // June message holds 30/40 of the billed cell and the July message 10/40.
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], '2026-06-01T00:00:00.000Z', 'month');
+  const june = cells.find((c) => c.bucket === localDay('2026-06-10T12:00:00.000Z').slice(0, 7));
+  const july = cells.find((c) => c.bucket === localDay('2026-07-15T12:00:00.000Z').slice(0, 7));
+  assert.equal(june.cells.input, 75, 'billed input 100 * 30/40');
+  assert.equal(july.cells.input, 25, 'billed input 100 * 10/40');
+  assert.equal(june.cells.output, 30, 'billed output 40 * 30/40');
+  assert.equal(july.cells.output, 10, 'billed output 40 * 10/40');
+});
+
+// ---------------------------------------------------------------------------
+// bucketedUsage: reconciliation with rangedUsage (#306): the property Explore's
+// total bar and stacked chart rest on.
+// ---------------------------------------------------------------------------
+
+const sumCells = (cells) => cells.reduce((acc, c) => ({
+  input: acc.input + c.cells.input,
+  output: acc.output + c.cells.output,
+  cacheRead: acc.cacheRead + c.cells.cacheRead,
+  cacheWrite5m: acc.cacheWrite5m + c.cells.cacheWrite5m,
+  cacheWrite1h: acc.cacheWrite1h + c.cells.cacheWrite1h,
+}), { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+
+test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage cell, at every granularity', () => {
+  const { bucketedUsage, rangedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  const cutoff = '2026-08-01T00:30:00.000Z'; // inside drift1's span, before every message
+  const ranged = rangedUsage(db, 'AND s.id = ?', ['drift1'], cutoff);
+  assert.equal(ranged.length, 1);
+  // Every per-message token is in-range, so the ranged cell is the full billed cell.
+  assert.deepEqual(ranged[0].cells, { input: 100, output: 10, cacheRead: 1, cacheWrite5m: 0, cacheWrite1h: 0 });
+  for (const bucket of ['hour', 'day', 'week', 'month']) {
+    const cells = bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, bucket);
+    assert.deepEqual(sumCells(cells), ranged[0].cells, `${bucket} buckets must sum to the ranged cell`);
+  }
+  // The hour granularity really did split the session, otherwise the equality above
+  // would hold trivially on a single bucket.
+  assert.equal(bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, 'hour').length, 3);
+});
+
+test('bucketedUsage: buckets sum to the ranged cell when the cutoff splits the session', () => {
+  const { bucketedUsage, rangedUsage } = rangeUsageModule;
+  const { db } = dbModule;
+  // drift1 has three hourly messages of one token each; this cutoff leaves two of the
+  // three in-range, so the share is 2/3 and NOTHING divides evenly: the ranged cell
+  // rounds to 67 while two independently-rounded buckets would come out 33+33 = 66.
+  // The range edge cutting the session and the rounding not dividing are the two
+  // conditions together, which is exactly the case Explore's rollup has to survive.
+  const cutoff = '2026-08-01T01:30:00.000Z';
+  const ranged = rangedUsage(db, 'AND s.id = ?', ['drift1'], cutoff);
+  assert.equal(ranged[0].cells.input, 67, 'billed input 100 * 2/3');
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, 'hour');
+  assert.equal(cells.length, 2, 'only the two in-range messages get a bucket');
+  assert.deepEqual(sumCells(cells), ranged[0].cells);
+  // Also holds where the ratio does divide (scale1: two of four messages in-range).
+  const scaleCutoff = '2026-02-02T00:00:00.000Z';
+  const scaleRanged = rangedUsage(db, 'AND s.id = ?', ['scale1'], scaleCutoff);
+  assert.equal(scaleRanged[0].cells.input, 50);
+  assert.deepEqual(sumCells(bucketedUsage(db, 'AND s.id = ?', ['scale1'], scaleCutoff, 'day')), scaleRanged[0].cells);
 });

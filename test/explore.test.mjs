@@ -337,7 +337,11 @@ test('rollup=total: output unchanged, buckets omitted, rollup fields present', (
   assert.equal(r.buckets, undefined);
 });
 
-test('rollup=daily: buckets by session started_at, reconcile to the range total', () => {
+// Bucket placement follows the per-message token share within the session (#306:
+// bucketedUsage), not the session's started_at. For these fixtures the two agree
+// (each session's messages sit in the local day it started), so the per-bucket
+// figures below are unchanged by that switch.
+test('rollup=daily: buckets by in-range message share, reconcile to the range total', () => {
   const q = { scope: { type: 'all' }, range: rangeOf(null), metric: 'tokens', group: 'model', topN: 10 };
   const total = explore.computeExplore({ ...q, rollup: 'total' });
   const daily = explore.computeExplore({ ...q, rollup: 'daily' });

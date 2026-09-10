@@ -9,6 +9,16 @@
 // matrix against the pre-slice engines; see test/helpers/golden-corpus.mjs for
 // how run-day dates are normalized so a fixture captured once stays valid.
 //
+// Three keys were recaptured when this branch merged `main`, because #306
+// (Explore's rollup scales like its rows) moved those numbers on `main` after
+// 15d1589, not because this slice moved them: `explore:tokens:session:daily:7`
+// and its project-scoped twin, where a session's rollup bucket now carries its
+// in-range share rather than its whole billed cell, and `insights:1`, where
+// bucketedUsage's cumulative distribution shifts hourlySpend by a token of
+// rounding. Each recaptured key was verified byte-identical to what `main`'s
+// own engines produce on this corpus, so equality with the fixture still means
+// "unchanged by the query-context consolidation".
+//
 // Sibling, not a duplicate, of test/route-golden.test.mjs (#301): that one
 // pins whole ROUTE responses over a usage-dialect corpus at one fixed instant;
 // this one drives the ENGINE functions directly across the range × scope
