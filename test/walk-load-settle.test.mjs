@@ -14,7 +14,7 @@
 // than the shape of the code under it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { waitForLoadSettle, collectLoadingOffenders, capturePage } from './e2e/walk.mjs';
+import { waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, WIDTHS } from './e2e/walk.mjs';
 
 /**
  * A Playwright `Page` stand-in. `settlesAfter` is how many DOM scans still
@@ -210,4 +210,73 @@ test('a route may disclose a region that is allowed to still be loading', async 
   assert.equal(result.settle.tolerated.length, 1);
   assert.equal(settleNotes.length, 1);
   assert.match(settleNotes[0], /disclosed/);
+});
+
+// ---- The whole walk ---------------------------------------------------------
+
+/**
+ * The fake grows the reads a REAL route setup() makes (navigation, selector
+ * waits, clicks), so the walk below runs its actual route list — the point is
+ * that no route can opt out of the settle, not that a hand-picked one doesn't.
+ */
+function fakeWalkPage(options) {
+  const page = fakePage(options);
+  const locator = (selector) => {
+    const self = {
+      selector,
+      // The popover-clip probe short-circuits on a page with no InfoTip; the
+      // ledger's "☑ Select" button has to be found, or select-mode throws.
+      count: async () => (selector === '.info-tip' ? 0 : 1),
+      first: () => self,
+      nth: () => self,
+      getByRole: () => self,
+      click: async () => {},
+      hover: async () => {},
+      waitFor: async () => {},
+      boundingBox: async () => null,
+    };
+    return self;
+  };
+  return Object.assign(page, {
+    locator,
+    mouse: { move: async () => {} },
+    setDefaultTimeout() {},
+    async goto() {},
+    async waitForSelector() {},
+    async waitForFunction() {},
+    async waitForTimeout() {},
+  });
+}
+
+// The walk was 12 routes x 3 widths = the 36 cells #205 counted; it has since
+// grown to 14 routes (Sessions tab, select-mode) = 42. The literal is pinned
+// rather than derived from `routes.length` so "every cell settled" cannot
+// quietly become "every cell the harness still produces" — a route that stops
+// yielding a cell fails here. Bump both numbers together when a route lands.
+const WALK_CELLS = 42;
+
+test(`a full walk shoots every cell settled — ${WALK_CELLS} of ${WALK_CELLS}`, async () => {
+  const routes = buildRoutes('http://localhost:4173', { projectId: 7, sessionId: 'sess-1', notes: [] });
+  const cells = [];
+
+  for (const width of WIDTHS) {
+    for (const route of routes) {
+      // Two scans' worth of "Loading…" on every route, the way a real cold
+      // fetch behaves: pre-#205 the shot landed on the first of those.
+      const page = fakeWalkPage({ settlesAfter: 2 });
+      await capturePage(page, route, {
+        width,
+        screenshotPath: `/tmp/chronicle-walk/${route.slug}-${width}.png`,
+        ...settleFast,
+      });
+      cells.push(...page.shots);
+    }
+  }
+
+  assert.equal(cells.length, WALK_CELLS, `the walk is ${WALK_CELLS} cells (routes x widths)`);
+  assert.deepEqual(
+    cells.filter((c) => c.loadingAtCapture).map((c) => c.path),
+    [],
+    'every cell must be a real rendered page, not a "Loading…" state',
+  );
 });

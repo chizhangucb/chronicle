@@ -681,4 +681,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage };
+export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage, buildRoutes, WIDTHS };
