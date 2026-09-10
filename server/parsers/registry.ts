@@ -13,9 +13,12 @@ import { opencodeSource } from './opencode.ts';
 
 export const SOURCES: Source[] = [claudeCodeSource, codexSource, cursorSource, opencodeSource];
 
-// The source that reads this tool's transcripts, or undefined for a `SourceId`
-// no parser covers yet (`gemini`, `copilot`) — a caller decides what to do
-// about that rather than being handed a source that reads nothing.
-export function sourceById(id: SourceId): Source | undefined {
+// The source that reads this tool's transcripts, or undefined for a source no
+// parser covers yet (`gemini`, `copilot`) — a caller decides what to do about
+// that rather than being handed a source that reads nothing. Takes a plain
+// string, because the two callers that most need it hold one: `sessions.source`
+// is untyped TEXT in the DB (shared/rows.ts) and a query string is whatever the
+// operator typed.
+export function sourceById(id: SourceId | string): Source | undefined {
   return SOURCES.find((s) => s.id === id);
 }

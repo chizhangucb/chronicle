@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { scanOpencodeProjects, parseOpencodeSessions } from '../../server/parsers/opencode.ts';
+import { opencodeSource } from '../../server/parsers/opencode.ts';
+
+// Through the `Source` interface, the one way in (#309). The store is the
+// target; `directory` and `sessionIds` narrow it.
+const parseOpencodeSessions = (dbPath, directory, sessionIds) =>
+  opencodeSource.parse({ logDir: dbPath, directory, sessionIds });
+const scanOpencodeProjects = (dbPath) => opencodeSource.scan(dbPath);
 
 const FIXTURE = 'test/fixtures/oc-live.db';
 
@@ -34,10 +40,10 @@ test('scanOpencodeProjects: finds the fixture session, grouped by directory', ()
   assert.equal(session.modifiedAt, '2026-07-04T08:57:26.884Z');
 });
 
-test('parseOpencodeSessions: session envelope pins id, cwd, timestamps, first prompt', () => {
+test('parseOpencodeSessions: session envelope pins id, cwd, timestamps, first prompt', async () => {
   const before = fs.statSync(FIXTURE);
 
-  const parsed = parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
+  const parsed = await parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
 
   const after = fs.statSync(FIXTURE);
   assert.equal(after.mtimeMs, before.mtimeMs, 'parse must not touch the source DB mtime');
@@ -62,8 +68,8 @@ test('parseOpencodeSessions: session envelope pins id, cwd, timestamps, first pr
   assert.equal(session.ended_at, '2026-07-04T08:57:26.884Z');
 });
 
-test('parseOpencodeSessions: flattens parts into the normalized kind set, in order', () => {
-  const parsed = parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
+test('parseOpencodeSessions: flattens parts into the normalized kind set, in order', async () => {
+  const parsed = await parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
   const { events } = parsed[0];
 
   assert.equal(events.length, 4);
@@ -98,13 +104,13 @@ test('parseOpencodeSessions: flattens parts into the normalized kind set, in ord
   assert.equal(events[events.length - 1].ts, '2026-07-04T08:58:40.714Z');
 });
 
-test('parseOpencodeSessions: sessionIds filter excludes non-matching sessions', () => {
-  const parsed = parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['does-not-exist']);
+test('parseOpencodeSessions: sessionIds filter excludes non-matching sessions', async () => {
+  const parsed = await parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['does-not-exist']);
   assert.equal(parsed.length, 0);
 });
 
-test('parseOpencodeSessions: no thinking events or token usage fields in this fixture', () => {
-  const parsed = parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
+test('parseOpencodeSessions: no thinking events or token usage fields in this fixture', async () => {
+  const parsed = await parseOpencodeSessions(FIXTURE, '/tmp/oc-live-project', ['ses_live1']);
   const { events } = parsed[0];
 
   // The fixture's single `message` rows carry no reasoning parts and no

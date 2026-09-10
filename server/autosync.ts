@@ -8,10 +8,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, upsertProject, replaceSession } from './db.ts';
-import { scanClaudeProjects, parseClaudeSession, claudeSessionMtimeMs, CLAUDE_PROJECTS_DIR } from './parsers/claudeCode.ts';
-import { scanCodexProjects, parseCodexSession, CODEX_SESSIONS_DIR } from './parsers/codex.ts';
-import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './parsers/opencode.ts';
-import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
+import { SOURCES } from './parsers/registry.ts';
+import { importableFiles } from './parsers/source.ts';
+import type { Source } from './parsers/source.ts';
 import { readConfig } from './config.ts';
 import type { ParseResult } from '../shared/types.ts';
 // The status shape the Settings surface reads (shared/results.ts, #307).
@@ -91,13 +90,18 @@ function state(): AutoSyncState {
   return globalThis.__chronicleAutoSync;
 }
 
-function mtimeOf(file: string): number | null {
-  try { return fs.statSync(file).mtime.getTime(); } catch { return null; }
+// The directory to watch for a path that names a source's records: the path
+// itself when it is a directory, its parent when it is a store file (a SQLite
+// write can land in the `-wal` sibling without touching the file itself).
+// A path that isn't there yet is read by its spelling: a store file (it has an
+// extension) is watched through the dir it will appear in, a log root is left
+// as itself — watching ITS parent would mean recursively watching an unrelated
+// tree (`~/.claude`, `~/.codex`, the whole Cursor app dir), and the backstop
+// timer already covers a root that appears later.
+function watchDirOf(p: string): string {
+  try { return fs.statSync(p).isDirectory() ? p : path.dirname(p); } catch { /* not there — go by the spelling */ }
+  return path.extname(p) ? path.dirname(p) : p;
 }
-
-// A Claude Code session's effective mtime includes its subagents tree
-// (direct + workflows/*, recursively) — see claudeSessionMtimeMs.
-const claudeMtime = claudeSessionMtimeMs;
 
 // One incremental pass over every source. Imports sessions that are NEW in an
 // already-imported project, or whose source file changed since their import.
@@ -110,7 +114,6 @@ export async function runIncrementalSync(): Promise<SyncResult> {
   let imported = 0, checked = 0;
   try {
     const projectPaths = new Set((db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[]).map((p) => p.path));
-    const bySession = new Map((db.prepare('SELECT id, file_path, imported_at FROM sessions').all() as unknown as { id: string; file_path: string; imported_at: string | null }[]).map((s) => [s.id, s]));
     const byFile = new Map((db.prepare('SELECT file_path, MAX(imported_at) AS at FROM sessions GROUP BY file_path').all() as unknown as { file_path: string; at: string | null }[]).map((r) => [r.file_path, r.at]));
     const importedAtMs = (iso: string | null | undefined): number => (iso ? new Date(iso + (iso.endsWith('Z') || iso.includes('+') ? '' : 'Z')).getTime() : 0);
 
@@ -124,43 +127,37 @@ export async function runIncrementalSync(): Promise<SyncResult> {
       }
     };
 
-    // Per-file sources: cheap mtime pre-filter, parse only stale/new files.
-    for (const item of scanClaudeProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
-      for (const s of item.sessions ?? []) {
-        checked++;
-        const prev = bySession.get(s.id);
-        const m = claudeMtime(s.file as string);
-        if (prev && m && m <= importedAtMs(prev.imported_at)) continue;
-        importParsedList([await parseClaudeSession(s.file as string)]);
-      }
-    }
-    for (const item of scanCodexProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
-      for (const f of item.files ?? []) {
-        checked++;
-        const at = byFile.get(f);
-        const m = mtimeOf(f);
-        if (at && m && m <= importedAtMs(at)) continue;
-        importParsedList([await parseCodexSession(f)]);
-      }
-    }
-    // DB-backed / dir-backed sources: re-parse the whole store when its file is
-    // newer than the last import from it.
-    const staleStore = (storePath: string): boolean => {
+    // One pass per source, through the `Source` interface: nothing here knows
+    // which coding tool it is looking at.
+    //
+    // A scan that lists files (one transcript per session) gets the cheap
+    // per-file mtime pre-filter and a parse scoped to the stale file; a scan
+    // that lists none (a shared SQLite store) is re-parsed whole when the store
+    // is newer than the last import out of it. `Source.mtime` is what makes
+    // both cheap: it folds in whatever else counts as a write for that source
+    // (Claude Code's subagents tree, a store's `-wal` sidecar).
+    const staleStore = (source: Source, storePath: string): boolean => {
       const at = [...byFile.entries()].filter(([f]) => f === storePath || f.startsWith(storePath)).map(([, v]) => v).sort().pop();
-      const m = mtimeOf(storePath);
+      const m = source.mtime(storePath);
       return !at || !m || m > importedAtMs(at);
     };
-    for (const item of scanOpencodeProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
-      checked++;
-      if (staleStore(OPENCODE_DB)) importParsedList(await parseOpencodeSessions(OPENCODE_DB, item.directory));
-    }
-    for (const item of scanCursorProjects()) {
-      if (!item.physicalPath || !projectPaths.has(item.physicalPath) || !item.logDir) continue;
-      checked++;
-      if (staleStore(item.logDir)) importParsedList(await parseCursorWorkspace(item.logDir, undefined, item.physicalPath));
+    for (const source of SOURCES) {
+      for (const item of source.scan()) {
+        if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
+        const files = importableFiles(item);
+        if (!files.length) {
+          checked++;
+          if (staleStore(source, item.logDir)) importParsedList(await source.parse(item));
+          continue;
+        }
+        for (const file of files) {
+          checked++;
+          const at = byFile.get(file);
+          const m = source.mtime(file);
+          if (at && m && m <= importedAtMs(at)) continue;
+          importParsedList(await source.parse({ ...item, files: [file] }));
+        }
+      }
     }
     st.lastResult = { ok: true, imported, checked, ms: Date.now() - started };
   } catch (err) {
@@ -190,11 +187,19 @@ export function startAutoSync(): void {
   const st = state();
   stopAutoSync();
   if (!autoSyncEnabled()) return;
-  // fs-watch the known source dirs (recursive works on macOS/Windows; a dir that
-  // doesn't exist or can't be watched is skipped — the timer is the backstop).
-  const cursorDirs = scanCursorProjects().map((i) => i.logDir).filter(Boolean);
-  const dirs = [CLAUDE_PROJECTS_DIR, CODEX_SESSIONS_DIR, path.dirname(OPENCODE_DB), ...cursorDirs];
-  for (const d of new Set(dirs)) {
+  // fs-watch every dir a source's records can be written to: its default root,
+  // plus any scanned project that sits outside it (Cursor files a project's
+  // Agent transcripts under ~/.cursor/projects, nowhere near its user dir).
+  // A dir already covered by a watched ancestor is dropped — the watch is
+  // recursive, so one watcher over the root is the whole subtree (recursive
+  // works on macOS/Windows; a dir that doesn't exist or can't be watched is
+  // skipped — the timer is the backstop).
+  const candidates = new Set(SOURCES.flatMap((s) => [
+    watchDirOf(s.defaultRoot()),
+    ...s.scan().map((item) => watchDirOf(item.logDir)),
+  ]));
+  const dirs = [...candidates].filter((d) => ![...candidates].some((o) => o !== d && d.startsWith(o + path.sep)));
+  for (const d of dirs) {
     try {
       if (!fs.existsSync(d)) continue;
       const w = fs.watch(d, { recursive: true }, () => scheduleDebounced());

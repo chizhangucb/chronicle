@@ -4,10 +4,9 @@ import type { Response } from 'express';
 import { db } from './db.ts';
 import type { SessionRow } from '../shared/rows.ts';
 import type { LiveWatcher } from '../shared/results.ts';
-import { parseClaudeLine } from './parsers/claudeCode.ts';
-import { parseOpencodeSessions } from './parsers/opencode.ts';
-import { parseCursorWorkspace, parseAgentTranscriptJsonl } from './parsers/cursor.ts';
-import type { Event } from '../shared/types.ts';
+import { sourceById } from './parsers/registry.ts';
+import type { Source } from './parsers/source.ts';
+import type { Event, ParseTarget } from '../shared/types.ts';
 
 // Session Live Streaming (FR-LS): incremental JSONL tail → SSE.
 // Watch state survives Vite SSR reloads via globalThis.
@@ -85,10 +84,12 @@ export function isLiveCandidate(
   return true;
 }
 
+// An append-only transcript (a source that declares `tail`): read what was
+// added since the last poll and hand each new line to its source.
 class Watcher {
   sessionId: string;
   filePath: string;
-  source: string;
+  source: Source;
   clients: Set<Response>;
   offset: number;
   partial: string;
@@ -97,7 +98,7 @@ class Watcher {
   idleSince: number;
   pollMs?: number;
 
-  constructor(sessionId: string, filePath: string, source: string) {
+  constructor(sessionId: string, filePath: string, source: Source) {
     this.sessionId = sessionId;
     this.filePath = filePath;
     this.source = source;
@@ -131,10 +132,10 @@ class Watcher {
       const events: Event[] = [];
       for (const line of lines) {
         if (!line.trim()) continue;
-        try {
-          const parsed = this.source === 'claude-code' ? parseClaudeLine(JSON.parse(line)) : genericLine(JSON.parse(line));
-          for (const e of parsed) events.push({ ...e, seq: this.seq++ });
-        } catch { /* FR-LS-6: skip unparseable, continue */ }
+        // FR-LS-6: `tail` yields no events for a line it cannot read, rather
+        // than throwing, so one bad line never stops the stream. Non-null: this
+        // watcher is only built for a source that declares it.
+        for (const e of (this.source.tail as (l: string) => Event[])(line)) events.push({ ...e, seq: this.seq++ });
       }
       if (events.length) this.broadcast({ type: 'messages', events });
     });
@@ -180,9 +181,17 @@ class Watcher {
 class SqlitePollWatcher {
   sessionId: string;
   session: SessionRow;
+  source: Source;
+  // The parse targets this session can be read out of, resolved once from the
+  // source's own scan: a store holds many sessions, so live re-parses the
+  // target and picks its own session back out by id.
+  targets: ParseTarget[];
   clients: Set<Response>;
   lastCount: number;
   lastMtime: number;
+  // A store re-parse is async and can outlast the poll interval; a second one
+  // on top of it would race `lastCount` and broadcast the same events twice.
+  checking: boolean;
   seq: number;
   pollMs: number;
   poll: NodeJS.Timeout;
@@ -193,45 +202,38 @@ class SqlitePollWatcher {
   filePath?: string;
   offset?: number;
 
-  constructor(sessionId: string, session: SessionRow) {
+  constructor(sessionId: string, session: SessionRow, source: Source) {
     this.sessionId = sessionId;
     this.session = session;
+    this.source = source;
+    this.targets = storeTargets(source, session);
     this.clients = new Set();
     this.lastCount = countStored(sessionId);
     this.lastMtime = 0;
+    this.checking = false;
     this.seq = 1_000_000;
     this.pollMs = 2000;
-    this.poll = setInterval(() => this.check(), this.pollMs);
+    this.poll = setInterval(() => { this.check().catch(() => {}); }, this.pollMs);
     this.idleSince = Date.now();
   }
 
-  fetchEvents(): Event[] {
-    if (this.session.source === 'opencode') {
-      const dir = (db.prepare('SELECT path FROM projects WHERE id = ?').get(this.session.project_id) as { path: string } | undefined)?.path;
-      const all = parseOpencodeSessions(this.session.file_path, dir);
-      return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
-    }
-    if (this.session.source === 'cursor') {
-      if (this.session.file_path.endsWith('.jsonl')) {
-        return parseAgentTranscriptJsonl(this.session.file_path);
-      }
-      // NOTE (surfaced by typing, not fixed — no behavior change): the original JS
-      // read `this.session.cwd`, but the `sessions` table has no `cwd` column, so
-      // that was always `undefined` and this always evaluated to `null` anyway.
-      const all = parseCursorWorkspace(path.dirname(this.session.file_path), undefined, null);
-      return all.find((s) => s.session.id === this.sessionId)?.events ?? [];
+  async fetchEvents(): Promise<Event[]> {
+    for (const target of this.targets) {
+      try {
+        const parsed = await this.source.parse(target);
+        const hit = parsed.find((p) => p.session.id === this.sessionId);
+        if (hit) return hit.events;
+      } catch { /* not a target this source can read — try the next spelling */ }
     }
     return [];
   }
 
-  check(): void {
-    let mtime = 0;
-    try {
-      mtime = fs.statSync(this.session.file_path).mtimeMs;
-      // WAL writes may not touch the main db file
-      const wal = this.session.file_path + '-wal';
-      if (fs.existsSync(wal)) mtime = Math.max(mtime, fs.statSync(wal).mtimeMs);
-    } catch { return this.close('file gone'); }
+  async check(): Promise<void> {
+    if (this.checking) return;
+    // The source knows what counts as a write to its store (a `-wal` sidecar
+    // is one; the main file may never be touched).
+    const mtime = this.source.mtime(this.session.file_path);
+    if (mtime === null) return this.close('file gone');
     if (mtime === this.lastMtime) {
       if (Date.now() - this.idleSince > 120000 && this.pollMs !== 6000) this.setPollInterval(6000);
       return;
@@ -239,21 +241,24 @@ class SqlitePollWatcher {
     this.lastMtime = mtime;
     this.idleSince = Date.now();
     this.setPollInterval(2000);
+    this.checking = true;
     try {
-      const events = this.fetchEvents();
+      const events = await this.fetchEvents();
       if (events.length > this.lastCount) {
         const fresh = events.slice(this.lastCount).map((e) => ({ ...e, seq: this.seq++ }));
         this.lastCount = events.length;
         this.broadcast({ type: 'messages', events: fresh });
       }
-    } catch { /* transient parse failure — retry next poll (FR-LS-6) */ }
+    } catch { /* transient parse failure — retry next poll (FR-LS-6) */ } finally {
+      this.checking = false;
+    }
   }
 
   setPollInterval(ms: number): void {
     if (this.pollMs === ms) return;
     this.pollMs = ms;
     clearInterval(this.poll);
-    this.poll = setInterval(() => this.check(), ms);
+    this.poll = setInterval(() => { this.check().catch(() => {}); }, ms);
   }
 
   broadcast(payload: unknown): void {
@@ -286,39 +291,38 @@ function countStored(sessionId: string): number {
   return (db.prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sessionId) as { n: number } | undefined)?.n ?? 0;
 }
 
-interface GenericLivePayload {
-  type?: string;
-  role?: string;
-  content?: string | { text?: string }[];
-}
-
-interface GenericLiveLine {
-  payload?: GenericLivePayload;
-  timestamp?: string;
-  type?: string;
-  role?: string;
-  content?: string | { text?: string }[];
-}
-
-// Codex live lines share the response_item shape
-function genericLine(o: GenericLiveLine): Event[] {
-  const p: GenericLivePayload = o.payload || o;
-  const ts = o.timestamp || null;
-  if (p.type === 'message' && p.role) {
-    const text = (Array.isArray(p.content) ? p.content.map((c) => c.text || '').join('') : p.content) || '';
-    return text ? [{ ts, kind: p.role === 'user' ? 'user' : 'assistant', text }] : [];
-  }
-  return [];
+// Where a stored session can be re-read from, in the order worth trying: the
+// scanned projects sitting on this session's project path, then the store the
+// session itself names. The second is what covers a session imported from a
+// store the default scan does not walk (a hand-picked directory, a fixture);
+// a source spells that store either as the file (`opencode.db`) or as the
+// directory holding it (a Cursor workspace), so both spellings are offered and
+// the one the source cannot read simply parses to nothing.
+//
+// Resolved once per watcher — a scan walks the source's root, which is too
+// much to redo every poll.
+function storeTargets(source: Source, session: SessionRow): ParseTarget[] {
+  const projectPath = (db.prepare('SELECT path FROM projects WHERE id = ?').get(session.project_id) as { path: string } | undefined)?.path;
+  const scanned = projectPath ? source.scan().filter((item) => item.physicalPath === projectPath) : [];
+  const own = { directory: projectPath, physicalPath: projectPath ?? null };
+  return [...scanned, { ...own, logDir: session.file_path }, { ...own, logDir: path.dirname(session.file_path) }];
 }
 
 export function attachLiveStream(sessionId: string, res: Response): boolean {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
   if (!session || !fs.existsSync(session.file_path)) return false;
+  // No parser, no stream: a source Chronicle cannot read has nothing to tail
+  // and nothing to re-parse.
+  const source = sourceById(session.source);
+  if (!source) return false;
   let watcher = live.watchers.get(sessionId);
   if (!watcher) {
-    watcher = session.source === 'cursor' || session.source === 'opencode'
-      ? new SqlitePollWatcher(sessionId, session)
-      : new Watcher(sessionId, session.file_path, session.source);
+    // Which watcher is the source's own shape, not its name: `tail` exists
+    // exactly on an append-only transcript, so a source that declares it is
+    // streamed line by line and one that does not is re-parsed from its store.
+    watcher = source.tail
+      ? new Watcher(sessionId, session.file_path, source)
+      : new SqlitePollWatcher(sessionId, session, source);
     live.watchers.set(sessionId, watcher);
   }
   res.writeHead(200, {

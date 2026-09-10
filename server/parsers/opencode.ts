@@ -7,7 +7,7 @@ import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 import { newestMtimeMs } from './source.ts';
 
-export const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
+const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 
 interface Snapshot {
   db: DatabaseSync;
@@ -60,15 +60,23 @@ interface OcPart {
 // Never touch OpenCode's live DB: copy db + WAL/SHM to a temp dir and read that.
 function openSnapshot(dbPath: string): Snapshot {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-oc-'));
-  const copy = path.join(tmp, 'opencode.db');
-  fs.copyFileSync(dbPath, copy);
-  for (const ext of ['-wal', '-shm']) {
-    if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
+  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
+  try {
+    const copy = path.join(tmp, 'opencode.db');
+    fs.copyFileSync(dbPath, copy);
+    for (const ext of ['-wal', '-shm']) {
+      if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
+    }
+    return { db: new DatabaseSync(copy), cleanup };
+  } catch (err) {
+    // A copy that never completed still made the temp dir; drop it rather than
+    // leaving it behind for the life of the process.
+    cleanup();
+    throw err;
   }
-  return { db: new DatabaseSync(copy), cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }) };
 }
 
-export function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
+function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
   if (!fs.existsSync(dbPath)) return [];
   let snap: Snapshot | undefined;
   try {
@@ -113,7 +121,7 @@ export function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProje
 
 // Parse all top-level sessions for one project directory.
 // sessionIds (optional) restricts to a subset of session ids.
-export function parseOpencodeSessions(dbPath: string, directory: string | undefined, sessionIds?: string[]): ParseResult[] {
+function parseOpencodeSessions(dbPath: string, directory: string | undefined, sessionIds?: string[]): ParseResult[] {
   const snap = openSnapshot(dbPath);
   try {
     let sessions = snap.db.prepare(

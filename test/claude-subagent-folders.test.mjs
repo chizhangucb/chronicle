@@ -21,7 +21,12 @@ import {
   FIXTURE_WORKFLOW_SUBAGENT_COUNT,
   FIXTURE_DIRECT_SUBAGENT_COUNT,
 } from './fixtures/gen-big-session.mjs';
-import { parseClaudeSession, scanClaudeProjects } from '../server/parsers/claudeCode.ts';
+import { claudeCodeSource } from '../server/parsers/claudeCode.ts';
+
+// Through the `Source` interface, the way import and autosync read a
+// transcript (#309).
+const parseClaudeSession = async (file) => (await claudeCodeSource.parse({ files: [file] }))[0];
+const scanClaudeProjects = (dir) => claudeCodeSource.scan(dir);
 import { subagentRunCount } from '../src/session/stats.ts';
 
 const tmpDirs = [];

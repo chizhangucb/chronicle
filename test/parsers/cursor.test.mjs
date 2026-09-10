@@ -7,20 +7,23 @@ import { fileURLToPath } from 'node:url';
 import {
   cursorProjectSlug,
   clearCursorGlobalCache,
-  parseAgentTranscriptJsonl,
-  parseCursorAgentSessions,
-  scanCursorProjects,
-  parseCursorWorkspace,
+  cursorSource,
 } from '../../server/parsers/cursor.ts';
+
+// Through the `Source` interface, the one way in (#309). Cursor's target is a
+// directory — a workspaceStorage folder, or a project's agent-transcripts root
+// — read under the user dir it was scanned beneath.
+const parseCursorWorkspace = (logDir, root, physicalPath) => cursorSource.parse({ logDir, root, physicalPath });
+const scanCursorProjects = (root) => cursorSource.scan(root);
 
 const FIXTURE_ROOT = fileURLToPath(new URL('../fixtures/cursor-user', import.meta.url));
 const PROJECT_PATH = '/Users/dev/example-repo';
 const WORKSPACE_DB = path.join(FIXTURE_ROOT, 'workspaceStorage', 'abc123', 'state.vscdb');
 const GLOBAL_DB = path.join(FIXTURE_ROOT, 'globalStorage', 'state.vscdb');
-const AGENT_TRANSCRIPT = path.join(
+const AGENT_TRANSCRIPT_ROOT = path.join(
   FIXTURE_ROOT, 'projects', 'Users-dev-example-repo', 'agent-transcripts',
-  'agent-session-1', 'agent-session-1.jsonl',
 );
+const AGENT_TRANSCRIPT = path.join(AGENT_TRANSCRIPT_ROOT, 'agent-session-1', 'agent-session-1.jsonl');
 
 // Same (buggy) local-timezone parse the parser's extractTimestamp() performs on
 // the <timestamp>…(UTC)</timestamp> tag: `new Date(str)` ignores the literal
@@ -89,11 +92,11 @@ test('scanCursorProjects: finds exactly one project, aggregating chat/composer/a
   assert.equal(row.messageEstimate, 6);
 });
 
-test('parseCursorWorkspace: yields the 3 fixture sessions with expected ids and cwd', () => {
+test('parseCursorWorkspace: yields the 3 fixture sessions with expected ids and cwd', async () => {
   const scanned = scanCursorProjects(FIXTURE_ROOT);
   const [row] = scanned;
 
-  const parsed = parseCursorWorkspace(row.logDir, FIXTURE_ROOT, PROJECT_PATH);
+  const parsed = await parseCursorWorkspace(row.logDir, FIXTURE_ROOT, PROJECT_PATH);
   const ids = parsed.map((p) => p.session.id).sort();
   assert.deepEqual(ids, [
     'cursor-chat-tab1',
@@ -107,8 +110,8 @@ test('parseCursorWorkspace: yields the 3 fixture sessions with expected ids and 
   }
 });
 
-test('parseCursorWorkspace: legacy chat tab pins exact user/assistant events and timestamps', () => {
-  const parsed = parseCursorWorkspace(
+test('parseCursorWorkspace: legacy chat tab pins exact user/assistant events and timestamps', async () => {
+  const parsed = await parseCursorWorkspace(
     path.join(FIXTURE_ROOT, 'workspaceStorage', 'abc123'), FIXTURE_ROOT, PROJECT_PATH,
   );
   const tab = parsed.find((p) => p.session.id === 'cursor-chat-tab1');
@@ -128,8 +131,8 @@ test('parseCursorWorkspace: legacy chat tab pins exact user/assistant events and
   assert.equal(tab.events[1].ts, '2026-07-01T08:00:05.000Z');
 });
 
-test('parseCursorWorkspace: legacy composer expands thinking + tool_use/tool_result pair via tool_use_id', () => {
-  const parsed = parseCursorWorkspace(
+test('parseCursorWorkspace: legacy composer expands thinking + tool_use/tool_result pair via tool_use_id', async () => {
+  const parsed = await parseCursorWorkspace(
     path.join(FIXTURE_ROOT, 'workspaceStorage', 'abc123'), FIXTURE_ROOT, PROJECT_PATH,
   );
   const comp = parsed.find((p) => p.session.id === 'cursor-composer-comp1');
@@ -156,32 +159,21 @@ test('parseCursorWorkspace: legacy composer expands thinking + tool_use/tool_res
   assert.equal(toolResultEvt.text, 'export default ...');
 });
 
-test('parseAgentTranscriptJsonl: strips the <timestamp>/<user_query> envelope and propagates the tagged ts to the assistant turn', () => {
+// The agent-transcript spelling of a Cursor target: a project's
+// agent-transcripts root, which the scan lists as its own logDir. One parse
+// pins both halves — the session the composer header makes, and the events the
+// transcript's <timestamp>/<user_query> envelope is stripped down to.
+test('cursorSource.parse: an agent-transcripts target yields the composer session, envelope stripped', async () => {
   const before = fs.statSync(AGENT_TRANSCRIPT);
 
-  const direct = parseAgentTranscriptJsonl(AGENT_TRANSCRIPT);
+  const sessions = await parseCursorWorkspace(AGENT_TRANSCRIPT_ROOT, FIXTURE_ROOT, PROJECT_PATH);
 
   const after = fs.statSync(AGENT_TRANSCRIPT);
   assert.equal(after.mtimeMs, before.mtimeMs, 'parse must not touch the transcript file mtime');
   assert.equal(after.size, before.size, 'parse must not touch the transcript file size');
 
-  assert.equal(direct.length, 2);
-  assert.deepEqual(direct.map((e) => e.kind), ['user', 'assistant']);
-  assert.equal(direct[0].text, 'Add agent transcript import');
-  assert.equal(direct[1].text, 'Implemented agent transcript parsing.');
-
-  // Both events carry the same ts: the user turn's <timestamp> tag is parsed
-  // and reused as `turnTs` for the following assistant turn (which has no tag
-  // of its own).
-  assert.equal(direct[0].ts, AGENT_EXPECTED_TS);
-  assert.equal(direct[1].ts, AGENT_EXPECTED_TS);
-});
-
-test('parseCursorAgentSessions: agent-transcript composer session matches the direct transcript parse', () => {
-  const sessions = parseCursorAgentSessions(PROJECT_PATH, FIXTURE_ROOT);
   assert.equal(sessions.length, 1);
   const [s] = sessions;
-
   assert.equal(s.session.id, 'cursor-composer-agent-session-1');
   assert.equal(s.session.cwd, PROJECT_PATH);
   assert.equal(s.session.file_path, AGENT_TRANSCRIPT);
@@ -190,12 +182,21 @@ test('parseCursorAgentSessions: agent-transcript composer session matches the di
   assert.equal(s.session.first_prompt, 'Add agent transcript import');
   assert.equal(s.session.started_at, AGENT_EXPECTED_TS);
   assert.equal(s.session.ended_at, AGENT_EXPECTED_TS);
+
   assert.equal(s.events.length, 2);
+  assert.deepEqual(s.events.map((e) => e.kind), ['user', 'assistant']);
+  assert.equal(s.events[0].text, 'Add agent transcript import');
+  assert.equal(s.events[1].text, 'Implemented agent transcript parsing.');
+  // Both events carry the same ts: the user turn's <timestamp> tag is parsed
+  // and reused as `turnTs` for the following assistant turn (which has no tag
+  // of its own).
+  assert.equal(s.events[0].ts, AGENT_EXPECTED_TS);
+  assert.equal(s.events[1].ts, AGENT_EXPECTED_TS);
 });
 
-test('scanCursorProjects + parseCursorWorkspace: union of kinds across the fixture is exactly the 5 normalized kinds', () => {
+test('scanCursorProjects + parseCursorWorkspace: union of kinds across the fixture is exactly the 5 normalized kinds', async () => {
   const scanned = scanCursorProjects(FIXTURE_ROOT);
-  const parsed = parseCursorWorkspace(scanned[0].logDir, FIXTURE_ROOT, PROJECT_PATH);
+  const parsed = await parseCursorWorkspace(scanned[0].logDir, FIXTURE_ROOT, PROJECT_PATH);
   const kinds = new Set();
   for (const p of parsed) for (const e of p.events) kinds.add(e.kind);
   assert.deepEqual(
@@ -204,7 +205,7 @@ test('scanCursorProjects + parseCursorWorkspace: union of kinds across the fixtu
   );
 });
 
-test('read-only guarantee: WAL/SHM sidecars next to the workspace DB are copied, not opened in place', () => {
+test('read-only guarantee: WAL/SHM sidecars next to the workspace DB are copied, not opened in place', async () => {
   const tmpUserDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-cursor-test-'));
   try {
     fs.cpSync(FIXTURE_ROOT, tmpUserDir, { recursive: true });
@@ -228,7 +229,7 @@ test('read-only guarantee: WAL/SHM sidecars next to the workspace DB are copied,
     // operated on a copy rather than choking on / mutating the originals.
     assert.equal(scanned.length, 1);
     assert.equal(scanned[0].sessionCount, 3);
-    const parsed = parseCursorWorkspace(scanned[0].logDir, tmpUserDir, PROJECT_PATH);
+    const parsed = await parseCursorWorkspace(scanned[0].logDir, tmpUserDir, PROJECT_PATH);
     assert.equal(parsed.length, 3);
 
     const afterDb = fs.statSync(tmpWsDb);

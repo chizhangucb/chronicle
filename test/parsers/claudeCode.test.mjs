@@ -10,12 +10,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  CLAUDE_PROJECTS_DIR,
-  scanClaudeProjects,
-  parseClaudeLine,
-  parseClaudeSession,
-} from '../../server/parsers/claudeCode.ts';
+import { claudeCodeSource } from '../../server/parsers/claudeCode.ts';
+
+// The parser is reached the way import, autosync and live reach it (#309): the
+// `Source` interface, not its internals. These two shorthands are the whole
+// adaptation — one transcript in, its `{ session, events }` out; one line in,
+// its events out.
+const parseClaudeSession = async (file) => (await claudeCodeSource.parse({ files: [file] }))[0];
+const parseClaudeLine = (line) => claudeCodeSource.tail(JSON.stringify(line));
+const scanClaudeProjects = (dir) => claudeCodeSource.scan(dir);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = path.join(__dirname, '..', 'fixtures', 'claude-code');
@@ -33,9 +36,9 @@ after(() => {
   for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-describe('CLAUDE_PROJECTS_DIR', () => {
+describe('claudeCodeSource.defaultRoot()', () => {
   test('points at ~/.claude/projects', () => {
-    assert.equal(CLAUDE_PROJECTS_DIR, path.join(os.homedir(), '.claude', 'projects'));
+    assert.equal(claudeCodeSource.defaultRoot(), path.join(os.homedir(), '.claude', 'projects'));
   });
 });
 

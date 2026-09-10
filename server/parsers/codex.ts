@@ -7,7 +7,7 @@ import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 import { newestMtimeMs } from './source.ts';
 
-export const CODEX_SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
+const CODEX_SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
 
 interface CodexContentItem {
   text?: string;
@@ -61,7 +61,7 @@ function codexTranscriptFiles(baseDir: string): string[] {
 }
 
 // Codex CLI writes rollout-*.jsonl files (possibly nested by date).
-export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
+function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
   const files = codexTranscriptFiles(baseDir);
   if (!files.length) return [];
   // Group by cwd sniffed from each file
@@ -126,7 +126,7 @@ function parseCodexLine(o: CodexLine): Event[] {
   return [];
 }
 
-export async function parseCodexSession(file: string): Promise<ParseResult> {
+async function parseCodexSession(file: string): Promise<ParseResult> {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
   const events: Event[] = [];
   let sessionId = path.basename(file, '.jsonl');

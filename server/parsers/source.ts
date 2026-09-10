@@ -55,3 +55,13 @@ export function newestMtimeMs(...paths: string[]): number | null {
   }
   return newest;
 }
+
+// The importable files one scanned project lists: a per-file source (one
+// transcript per session) names them, a store-backed one names none. The
+// difference is in the scan's own shape, so a caller can re-parse per file
+// where that is possible and per store where it is not, without naming a
+// source.
+export function importableFiles(item: ScannedProject): string[] {
+  if (item.files?.length) return item.files;
+  return (item.sessions ?? []).map((s) => s.file).filter((f): f is string => !!f);
+}
