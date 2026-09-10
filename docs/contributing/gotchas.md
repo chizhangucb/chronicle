@@ -90,9 +90,16 @@ then built-ins, then earliest match.
 
 ## Every write path must invalidate the cache
 
-`server/cache.ts` is generation-keyed with no TTL, so correctness comes from invalidation, not
-expiry. A new write path that does not call `invalidateCache()` serves stale analytics
-indefinitely, and the bug looks like a UI that will not refresh.
+`server/cache.ts` is generation-keyed, so correctness comes from invalidation, not expiry. A new
+write path that does not call `invalidateCache()` serves stale analytics indefinitely, and the
+bug looks like a UI that will not refresh.
+
+`cached()` takes an optional TTL as its third argument, and it is the one server-side cache:
+every server memo goes through it rather than keeping a map of its own. Reach for the TTL only
+when the value's input is not the database (a `git rev-list` count, a `which claude` probe), so
+nothing bumps the generation when the answer changes. A TTL entry is still generation-keyed on
+top, so an import makes it stale at once. The client's stale-while-revalidate cache
+(`src/useCachedFetch.ts`) is a separate thing and stays that way.
 
 ## Ranging is overlap, not a start-time cutoff
 
