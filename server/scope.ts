@@ -12,6 +12,8 @@
 // `s` is the sessions alias every engine query uses; `m` the messages alias.
 // Missing id on project/session degrades to 'all' rather than emitting a broken
 // `= NULL` clause.
+import { overlapGate } from './rangeUsage.ts';
+
 export type Scope = { type: 'all' | 'project' | 'session'; id?: number | string };
 
 // A SQL fragment plus its binds. `sql` is AND-prefixed (or empty) so fragments
@@ -57,11 +59,15 @@ export interface QueryContext {
   /** Minor gate + scope clause: what every sessions-aliased query ANDs on. */
   where: SqlFragment;
   /** Session range: in range by OVERLAP of [started_at, ended_at]. */
-  sessions(alias?: string): SqlFragment;
+  sessions(): SqlFragment;
   /** Message range: in range by TIMESTAMP. */
   messages(alias?: string): SqlFragment;
   /** Token range: in range by IN-RANGE SHARE (server/rangeUsage.ts's cutoff). */
   tokens: { cutoffIso: string | null };
+  /** The WHERE body for a sessions-joined SESSION row query: session range + scope + minor. */
+  sessionRows: SqlFragment;
+  /** The same, for a MESSAGE row query: message range on top (alias `m`). */
+  messageRows: SqlFragment;
 }
 
 export function queryContext(scope: Scope, range: Range): QueryContext {
@@ -79,11 +85,11 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
     minor,
     where,
     // A session whose activity ran INTO the range counts, even if it started
-    // before the cutoff — ranges always extend to now, so overlap reduces to
-    // "did this session's last known activity happen on or after the cutoff".
-    sessions(alias = 's'): SqlFragment {
+    // before the cutoff. The comparison itself is server/rangeUsage.ts's
+    // overlapGate — the one home for that rule — not a second copy of it.
+    sessions(): SqlFragment {
       if (cutoff == null) return { sql: '', params: [] };
-      return { sql: `AND COALESCE(${alias}.ended_at, ${alias}.started_at, '9') >= ?`, params: [cutoff] };
+      return { sql: `AND ${overlapGate('s')}`, params: [cutoff] };
     },
     // A message counts only if its own timestamp falls in the range — not
     // every message of a session that merely overlaps it.
@@ -92,6 +98,10 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
       return { sql: `AND ${alias}.ts >= ?`, params: [cutoff] };
     },
     tokens: { cutoffIso: cutoff },
+    // The two compositions every engine query starts from, so no call site
+    // re-derives them. Extra conditions compose on with whereOf(...).
+    get sessionRows(): SqlFragment { return whereOf(this.sessions(), this.where); },
+    get messageRows(): SqlFragment { return whereOf(this.sessions(), this.where, this.messages()); },
   };
 }
 

@@ -116,6 +116,10 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Fixed
 
+- **"Above your usual" on the Burn tile now compares local days.** The baseline it medians
+  over the trailing fortnight was bucketed by UTC day, so an evening session west of UTC (or
+  an early-morning one east of it) landed on the wrong day, or dropped out of the comparison
+  altogether. Every other bucket in Chronicle is already a local day; this one now is too.
 - Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
   to do nothing.
 - The docs, the README and the privacy page no longer claim Chronicle makes no model call

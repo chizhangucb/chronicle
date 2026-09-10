@@ -117,7 +117,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // counts, not just one that STARTED in it); the message range is TIMESTAMP,
   // so message-level aggregates below only count messages that actually fall
   // in-range. Both come from the query context — see server/scope.ts.
-  const sessionWhere = whereOf(q.sessions(), q.where);
+  const sessionWhere = q.sessionRows;
   const sessions = db.prepare(`
     SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
            s.started_at, s.ended_at, s.message_count, s.agent_active_ms, s.engaged_ms, s.context_tokens, s.usage
@@ -132,7 +132,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // idx_messages_agg index (see db.ts) instead of a full scan of the fat
   // messages table. That scan was the 0.1-3.6s-per-query (multi-second cold)
   // cost behind every Insights range click.
-  const toolWhere = whereOf(q.sessions(), q.where, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL", q.messages());
+  const toolWhere = whereOf(q.messageRows, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL");
   const toolDist = db.prepare(`
     SELECT m.tool_name AS name, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
@@ -140,7 +140,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
     GROUP BY m.tool_name ORDER BY count DESC LIMIT 24
   `).all(...toolWhere.params) as unknown as { name: string; count: number }[];
 
-  const kindWhere = whereOf(q.sessions(), q.where, q.messages());
+  const kindWhere = q.messageRows;
   const kindDist = db.prepare(`
     SELECT m.kind AS kind, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
@@ -148,7 +148,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
     GROUP BY m.kind
   `).all(...kindWhere.params) as unknown as { kind: string; count: number }[];
 
-  const modelWhere = whereOf(q.sessions(), q.where, "AND m.kind = 'assistant' AND m.model IS NOT NULL", q.messages());
+  const modelWhere = whereOf(q.messageRows, "AND m.kind = 'assistant' AND m.model IS NOT NULL");
   const modelDist = db.prepare(`
     SELECT m.model AS model, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id

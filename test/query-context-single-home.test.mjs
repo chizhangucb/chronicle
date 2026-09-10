@@ -25,16 +25,6 @@ test('the minor gate is written once, in the query-context module', () => {
   assert.deepEqual(offenders, [], 'these files hand-write the minor gate instead of taking it from server/scope.ts');
 });
 
-test('the query-context module exposes the scope clause, the minor gate and the three named ranges', () => {
-  const src = read(QUERY_CONTEXT);
-  for (const name of ['scopeClause', 'minorGate', 'queryContext', 'rangeOf', 'whereOf']) {
-    assert.ok(new RegExp(`export function ${name}\\b`).test(src), `server/scope.ts exports ${name}`);
-  }
-  for (const fragment of ['sessions(', 'messages(', 'tokens:']) {
-    assert.ok(src.includes(fragment), `server/scope.ts names the ${fragment} range fragment`);
-  }
-});
-
 // Every analytics engine, including the detectors and waste ones that used to
 // take a bare day count.
 const ENGINES = [

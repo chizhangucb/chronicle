@@ -16,7 +16,7 @@ export function mountActivity(app: Express, opts: { now?: number } = {}): void {
     const since = typeof req.query.since === 'string' ? req.query.since : null;
     const days = Number(req.query.days) || null;
     try {
-      res.json(cached(req.originalUrl, () => computeActivity({ type: 'all' }, rangeOf(days, opts.now ?? Date.now()), since)));
+      res.json(cached(req.originalUrl, () => computeActivity({ type: 'all' }, rangeOf(days, opts.now), since)));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

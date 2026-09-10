@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { scopeClause, queryContext, rangeOf, whereOf } from '../server/scope.ts';
+import { overlapGate } from '../server/rangeUsage.ts';
 
 test('scopeClause: all → empty fragment, no params', () => {
   assert.deepEqual(scopeClause({ type: 'all' }), { sql: '', params: [] });
@@ -48,8 +49,9 @@ test('queryContext: session scope drops the minor gate (a directly-opened sessio
 test('queryContext: a session is in range by OVERLAP of its activity span', () => {
   const q = queryContext({ type: 'all' }, rangeOf(7, NOW));
   const cutoff = new Date(NOW - 7 * 86400000).toISOString();
-  assert.deepEqual(q.sessions(), { sql: "AND COALESCE(s.ended_at, s.started_at, '9') >= ?", params: [cutoff] });
-  assert.deepEqual(q.sessions('x'), { sql: "AND COALESCE(x.ended_at, x.started_at, '9') >= ?", params: [cutoff] });
+  // The comparison itself is rangeUsage's overlapGate — one home for the rule.
+  assert.deepEqual(q.sessions(), { sql: `AND ${overlapGate('s')}`, params: [cutoff] });
+  assert.match(q.sessions().sql, /COALESCE\(s\.ended_at, s\.started_at, '9'\) >= \?/);
 });
 
 test('queryContext: a message is in range by TIMESTAMP', () => {

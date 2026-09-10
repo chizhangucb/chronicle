@@ -204,7 +204,8 @@ function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function medianBaseline(now: number, q: QueryContext): TokensByModel {
+function medianBaseline(q: QueryContext): TokensByModel {
+  const now = q.range.now;
   // Calendar arithmetic (setDate), not `midnight - n*DAY`: a DST shift makes a
   // day 23 or 25 hours long, and only the calendar walk lands on real local
   // midnights either side of it.
@@ -318,7 +319,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
 
   let baselineTokensByModel: TokensByModel;
   if (days != null && days <= 1) {
-    baselineTokensByModel = medianBaseline(now, q);                    // Today → 14-day daily median
+    baselineTokensByModel = medianBaseline(q);                           // Today → 14-day daily median
   } else if (rangeMs != null) {
     const priorFrom = new Date(now - 2 * rangeMs).toISOString();
     const priorTo = new Date(now - rangeMs).toISOString();
@@ -333,7 +334,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   // above) — ranking still uses the session's full raw usage as the magnitude proxy (not
   // scaled to its in-range share), matching this block's pre-existing "price-free proxy"
   // approximation.
-  const winWhere = whereOf(q.where, q.sessions());
+  const winWhere = q.sessionRows;
   const winRows = db.prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count

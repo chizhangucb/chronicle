@@ -45,13 +45,14 @@ export function mountProjects(app: Express): void {
              MAX(s.ended_at) AS last_active,
              GROUP_CONCAT(DISTINCT s.source) AS sources
       FROM projects p LEFT JOIN sessions s ON s.project_id = p.id ${listQ.where.sql}
-      GROUP BY p.id ORDER BY last_active DESC`).all() as unknown as ProjectListRow[];
+      GROUP BY p.id ORDER BY last_active DESC`).all(...listQ.where.params) as unknown as ProjectListRow[];
     // Cheap "any session live" flag per project, no per-project
     // queries: one indexed scan for recently-ended sessions, plus a lookup for
     // any project owning a currently-open SSE watcher (usually 0-1 rows).
     const cutoff = new Date(Date.now() - LIVE_WINDOW_MS).toISOString();
+    const liveWhere = whereOf(listQ.where, { sql: 'AND s.ended_at >= ?', params: [cutoff] });
     const liveProjectIds = new Set(
-      (db.prepare(`SELECT DISTINCT s.project_id FROM sessions s WHERE ${whereOf(listQ.where, { sql: 'AND s.ended_at >= ?', params: [cutoff] }).sql}`).all(cutoff) as unknown as { project_id: number }[])
+      (db.prepare(`SELECT DISTINCT s.project_id FROM sessions s WHERE ${liveWhere.sql}`).all(...liveWhere.params) as unknown as { project_id: number }[])
         .map((r) => r.project_id),
     );
     const watcherIds = [...liveWatcherSessionIds()];
@@ -70,10 +71,11 @@ export function mountProjects(app: Express): void {
     // from the row that produced the max — see sqlite.org/lang_select.html
     // #bare_columns_in_an_aggregate_query), so this is one cheap stat per
     // project, not per session.
+    const latestWhere = whereOf(listQ.where);
     const latestFiles = db.prepare(`
       SELECT s.project_id, s.file_path, MAX(s.started_at) AS started_at
-      FROM sessions s WHERE ${whereOf(listQ.where).sql}
-      GROUP BY s.project_id`).all() as unknown as { project_id: number; file_path: string | null }[];
+      FROM sessions s WHERE ${latestWhere.sql}
+      GROUP BY s.project_id`).all(...latestWhere.params) as unknown as { project_id: number; file_path: string | null }[];
     for (const r of latestFiles) {
       if (!liveProjectIds.has(r.project_id) && r.file_path && isLiveCandidate(r.file_path)) {
         liveProjectIds.add(r.project_id);
@@ -101,7 +103,7 @@ export function mountProjects(app: Express): void {
       // session/message/token ranges — see server/scope.ts.
       const q = queryContext({ type: 'project', id: project.id }, rangeOf(days));
       const cutoff = q.range.cutoffIso ?? '';
-      const sessionWhere = whereOf(q.sessions(), q.where);
+      const sessionWhere = q.sessionRows;
       const rawSessions = db.prepare(`SELECT s.id, s.source, s.file_path, s.started_at, s.ended_at, s.message_count, s.first_prompt, s.name, s.summary, s.context_tokens, s.usage, s.agent_active_ms,
           (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
            FROM messages m WHERE m.session_id = s.id) AS char_count
@@ -121,18 +123,18 @@ export function mountProjects(app: Express): void {
       // perf-fix shape as server/insights.ts (see the index comment in db.ts).
       // The session range gates which sessions count; the message range gates
       // which of their messages do.
-      const toolWhere = whereOf(q.sessions(), q.where, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL", q.messages());
+      const toolWhere = whereOf(q.messageRows, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL");
       const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE ${toolWhere.sql}
         GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(...toolWhere.params);
-      const kindWhere = whereOf(q.sessions(), q.where, q.messages());
+      const kindWhere = q.messageRows;
       const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE ${kindWhere.sql} GROUP BY m.kind`).all(...kindWhere.params);
       // LOCAL-time bucket keys (Task 2 / plan's timezone convention) — see
       // server/insights.ts's dailyActivity for the same fix.
-      const activityWhere = whereOf(q.sessions(), q.where, 'AND m.ts IS NOT NULL', q.messages());
+      const activityWhere = whereOf(q.messageRows, 'AND m.ts IS NOT NULL');
       const activity = db.prepare(`SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE ${activityWhere.sql}

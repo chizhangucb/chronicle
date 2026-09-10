@@ -33,6 +33,7 @@ before(async () => {
   const { computeWaste } = await import('../server/waste.ts');
   const { rangeOf } = await import('../server/scope.ts');
   const { mountProjects } = await import('../server/routes/projects.ts');
+  const { mountSessions } = await import('../server/routes/sessions.ts');
 
   const ALL = { type: 'all' };
   const out = {};
@@ -65,10 +66,16 @@ before(async () => {
 
   const app = express();
   mountProjects(app);
+  mountSessions(app);
   server = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   for (const days of [7, null]) {
     out[`project:${days}`] = await (await fetch(`${base}/projects/${alpha.id}${days ? `?days=${days}` : ''}`)).json();
+  }
+
+  out['sessions-minor'] = await (await fetch(`${base}/sessions/minor`)).json();
+  for (const id of ['g-today', 'g-span']) {
+    out[`messages:${id}`] = await (await fetch(`${base}/sessions/${id}/messages`)).json();
   }
 
   actual = normalizeGolden(out, now);

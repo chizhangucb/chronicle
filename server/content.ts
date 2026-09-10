@@ -106,7 +106,7 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
   // counts, not just one that STARTED in it); message range = TIMESTAMP, so
   // message-joined queries below only count in-range messages. Both, plus the
   // scope clause and the minor gate, come from the query context.
-  const messageWhere = whereOf(q.sessions(), q.where, q.messages());
+  const messageWhere = q.messageRows;
   const base = `JOIN sessions s ON s.id = m.session_id
     WHERE ${messageWhere.sql}`;
   const bind = () => messageWhere.params;
@@ -140,7 +140,7 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
   const shareTokens = (chars: number) => (allContentChars > 0 ? Math.round((chars / allContentChars) * billed) : 0);
 
   // Tool results by tool (join result→use on tool_use_id).
-  const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));
+  const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));  // alias r, not m
   const toolChars = db.prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
     FROM messages r JOIN messages u ON u.id = (
@@ -229,7 +229,7 @@ function computeSessionCharStats(q: QueryContext): SessionCharStats {
   // Session-level (no messages join), so only the SESSION range applies: a
   // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
   // session, not an in-range fraction, so there's no per-message message range to add.
-  const w = whereOf(q.sessions(), q.where);
+  const w = q.sessionRows;
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
        s.agent_active_ms AS active, s.engaged_ms AS engaged
      FROM sessions s WHERE ${w.sql}`).all(...w.params) as unknown as
