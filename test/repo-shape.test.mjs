@@ -138,10 +138,10 @@ test('CI declares no hand-rolled confidentiality or staleness job', () => {
 });
 
 // The shrink (spec #215) left `scripts/` holding only Chronicle's own tooling, and
-// took every dormant job template out of the published tarball. `install-jobs.mjs`
-// and the LiteLLM plist stay TRACKED for the optional local proxy spine, but a user
-// who runs `npx chronicle-cli` must never receive a scheduled-job template they did
-// not ask for -- so the npm `files` list ships neither.
+// took every dormant job template out of the published tarball. With the proxy
+// spine gone (#296) no job template is TRACKED at all, so the tarball cannot
+// carry one by any route, and the exclusions that named the installer are gone
+// with the file they named.
 const RETIRED_CHECKOUT_SCRIPTS = [
   'scripts/emit-daily-digest.ts',
   'launchd/com.chronicle.daily-digest.plist.template',
@@ -156,60 +156,27 @@ test('the published package ships no job template', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const files = pkg.files ?? [];
   assert.ok(!files.includes('launchd'), '`launchd` is back in the published files list');
-  assert.ok(
-    files.includes('!scripts/install-jobs.mjs'),
-    'the job installer is no longer excluded from the published files list',
-  );
-  // Every tracked job template lives under launchd/, which is not published; a
-  // template anywhere else would slip past that exclusion.
+
+  // No template is tracked anywhere any more, so there is nothing for a `files`
+  // entry to sweep in. This is the stronger form of the old pin, which only
+  // checked that templates stayed inside the unpublished launchd/ folder.
   const strays = tracked.filter(
-    (rel) => /\.(plist|plist\.template)$|crontab/.test(rel) && !rel.startsWith('launchd/'),
+    (rel) => /\.(plist|plist\.template)$|crontab/.test(rel),
   );
-  assert.deepEqual(strays, [], `a job template is tracked outside launchd/: ${strays}`);
-});
+  assert.deepEqual(strays, [], `a job template is tracked again: ${strays}`);
 
-// --- The proxy spine (issue #296, part of spec #294) ----------------------
-//
-// Chronicle stopped reading the LiteLLM proxy's spend log in #217, so the
-// Python spine, its launchd template, the installer script that filled its
-// templates and the two suites that pinned all three are gone: `npx
-// chronicle-cli` and this repo's CI need Node and nothing else.
-//
-// Pinned by path rather than by word, because the folder is the thing: a
-// stranger who re-adds `litellm/` has re-grown the spine whatever it is called.
-//
-// scripts/refresh_roster.py is deliberately NOT in here. It is Python, but it
-// maintains an operator document and never configured the proxy (issue #192),
-// so it and its suite stay.
-const RETIRED_PROXY_PATHS = [
-  'litellm/',
-  'launchd/',
-  'scripts/install-jobs.mjs',
-  'test/litellm-runtime.test.mjs',
-  'test/litellm-guards.test.mjs',
-];
-
-test('no file of the retired proxy spine is tracked', () => {
-  const back = RETIRED_PROXY_PATHS.filter((prefix) =>
-    tracked.some((rel) => rel === prefix || rel.startsWith(prefix)),
+  // Every `!` exclusion has to name a tracked file. One that does not is an
+  // instruction about a path nobody can go read -- which is what the job
+  // installer's exclusion became the moment the installer was deleted.
+  const dangling = files
+    .filter((entry) => entry.startsWith('!'))
+    .map((entry) => entry.slice(1))
+    .filter((rel) => !tracked.includes(rel));
+  assert.deepEqual(
+    dangling,
+    [],
+    `the published files list excludes paths that are not tracked: ${dangling}`,
   );
-  assert.deepEqual(back, [], `a proxy-spine path is tracked again: ${back}`);
-});
-
-test('the CI gate sets up Node and no other language runtime', () => {
-  // The Python 3.12 step and CHRONICLE_REQUIRE_PYTHON existed for the proxy
-  // guards (issue #188). With those gone, a contributor's install story and
-  // this gate are the same one: Node. The roster suite still shells out to
-  // python3 and still SKIPS without it, which is why the flag goes too --
-  // pinning an interpreter CI does not need is how the last one grew back.
-  const src = ci();
-  assert.equal(/setup-python/.test(src), false, 'the CI gate installs a Python toolchain again');
-  assert.equal(
-    /CHRONICLE_REQUIRE_PYTHON/.test(src),
-    false,
-    'the CI gate sets the require-python flag again',
-  );
-  assert.match(src, /actions\/setup-node/, 'the CI gate no longer sets up Node');
 });
 
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
