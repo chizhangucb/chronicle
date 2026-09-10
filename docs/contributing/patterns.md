@@ -67,7 +67,7 @@ the UI and the server modules both hot-reload in one process on one port.
 
 The unit tests cover parsers, engines and heuristics against fixtures. Features are verified
 end to end against real data, and the fastest real-data check is to **import Chronicle's own
-Claude Code sessions and click around**: time travel, causality and Insights all work on
+Claude Code sessions and click around**: time travel, playback and Insights all work on
 Chronicle's own construction history.
 
 `npm run test:e2e` drives the Playwright smoke suite against a seeded large fixture. It runs
