@@ -45,13 +45,15 @@ set -uo pipefail
 # directory is created by globalSetup and inherited by the workers, and
 # currentRunDir() throws rather than guess when something else invokes it.
 run_test_file() {
-  # A leading ./ is stripped first: the gate hands over repo-relative paths as
-  # git prints them, but a hand run naturally writes ./test/e2e/x.spec.ts, and
-  # that spelling falling through to `node --test` is the very bug this file
-  # exists to prevent.
-  case "${1#./}" in
-    test/e2e/*.spec.ts) npm run test:e2e -- "$1" ;;
-    *)                  node --test "$1" ;;
+  # A leading ./ is stripped first, and the stripped path is what gets handed
+  # on: the gate hands over repo-relative paths as git prints them, but a hand
+  # run naturally writes ./test/e2e/x.spec.ts, and that spelling falling
+  # through to `node --test` is the very bug this file exists to prevent. One
+  # spelling past this point, so the command sees what was matched on.
+  local path="${1#./}"
+  case "$path" in
+    test/e2e/*.spec.ts) npm run test:e2e -- "$path" ;;
+    *)                  node --test "$path" ;;
   esac
 }
 

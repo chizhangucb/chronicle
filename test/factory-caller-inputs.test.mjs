@@ -77,8 +77,15 @@ const FACTORY_ROLES = {
   implement: { workflow: 'agent-implement.yml', inputs: ['factory_ref', 'node_version'] },
   review: { workflow: 'agent-review.yml', inputs: ['factory_ref', 'node_version'] },
   'implement-pr': { workflow: 'agent-implement-pr.yml', inputs: ['factory_ref', 'node_version'] },
-  // test_command and install_command: both declared by merge-gate.yml, and both
-  // needed to route a browser spec to the browser suite with Chromium installed (#335).
+  // test_command and install_command: both declared by merge-gate.yml, widened
+  // here ahead of the caller that will pass them (#335). The merge-gate job below
+  // passes neither yet, on purpose: scripts/ci/factory-test-command.sh has to be
+  // on main before the caller can name it, since the gate's base side is a base
+  // checkout with only the PR's test files over it.
+  //
+  // When that caller change lands, install_command REPLACES `npm ci` rather than
+  // running after it, so a bare `npx playwright install` there leaves both
+  // checkouts with no node_modules. It has to install the deps too.
   'merge-gate': { workflow: 'merge-gate.yml', inputs: ['factory_ref', 'node_version', 'test_command', 'install_command'] },
   audit: { workflow: 'agent-audit.yml', inputs: ['factory_ref', 'node_version'] },
   'update-branch': { workflow: 'update-branch.yml', inputs: ['factory_ref'] },

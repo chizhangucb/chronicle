@@ -52,6 +52,13 @@ const route = (t, files, failOn = []) => {
     env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, CALLS: calls, FAIL_ON: failOn.join(' ') },
   });
   assert.equal(result.error, undefined, 'the routing test command could not be spawned');
+  // 126/127 is the shell answering "cannot execute" / "not found". Without this
+  // the promise above lands as a TypeError on `calls[0]` being undefined, which
+  // names neither the file nor the reason.
+  assert.ok(
+    result.status !== 126 && result.status !== 127,
+    `the routing test command would not execute (exit ${result.status}): ${result.stderr}`,
+  );
   return {
     code: result.status,
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
@@ -64,11 +71,18 @@ test('a spec where Playwright looks for one reaches the browser suite', (t) => {
   // and the path built here moves with it, while a routing command still
   // matching the old place sends the spec to `node --test`, where it dies on
   // import. Nested too: testMatch is `**/`-prefixed and a case glob crosses `/`.
+  //
+  // Both fields have to be the string form for the path below to mean anything:
+  // Playwright also takes a RegExp or an array, and either one would make the
+  // derived path a TypeError rather than a readable "the rule moved".
+  assert.equal(typeof config.testDir, 'string', 'testDir is no longer a plain path; derive the spec path from its new form');
+  assert.equal(typeof config.testMatch, 'string', 'testMatch is no longer a plain glob; derive the spec name from its new form');
   const dir = config.testDir.replace(/^\.\//, '');
   const name = config.testMatch.replace('**/*', 'invented');
+  assert.notEqual(name, config.testMatch, 'testMatch no longer starts `**/*`; the name derived below is not a spec name');
   for (const spec of [dir + '/' + name, dir + '/nested/' + name]) {
     const run = route(t, [spec]);
-    assert.match(run.calls[0], /^npm run test:e2e --/, spec + ' is where Playwright looks; it must reach the browser suite');
+    assert.equal(run.calls[0], `npm run test:e2e -- ${spec}`, spec + ' is where Playwright looks; it must reach the browser suite, as itself');
   }
 });
 
@@ -90,7 +104,13 @@ test('a file that failed fails the whole command, so the gate still sees a real 
 
 test('a leading ./ still reaches the browser suite, since a hand run writes the path that way', (t) => {
   const run = route(t, ['./test/e2e/ask.spec.ts']);
-  assert.match(run.calls[0], /^npm run test:e2e --/, 'a ./-prefixed spec must not fall through to node --test');
+  // The path too, not just the command: matching on the stripped path and
+  // handing on the raw one leaves the two spellings free to drift apart.
+  assert.equal(
+    run.calls[0],
+    'npm run test:e2e -- test/e2e/ask.spec.ts',
+    'a ./-prefixed spec must not fall through to node --test, and reaches it as the path that was matched',
+  );
 });
 
 test('given no files at all it fails rather than reporting a quiet success', (t) => {
