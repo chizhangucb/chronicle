@@ -25,10 +25,16 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
-// Matches every spelling the feature ever had: `view_log` (the table),
-// `view-log` (the route and the css), `viewLog` (the config key and the client
-// calls) and `view log` (the prose).
-const ANY_SPELLING = /view[-_ ]?log/i;
+// Every spelling the feature ever had, and nothing else. Two arms, because one
+// regex cannot do both jobs:
+//   - `view_log` (the table), `view-log` (the route, the css) and `view log`
+//     (the prose), case-insensitive but anchored on a word boundary, so
+//     "overview logic" and "review log" are not the feature coming back;
+//   - `ViewLog` camelCase, case-SENSITIVE, which is what makes it safe
+//     mid-identifier: `useViewLog`, `mountViewLog`, `pruneViewLog` and
+//     `ViewLogSummary` all sit inside a longer word.
+const SPELLINGS = [/\bview[-_ ]?log/i, /ViewLog/];
+const namesTheFeature = (text) => SPELLINGS.some((re) => re.test(text));
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-viewlog-'));
 let dbModule;
@@ -57,7 +63,7 @@ const objectNames = () =>
   dbModule.db.prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
 
 test('booting on an upgraded data folder drops the table and its index', () => {
-  const left = objectNames().filter((n) => ANY_SPELLING.test(n));
+  const left = objectNames().filter(namesTheFeature);
   assert.deepEqual(left, [], `an upgraded data folder still carries ${left.join(', ')}`);
 });
 
@@ -74,7 +80,7 @@ test("Ask's read-only handle sees no such table", () => {
   const handle = new DatabaseSync(path.join(dir, 'chronicle.db'), { readOnly: true });
   try {
     const seen = handle.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all().map((r) => r.name).filter((n) => ANY_SPELLING.test(n));
+      .all().map((r) => r.name).filter(namesTheFeature);
     assert.deepEqual(seen, [], `Ask can still query ${seen.join(', ')}`);
   } finally {
     handle.close();
@@ -97,12 +103,12 @@ test('the WAL comment stands on the SQLite-backed parsers, not on the view log',
   for (let i = at - 1; i >= 0 && lines[i].trim().startsWith('//'); i--) comment.unshift(lines[i]);
   const text = comment.join('\n');
   assert.match(text, /parser/i, 'the WAL comment does not name the parsers as its reason');
-  assert.equal(ANY_SPELLING.test(text), false, 'the WAL comment still rests on the view log');
+  assert.equal(namesTheFeature(text), false, 'the WAL comment still rests on the view log');
 });
 
 test('the boot mounts no such route and runs no retention pass', () => {
   const src = read('server/api.ts');
-  assert.equal(ANY_SPELLING.test(src), false, 'server/api.ts still reaches for the view log');
+  assert.equal(namesTheFeature(src), false, 'server/api.ts still reaches for the view log');
   // Everything server/api.ts calls at module scope. Mounting a router and
   // starting auto-sync is the whole of the boot; a rolling 180-day DELETE over
   // the recorded rows used to sit between them.
@@ -117,14 +123,14 @@ test('the cache carries no invalidation exception', () => {
   // The exception was load-bearing and documented in two places: the module
   // that took it, and the architecture doc that advertised it.
   const doc = read('docs/contributing/architecture.md');
-  assert.equal(ANY_SPELLING.test(doc), false, 'the architecture doc still names the view log');
+  assert.equal(namesTheFeature(doc), false, 'the architecture doc still names the view log');
   assert.equal(/exempt from invalidation/i.test(doc), false, 'the cache still advertises an exemption');
   assert.match(doc, /generation-keyed/, 'the cache line itself went missing');
 });
 
 test('the client carries no fetch, hook or Settings block for it', () => {
   for (const rel of ['src/api.ts', 'src/App.tsx', 'src/styles.css']) {
-    assert.equal(ANY_SPELLING.test(read(rel)), false, `${rel} still names the view log`);
+    assert.equal(namesTheFeature(read(rel)), false, `${rel} still names the view log`);
   }
   assert.equal(
     /settings-block/.test(read('src/App.tsx')), false,
@@ -135,13 +141,13 @@ test('the client carries no fetch, hook or Settings block for it', () => {
 test('the reference registry defines no view log', async () => {
   const { DEF_BY_ID, DEFINITIONS } = await import('../src/reference/definitions.ts');
   assert.equal(DEF_BY_ID.has('settings.view-log'), false);
-  const named = DEFINITIONS.filter((d) => ANY_SPELLING.test(`${d.id} ${d.title} ${d.plain({})} ${d.tech?.({}) ?? ''}`));
+  const named = DEFINITIONS.filter((d) => namesTheFeature(`${d.id} ${d.title} ${d.plain({})} ${d.tech?.({}) ?? ''}`));
   assert.deepEqual(named.map((d) => d.id), [], 'a definition still describes the view log');
 });
 
 test('the glossary drops the entry and Transcript reserves no "log"', () => {
   const ctx = read('CONTEXT.md');
-  assert.equal(ANY_SPELLING.test(ctx), false, 'CONTEXT.md still defines or cites the view log');
+  assert.equal(namesTheFeature(ctx), false, 'CONTEXT.md still defines or cites the view log');
   // Entries are `**Term**:` at the start of a line.
   const transcript = ctx.split('\n**').find((b) => b.startsWith('Transcript**:'));
   assert.ok(transcript, 'CONTEXT.md lost the Transcript entry');
@@ -156,7 +162,11 @@ test('the surface contract lists no such block in the Settings modal', () => {
   const contract = read('spec/surface-contract.md');
   const at = contract.indexOf('### Settings modal');
   assert.ok(at > 0, 'the surface contract lost its Settings modal section');
-  const section = contract.slice(at, contract.indexOf('\n## ', at));
-  assert.equal(ANY_SPELLING.test(section), false, 'Settings still contracts a view-log block');
+  // Bounded by the NEXT heading of any level. The section after it is the pin
+  // inventory, whose row cites this file by a name the spelling arms match, so
+  // an over-long slice would fail on its own citation.
+  const next = contract.indexOf('\n#', at + 1);
+  const section = contract.slice(at, next === -1 ? contract.length : next);
+  assert.equal(namesTheFeature(section), false, 'Settings still contracts a view-log block');
   assert.match(section, /Ask \(experimental\)/, 'the section lost the toggle rows it does contract');
 });

@@ -403,7 +403,15 @@ db.exec('DROP TABLE IF EXISTS gate_audit;');
 // gone. A data folder written by an older Chronicle still carries the table, so
 // drop it once (its index goes with it). Nothing reads either, and the app
 // records nothing to put back.
-db.exec('DROP TABLE IF EXISTS view_log;');
+// Fail soft, same rule as the backfills above: on the one boot that actually
+// drops it this is a real write, so a second Chronicle holding the write lock
+// (SQLITE_BUSY) would otherwise take startup down with it. A skipped drop costs
+// a dead table until the next boot retries.
+try {
+  db.exec('DROP TABLE IF EXISTS view_log;');
+} catch (err) {
+  console.warn('[chronicle] view_log drop deferred (will retry next start):', (err as Error).message);
+}
 
 // FTS5 full-text index over message content (external-content table kept in
 // sync inside replaceSession — delete+reinsert, no triggers). Node's bundled
@@ -433,6 +441,12 @@ export function snapshotDb(force = false): string | null {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const dest = path.join(dir, `chronicle-${stamp}.db`);
     db.exec('BEGIN'); db.exec('COMMIT'); // barrier: no open write txn while copying
+    // WAL means committed pages can still be sitting in chronicle.db-wal, and
+    // the copy below takes the main file only (restoring deletes the sidecars).
+    // Checkpoint first or a snapshot silently omits everything since the last
+    // auto-checkpoint. Best-effort: a busy checkpoint leaves the copy exactly as
+    // stale as it would have been, which beats losing the snapshot entirely.
+    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* copy what is on disk */ }
     fs.copyFileSync(path.join(dataDir, 'chronicle.db'), dest);
     // Keep the newest two snapshots total (the one just written + one prior).
     for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {
