@@ -6,7 +6,7 @@ import { readConfig } from '../config.ts';
 import {
   findClaudeBin, readAskHistory, appendAskTurn, normalizeAskCostMode,
 } from '../ask.ts';
-import type { AskTurn } from '../../shared/results.ts';
+import type { AskCostMode, AskTurn } from '../../shared/results.ts';
 
 // /ask routes. The `∴ Ask` metric chat: a local claude-CLI-backed
 // runner with exactly one read-only SELECT-only tool over chronicle.db. Gated,
@@ -62,7 +62,7 @@ export function mountAsk(app: Express): void {
     if (runState.running) return res.status(409).json({ error: 'a query is already running' });
 
     const question = String(req.body?.question ?? '').trim();
-    const costMode = normalizeAskCostMode(req.body?.costMode);
+    const costMode: AskCostMode = normalizeAskCostMode(req.body?.costMode);
     if (!question) return res.status(400).json({ error: 'question is required' });
     if (question.length > 2000) return res.status(400).json({ error: 'question is too long (max 2000 chars)' });
 

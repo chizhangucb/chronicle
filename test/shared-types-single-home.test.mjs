@@ -26,7 +26,9 @@ function sourceFiles(dir) {
   return out;
 }
 
-const SOURCES = [...sourceFiles('server'), ...sourceFiles('src'), ...sourceFiles('shared')]
+// scripts/ is in scope too: the /ask runner and the MCP server read the same
+// shapes, so a mirror can be reinstated there as easily as in a route.
+const SOURCES = [...sourceFiles('server'), ...sourceFiles('src'), ...sourceFiles('shared'), ...sourceFiles('scripts')]
   .map((rel) => ({ rel, text: fs.readFileSync(path.join(REPO, rel), 'utf8') }));
 
 // name → the one file allowed to declare it. A `interface X`/`type X =`
@@ -161,39 +163,42 @@ test('shared/ is imported by relative path everywhere, and the alias is gone', (
   }
 });
 
-// ---- The surfaces that render a shared shape ----
+// ---- The files that read a shared shape ----
 
 // #307 moved the shapes to shared/ but left five hand-typed copies standing in
-// the surfaces that render them (issue #345). Each was a LOSSY copy: it kept
-// the fields its own JSX happened to read and dropped the rest, so the surface
+// the files that read them (issue #345). Each was a LOSSY copy: it kept the
+// fields its own caller happened to read and dropped the rest, so the reader
 // could not reach a field the route had been answering with all along
 // (SearchResult dropped `seq`, `message_count`, `usage` and `agent_active_ms`;
-// MinorSession dropped `started_at`). A surface reads the shared home now.
-const SURFACES = [
-  { rel: 'src/SearchModal.tsx', reads: [['SearchResponse', 'shared/results.ts'], ['ProjectListItem', 'shared/results.ts']] },
+// MinorSession dropped `started_at`). Each reads the shared home now.
+const READERS = [
+  { rel: 'src/SearchModal.tsx', reads: [['SearchResponse', 'shared/results.ts'], ['ProjectListItem', 'shared/results.ts'], ['SearchResultItem', 'shared/rows.ts']] },
   { rel: 'src/RecentLedger.tsx', reads: [['MinorSessionRow', 'shared/rows.ts']] },
-  { rel: 'server/routes/ask.ts', reads: [['AskTurn', 'shared/results.ts']] },
+  { rel: 'src/AskPage.tsx', reads: [['AskTurn', 'shared/results.ts'], ['AskCostMode', 'shared/results.ts']] },
+  { rel: 'server/routes/ask.ts', reads: [['AskTurn', 'shared/results.ts'], ['AskCostMode', 'shared/results.ts']] },
+  { rel: 'scripts/run-ask.ts', reads: [['AskTurn', 'shared/results.ts'], ['AskCostMode', 'shared/results.ts']] },
 ];
 
-test('each surface imports the shape it renders from the shared home', () => {
-  for (const { rel, reads } of SURFACES) {
+test('each reader imports the shape it reads from the shared home', () => {
+  for (const { rel, reads } of READERS) {
     const text = SOURCES.find((s) => s.rel === rel).text;
     for (const [name, home] of reads) {
-      const pattern = new RegExp(`import type \\{[^}]*\\b${name}\\b[^}]*\\} from '[^']*${path.basename(home)}'`, 's');
+      // The whole home path, not its basename: `results.ts` alone would pass on
+      // an import from anywhere that happens to be called that.
+      const pattern = new RegExp(`import type \\{[^}]*\\b${name}\\b[^}]*\\} from '[^']*${home}'`, 's');
       assert.match(text, pattern, `${rel} should import ${name} from ${home}`);
     }
   }
 });
 
 // The mirrors' own names, which is what a reinstated copy would be called.
-// `MinorSessionRow`/`SearchResultItem` are the shared shapes and keep their
-// names: the word boundary is what tells the copy from the home.
+// `declarationsOf` reads declarations, so a comment naming one is not a hit and
+// `MinorSessionRow` (the shared home's own name) is not one either.
 const MIRROR_NAMES = ['SearchResult', 'SearchData', 'SearchProject', 'MinorSession'];
 
 test('the hand-typed mirrors of the shared shapes are gone', () => {
   for (const name of MIRROR_NAMES) {
-    const hits = SOURCES.filter(({ text }) => new RegExp(`\\b${name}\\b`).test(text)).map(({ rel }) => rel);
-    assert.deepEqual(hits, [], `${name} was a hand-typed mirror and should not come back`);
+    assert.deepEqual(declarationsOf(name), [], `${name} was a hand-typed mirror and should not come back`);
   }
 });
 

@@ -206,11 +206,11 @@ export interface AskStatus {
   claudePresent: boolean;
   demo: boolean;
 }
-/** The basis the user asked for: the UI/user words. server/ask.ts maps them
- * onto the price core's 'theoretical'/'real'. */
+/** The cost basis the operator picked, in the words /ask shows.
+ * server/ask.ts maps it onto the price core's own spelling. */
 export type AskCostMode = 'list' | 'billed';
-/** One persisted conversation turn: what the runner prints, what the route
- * appends to the history file, and what AskPage renders. */
+/** One persisted /ask turn: what the runner prints, what the route appends to
+ * the turn log, and what AskPage renders. */
 export interface AskTurn {
   id: string;
   /** ISO timestamp. */
