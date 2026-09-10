@@ -49,8 +49,10 @@ type checker only, never a compiler for dev/local runs. This has real constraint
 - **Full `strict: true`.** Don't weaken strict mode or silence errors with `any`/`@ts-ignore` —
   type the real shape.
 - **`shared/types.ts`** (repo root) is the cross-boundary contract — the normalized event model
-  (`Kind`, `Event`, `Usage`, `Session`, …). The server imports it relatively; the client imports
-  it via the `@shared` alias.
+  (`Kind`, `Event`, `Session`, …); the token cell and the one parse of a session's usage JSON
+  live beside it in `shared/usage.ts` (`UsageCell`, `parseUsage`, `addCell`). The server imports
+  `shared/` relatively; the client imports types via the `@shared` alias and VALUES relatively
+  (`../shared/usage.ts`) — an alias value import throws under plain `node --test`.
 
 The one place a real build happens is publishing: `npm run prepack` compiles the server to
 plain JS (`dist-server/`) so the published npm package doesn't require Node to strip types from

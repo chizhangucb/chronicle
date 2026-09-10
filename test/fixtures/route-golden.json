@@ -856,6 +856,914 @@
       }
     ]
   },
+  "/explore?metric=tokens&group=hour&rollup=daily": {
+    "metric": "tokens",
+    "group": "hour",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "12",
+        "label": "12",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "13",
+        "label": "13",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "14",
+        "label": "14",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 750,
+            "output": 375,
+            "cacheRead": 2250,
+            "cw5m": 750,
+            "cw1h": 0
+          }
+        },
+        "requests": 18,
+        "sessions": 2,
+        "errors": 2,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "15",
+        "label": "15",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 1200,
+            "output": 600,
+            "cacheRead": 3600,
+            "cw5m": 1200,
+            "cw1h": 0
+          },
+          "gpt-5": {
+            "input": 250,
+            "output": 125,
+            "cacheRead": 750,
+            "cw5m": 250,
+            "cw1h": 0
+          }
+        },
+        "requests": 12,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "16",
+        "label": "16",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "17",
+        "label": "17",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "18",
+        "label": "18",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 900,
+            "output": 450,
+            "cacheRead": 2700,
+            "cw5m": 900,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "6",
+        "label": "6",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "7",
+        "label": "7",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "8",
+        "label": "8",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 540,
+            "output": 270,
+            "cacheRead": 1620,
+            "cw5m": 540,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 1,
+        "errors": 1,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "Other",
+        "label": "Other",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 360,
+            "output": 180,
+            "cacheRead": 1080,
+            "cw5m": 360,
+            "cw1h": 0
+          },
+          "gemini-2.5-pro": {
+            "input": 300,
+            "output": 150,
+            "cacheRead": 900,
+            "cw5m": 300,
+            "cw1h": 0
+          }
+        },
+        "requests": 9,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": [],
+        "otherCount": 2
+      }
+    ],
+    "rollup": "daily",
+    "requestedRollup": "daily",
+    "buckets": [
+      {
+        "bucket": "2026-02-07",
+        "label": "Feb 7",
+        "series": {
+          "12": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "13": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "14": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "15": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08",
+        "label": "Feb 8",
+        "series": {
+          "12": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "13": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "14": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "15": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 250,
+                "output": 125,
+                "cacheRead": 750,
+                "cw5m": 250,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09",
+        "label": "Feb 9",
+        "series": {
+          "6": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "7": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "8": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "16": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "17": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "18": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          },
+          "Other": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 360,
+                "output": 180,
+                "cacheRead": 1080,
+                "cw5m": 360,
+                "cw1h": 0
+              },
+              "gemini-2.5-pro": {
+                "input": 300,
+                "output": 150,
+                "cacheRead": 900,
+                "cw5m": 300,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
+  "/explore?metric=spend&group=subagent&rollup=daily": {
+    "metric": "spend",
+    "group": "subagent",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [],
+    "rollup": "daily",
+    "requestedRollup": "daily",
+    "buckets": []
+  },
+  "/explore?metric=spend&group=provider&rollup=hourly": {
+    "metric": "spend",
+    "group": "provider",
+    "subgroup": null,
+    "calibrated": false,
+    "rows": [
+      {
+        "key": "anthropic",
+        "label": "anthropic",
+        "tokensByModel": {
+          "claude-sonnet-5": {
+            "input": 6780,
+            "output": 3390,
+            "cacheRead": 20340,
+            "cw5m": 6780,
+            "cw1h": 0
+          }
+        },
+        "requests": 23,
+        "sessions": 2,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "google",
+        "label": "google",
+        "tokensByModel": {
+          "gemini-2.5-pro": {
+            "input": 3000,
+            "output": 1500,
+            "cacheRead": 9000,
+            "cw5m": 3000,
+            "cw1h": 0
+          }
+        },
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      },
+      {
+        "key": "openai",
+        "label": "openai",
+        "tokensByModel": {
+          "gpt-5": {
+            "input": 2500,
+            "output": 1250,
+            "cacheRead": 7500,
+            "cw5m": 2500,
+            "cw1h": 0
+          }
+        },
+        "requests": 10,
+        "sessions": 1,
+        "errors": 0,
+        "activeMs": 0,
+        "segments": []
+      }
+    ],
+    "rollup": "hourly",
+    "requestedRollup": "hourly",
+    "buckets": [
+      {
+        "bucket": "2026-02-07T12",
+        "label": "Feb 7 12h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T13",
+        "label": "Feb 7 13h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T14",
+        "label": "Feb 7 14h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-07T15",
+        "label": "Feb 7 15h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 1200,
+                "output": 600,
+                "cacheRead": 3600,
+                "cw5m": 1200,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T12",
+        "label": "Feb 8 12h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T13",
+        "label": "Feb 8 13h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T14",
+        "label": "Feb 8 14h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 750,
+                "output": 375,
+                "cacheRead": 2250,
+                "cw5m": 750,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-08T15",
+        "label": "Feb 8 15h",
+        "series": {
+          "openai": {
+            "tokensByModel": {
+              "gpt-5": {
+                "input": 250,
+                "output": 125,
+                "cacheRead": 750,
+                "cw5m": 250,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T06",
+        "label": "Feb 9 06h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T07",
+        "label": "Feb 9 07h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T08",
+        "label": "Feb 9 08h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 540,
+                "output": 270,
+                "cacheRead": 1620,
+                "cw5m": 540,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T09",
+        "label": "Feb 9 09h",
+        "series": {
+          "anthropic": {
+            "tokensByModel": {
+              "claude-sonnet-5": {
+                "input": 360,
+                "output": 180,
+                "cacheRead": 1080,
+                "cw5m": 360,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T16",
+        "label": "Feb 9 16h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T17",
+        "label": "Feb 9 17h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T18",
+        "label": "Feb 9 18h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 900,
+                "output": 450,
+                "cacheRead": 2700,
+                "cw5m": 900,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      },
+      {
+        "bucket": "2026-02-09T19",
+        "label": "Feb 9 19h",
+        "series": {
+          "google": {
+            "tokensByModel": {
+              "gemini-2.5-pro": {
+                "input": 300,
+                "output": 150,
+                "cacheRead": 900,
+                "cw5m": 300,
+                "cw1h": 0
+              }
+            },
+            "requests": 0,
+            "sessions": 0,
+            "errors": 0,
+            "activeMs": 0
+          }
+        }
+      }
+    ]
+  },
   "/content": {
     "composition": [
       {

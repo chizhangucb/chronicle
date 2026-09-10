@@ -50,7 +50,7 @@ export function emptyCell(): UsageCell {
 
 // Normalize one raw entry into a full cell: absent and null fields read zero,
 // and a legacy `cacheWrite` folds onto the 5-minute tier.
-export function toCell(raw: RawUsageCell): UsageCell {
+function toCell(raw: RawUsageCell): UsageCell {
   return {
     input: raw.input ?? 0,
     output: raw.output ?? 0,
@@ -101,7 +101,7 @@ export function addCellInto(target: UsageByModel, model: string, cell: UsageCell
 }
 
 // Every token in one cell, across all five fields.
-export function cellTotal(cell: UsageCell): number {
+function cellTotal(cell: UsageCell): number {
   return cell.input + cell.output + cell.cacheRead + cell.cacheWrite5m + cell.cacheWrite1h;
 }
 

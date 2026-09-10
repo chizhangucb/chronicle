@@ -23,8 +23,6 @@ const RECENT_CAP = 10;
 // The trailing complete-days window the "Today" burn baseline medians over.
 const MEDIAN_DAYS = 14;
 
-
-
 export interface ActivitySessionLite {
   id: string;
   name: string;              // resolved display name (name → summary → first_prompt → id)
@@ -235,9 +233,9 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   const rangeSpendTokensByModel: UsageByModel = {};
   const rangeSpendTokensByModelByDay: Record<string, UsageByModel> = {};
   for (const c of bucketedCells) {
-    addUsage(rangeSpendTokensByModel, { [c.model]: c.cells });
+    addCellInto(rangeSpendTokensByModel, c.model, c.cells);
     const dayAcc = rangeSpendTokensByModelByDay[c.bucket] ?? (rangeSpendTokensByModelByDay[c.bucket] = {});
-    addUsage(dayAcc, { [c.model]: c.cells });
+    addCellInto(dayAcc, c.model, c.cells);
   }
 
   let baselineTokensByModel: UsageByModel;
@@ -285,10 +283,10 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], anomalyCutoff, 'day')) {
     let d = anomDayMap.get(c.bucket);
     if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
-    addUsage(d.byModel, { [c.model]: c.cells });
+    addCellInto(d.byModel, c.model, c.cells);
     const pk = projName.get(c.projectId) ?? String(c.projectId);
-    addUsage(d.byProject[pk] ?? (d.byProject[pk] = {}), { [c.model]: c.cells });
-    addUsage(d.bySource[c.source] ?? (d.bySource[c.source] = {}), { [c.model]: c.cells });
+    addCellInto(d.byProject[pk] ?? (d.byProject[pk] = {}), c.model, c.cells);
+    addCellInto(d.bySource[c.source] ?? (d.bySource[c.source] = {}), c.model, c.cells);
   }
   const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
   const nowD = new Date(now);

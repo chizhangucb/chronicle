@@ -9,7 +9,7 @@ import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { overlapGate, rangedUsage, bucketedUsage } from './rangeUsage.ts';
-import { addCellInto, parseUsage, type UsageCell } from '../shared/usage.ts';
+import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
@@ -486,7 +486,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
       if (billedAll <= 0) {
         // Nothing billed in scope at all — spend 0 is acceptable; fall back
         // to the single empty-model cell rather than dividing by zero.
-        r.tokensByModel = { '': { input: T, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 } };
+        r.tokensByModel = { '': { ...emptyCell(), input: T } };
         continue;
       }
       const tokensByModel: Record<string, UsageCell> = {};
@@ -496,7 +496,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
         const modelTokens = Math.round(T * (msTotal / billedAll));
         const input = Math.round(modelTokens * (ms.input / msTotal));
         const output = modelTokens - input;
-        tokensByModel[ms.model] = { input, output, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
+        tokensByModel[ms.model] = { ...emptyCell(), input, output };
       }
       r.tokensByModel = tokensByModel;
     }
@@ -519,18 +519,10 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     for (const r of rest) {
       other.requests += r.requests; other.errors += r.errors; other.activeMs += r.activeMs;
       other.sessions += r.sessions;
-      for (const [model, u] of Object.entries(r.tokensByModel)) {
-        const cur = other.tokensByModel[model] ?? { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
-        cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cacheWrite5m += u.cacheWrite5m; cur.cacheWrite1h += u.cacheWrite1h;
-        other.tokensByModel[model] = cur;
-      }
+      for (const [model, u] of Object.entries(r.tokensByModel)) addCellInto(other.tokensByModel, model, u);
       for (const [day, byModel] of Object.entries(r.tokensByModelByDay ?? {})) {
         const dayAcc = other.tokensByModelByDay![day] ?? {};
-        for (const [model, u] of Object.entries(byModel)) {
-          const cur = dayAcc[model] ?? { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 };
-          cur.input += u.input; cur.output += u.output; cur.cacheRead += u.cacheRead; cur.cacheWrite5m += u.cacheWrite5m; cur.cacheWrite1h += u.cacheWrite1h;
-          dayAcc[model] = cur;
-        }
+        for (const [model, u] of Object.entries(byModel)) addCellInto(dayAcc, model, u);
         other.tokensByModelByDay![day] = dayAcc;
       }
     }
@@ -590,10 +582,13 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
 // ---- the route's wire shape ----
 // Explore's JSON has always named the two cache-write tiers `cw5m`/`cw1h`,
 // while every other surface (and `sessions.usage` itself) names them
-// `cacheWrite5m`/`cacheWrite1h`. That naming is frozen by the surface contract,
-// so the rename happens HERE, at the response boundary, and nowhere else: the
-// engine above computes in the one shared dialect (shared/usage.ts) from parse
-// to fold, and only the serialized answer speaks Explore's older names.
+// `cacheWrite5m`/`cacheWrite1h`. #301 consolidates the dialects but requires
+// every route's JSON to stay identical, so the older names survive on the wire
+// and nowhere else: the engine above computes in the one shared dialect
+// (shared/usage.ts) from parse to fold, and only the serialized answer is
+// renamed, here, in one place. Renaming the wire itself means changing what
+// /api/explore returns, which is a surface-contract question, not this
+// consolidation's.
 export interface ExploreWireCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
 export interface ExploreWireRow extends Omit<ExploreRow, 'tokensByModel' | 'tokensByModelByDay'> {
   tokensByModel: Record<string, ExploreWireCell>;
@@ -712,12 +707,12 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
         const split = splitByBucket.get(bkt);
         for (const { key: gk, tokens: T } of calibrateByBucket(arr, billed)) {
           const tbm = cell(bkt, seriesKeyFor(gk)).tokensByModel;
-          if (!split || billed <= 0) { addCellInto(tbm, '', { input: T, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 }); continue; }
+          if (!split || billed <= 0) { addCellInto(tbm, '', { ...emptyCell(), input: T }); continue; }
           for (const [model, v] of split) {
             const msTotal = v.input + v.output; if (msTotal <= 0) continue;
             const modelTokens = Math.round(T * (msTotal / billed));
             const input = Math.round(modelTokens * (v.input / msTotal));
-            addCellInto(tbm, model, { input, output: modelTokens - input, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+            addCellInto(tbm, model, { ...emptyCell(), input, output: modelTokens - input });
           }
         }
       }

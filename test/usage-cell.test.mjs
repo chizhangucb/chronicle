@@ -74,3 +74,27 @@ test('addCell: folding a parsed session over an accumulator totals the session',
   const total = Object.values(parsed).reduce(addCell, emptyCell());
   assert.deepEqual(total, { input: 11, output: 22, cacheRead: 33, cacheWrite5m: 44, cacheWrite1h: 5 });
 });
+
+// Explore is the one route whose JSON names the cache-write tiers `cw5m`/`cw1h`
+// rather than the shared cell's `cacheWrite5m`/`cacheWrite1h`. That rename used
+// to be an adapter inside the engine; it now happens once, on the way out.
+test('explore toWire: renames the cache-write tiers on the wire and nowhere else', async () => {
+  const { toWire } = await import('../server/explore.ts');
+  const cell = { input: 1, output: 2, cacheRead: 3, cacheWrite5m: 4, cacheWrite1h: 5 };
+  const wired = toWire({
+    metric: 'spend', group: 'model', subgroup: null, calibrated: false,
+    rollup: 'daily', requestedRollup: 'daily',
+    rows: [{ key: 'm', label: 'm', tokensByModel: { m: cell }, tokensByModelByDay: { '2026-02-07': { m: cell } },
+      requests: 1, sessions: 1, errors: 0, activeMs: 10, segments: [] }],
+    buckets: [{ bucket: '2026-02-07', label: 'Feb 7', series: { m: { tokensByModel: { m: cell }, requests: 1, sessions: 1, errors: 0, activeMs: 10 } } }],
+  });
+  const wireCell = { input: 1, output: 2, cacheRead: 3, cw5m: 4, cw1h: 5 };
+  assert.deepEqual(wired.rows[0].tokensByModel.m, wireCell);
+  assert.deepEqual(wired.rows[0].tokensByModelByDay['2026-02-07'].m, wireCell);
+  assert.deepEqual(wired.buckets[0].series.m.tokensByModel.m, wireCell);
+  // Everything that is not a cell rides through untouched.
+  assert.equal(wired.rows[0].activeMs, 10);
+  assert.equal(wired.metric, 'spend');
+  // The engine's own cell is not mutated by serialization.
+  assert.deepEqual(cell, { input: 1, output: 2, cacheRead: 3, cacheWrite5m: 4, cacheWrite1h: 5 });
+});

@@ -126,12 +126,13 @@ export function isSubscriptionCovered(model: string | null | undefined): boolean
   return false;
 }
 
-// A single model's token usage as PRICED: the shared cell, or any partial of
-// it (a bag built up client-side), including the LEGACY `cacheWrite` key that
-// pre-TTL-split imports carry. That is exactly `shared/usage.ts`'s RawUsageCell
-// — the raw shape `parseUsage` normalizes — so it is imported, not re-declared.
+// What this module prices is a single model's token usage: the shared cell, or
+// any partial of it (a bag built up client-side), including the LEGACY
+// `cacheWrite` key that pre-TTL-split imports carry. That is exactly
+// `shared/usage.ts`'s RawUsageCell — the raw shape `parseUsage` normalizes — so
+// it is imported and re-exported here, never re-declared.
+export type { RawUsageCell } from './usage.ts';
 import type { RawUsageCell } from './usage.ts';
-export type ModelUsageInput = RawUsageCell;
 
 export interface CostBreakdown {
   input: number;
@@ -147,7 +148,7 @@ export interface CostBreakdown {
 // (e.g. Sonnet 5's intro window); omit for the latest/current rate.
 export function costBreakdownOf(
   model: string | null | undefined,
-  u: ModelUsageInput | null | undefined,
+  u: RawUsageCell | null | undefined,
   day?: string | null,
   mode: CostMode = 'theoretical',
 ): CostBreakdown | null {
@@ -164,7 +165,7 @@ export function costBreakdownOf(
 }
 
 // Combined cache-write token count across both tiers (for display).
-export function cacheWriteTokens(u: ModelUsageInput): number {
+export function cacheWriteTokens(u: RawUsageCell): number {
   return (u.cacheWrite5m ?? 0) + (u.cacheWrite1h ?? 0) || (u.cacheWrite ?? 0);
 }
 
@@ -176,7 +177,7 @@ export interface CacheWriteByTtl {
 // Cache-write tokens split by TTL tier, for TTL-labeled display. Legacy logs
 // only carry {cacheWrite} — those were billed at the 5-minute rate, so treat
 // them as 5m. { cw5m, cw1h } in tokens.
-export function cacheWriteByTtl(u: ModelUsageInput | null | undefined): CacheWriteByTtl {
+export function cacheWriteByTtl(u: RawUsageCell | null | undefined): CacheWriteByTtl {
   if (!u) return { cw5m: 0, cw1h: 0 };
   return { cw5m: u.cacheWrite5m ?? u.cacheWrite ?? 0, cw1h: u.cacheWrite1h ?? 0 };
 }
@@ -184,7 +185,7 @@ export function cacheWriteByTtl(u: ModelUsageInput | null | undefined): CacheWri
 // Per-TTL cache-write cost in USD for one model's usage; null if unpriced.
 export function cacheWriteCostByTtl(
   model: string | null | undefined,
-  u: ModelUsageInput | null | undefined,
+  u: RawUsageCell | null | undefined,
   day?: string | null,
   mode: CostMode = 'theoretical',
 ): CacheWriteByTtl | null {
@@ -195,7 +196,7 @@ export function cacheWriteCostByTtl(
 }
 
 // Total cost in USD for one model's aggregated token usage; null if unpriced.
-export function costOf(model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null, mode: CostMode = 'theoretical'): number | null {
+export function costOf(model: string | null | undefined, u: RawUsageCell | null | undefined, day?: string | null, mode: CostMode = 'theoretical'): number | null {
   const b = costBreakdownOf(model, u, day, mode);
   return b ? b.input + b.output + b.cacheWrite + b.cacheRead : null;
 }
@@ -205,7 +206,7 @@ export function costOf(model: string | null | undefined, u: ModelUsageInput | nu
 // at the toggled mode; the server passes it at the fixed
 // theoretical basis the anomaly and budget math runs on. ONE implementation,
 // no second pricing path.
-export type PriceFn = (model: string | null | undefined, u: ModelUsageInput | null | undefined, day?: string | null) => number | null;
+export type PriceFn = (model: string | null | undefined, u: RawUsageCell | null | undefined, day?: string | null) => number | null;
 
 // Build a PriceFn at a fixed mode from the shared table.
 export function priceFnFor(mode: CostMode = 'theoretical'): PriceFn {
