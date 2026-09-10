@@ -133,7 +133,8 @@ export function demoSessions(): DemoSessionSpec[] {
 /** A stable fingerprint of the corpus SHAPE (not its dates), used as part of
  *  the seed cache key so an edit to this file rebuilds rather than serving a
  *  stale demo DB. */
-// v2 (issue #186): the demo's proxy spend log moved out of the retired
-// checkout's `litellm/` to
-// `litellm/` under the demo dir, following the standalone spend-log default.
+// v2 (issue #186): the demo's spend log moved out of the retired checkout and
+// under the demo dir, following the standalone spend-log default. Chronicle
+// stopped reading that log in #217 and the proxy that wrote it is gone (#296);
+// the version stays v2 because it keys a seed cache, not a feature.
 export const DEMO_CORPUS_VERSION = 'v2';

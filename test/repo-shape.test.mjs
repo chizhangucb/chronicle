@@ -13,6 +13,9 @@ import path from 'node:path';
 import {
   PRIVATE_PATHS,
   PRIVATE_FOLDERS,
+  LEGACY_LAYOUT,
+  PRIVATE_LOCATION,
+  FOREIGN_CONSUMER,
   RETIRED_WORDS,
   RETIRED_PHRASES,
   RETIRED_ROUTE_PREFIXES,
@@ -26,17 +29,25 @@ const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 // repo-managed harness hooks are gone; none may be tracked again.
 const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 
-// Every doc surface this repo owns, litellm/ included (issue #189). The runtime
-// pins in test/litellm-runtime.test.mjs still guard litellm/README.md alongside
-// the runtime it documents, but they check a different string set, so the folder
-// is inside this pin too rather than exempt from it. CHANGELOG.md stays out
-// because history is allowed to name what was.
+// Every doc surface this repo owns. CHANGELOG.md stays out because history is
+// allowed to name what was.
 //
 // `*` in a git pathspec matches `/` too, so `docs/*.md` is the recursive form.
 // `docs/**/*.md` is not -- it requires a directory in between, and silently
 // skipped the two top-level docs/*.md files until #189 widened this list.
-const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md', 'litellm/*.md'];
-const PRIVATE_STRINGS = new RegExp(`${PRIVATE_PATHS.source}|${PRIVATE_FOLDERS.source}`, 'i');
+const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md'];
+
+// The private checkout, spelled every way a tracked file could point at it: the
+// paths themselves, the folders, the pre-move layout its files sat in, and the
+// `hub `path`` location header. The last two used to be read by the LiteLLM
+// runtime pins over litellm/'s runbook; #296 deleted that suite with the spine,
+// so the owned-doc sweep carries them now rather than letting them lapse.
+const PRIVATE_STRINGS = new RegExp(
+  [PRIVATE_PATHS, PRIVATE_FOLDERS, LEGACY_LAYOUT, PRIVATE_LOCATION, FOREIGN_CONSUMER]
+    .map((re) => re.source)
+    .join('|'),
+  'i',
+);
 
 test('no retired folder is tracked at the repo root', () => {
   const back = RETIRED_ROOT.filter((name) => topLevel.has(name));
@@ -81,7 +92,7 @@ test('the doc glob list reaches a top-level doc, not just a nested one', () => {
   // narrow again and every assertion above it keeps passing.
   const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
   const nesting = (rel) => rel.split('/').length;
-  for (const dir of ['docs', 'spec', 'litellm']) {
+  for (const dir of ['docs', 'spec']) {
     const under = docs.filter((rel) => rel.startsWith(`${dir}/`));
     assert.ok(under.length, `the doc set reaches nothing under ${dir}/`);
     assert.ok(
@@ -133,11 +144,12 @@ test('CI declares no hand-rolled confidentiality or staleness job', () => {
   assert.deepEqual(back, [], `a retired CI job is declared again: ${back}`);
 });
 
-// The shrink (spec #215) left `scripts/` holding only Chronicle's own tooling, and
-// took every dormant job template out of the published tarball. `install-jobs.mjs`
-// and the LiteLLM plist stay TRACKED for the optional local proxy spine, but a user
-// who runs `npx chronicle-cli` must never receive a scheduled-job template they did
-// not ask for -- so the npm `files` list ships neither.
+// The shrink (spec #215) left `scripts/` holding only Chronicle's own tooling,
+// and took every dormant job template out of the published tarball. #296 took
+// the last template out of the repo altogether, with the proxy spine it
+// scheduled and the installer that filled it, so there is no exclusion left to
+// keep: the pin is that no template is tracked anywhere and that the npm
+// `files` list never starts shipping one again.
 const RETIRED_CHECKOUT_SCRIPTS = [
   'scripts/emit-daily-digest.ts',
   'launchd/com.chronicle.daily-digest.plist.template',
@@ -152,16 +164,33 @@ test('the published package ships no job template', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const files = pkg.files ?? [];
   assert.ok(!files.includes('launchd'), '`launchd` is back in the published files list');
-  assert.ok(
-    files.includes('!scripts/install-jobs.mjs'),
-    'the job installer is no longer excluded from the published files list',
+  const strays = tracked.filter((rel) => /\.(plist|plist\.template)$|crontab/.test(rel));
+  assert.deepEqual(strays, [], `a job template is tracked again: ${strays}`);
+});
+
+// --- The proxy spine (issue #296, part of spec #294) -----------------------
+//
+// Chronicle stopped reading the LiteLLM proxy's spend log in #217, and the
+// spine outlived its reader: a Python proxy, its launchd template, the
+// installer that filled that template, and two suites whose whole subject was
+// the proxy. Nothing in the product reached any of it.
+//
+// `npx chronicle-cli` and this repo's CI need Node and nothing else. These
+// pins are what "and nothing else" means, so the spine cannot settle back in
+// one file at a time.
+const RETIRED_SPINE_PATHS = [
+  'litellm/',
+  'launchd/',
+  'scripts/install-jobs.mjs',
+  'test/litellm-guards.test.mjs',
+  'test/litellm-runtime.test.mjs',
+];
+
+test('no proxy-spine file is tracked', () => {
+  const back = RETIRED_SPINE_PATHS.filter((spine) =>
+    tracked.some((rel) => rel === spine || rel.startsWith(spine)),
   );
-  // Every tracked job template lives under launchd/, which is not published; a
-  // template anywhere else would slip past that exclusion.
-  const strays = tracked.filter(
-    (rel) => /\.(plist|plist\.template)$|crontab/.test(rel) && !rel.startsWith('launchd/'),
-  );
-  assert.deepEqual(strays, [], `a job template is tracked outside launchd/: ${strays}`);
+  assert.deepEqual(back, [], `the proxy spine is tracked again: ${back}`);
 });
 
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
@@ -197,7 +226,6 @@ const VOCAB_EXEMPT = new Set([
   'test/helpers/retired-vocabulary.mjs',
   'test/removed-routes.test.mjs',
   'test/cli-removed-inputs.test.mjs',
-  'test/litellm-runtime.test.mjs',
 ]);
 
 // The ONE surviving literal, exempted BY VALUE rather than by file: this exact
