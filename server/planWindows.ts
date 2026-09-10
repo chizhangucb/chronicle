@@ -18,13 +18,12 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { readConfig } from './config.ts';
-
-const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const FETCH_TIMEOUT_MS = 15_000;
-
 // Declared in shared/results.ts (#307), so the Spend tab's plan-window card
 // reads the shape this module answers with.
 import type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
+
+const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
+const FETCH_TIMEOUT_MS = 15_000;
 
 // ---- Claude (outbound, opt-out, default on) ----
 function readClaudeToken(home: string = homedir()): string | null {

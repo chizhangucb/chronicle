@@ -9,8 +9,7 @@ import { db } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage, bucketedUsage, bucketKeyExpr } from './rangeUsage.ts';
-import type { BucketedUsageCell, UsageBucket } from '../shared/usage.ts';
-import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
+import { addCellInto, emptyCell, parseUsage, type BucketedUsageCell, type UsageBucket, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head query for
 // those groups, but the heuristic itself is the shared server-side copy, and the

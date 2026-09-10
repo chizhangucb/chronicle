@@ -6,9 +6,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { api, projectUrl, projectsUrl } from './api.js';
-import type { BucketedUsageCell } from '../shared/usage.ts';
 import { costOf, type CostMode } from './models.js';
-import { parseUsage, type UsageByModel } from '../shared/usage.ts';
+import { parseUsage, type BucketedUsageCell, type UsageByModel } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';

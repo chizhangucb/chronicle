@@ -2,13 +2,12 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const execFileAsync = promisify(execFile);
-
 // The two shapes this module answers with live in shared/rows.ts (#307): the
 // client renders them (CodePanel's commit list, the project page's repo badge)
 // and must read the same contract the server sends.
 import type { Commit, RepoInfo } from '../shared/rows.ts';
+
+const execFileAsync = promisify(execFile);
 
 export interface FileAtResult {
   content: string | null;

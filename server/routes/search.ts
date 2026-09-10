@@ -1,6 +1,11 @@
 import type { Express, Request, Response } from 'express';
 import { db, ftsAvailable } from '../db.ts';
 import { queryContext, rangeOf, whereOf } from '../scope.ts';
+// One search hit, and the envelope around it: shared/rows.ts and
+// shared/results.ts own both shapes (#307), so the Home ledger reads what this
+// route sends.
+import type { SearchResultItem as SessionResult } from '../../shared/rows.ts';
+import type { SearchResponse } from '../../shared/results.ts';
 
 // ---- Global search (home command palette) ----
 // Empty query → recent sessions ("Recent Access"). Non-empty → FTS5 MATCH over
@@ -41,12 +46,6 @@ interface MatchRow {
   first_prompt: string | null;
   project_name: string;
 }
-
-// One search hit, and the envelope around it: shared/rows.ts and
-// shared/results.ts own both shapes (#307), so the Home ledger reads what this
-// route sends.
-import type { SearchResultItem as SessionResult } from '../../shared/rows.ts';
-import type { SearchResponse } from '../../shared/results.ts';
 
 function snippetAround(text: string, q: string, radius = 60): string {
   if (!text) return '';

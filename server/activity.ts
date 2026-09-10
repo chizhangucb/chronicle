@@ -17,6 +17,9 @@ import { bucketedUsage } from './rangeUsage.ts';
 import { queryContext, rangeOf, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import { addCellInto, emptyCell, parseUsage, totalTokens, USAGE_FIELDS, type UsageByModel, type UsageCell } from '../shared/usage.ts';
+// The feed's shapes live in shared/results.ts (#307); the Home dashboard reads
+// them straight from there instead of keeping a hand-typed mirror.
+import type { ActivityBurn, ActivityResult, ActivitySessionLite, AnomalyDayCells } from '../shared/results.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -24,10 +27,6 @@ const LIVE_CAP = 6;
 const RECENT_CAP = 10;
 // The trailing complete-days window the "Today" burn baseline medians over.
 const MEDIAN_DAYS = 14;
-
-// The feed's shapes live in shared/results.ts (#307); the Home dashboard reads
-// them straight from there instead of keeping a hand-typed mirror.
-import type { ActivityBurn, ActivityResult, ActivitySessionLite, AnomalyDayCells } from '../shared/results.ts';
 
 interface SessionRowLite {
   id: string;

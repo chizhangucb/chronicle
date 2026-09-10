@@ -14,8 +14,7 @@ import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './pars
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
 import { readConfig } from './config.ts';
 import type { ParseResult } from '../shared/types.ts';
-
-
+// The status shape the Settings surface reads (shared/results.ts, #307).
 import type { AutosyncStatus } from '../shared/results.ts';
 
 export interface SyncResultOk {

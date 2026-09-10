@@ -16,6 +16,9 @@ import { rangedUsage } from './rangeUsage.ts';
 // replaces a former hand-inlined copy that had to be kept in sync manually.
 import { contextWindowFor } from '../shared/contextWindows.ts';
 import { parseUsage } from '../shared/usage.ts';
+// Declared in shared/results.ts (#307) so src/ContentTab.tsx renders the very
+// contract this engine writes.
+import type { Characteristic, ContentResult } from '../shared/results.ts';
 
 // Named thresholds for the usage-characteristics block (spec §2.5, reshaped
 // by feedback-round D4). Every "share" at all/project scope is a TOKEN share
@@ -55,9 +58,6 @@ const AUTONOMOUS_ENGAGED_RATIO = 0.25;
 // (see src/ContentTab.tsx), it does not switch on `key`. `format` says how to
 // read `value` (and the optional secondary `value2`, always a percent — used
 // only by session-scope `peakContextTokens`, "N tokens (M% of window)").
-// Declared in shared/results.ts (#307) so src/ContentTab.tsx renders the very
-// contract this engine writes.
-import type { Characteristic, ContentResult } from '../shared/results.ts';
 
 export function computeContent(scope: Scope, range: Range): ContentResult {
   const q = queryContext(scope, range);

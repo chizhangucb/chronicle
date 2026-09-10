@@ -1,18 +1,16 @@
 import type { Express, Request, Response } from 'express';
 import { db, tombstoneSession, removeTombstone } from '../db.ts';
-import type { MessageRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
+import type { MessageRow, MinorSessionRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
-
-type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
-
-// The minor bucket's row and the session payload live in shared/ (#307).
-import type { MinorSessionRow } from '../../shared/rows.ts';
+// The session payload's shapes live in shared/results.ts (#307).
 import type {
   DeleteSessionResult, RenameSessionResult, ResolveSessionResult, SessionMessagesResult,
 } from '../../shared/results.ts';
+
+type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
 
 export function mountSessions(app: Express): void {
   // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----

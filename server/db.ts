@@ -11,8 +11,9 @@ import { parseUsage, totalTokens, type UsageByModel } from '../shared/usage.ts';
 import { dataDir } from './config.ts';
 
 // Row shapes live in shared/rows.ts (#307), so the client reads the same
-// `sessions`/`messages` contract the server writes. Re-exported here because
-// every server query that selects these columns already names this module.
+// `sessions`/`messages` contract the server writes. Every server query that
+// selects these columns imports them from there directly; this module only
+// needs the projects row for its own upsert.
 import type { ProjectRow } from '../shared/rows.ts';
 
 // The folder comes from the one config module (server/config.ts); db.ts is
@@ -146,7 +147,7 @@ try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
 // pass can apply the same dedup.
 try { db.exec('ALTER TABLE messages ADD COLUMN message_id TEXT'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN request_id TEXT'); } catch {}
-// Provenance of sessions.usage — see SessionRow.usage_source above.
+// Provenance of sessions.usage — see SessionRow.usage_source (shared/rows.ts).
 try { db.exec('ALTER TABLE sessions ADD COLUMN usage_source TEXT'); } catch {}
 // Explicit one-shot migration ledger. A data-shaped gate (e.g. "usage_source IS
 // NULL") is NOT safe here: replaceSession enumerates its INSERT columns, so any

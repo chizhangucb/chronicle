@@ -4,8 +4,7 @@
 // (test/insights-stats.test.mjs) via Node's native TS stripping.
 
 // The row these helpers fold over is the one the Insights engine returns
-// (shared/rows.ts, #307) — re-exported here so the callers that already import
-// it from this module keep one import.
+// (shared/rows.ts, #307), not a local re-declaration of it.
 import type { DayCount } from '../../shared/rows.ts';
 
 // Longest run of consecutive calendar days with count > 0, ending at `today`

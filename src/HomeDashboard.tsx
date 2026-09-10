@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { api, insightsUrl, activityUrl } from './api.js';
-import type { ActivityResult, ActivitySessionLite, InsightsResult } from '../shared/results.ts';
+import type { ActivityResult, ActivitySessionLite, InsightsResult, ProjectListItem } from '../shared/results.ts';
 import type { UsageByModel } from '../shared/usage.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import { WelcomeEmpty } from './ProjectsPage.js';
-import type { ProjectListItem } from '../shared/results.ts';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { costOf, type CostMode } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';

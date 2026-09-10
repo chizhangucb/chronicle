@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
 import { db, upsertProject, tombstoneSessionsForProject } from '../db.ts';
-import type { ProjectRow } from '../../shared/rows.ts';
+import type { ProjectRow, ProjectSessionSummary } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 import { computeScopedAggregates } from '../insights.ts';
 import { queryContext, rangeOf, whereOf, type Scope } from '../scope.ts';
-import type { ProjectSessionSummary } from '../../shared/rows.ts';
 import type { ProjectDetailResult, ProjectListItem } from '../../shared/results.ts';
 
 interface ProjectListRow extends ProjectRow {

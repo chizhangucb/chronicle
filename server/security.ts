@@ -5,7 +5,6 @@ import { db } from './db.ts';
 import type { SecurityRuleRow } from '../shared/rows.ts';
 import type { SecurityCheckMessage, SecurityFinding, SecurityScanResult } from '../shared/results.ts';
 
-
 db.exec(`
 CREATE TABLE IF NOT EXISTS security_rules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
