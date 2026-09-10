@@ -88,7 +88,8 @@ export function mountProjects(app: Express): void {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     // The DB-derived half (the session list plus the engine's scoped
-    // aggregates) is cached keyed by the full request URL — it only changes on a DB write.
+    // aggregates) is cached keyed by the full request URL — it only changes
+    // on a DB write.
     // git.repoInfo/commitCountSince are deliberately computed FRESH on every
     // request, outside the cache: the project-card git pill must show the
     // local checkout's live branch with no caching (see CLAUDE.md gotcha) —
