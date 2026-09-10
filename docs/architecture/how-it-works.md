@@ -554,12 +554,12 @@ and the UI marks them with a `≈` and an explanatory tooltip — an honest sign
 per-bucket split is an estimate even though the total it's scaled to is exact.
 
 Calibration is not the only way a figure can fall short of billed. Explore's `hour` and
-`subagent` dimensions sum the **per-message token columns**, which hold only about
-three-quarters of billed usage (the rest is never written per message), and `sessions.usage`
-has no hourly or per-agent-type split to scale them against — so they show the real
-per-message count rather than a derived one. They carry the same `≈` with their own tooltip:
-across every dimension the marker means "not a billed total", and `model`, `project` and
-`source` are the dimensions whose tokens are.
+`subagent` dimensions are **partial**: they sum the **per-message token columns**, which hold
+only about three quarters of billed usage (the rest is never written per message), and
+`sessions.usage` has no hourly or per-agent-type split to scale them against, so they show the
+real per-message count. They carry the same `≈`, with their own tooltip. Across every
+dimension the marker means "not a billed total", and `model`, `project` and `source` are the
+dimensions whose tokens are one.
 
 ## HTTP API
 
