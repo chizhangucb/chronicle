@@ -6,8 +6,12 @@ import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts
 import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';
 import { scanCursorProjects, parseCursorWorkspace } from '../parsers/cursor.ts';
-import { PER_FILE_SOURCES } from './_shared.ts';
 import type { ParseResult, ScannedProject } from '../../shared/types.ts';
+
+// The sources where one transcript file == one session, so a re-parse can be
+// scoped to that single file. Shared stores (OpenCode/Cursor DBs) hold many
+// sessions per file and have to be re-parsed whole.
+const PER_FILE_SOURCES = new Set(['claude-code', 'codex']);
 
 interface StatusError extends Error {
   status?: number;

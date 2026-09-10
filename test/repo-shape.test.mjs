@@ -8,10 +8,8 @@
 // (dist/, node_modules/, .DS_Store) can never make this flaky.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   PRIVATE_PATHS,
   PRIVATE_FOLDERS,
@@ -20,12 +18,8 @@ import {
   RETIRED_ROUTE_PREFIXES,
   RETIRED_MODULE_PATHS,
 } from './helpers/retired-vocabulary.mjs';
+import { REPO, git, tracked, BINARY } from './helpers/tracked-files.mjs';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const git = (...args) =>
-  execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
-
-const tracked = git('ls-files').split('\n').filter(Boolean);
 const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 
 // Folders the restructure retired. The retired seams (records/, plans/) and the
@@ -195,7 +189,7 @@ test('CI declares a gitleaks job, pinned by version and checksum', () => {
 //     gone): a pin cannot forbid a word without spelling it.
 //   - package-lock.json: generated, and its base64 integrity hashes contain
 //     arbitrary letter runs.
-//   - binary files: read as utf8 they are noise, and none carries prose.
+//   - binary files (the BINARY list in test/helpers/tracked-files.mjs).
 const VOCAB_EXEMPT = new Set([
   'CHANGELOG.md',
   'package-lock.json',
@@ -205,7 +199,6 @@ const VOCAB_EXEMPT = new Set([
   'test/cli-removed-inputs.test.mjs',
   'test/litellm-runtime.test.mjs',
 ]);
-const BINARY = /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip|db)$/i;
 
 // The ONE surviving literal, exempted BY VALUE rather than by file: this exact
 // string is written into `chronicle_migrations` on every install that has run

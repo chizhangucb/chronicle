@@ -3,14 +3,15 @@
 Local-first session manager for AI coding assistants. Import your conversation logs,
 click any message to **time-travel** to the exact code state at that moment
 (reconstructed from your project's commit history), and see where your tokens and
-time actually go. Everything runs on your machine: no cloud, no telemetry, and no
-model call anywhere in the analysis path — every number is a local heuristic or a
-static table. The one feature that uses a model is **Ask**, off by default; turned
-on, it runs `claude -p` locally on the Claude subscription you already pay for, once
-per question you type. The one network call is opt-out — Chronicle can read *your
-own* Claude plan quota from Anthropic (the same request Claude Code makes; Codex
-quota is read locally), and one Settings toggle turns it off. Source logs and project
-repos are never written to.
+time actually go. Your session data never leaves your machine and Chronicle has no
+server of its own: no account, no telemetry, and no model call anywhere in the
+analysis path: every number is a local heuristic or a static table. The one feature
+that uses a model is **Ask**, off by default; turned on, it runs `claude -p` locally
+on the Claude subscription you already pay for, once per question you type. Chronicle
+makes exactly one outbound call, on by default and off in Settings: it reads *your
+own* Claude plan windows by sending Claude Code's own OAuth token to the token's own
+issuer, the same request Claude Code makes. Codex plan windows are read locally.
+Source logs and project repos are never written to.
 
 Full docs: **[getchronicle.dev/docs](https://getchronicle.dev/docs)**.
 
