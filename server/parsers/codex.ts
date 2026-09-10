@@ -4,6 +4,8 @@ import os from 'node:os';
 import readline from 'node:readline';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
+import type { Source } from './source.ts';
+import { newestMtimeMs } from './source.ts';
 
 export const CODEX_SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
 
@@ -42,8 +44,9 @@ interface CodexLine {
   payload?: CodexPayload;
 }
 
-// Codex CLI writes rollout-*.jsonl files (possibly nested by date).
-export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
+// Every rollout transcript under a Codex sessions root, which nests them by
+// date (<root>/YYYY/MM/DD/rollout-*.jsonl).
+function rolloutFilesIn(baseDir: string): string[] {
   if (!fs.existsSync(baseDir)) return [];
   const files: string[] = [];
   (function walk(dir: string): void {
@@ -53,6 +56,12 @@ export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): Scanned
       else if (d.name.endsWith('.jsonl')) files.push(full);
     }
   })(baseDir);
+  return files;
+}
+
+// Codex CLI writes rollout-*.jsonl files (possibly nested by date).
+export function scanCodexProjects(baseDir: string = CODEX_SESSIONS_DIR): ScannedProject[] {
+  const files = rolloutFilesIn(baseDir);
   if (!files.length) return [];
   // Group by cwd sniffed from each file
   const groups = new Map<string, string[]>();
@@ -89,6 +98,33 @@ function sniffCodexCwd(file: string): string | null {
   return null;
 }
 
+// One rollout line to its events. Shared by the whole-file parse above and by
+// the source's `tail`, so a streamed line and an imported one map identically.
+function parseCodexLine(o: CodexLine): Event[] {
+  const ts = o.timestamp || o.ts || null;
+  const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
+  const t = p.type || o.type;
+  if (t === 'message' && p.role === 'user') {
+    const text = itemText(p.content);
+    return text ? [{ ts, kind: 'user', text }] : [];
+  }
+  if (t === 'message' && p.role === 'assistant') {
+    const text = itemText(p.content);
+    return text ? [{ ts, kind: 'assistant', text }] : [];
+  }
+  if (t === 'reasoning') {
+    const text = (p.summary || []).map((s) => s.text || '').join('\n');
+    return text ? [{ ts, kind: 'thinking', text }] : [];
+  }
+  if (t === 'function_call' || t === 'local_shell_call') {
+    return [{ ts, kind: 'tool_use', tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id }];
+  }
+  if (t === 'function_call_output') {
+    return [{ ts, kind: 'tool_result', text: typeof p.output === 'string' ? p.output : JSON.stringify(p.output), tool_use_id: p.call_id }];
+  }
+  return [];
+}
+
 export async function parseCodexSession(file: string): Promise<ParseResult> {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
   const events: Event[] = [];
@@ -100,26 +136,16 @@ export async function parseCodexSession(file: string): Promise<ParseResult> {
     if (!line.trim()) continue;
     let o: CodexLine;
     try { o = JSON.parse(line); } catch { continue; }
-    const ts = o.timestamp || o.ts || null;
     const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
     if (p.id && p.cwd) { cwd = p.cwd; if (p.id) sessionId = p.id; }
     const t = p.type || o.type;
-    if (t === 'message' && p.role === 'user') {
-      const text = itemText(p.content);
+    for (const e of parseCodexLine(o)) {
+      events.push(e);
       // Push every user row (active-time needs them); only the display-name
       // fallback skips synthetic wrappers.
-      if (text) { events.push({ ts, kind: 'user', text }); if (!firstPrompt && !isSyntheticUserText(text)) firstPrompt = text.slice(0, 200); }
-    } else if (t === 'message' && p.role === 'assistant') {
-      const text = itemText(p.content);
-      if (text) events.push({ ts, kind: 'assistant', text });
-    } else if (t === 'reasoning') {
-      const text = (p.summary || []).map((s) => s.text || '').join('\n');
-      if (text) events.push({ ts, kind: 'thinking', text });
-    } else if (t === 'function_call' || t === 'local_shell_call') {
-      events.push({ ts, kind: 'tool_use', tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id });
-    } else if (t === 'function_call_output') {
-      events.push({ ts, kind: 'tool_result', text: typeof p.output === 'string' ? p.output : JSON.stringify(p.output), tool_use_id: p.call_id });
-    } else if (t === 'token_count' && p.info?.last_token_usage) {
+      if (e.kind === 'user' && !firstPrompt && e.text && !isSyntheticUserText(e.text)) firstPrompt = e.text.slice(0, 200);
+    }
+    if (t === 'token_count' && p.info?.last_token_usage) {
       // Per-message usage: a token_count event reports the API call that produced
       // the most recent model output — attach to it (Codex input_tokens include
       // the cached portion; split it out to match the CC column semantics).
@@ -161,3 +187,31 @@ function itemText(content: string | CodexContentItem[] | undefined): string {
   }
   return '';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Source interface (#308)
+
+// Codex is a per-file source: one rollout JSONL per session, nested by date
+// under the sessions root and appended to as the session runs — so it tails.
+export const codexSource: Source = {
+  id: 'codex',
+
+  defaultRoot: () => CODEX_SESSIONS_DIR,
+
+  scan: (root: string = CODEX_SESSIONS_DIR): ScannedProject[] => scanCodexProjects(root),
+
+  async parse({ logDir, files }): Promise<ParseResult[]> {
+    const sessionFiles = files?.length
+      ? files.filter((f) => fs.existsSync(f))
+      : rolloutFilesIn(logDir || CODEX_SESSIONS_DIR);
+    const parsed: ParseResult[] = [];
+    for (const f of sessionFiles) parsed.push(await parseCodexSession(f));
+    return parsed;
+  },
+
+  mtime: (file: string): number | null => newestMtimeMs(file),
+
+  tail(line: string): Event[] {
+    try { return parseCodexLine(JSON.parse(line) as CodexLine); } catch { return []; }
+  },
+};

@@ -9,10 +9,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { claudeCodeSource } from '../../server/parsers/claudeCode.ts';
+import { codexSource } from '../../server/parsers/codex.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, '..', 'fixtures');
 const CLAUDE_FIXTURE_SESSION = path.join(FIXTURES, 'claude-code', 'fixture-session.jsonl');
+const CODEX_FIXTURE_ROOT = path.join(FIXTURES, 'codex-sessions');
 
 const tmpDirs = [];
 function makeTmpDir() {
@@ -91,5 +93,55 @@ describe('claude-code source', () => {
     assert.equal(events[0].ts, '2026-08-01T10:02:00.000Z');
 
     assert.deepEqual(claudeCodeSource.tail('{ not json'), []);
+  });
+});
+
+describe('codex source', () => {
+  test('scan lists the fixture project, parse turns it into sessions and messages', async () => {
+    const scanned = codexSource.scan(CODEX_FIXTURE_ROOT);
+    assert.equal(scanned.length, 1);
+    const [project] = scanned;
+    assert.equal(project.source, 'codex');
+    assert.equal(project.physicalPath, '/Users/dev/example-repo');
+
+    const parsed = await codexSource.parse(project);
+    assert.equal(parsed.length, 1);
+    const [{ session, events }] = parsed;
+    assert.equal(session.id, 'codex-0197-abc');
+    assert.equal(session.source, 'codex');
+    assert.equal(session.cwd, '/Users/dev/example-repo');
+    assert.equal(session.first_prompt, 'Add a healthcheck endpoint');
+    assert.deepEqual(
+      events.map((e) => e.kind),
+      ['user', 'thinking', 'tool_use', 'tool_result', 'assistant'],
+    );
+  });
+
+  test('parse takes a bare transcript directory, walking it for rollout files', async () => {
+    const parsed = await codexSource.parse({ logDir: CODEX_FIXTURE_ROOT });
+    assert.deepEqual(parsed.map((p) => p.session.id), ['codex-0197-abc']);
+    assert.equal(parsed[0].events.length, 5);
+  });
+
+  test('mtime reads the transcript file, and is null for a path that is not there', () => {
+    const file = path.join(CODEX_FIXTURE_ROOT, '2026', '07', '01', 'rollout-2026-07-01T10-00-00-abc.jsonl');
+    assert.equal(codexSource.mtime(file), fs.statSync(file).mtime.getTime());
+    assert.equal(codexSource.mtime(path.join(CODEX_FIXTURE_ROOT, 'nope.jsonl')), null);
+  });
+
+  test('tail turns one appended rollout line into events, and swallows an unparseable one', () => {
+    const line = JSON.stringify({
+      timestamp: '2026-07-01T10:00:30.000Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'and one more' }] },
+    });
+
+    const events = codexSource.tail(line);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].kind, 'assistant');
+    assert.equal(events[0].text, 'and one more');
+    assert.equal(events[0].ts, '2026-07-01T10:00:30.000Z');
+
+    assert.deepEqual(codexSource.tail('{ not json'), []);
   });
 });
