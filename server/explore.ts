@@ -564,6 +564,10 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     return Object.values(r.tokensByModel).reduce((n, u) => n + u.input + u.output, 0);
   };
   rows.sort((a, b) => mag(b) - mag(a));
+  // The row set's group values as they stand BEFORE the fold below rewrites the tail
+  // to a single 'Other' key. The rollup needs this to tell "folded into Other" from
+  // "never in the rows at all" (#330).
+  const rankedKeys = new Set(rows.map((r) => r.key));
   if (rows.length > q.topN) {
     const keep = rows.slice(0, q.topN);
     const rest = rows.slice(q.topN);
@@ -622,7 +626,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells });
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells, rankedKeys });
   }
 
   return {
@@ -699,10 +703,15 @@ interface RollupCtx {
   // rows (EXACT_USAGE_GROUPS only, null otherwise), reused verbatim when this rollup's
   // granularity is 'day', since the call would take identical arguments.
   dayBucketedCells: BucketedUsageCell[] | null;
+  // Every group value the ranked rows were built from, BEFORE the topN fold collapsed
+  // the tail into 'Other'. `rows` alone cannot answer "does the table carry this group
+  // value?" once folding is on, because every value that isn't in the topN — including
+  // one the rows never had — maps to the 'Other' key. See the errors branch below.
+  rankedKeys: Set<string>;
 }
 function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells } = ctx;
+  const { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells, rankedKeys } = ctx;
   // `base` (from computeExplore) now carries overlapGate + a trailing `AND m.ts >= ?`
   // placeholder — see the computeExplore `base` comment. Bind order: cutoff (overlap),
   // sc.params (scope), cutoff again (m.ts), then any caller-supplied extras.
@@ -808,15 +817,20 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
     // so the clamp's bind is repeated to match rather than assumed to appear once.
     const clamped = bucketExpr(effective, 'MAX(s.started_at, ?)');
     const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(cutoff);
-    // Only series the ranked rows actually carry: the rows drop a group value with no
-    // in-range messages, so crediting it here would draw a bar the table has no line
-    // for and break the reconciliation between them.
-    const seriesInRows = new Set(rows.map((r) => r.key));
+    // Only group values the ranked rows actually carry: the rows are built from
+    // in-range MESSAGES and drop a group value that has none, while this query reads a
+    // whole-session column and still sees that session (it overlaps the range). The
+    // check is against the PRE-fold group value, not the series key it lands on
+    // (#330): once folding is on, seriesKeyFor maps every non-topN value to 'Other',
+    // which the rows do carry, so a post-fold check waved through exactly the sessions
+    // this is meant to drop and inflated the Other bar past its own row. Comparing
+    // pre-fold keeps a value the rows folded (it IS in the table, inside Other) and
+    // drops one the rows never had.
     for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, clamped, clampBinds)) {
       if (e.gk == null) continue;
-      const sk = seriesKeyFor(String(e.gk));
-      if (!seriesInRows.has(sk)) continue;
-      cell(String(e.bkt), sk).errors += e.errors;
+      const gv = String(e.gk);
+      if (!rankedKeys.has(gv)) continue;
+      cell(String(e.bkt), seriesKeyFor(gv)).errors += e.errors;
     }
   } else if (q.metric === 'errors') {
     const errCol = errorGroupCol(q.group);
