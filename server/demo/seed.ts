@@ -18,6 +18,8 @@
 //   - Crossing midnight rebuilds, so "today" in the demo is actually today.
 //     A cached database would otherwise drift until the Today window was empty,
 //     which is the exact failure that made committing dated transcripts wrong.
+// A key that changes needs a sweeper, or every day demo is opened leaves ~7MB
+// behind forever, so a finished seed prunes the caches it replaced.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,6 +30,10 @@ import { writeDemoSession } from './transcripts.ts';
  *  mid-import) is rebuilt rather than served as a truncated console. */
 const DONE_MARKER = '.seed-complete';
 
+/** The exact prefix every demo cache dir carries. Load-bearing: it is the only
+ *  thing that tells a dead cache apart from a stranger's temp dir. */
+const DIR_PREFIX = 'chronicle-demo-';
+
 function todayKey(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
@@ -35,7 +41,49 @@ function todayKey(now = new Date()): string {
 /** The data directory a demo server should run against. Stable per day so the
  *  cache can be reused; under the OS temp dir so ~/.chronicle is untouched. */
 export function demoDataDir(now = new Date()): string {
-  return path.join(os.tmpdir(), `chronicle-demo-${DEMO_CORPUS_VERSION}-${todayKey(now)}`);
+  return path.join(os.tmpdir(), `${DIR_PREFIX}${DEMO_CORPUS_VERSION}-${todayKey(now)}`);
+}
+
+/**
+ * Remove the demo caches `keep` has replaced: its siblings carrying the demo
+ * prefix, one per earlier day or corpus version.
+ *
+ * This deletes trees the operator did not name, so it is deliberately timid:
+ * it works only inside the OS temp dir, only on names starting with the exact
+ * demo prefix, and only on real directories (a symlink is left where it lies
+ * rather than followed to whatever it points at). Every removal that fails is
+ * swallowed: a second demo still holding yesterday's dir open is a reason to
+ * leave it alone, never a reason to fail the seed that just succeeded.
+ *
+ * Returns the directories actually removed.
+ */
+export function pruneStaleDemoDirs(keep: string): string[] {
+  const kept = path.resolve(keep);
+  const root = path.dirname(kept);
+  const tmp = path.resolve(os.tmpdir());
+  if (root !== tmp && !root.startsWith(tmp + path.sep)) return [];
+
+  const removed: string[] = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return removed;
+  }
+  for (const entry of entries) {
+    // withFileTypes does not follow links, so a symlink to a directory reports
+    // isDirectory() false and is skipped here rather than deleted through.
+    if (!entry.isDirectory() || !entry.name.startsWith(DIR_PREFIX)) continue;
+    const dir = path.join(root, entry.name);
+    if (dir === kept) continue;
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(dir);
+    } catch {
+      // Locked, in use, or not ours to delete. Not the seed's problem.
+    }
+  }
+  return removed;
 }
 
 export function demoIsSeeded(dir = demoDataDir()): boolean {
@@ -80,6 +128,12 @@ export async function seedDemo(dir = demoDataDir(), log: (msg: string) => void =
   log(`imported ${imported} demo sessions`);
 
   fs.writeFileSync(path.join(dir, DONE_MARKER), new Date().toISOString());
+
+  // Only now, with a complete database of its own, does the seed drop the
+  // caches it superseded: earlier days and earlier corpus versions.
+  const dropped = pruneStaleDemoDirs(dir);
+  if (dropped.length) log(`removed ${dropped.length} stale demo cache${dropped.length === 1 ? '' : 's'}`);
+
   return { seeded: imported, cached: false };
 }
 
