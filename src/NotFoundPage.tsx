@@ -9,7 +9,7 @@ import { ROUTES } from './routes.ts';
 // a wrong address still looks like Chronicle.
 //
 // The copy says one thing: the address has no page, and here is the way back.
-// It never guesses WHY — a mistyped path and a bookmark from an older release
+// It never guesses WHY: a mistyped path and a bookmark from an older release
 // are indistinguishable from here, and a guess would be wrong for one of them.
 export default function NotFoundPage() {
   return (

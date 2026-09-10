@@ -12,7 +12,7 @@ import ProjectsPage from './ProjectsPage.jsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
 import NotFoundPage from './NotFoundPage.tsx';
-import { ROUTES, isKnownPath } from './routes.ts';
+import { ROUTES, isRoutedPath } from './routes.ts';
 import { useAskStatus } from './useAskStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
@@ -266,10 +266,11 @@ export default function App() {
 
         {/* The fallback surface. Every page above is gated on its own route
             match, so a path matching NONE of them would otherwise render this
-            frame around an empty main area. Reads the same route table those
-            matches do (src/routes.ts), so a page added there is never shadowed
-            by this one. Surface: spec/surface-contract.md */}
-        {!isKnownPath(currentPath) && <NotFoundPage />}
+            frame around an empty main area. It asks the same route table those
+            matches read (src/routes.ts), through the router's own matcher, so a
+            page added there is never shadowed by this one.
+            Surface: spec/surface-contract.md */}
+        {!isRoutedPath(currentPath) && <NotFoundPage />}
       </div>
 
       {wizardOpen && (
