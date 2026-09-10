@@ -9,6 +9,11 @@ leaves your machine, and where your data physically lives.
 
 ## The local-first guarantee
 
+The promise, stated precisely: **your session data never leaves your machine, and Chronicle
+has no server of its own.** The one outbound call is the Claude plan-window read: your own
+token, to that token's own issuer, for your own plan windows, on by default and off with one
+Settings toggle. Everything below is that promise spelled out.
+
 - **All work happens on-device.** Importing, parsing, storing, searching, time-travel,
   causality analysis, redaction, and computing Insights run entirely on your machine.
 - **No model call in the analysis path.** Everything that could look like AI — causality
@@ -22,7 +27,7 @@ leaves your machine, and where your data physically lives.
   your session data to answer you, and cannot write anything or reach the network on its own.
   Leaving the toggle off means no model ever runs.
 - **No cloud backend, no account.** There is nothing to sign into and no server that holds
-  your data.
+  your data. Chronicle is the process running on your machine and the SQLite file beside it.
 - **Your source logs are never written to.** Chronicle reads your tools' logs; it does not
   modify or delete them. SQLite-backed sources (Cursor, OpenCode) are copied to a temp
   location — including their `-wal`/`-shm` sidecars — and Chronicle opens the *copy*, never
