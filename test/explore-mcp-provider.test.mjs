@@ -4,6 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore;
 
@@ -32,19 +33,19 @@ before(async () => {
 after(async () => { await teardown?.(); });
 
 test("group='mcp' derives the server from mcp__server__tool and excludes non-MCP tools", async () => {
-  const r = await explore.computeExplore({ metric: 'requests', group: 'mcp', scope: { type: 'all' }, days: null, rollup: 'total' });
+  const r = await explore.computeExplore({ metric: 'requests', group: 'mcp', scope: { type: 'all' }, range: rangeOf(null), rollup: 'total' });
   const keys = r.rows.map((x) => x.key).sort();
   assert.deepEqual(keys, ['github', 'linear']); // Bash (non-MCP) is excluded
 });
 
 test("group='provider' maps the model id to its vendor (anthropic/openai), not the tool vendor", async () => {
-  const r = await explore.computeExplore({ metric: 'requests', group: 'provider', scope: { type: 'all' }, days: null, rollup: 'total' });
+  const r = await explore.computeExplore({ metric: 'requests', group: 'provider', scope: { type: 'all' }, range: rangeOf(null), rollup: 'total' });
   const keys = r.rows.map((x) => x.key).sort();
   assert.deepEqual(keys, ['anthropic', 'openai']); // claude → anthropic, gpt-5.6 → openai
 });
 
 test("group='mcp' with the spend metric is calibrated (tokens estimated from tool_use text share)", async () => {
-  const r = await explore.computeExplore({ metric: 'tokens', group: 'mcp', scope: { type: 'all' }, days: null, rollup: 'total' });
+  const r = await explore.computeExplore({ metric: 'tokens', group: 'mcp', scope: { type: 'all' }, range: rangeOf(null), rollup: 'total' });
   assert.equal(r.calibrated, true);
   // both servers placed, tokens > 0 (calibrated share of the billed total)
   assert.equal(r.rows.length, 2);

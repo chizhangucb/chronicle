@@ -98,8 +98,10 @@ indefinitely, and the bug looks like a UI that will not refresh.
 
 A session belongs to a time window when its activity span overlaps the window. The obvious
 implementation, filtering on `started_at >= cutoff`, drops a long session that began before the
-range and ran into it. `server/rangeUsage.ts` is the shared primitive; ranged routes use
-it rather than writing their own cutoff.
+range and ran into it. `server/rangeUsage.ts` is the shared primitive that spells the overlap
+comparison; an engine reaches it through the query context's session range
+(`queryContext(scope, range).sessions()`, see `server/scope.ts`) rather than writing its own
+cutoff.
 
 ## Client libraries are `devDependencies`
 

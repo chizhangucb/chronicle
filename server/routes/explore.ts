@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { computeExplore, toWire, type ExploreMetric, type ExploreGroup, type ExploreRollup } from '../explore.ts';
-import type { Scope } from '../scope.ts';
+import { rangeOf, type Scope } from '../scope.ts';
 import { cached } from '../cache.ts';
 
 const SCOPE_TYPES: Scope['type'][] = ['all', 'project', 'session'];
@@ -41,7 +41,7 @@ export function mountExplore(app: Express): void {
     const scope: Scope = { type: scopeType as Scope['type'], id: req.query.id as string | undefined };
     try {
       res.json(cached(req.originalUrl, () => toWire(computeExplore({
-        scope, days: Number(req.query.days) || null,
+        scope, range: rangeOf(Number(req.query.days) || null),
         metric: metric as ExploreMetric,
         group: group as ExploreGroup,
         subgroup: (subgroupRaw as ExploreGroup) || undefined,

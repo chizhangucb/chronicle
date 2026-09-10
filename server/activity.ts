@@ -1,8 +1,9 @@
 // Home dashboard data engine (Task 13, spec §2.1). Backs the Activity block
 // (live rows + since-you-left rows) and the Burn tile (current-window spend vs
 // a baseline) on the `/` dashboard. Mirrors server/insights.ts patterns: the
-// COALESCE(minor,0)=0 gate on aggregates, a `days=` window cutoff, and reading
-// token MAGNITUDE from the authoritative per-session `sessions.usage` blob (the
+// scope clause, minor gate and range fragments all come from the one query
+// context (server/scope.ts), and it reads token MAGNITUDE from the
+// authoritative per-session `sessions.usage` blob (the
 // same source Insights/Explore price from) rather than per-message columns.
 //
 // PRICE TABLE STAYS CLIENT-SIDE (hard constraint): every token figure is
@@ -12,7 +13,8 @@
 // price-free proxy) and returns with its cells so the client can price it.
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
-import { overlapGate, bucketedUsage } from './rangeUsage.ts';
+import { bucketedUsage } from './rangeUsage.ts';
+import { queryContext, rangeOf, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import { addCellInto, emptyCell, parseUsage, totalTokens, USAGE_FIELDS, type UsageByModel, type UsageCell } from '../shared/usage.ts';
 
@@ -95,6 +97,10 @@ function addUsage(acc: UsageByModel, cells: UsageByModel): void {
   for (const [model, cell] of Object.entries(cells)) addCellInto(acc, model, cell);
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 function median(nums: number[]): number {
   if (!nums.length) return 0;
   const s = [...nums].sort((a, b) => a - b);
@@ -103,36 +109,57 @@ function median(nums: number[]): number {
 }
 
 // Sum per-session usage over a started_at window [from, to) (either bound may
-// be null = unbounded), respecting the minor gate.
-function sumRange(from: string | null, to: string | null): UsageByModel {
-  const where = ['COALESCE(s.minor,0)=0'];
-  const params: string[] = [];
-  if (from != null) { where.push('s.started_at >= ?'); params.push(from); }
-  if (to != null) { where.push('s.started_at < ?'); params.push(to); }
+// be null = unbounded), in the caller's scope.
+function sumRange(q: QueryContext, from: string | null, to: string | null): UsageByModel {
+  const w = whereOf(
+    q.where,
+    from != null ? { sql: 'AND s.started_at >= ?', params: [from] } : '',
+    to != null ? { sql: 'AND s.started_at < ?', params: [to] } : '',
+  );
   const rows = db.prepare(
-    `SELECT s.usage FROM sessions s WHERE ${where.join(' AND ')}`,
-  ).all(...params) as unknown as { usage: string | null }[];
+    `SELECT s.usage FROM sessions s WHERE ${w.sql}`,
+  ).all(...w.params) as unknown as { usage: string | null }[];
   const acc: UsageByModel = {};
   for (const r of rows) addUsage(acc, parseUsage(r.usage));
   return acc;
 }
 
-// Median of the trailing MEDIAN_DAYS COMPLETE UTC calendar days' per-model
+// Median of the trailing MEDIAN_DAYS COMPLETE LOCAL calendar days' per-model
 // daily token totals. Each field is medianed independently across the 14 days
 // (missing days count as 0), yielding a priceable "typical day" cell per model
 // — the client prices it for the baseline spend figure.
-function medianBaseline(now: number): UsageByModel {
-  const nowDate = new Date(now);
-  const todayMidnight = Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), nowDate.getUTCDate());
-  const dayStr = (d: number) => new Date(todayMidnight - d * DAY).toISOString().slice(0, 10);
-  const from = dayStr(MEDIAN_DAYS);                       // 14 complete days ago
-  const to = new Date(todayMidnight).toISOString();       // exclusive: today's midnight
+//
+// LOCAL days, like every other bucket in Chronicle (server/rangeUsage.ts's
+// bucketKeyExpr, insights.ts's calendar heatmap). This used to bucket by UTC
+// day — `substr(started_at,1,10)` against UTC midnights — so an evening
+// session west of UTC (or an early-morning one east of it) was medianed into
+// the wrong day, or fell outside the range entirely, and "above your usual"
+// was off by a timezone (ticket #304).
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
 
+function medianBaseline(q: QueryContext): UsageByModel {
+  const now = q.range.now;
+  // Calendar arithmetic (setDate), not `midnight - n*DAY`: a DST shift makes a
+  // day 23 or 25 hours long, and only the calendar walk lands on real local
+  // midnights either side of it.
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
+  const midnightBack = (back: number): Date => {
+    const d = new Date(todayMidnight);
+    d.setDate(d.getDate() - back);
+    return d;
+  };
+  const from = midnightBack(MEDIAN_DAYS).toISOString();   // 14 complete days ago
+  const to = todayMidnight.toISOString();                 // exclusive: today's local midnight
+
+  const w = whereOf(q.where, { sql: 'AND s.started_at >= ? AND s.started_at < ?', params: [from, to] });
   const rows = db.prepare(
-    `SELECT substr(s.started_at,1,10) AS day, s.usage
+    `SELECT strftime('%Y-%m-%d', s.started_at, 'localtime') AS day, s.usage
      FROM sessions s
-     WHERE COALESCE(s.minor,0)=0 AND s.started_at >= ? AND s.started_at < ?`,
-  ).all(from, to) as unknown as { day: string; usage: string | null }[];
+     WHERE ${w.sql}`,
+  ).all(...w.params) as unknown as { day: string; usage: string | null }[];
 
   // day → model → summed cell
   const byDay = new Map<string, UsageByModel>();
@@ -141,7 +168,7 @@ function medianBaseline(now: number): UsageByModel {
     addUsage(acc, parseUsage(r.usage));
     byDay.set(r.day, acc);
   }
-  const days = Array.from({ length: MEDIAN_DAYS }, (_, i) => dayStr(i + 1)); // d=1..14
+  const days = Array.from({ length: MEDIAN_DAYS }, (_, i) => localDayKey(midnightBack(i + 1))); // d=1..14
   const models = new Set<string>();
   for (const m of byDay.values()) for (const model of Object.keys(m)) models.add(model);
 
@@ -156,24 +183,27 @@ function medianBaseline(now: number): UsageByModel {
   return out;
 }
 
-// `nowMs` is the wall clock the window/live/baseline math reads. It defaults to
-// Date.now() (production); a caller can pin it so a test is not coupled to the
-// real time of day (the "Today" window is only minutes wide just after
-// UTC midnight, which the fixtures cannot represent).
-export function computeActivity(sinceIso: string | null, days: number | null, nowMs: number = Date.now()): ActivityResult {
-  const now = nowMs;
+// `range.now` is the wall clock the range/live/baseline math reads: production
+// passes rangeOf(days) (real Date.now()), a test pins it so it is not coupled
+// to the real time of day (the "Today" range is only minutes wide just after
+// local midnight, which the fixtures cannot represent).
+export function computeActivity(scope: Scope, range: Range, sinceIso: string | null = null): ActivityResult {
+  const q = queryContext(scope, range);
+  const days = range.days;
+  const now = range.now;
   // since defaults to a trailing 12h window (see task brief).
   const since = sinceIso && !Number.isNaN(Date.parse(sinceIso)) ? sinceIso : new Date(now - 12 * 3600000).toISOString();
   const watchers = liveWatcherSessionIds();
 
+  const listWhere = whereOf(q.where);
   const rows = db.prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count
      FROM sessions s JOIN projects p ON p.id = s.project_id
-     WHERE COALESCE(s.minor,0)=0
+     WHERE ${listWhere.sql}
      ORDER BY COALESCE(s.ended_at, s.started_at) DESC
      LIMIT 100`,
-  ).all() as unknown as SessionRowLite[];
+  ).all(...listWhere.params) as unknown as SessionRowLite[];
 
   const toLite = (r: SessionRowLite, live: boolean): ActivitySessionLite => ({
     id: r.id,
@@ -205,16 +235,15 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
 
   // ---- Burn ----
   const rangeMs = days != null ? days * DAY : null;
-  const rangeCutoff = rangeMs != null ? new Date(now - rangeMs).toISOString() : null;
   // rangeSpendTokensByModel (Task 2, the P0 fix): ranged billed cells from
   // bucketedUsage (day-bucketed, not rangedUsage), NOT sumRange's raw
   // `s.started_at >= cutoff` sum — a session that started before the range but ran INTO
   // it (e.g. spans midnight into "Today") used to vanish from this sum entirely;
   // bucketedUsage instead attributes its in-range share, split by LOCAL day so the client
   // can price a window straddling a rate change (e.g. Sonnet 5's intro window) correctly.
-  // rangeCutoff is already null for "All" (extends-to-now semantics match bucketedUsage's
-  // cutoffIso===null "All window" signal exactly), so no extra mapping is needed.
-  const bucketedCells = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], rangeCutoff, 'day');
+  // The token range is already null for "All" (extends-to-now semantics match
+  // bucketedUsage's cutoffIso===null "All range" signal exactly).
+  const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
   const rangeSpendTokensByModel: UsageByModel = {};
   const rangeSpendTokensByModelByDay: Record<string, UsageByModel> = {};
   for (const c of bucketedCells) {
@@ -225,11 +254,11 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
 
   let baselineTokensByModel: UsageByModel;
   if (days != null && days <= 1) {
-    baselineTokensByModel = medianBaseline(now);                       // Today → 14-day daily median
+    baselineTokensByModel = medianBaseline(q);                           // Today → 14-day daily median
   } else if (rangeMs != null) {
     const priorFrom = new Date(now - 2 * rangeMs).toISOString();
     const priorTo = new Date(now - rangeMs).toISOString();
-    baselineTokensByModel = sumRange(priorFrom, priorTo);             // Nd → prior-Nd totals
+    baselineTokensByModel = sumRange(q, priorFrom, priorTo);           // Nd → prior-Nd totals
   } else {
     baselineTokensByModel = {};                                        // no window (All) → no baseline
   }
@@ -240,12 +269,13 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   // above) — ranking still uses the session's full raw usage as the magnitude proxy (not
   // scaled to its in-range share), matching this block's pre-existing "price-free proxy"
   // approximation.
+  const winWhere = q.sessionRows;
   const winRows = db.prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count
      FROM sessions s JOIN projects p ON p.id = s.project_id
-     WHERE COALESCE(s.minor,0)=0${rangeCutoff != null ? ` AND ${overlapGate('s')}` : ''}`,
-  ).all(...(rangeCutoff != null ? [rangeCutoff] : [])) as unknown as SessionRowLite[];
+     WHERE ${winWhere.sql}`,
+  ).all(...winWhere.params) as unknown as SessionRowLite[];
   let top: { row: SessionRowLite; cells: UsageByModel; tokens: number } | null = null;
   for (const r of winRows) {
     const cells = parseUsage(r.usage);
@@ -261,11 +291,11 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
   // flagged-day count came out SMALLER for All than for 90d: a monotonicity
   // bug. A bounded window reaches back `days + MEDIAN_DAYS`; "All"
   // (days == null) has no cutoff so it spans every day of history.
-  const anomalyCutoff = days != null ? new Date(now - (days + MEDIAN_DAYS) * DAY).toISOString() : null;
+  const anomalyRange = rangeOf(days != null ? days + MEDIAN_DAYS : null, now);
   const projName = new Map<number, string>();
   for (const r of db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]) projName.set(r.id, r.name);
   const anomDayMap = new Map<string, AnomalyDayCells>();
-  for (const c of bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], anomalyCutoff, 'day')) {
+  for (const c of bucketedUsage(db, q.where.sql, q.where.params, anomalyRange.cutoffIso, 'day')) {
     let d = anomDayMap.get(c.bucket);
     if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
     addCellInto(d.byModel, c.model, c.cells);
@@ -274,8 +304,7 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
     addCellInto(d.bySource[c.source] ?? (d.bySource[c.source] = {}), c.model, c.cells);
   }
   const anomalyDays = [...anomDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-  const nowD = new Date(now);
-  const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+  const today = localDayKey(new Date(now));
 
   return {
     live,

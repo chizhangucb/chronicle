@@ -1,12 +1,12 @@
 // server/waste.ts — the Efficiency WASTE SIGNALS: cache churn, right-sizing
 // and rereads. The heavy per-message / per-tool-call scan runs here and ships TOKEN
 // CELLS + counts; the client prices the premium / savings / wasted-$ via the
-// shared price table (never server dollar math). Windowed by message ts; minor
-// sessions excluded, matching server/detectors.ts.
+// shared price table (never server dollar math). Scope, minor gate and the
+// message range (timestamp) all come from the one query context
+// (server/scope.ts), matching server/detectors.ts.
 import { db } from './db.ts';
+import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
-
-const DAY = 86400000;
 
 export interface ModelCacheCells { cw5m: number; cw1h: number }
 export interface ChurnSession {
@@ -30,33 +30,33 @@ interface ModelCacheRow { session_id: string; model: string; cw5m: number; cw1h:
 interface RsRow { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number }
 interface ReadRow { session_id: string; seq: number; tool_input: string | null; result_chars: number | null }
 
-function gate(days: number | null): { clause: string; args: (string | number)[] } {
-  if (days == null) return { clause: '', args: [] };
-  return { clause: 'AND m.ts >= ?', args: [new Date(Date.now() - days * DAY).toISOString()] };
+// The assistant-row slice every waste signal but `rereads` scans.
+function assistantWhere(q: QueryContext) {
+  return whereOf("AND m.kind = 'assistant' AND m.model IS NOT NULL", q.where, q.messages());
 }
 
 // ---- Cache churn: sessions that wrote more cache than they read back ----
-function cacheChurn(days: number | null): WasteResult['cacheChurn'] {
-  const g = gate(days);
+function cacheChurn(q: QueryContext): WasteResult['cacheChurn'] {
+  const w = assistantWhere(q);
   const churn = db.prepare(
     `SELECT m.session_id, p.name AS project,
             SUM(COALESCE(m.cache_w5m_tokens,0) + COALESCE(m.cache_w1h_tokens,0)) AS writeTok,
             SUM(COALESCE(m.cache_read_tokens,0)) AS readTok
      FROM messages m JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id
-     WHERE m.kind = 'assistant' AND m.model IS NOT NULL AND COALESCE(s.minor,0) = 0 ${g.clause}
+     WHERE ${w.sql}
      GROUP BY m.session_id
      HAVING writeTok > readTok AND writeTok > 0
      ORDER BY writeTok DESC LIMIT 20`,
-  ).all(...g.args) as unknown as ChurnRow[];
+  ).all(...w.params) as unknown as ChurnRow[];
   const sessionsFlagged = (db.prepare(
     `SELECT COUNT(*) AS n FROM (
        SELECT m.session_id,
               SUM(COALESCE(m.cache_w5m_tokens,0)+COALESCE(m.cache_w1h_tokens,0)) AS w,
               SUM(COALESCE(m.cache_read_tokens,0)) AS r
        FROM messages m JOIN sessions s ON s.id=m.session_id
-       WHERE m.kind='assistant' AND m.model IS NOT NULL AND COALESCE(s.minor,0)=0 ${g.clause}
+       WHERE ${w.sql}
        GROUP BY m.session_id HAVING w > r AND w > 0)`,
-  ).get(...g.args) as unknown as { n: number }).n;
+  ).get(...w.params) as unknown as { n: number }).n;
 
   const top: ChurnSession[] = churn.map((c) => {
     const cells = db.prepare(
@@ -76,34 +76,34 @@ function cacheChurn(days: number | null): WasteResult['cacheChurn'] {
 // count); the client filters to premium models (input rate >= threshold) and
 // reprices at Sonnet. The premium/small filter that needs pricing lives client-
 // side; only the token-size filter (output/context) is applied here.
-function rightSizing(days: number | null): WasteResult['rightSizing'] {
+function rightSizing(q: QueryContext): WasteResult['rightSizing'] {
   const { rightsizingMaxOutputTokens: maxOut, rightsizingMaxContextTokens: maxCtx } = DEFAULT_SPEND_THRESHOLDS.detectors;
-  const g = gate(days);
+  const w = assistantWhere(q);
   const rows = db.prepare(
     `SELECT m.model, COUNT(*) AS messages,
             SUM(COALESCE(m.input_tokens,0)) AS input, SUM(COALESCE(m.output_tokens,0)) AS output,
             SUM(COALESCE(m.cache_read_tokens,0)) AS cacheRead,
             SUM(COALESCE(m.cache_w5m_tokens,0)) AS cw5m, SUM(COALESCE(m.cache_w1h_tokens,0)) AS cw1h
      FROM messages m JOIN sessions s ON s.id = m.session_id
-     WHERE m.kind='assistant' AND m.model IS NOT NULL AND COALESCE(s.minor,0)=0 ${g.clause}
+     WHERE ${w.sql}
        AND COALESCE(m.output_tokens,0) < ?
        AND (COALESCE(m.input_tokens,0) + COALESCE(m.cache_read_tokens,0)) < ?
      GROUP BY m.model`,
-  ).all(...g.args, maxOut, maxCtx) as unknown as RsRow[];
+  ).all(...w.params, maxOut, maxCtx) as unknown as RsRow[];
   return { candidates: rows.map((r) => ({ model: r.model, messages: r.messages, input: r.input, output: r.output, cacheRead: r.cacheRead, cw5m: r.cw5m, cw1h: r.cw1h })) };
 }
 
 // ---- Repeated file re-reads: a Read of a path already read this session ----
-function rereads(days: number | null): WasteResult['rereads'] {
-  const g = gate(days);
+function rereads(q: QueryContext): WasteResult['rereads'] {
+  const w = whereOf("AND m.kind='tool_use' AND m.tool_name='Read'", q.where, q.messages());
   // Read tool_use rows + their matching tool_result char count, in session/seq order.
   const rows = db.prepare(
     `SELECT m.session_id, m.seq, m.tool_input, LENGTH(r.text) AS result_chars
      FROM messages m JOIN sessions s ON s.id = m.session_id
      LEFT JOIN messages r ON r.session_id = m.session_id AND r.tool_use_id = m.tool_use_id AND r.kind = 'tool_result'
-     WHERE m.kind='tool_use' AND m.tool_name='Read' AND COALESCE(s.minor,0)=0 ${g.clause}
+     WHERE ${w.sql}
      ORDER BY m.session_id, m.seq`,
-  ).all(...g.args) as unknown as ReadRow[];
+  ).all(...w.params) as unknown as ReadRow[];
 
   const files = new Map<string, { rereads: number; sessions: Set<string> }>();
   const seenBySession = new Map<string, Set<string>>();
@@ -131,6 +131,7 @@ function rereads(days: number | null): WasteResult['rereads'] {
   };
 }
 
-export function computeWaste(days: number | null): WasteResult {
-  return { cacheChurn: cacheChurn(days), rightSizing: rightSizing(days), rereads: rereads(days) };
+export function computeWaste(scope: Scope, range: Range): WasteResult {
+  const q = queryContext(scope, range);
+  return { cacheChurn: cacheChurn(q), rightSizing: rightSizing(q), rereads: rereads(q) };
 }

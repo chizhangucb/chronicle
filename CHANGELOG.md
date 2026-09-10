@@ -123,6 +123,10 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Fixed
 
+- **"Above your usual" on the Burn tile now compares local days.** The baseline it medians
+  over the trailing fortnight was bucketed by UTC day, so an evening session west of UTC (or
+  an early-morning one east of it) landed on the wrong day, or dropped out of the comparison
+  altogether. Every other bucket in Chronicle is already a local day; this one now is too.
 - Explore's project, source and session error counts now include an erroring tool result
   whose originating call is missing from the transcript. Those three read the error count
   Chronicle stores per session at import, so the page answers faster too. That count is a
@@ -131,7 +135,6 @@ https://github.com/chizhangucb/chronicle/releases
   only the errors inside the range, and the time chart draws them on the bar the session
   started in (or the first bar of the range, for a session that started before it). Every dimension that names something inside a session, `tool` through `hour`,
   still counts per message and inside the range.
-
 - Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
   to do nothing.
 - The docs, the README and the privacy page no longer claim Chronicle makes no model call

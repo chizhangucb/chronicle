@@ -11,6 +11,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
+import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore, projectName;
 
@@ -75,7 +76,7 @@ before(async () => {
 });
 after(() => teardown());
 
-const q = { scope: { type: 'all' }, days: null, metric: 'errors', topN: 10 };
+const q = { scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', topN: 10 };
 
 test('group=source counts every erroring tool_result in the session, paired or not', () => {
   const r = explore.computeExplore({ ...q, group: 'source', rollup: 'total' });
@@ -128,7 +129,7 @@ test('errors rollup under a range: bars stay inside the range and reconcile with
   })();
   for (const group of ['project', 'source', 'session']) {
     const r = explore.computeExplore({
-      scope: { type: 'all' }, days: 7, metric: 'errors', group, rollup: 'daily', topN: 10,
+      scope: { type: 'all' }, range: rangeOf(7), metric: 'errors', group, rollup: 'daily', topN: 10,
     });
     const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
     const bucketTotal = (r.buckets ?? []).reduce(
