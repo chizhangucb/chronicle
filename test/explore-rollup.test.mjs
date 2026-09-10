@@ -110,7 +110,7 @@ before(async () => {
   // One session whose activity SPANS the days=7 cutoff: 14 assistant turns, one per
   // day, seven of them before the cutoff and seven at/after it, so exactly half the
   // session's per-message tokens are in-range and its billed cell must be halved.
-  // Offsets are on the half-day so the nearest message sits 12h clear of the cutoff —
+  // Offsets are on the half-day so the nearest message sits 12h clear of the cutoff:
   // `cutoff` is computed inside computeExplore() at assertion time, later than these
   // timestamps, and a message pinned exactly at 7d would flip sides on clock drift
   // (the same trap the hourly fixture above documents).
@@ -123,11 +123,20 @@ before(async () => {
       started_at: new Date(spanNow - 13.5 * DAY).toISOString(),
       ended_at: new Date(spanNow - 0.5 * DAY).toISOString(),
       usage: JSON.stringify({ 'claude-sonnet-5': { input: 1000, output: 300, cacheRead: 500, cacheWrite5m: 100, cacheWrite1h: 0 } }) },
-    Array.from({ length: 14 }, (_, i) => ({
-      kind: 'assistant', text: `span msg ${i}`, model: 'claude-sonnet-5',
-      input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0,
-      ts: new Date(spanNow - (13.5 - i) * DAY).toISOString(),
-    })),
+    // One assistant turn per day, plus a Read call beside it so the calibrated
+    // (tool/skill) rollup path has char-bearing rows in every bucket to attribute
+    // that bucket's billed total to. tool_use rows carry no model, so they never
+    // perturb the usage-sourced magnitudes above.
+    Array.from({ length: 14 }, (_, i) => {
+      const ts = new Date(spanNow - (13.5 - i) * DAY).toISOString();
+      return [
+        { kind: 'assistant', text: `span msg ${i}`, model: 'claude-sonnet-5',
+          input_tokens: 10, output_tokens: 0, cache_read_tokens: 0, cache_w5m_tokens: 0, cache_w1h_tokens: 0, ts },
+        { kind: 'tool_use', tool_name: 'Read', tool_use_id: `span-tu-${i}`,
+          tool_input: JSON.stringify({ file_path: `/span/src/file-${i}.ts` }), ts },
+        { kind: 'tool_result', tool_use_id: `span-tu-${i}`, text: `read ok ${i}`, ts },
+      ];
+    }).flat(),
   );
 
   // ---- group=session fixture ----
@@ -330,13 +339,13 @@ test('computeExplore: group=session respects scope=project', () => {
 
 // ---- the range-edge reconciliation pin (#306) ----
 
-// Every field of a token cell, summed — the magnitude the total bar and the stacked
+// Every field of a token cell, summed: the magnitude the total bar and the stacked
 // chart each render from.
 const cellsTotal = (byModel) => Object.values(byModel ?? {})
   .reduce((n, u) => n + u.input + u.output + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h, 0);
 
 // sSpan bills 1900 tokens across five fields with exactly half its per-message tokens
-// inside the days=7 range, so the in-range share is 950 — not the full 1900 the rollup
+// inside the days=7 range, so the in-range share is 950, not the full 1900 the rollup
 // used to place on the session's started_at bucket.
 const SPAN_BILLED = 1900;
 const SPAN_IN_RANGE = 950;
@@ -364,4 +373,37 @@ test('reconciliation pin: for a range whose edge splits a session, the total equ
       assert.equal(bucketTotal, rowTotal, `group=${group} rollup=${rollup}: stacked chart must equal the total bar`);
     }
   }
+});
+
+test('a session spanning several buckets spreads its billed usage over them, not over its first', () => {
+  // No range at all here, so nothing is scaled out: the whole 1900 is in-range. What
+  // the rollup used to do was drop all of it on the bucket the session STARTED in;
+  // it now follows the session's own per-message distribution, one bucket per day.
+  const r = explore.computeExplore({
+    scope: { type: 'project', id: spanProjectId }, days: null, metric: 'tokens', group: 'model', rollup: 'daily', topN: 10,
+  });
+  const perBucket = (r.buckets ?? []).map(
+    (b) => Object.values(b.series).reduce((m, cell) => m + cellsTotal(cell.tokensByModel), 0));
+  assert.equal(perBucket.length, 14, 'one bucket per day the session was active');
+  assert.equal(perBucket.reduce((a, b) => a + b, 0), SPAN_BILLED);
+  assert.ok(Math.max(...perBucket) < SPAN_BILLED / 2,
+    `no single bucket may hold the whole session's usage, got ${JSON.stringify(perBucket)}`);
+});
+
+test('a calibrated group prices each rollup bucket off the in-range billed total', () => {
+  // tool/skill magnitude is calibrated from char share against that bucket's billed
+  // total. That total is now the in-range share too, so the sum across buckets tracks
+  // the in-range input+output (1000+300 billed, halved to 650) rather than the whole
+  // billed 1300. Read is the only char-bearing tool and it appears in every bucket,
+  // so effectively all of it is attributed.
+  const r = explore.computeExplore({
+    scope: { type: 'project', id: spanProjectId }, days: 7, metric: 'tokens', group: 'tool', rollup: 'daily', topN: 10,
+  });
+  assert.equal(r.calibrated, true);
+  const total = (r.buckets ?? []).reduce(
+    (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cellsTotal(cell.tokensByModel), 0), 0);
+  const IN_RANGE_IO = 650;   // (1000 input + 300 output) * the in-range half
+  const WHOLE_IO = 1300;
+  assert.ok(Math.abs(total - IN_RANGE_IO) <= 14, `calibrated bucket total ${total}, expected about ${IN_RANGE_IO}`);
+  assert.ok(total < WHOLE_IO * 0.75, 'the whole billed total must not be attributed to a half-in-range session');
 });

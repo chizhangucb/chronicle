@@ -8,11 +8,11 @@
 import { db } from './db.ts';
 import { scopeClause, minorGate, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, rangedUsage, bucketedUsage, type UsageBucket } from './rangeUsage.ts';
+import { overlapGate, rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head query for
-// those groups — but the heuristic itself is the shared server-side copy, and the
+// those groups, but the heuristic itself is the shared server-side copy, and the
 // session-level groups read the precomputed column instead (SESSION_ERROR_GROUPS).
 import { ERROR_RE } from '../shared/errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
@@ -86,32 +86,24 @@ export interface ExploreResult {
 export const ROLLUP_BUCKET_CAP = 90;
 const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'weekly', 'monthly'];
 
-// SQL expression yielding a bucket key for a timestamp column. Keys are chosen
-// to sort chronologically as plain strings and to be directly labelable:
-// hourly "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date
-// "2026-08-03" (%w is 0=Sun..6=Sat; Monday offset = (%w+6)%7 days back),
-// monthly "2026-08".
-//
-// LOCAL time, via SQLite's 'localtime' modifier — matching the round's
-// convention that every user-facing day/hour bucketing is local, not UTC
-// (server/rangeUsage.ts's `bucketKeyExpr`; see the Home spend-over-time
-// "Aug 12 on Aug 13" defect this convention exists to prevent). `ts` columns
-// are stored as UTC ISO strings, so a bare `substr`/un-adorned `strftime`
-// (the old form here) sliced/split the UTC string directly — wrong bucket
-// for any session near a local day boundary in a non-UTC timezone (review
-// finding, Task 18 fix-round). 'localtime' is applied exactly ONCE per
-// SQLite call: the weekly branch's inner `strftime('%w', …, 'localtime')`
-// computes the LOCAL weekday (a separate, independent call), and the outer
-// `date(…, 'localtime', '-N days')` converts to local first, then subtracts
-// — never chaining two 'localtime' modifiers onto the same value, which
-// would double-apply the offset.
+// Each time rollup's granularity in server/rangeUsage.ts's vocabulary. Explore's wire
+// names the four rollups hourly/daily/weekly/monthly and the bucketing primitive names
+// the same four granularities hour/day/week/month, so this is the one place the two
+// vocabularies meet. The rollup's token magnitude goes through that primitive (#306),
+// which is what puts a session sitting on the range edge into each bucket at its
+// in-range share instead of dropping its whole billed cell on its started_at bucket.
+const USAGE_BUCKET_FOR: Record<Exclude<ExploreRollup, 'total'>, UsageBucket> = {
+  hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
+};
+
+// SQL expression yielding a bucket key for a timestamp column: hourly
+// "2026-08-09T14", daily "2026-08-09", weekly = that week's MONDAY date "2026-08-03",
+// monthly "2026-08". LOCAL time, and the exact expression server/rangeUsage.ts's
+// bucketKeyExpr owns, so this file's message-level queries and the bucketed-usage
+// primitive can never key the same instant differently. It stays exported under the
+// rollup names because that is the vocabulary every caller here, and its tests, speaks.
 export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string): string {
-  switch (rollup) {
-    case 'hourly': return `strftime('%Y-%m-%dT%H', ${ts}, 'localtime')`;
-    case 'daily': return `strftime('%Y-%m-%d', ${ts}, 'localtime')`;
-    case 'weekly': return `date(${ts}, 'localtime', '-' || ((CAST(strftime('%w', ${ts}, 'localtime') AS INTEGER) + 6) % 7) || ' days')`;
-    case 'monthly': return `strftime('%Y-%m', ${ts}, 'localtime')`;
-  }
+  return bucketKeyExpr(USAGE_BUCKET_FOR[rollup], ts);
 }
 
 // Pure cap-coarsening: from the requested rollup, return the finest rollup whose
@@ -129,13 +121,6 @@ export function pickRollup(
   return 'monthly';
 }
 
-// Each time rollup's granularity in server/rangeUsage.ts's vocabulary. The rollup's
-// token magnitude is bucketed by that primitive (#306), so a session sitting on the
-// range edge contributes its in-range share to each bucket instead of its whole billed
-// cell to its started_at bucket — the same scaling the ranked rows already apply.
-const USAGE_BUCKET_FOR: Record<Exclude<ExploreRollup, 'total'>, UsageBucket> = {
-  hourly: 'hour', daily: 'day', weekly: 'week', monthly: 'month',
-};
 
 // D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
 // tool_name shape) is calibrated exactly like
@@ -159,20 +144,50 @@ const CALIBRATED_GROUPS: ExploreGroup[] = ['tool', 'skill', 'mcp'];
 const EXACT_USAGE_GROUPS: ExploreGroup[] = ['model', 'project', 'source', 'session'];
 
 // Groups whose error count needs no attribution INSIDE the session: the group value
-// is a property of the session itself, so `sessions.error_count` — precomputed at
+// is a property of the session itself, so `sessions.error_count` (precomputed at
 // import with the one shared heuristic (server/db.ts replaceSession, shared/errors.ts)
-// — already answers it. Every other group (tool/skill/model/subagent/mcp/provider/
+// already answers it. Every other group (tool/skill/model/subagent/mcp/provider/
 // hour) has to say WHICH tool, model or hour errored, which only the per-message head
 // query can, so those keep it.
 //
-// KNOWN WINDOWING TRADEOFF, the same one server/insights.ts's errorsByProject
-// documents at length: error_count is a WHOLE-SESSION total, so under a range a
-// session that overlaps the edge contributes its full historical error count rather
-// than only the errors inside the range. Re-slicing it per request would mean
-// re-running exactly the tool_result/tool_use pairing query this path exists to
-// avoid. The rollup below buckets the same column by session start, so the total bar
-// and the stacked chart still agree.
+// KNOWN RANGE TRADEOFF, the same one server/insights.ts's errorsByProject documents
+// at length: error_count is a WHOLE-SESSION total, so under a range a session that
+// overlaps the edge contributes its full historical error count rather than only the
+// errors inside the range. Re-slicing it per request would mean re-running exactly
+// the tool_result/tool_use pairing query this path exists to avoid. The rollup below
+// buckets the same column by session start, so the total bar and the stacked chart
+// still agree.
 const SESSION_ERROR_GROUPS: ExploreGroup[] = ['project', 'source', 'session'];
+
+// Which row an in-range usage cell belongs to, for the four groups whose magnitude is
+// sourced from sessions.usage. The ranked rows and the rollup buckets both key off
+// this, so they cannot disagree about where a cell lands. group='project' is keyed by
+// project NAME, the way groupExpr('project') keys the message-level rows, since a
+// usage cell carries only the id.
+function usageRowKey(group: ExploreGroup, c: BucketedUsageCell, projectNameById: Map<number, string>): string {
+  switch (group) {
+    case 'model': return c.model;
+    case 'project': return projectNameById.get(c.projectId) ?? '';
+    case 'session': return c.sessionId;
+    default: return c.source;
+  }
+}
+
+// Precomputed per-session error counts per group value, optionally split across time
+// buckets. One query shape for the ranked rows and the rollup, so the scope, the
+// overlap gate and the minor gate are written once (see SESSION_ERROR_GROUPS).
+function sessionErrorRows(
+  group: ExploreGroup, scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] },
+  bucketCol: string | null,
+): { gk: string|number|null; bkt: string; errors: number }[] {
+  const bkt = bucketCol ? `${bucketCol} AS bkt` : `'' AS bkt`;
+  return db.prepare(`
+    SELECT ${errorGroupCol(group)} AS gk, ${bkt}, SUM(COALESCE(s.error_count, 0)) AS errors
+    FROM sessions s JOIN projects p ON p.id = s.project_id
+    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}
+    GROUP BY gk, bkt
+  `).all(cutoff, ...sc.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
+}
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
 // project name + source so a single scan feeds model/project/source grouping,
@@ -334,13 +349,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // for that group value).
   const errCol = errorGroupCol(q.group);
   if (SESSION_ERROR_GROUPS.includes(q.group)) {
-    const errRows = db.prepare(`
-      SELECT ${errCol} AS gk, SUM(COALESCE(s.error_count, 0)) AS errors
-      FROM sessions s JOIN projects p ON p.id = s.project_id
-      WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}
-      GROUP BY gk
-    `).all(cutoff, ...sc.params) as unknown as { gk: string|number|null; errors: number }[];
-    for (const e of errRows) {
+    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, null)) {
       if (e.gk == null) continue;
       const r = rowMap.get(String(e.gk));
       if (r) r.errors = e.errors;
@@ -412,8 +421,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     const acc = new Map<string, Record<string, UsageCell>>();
     const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
     for (const c of bucketedCells) {
-      const rowKey = q.group === 'model' ? c.model : q.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
-        : q.group === 'session' ? c.sessionId : c.source;
+      const rowKey = usageRowKey(q.group, c, projectNameById);
       let byModel = acc.get(rowKey);
       if (!byModel) { byModel = {}; acc.set(rowKey, byModel); }
       addCellInto(byModel, c.model, c.cells);
@@ -699,7 +707,7 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   // the ranked rows above (already rangedUsage/bucketedUsage-scaled), so the stacked
   // chart and the total bar disagreed. bucketedUsage's buckets sum to exactly the
   // ranged cell, so they now agree by construction.
-  const usageCells = (): ReturnType<typeof bucketedUsage> =>
+  const usageCells = (): BucketedUsageCell[] =>
     bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, USAGE_BUCKET_FOR[effective]);
 
   // series identity: topN group values are their own series; everything else
@@ -720,9 +728,7 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
       // model/project/source/session magnitude from sessions.usage, bucketed and scaled
       // to in-range share by the same primitive the ranked rows read.
       for (const c of usageCells()) {
-        const gv = q.group === 'model' ? c.model : q.group === 'project' ? (projectNameById.get(c.projectId) ?? '')
-          : q.group === 'session' ? c.sessionId : c.source;
-        addCellInto(cell(c.bucket, seriesKeyFor(gv)).tokensByModel, c.model, c.cells);
+        addCellInto(cell(c.bucket, seriesKeyFor(usageRowKey(q.group, c, projectNameById))).tokensByModel, c.model, c.cells);
       }
     } else if (CALIBRATED_GROUPS.includes(q.group)) {
       // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
@@ -776,15 +782,14 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
     for (const r of rr) cell(String(r.bkt), seriesKeyFor(String(r.gk))).sessions += r.c;
   } else if (q.metric === 'errors' && SESSION_ERROR_GROUPS.includes(q.group)) {
     // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
-    // start — the same placement `metric === 'active'` below uses for the other
+    // start, the same placement `metric === 'active'` below uses for the other
     // whole-session precomputed column, agent_active_ms. Bucketing this column by the
     // erroring message's own ts is not available: the column is one number per
     // session, with no per-error timestamp to slice by.
-    const rr = db.prepare(`SELECT ${bs} AS bkt, ${errorGroupCol(q.group)} AS gk, SUM(COALESCE(s.error_count, 0)) AS c
-      FROM sessions s JOIN projects p ON p.id = s.project_id
-      WHERE ${overlapGate('s')} ${minorGate(q.scope)} ${sc.sql}
-      GROUP BY bkt, gk`).all(cutoff, ...sc.params) as unknown as { bkt: string; gk: string|number|null; c: number }[];
-    for (const r of rr) { if (r.gk == null) continue; cell(String(r.bkt), seriesKeyFor(String(r.gk))).errors += r.c; }
+    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, bs)) {
+      if (e.gk == null) continue;
+      cell(String(e.bkt), seriesKeyFor(String(e.gk))).errors += e.errors;
+    }
   } else if (q.metric === 'errors') {
     const errCol = errorGroupCol(q.group);
     const br = bucketExpr(effective, 'r.ts');

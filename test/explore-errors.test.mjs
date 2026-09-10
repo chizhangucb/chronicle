@@ -1,6 +1,6 @@
 // Explore's error counts, where the group value is a property of the SESSION
-// (#306). project/source/session need no per-message attribution — nothing about
-// those rows says WHICH tool errored — so they read the `sessions.error_count`
+// (#306). project/source/session need no per-message attribution (nothing about
+// those rows says WHICH tool errored), so they read the `sessions.error_count`
 // column precomputed at import (server/db.ts replaceSession, shared/errors.ts
 // heuristic) instead of pulling every tool_result head into JS and regexing it on
 // every request. tool/skill/model/subagent/mcp/provider/hour still need the head
@@ -14,8 +14,8 @@ import { withTempDb } from './helpers.mjs';
 
 let dbModule, teardown, explore, projectName;
 
-// 12 alternating user/assistant turns over 22 minutes, so each session clears both
-// noise-gate thresholds and is not excluded by minorGate — same shape as the other
+// 12 alternating user/assistant messages over 22 minutes, so each session clears both
+// noise-gate thresholds and is not excluded by minorGate. Same shape as the other
 // explore suites' rhythm fixtures.
 function rhythmEvents(baseIso, extra = []) {
   const base = new Date(baseIso).getTime();
@@ -45,7 +45,7 @@ before(async () => {
       { kind: 'tool_result', tool_use_id: 'ep1', text: 'Error: boom', ts: '2026-08-01T10:24:03.000Z' },
     ]),
   );
-  // One erroring tool_result with NO tool_use row carrying its id — a real shape
+  // One erroring tool_result with NO tool_use row carrying its id, a real shape
   // (a truncated transcript, a result whose call was written by a prior session).
   // The tool it came from is unknowable, but the session still errored, so a
   // session-level group must count it.

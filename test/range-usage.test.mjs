@@ -282,7 +282,7 @@ test('bucketedUsage: a zero-message-row model lands its full billed cell on the 
 });
 
 // ---------------------------------------------------------------------------
-// bucketedUsage: week and month granularity (#306) — Explore's weekly/monthly
+// bucketedUsage: week and month granularity (#306). Explore's weekly/monthly
 // rollups need the same in-range-share scaling the day/hour buckets already do.
 // ---------------------------------------------------------------------------
 
@@ -338,7 +338,7 @@ test('bucketedUsage: a coarse bucket carries the summed in-range share of the da
 });
 
 // ---------------------------------------------------------------------------
-// bucketedUsage: reconciliation with rangedUsage (#306) — the property Explore's
+// bucketedUsage: reconciliation with rangedUsage (#306): the property Explore's
 // total bar and stacked chart rest on.
 // ---------------------------------------------------------------------------
 
@@ -362,7 +362,7 @@ test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage ce
     const cells = bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, bucket);
     assert.deepEqual(sumCells(cells), ranged[0].cells, `${bucket} buckets must sum to the ranged cell`);
   }
-  // The hour granularity really did split the session — otherwise the equality above
+  // The hour granularity really did split the session, otherwise the equality above
   // would hold trivially on a single bucket.
   assert.equal(bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, 'hour').length, 3);
 });
@@ -370,11 +370,20 @@ test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage ce
 test('bucketedUsage: buckets sum to the ranged cell when the cutoff splits the session', () => {
   const { bucketedUsage, rangedUsage } = rangeUsageModule;
   const { db } = dbModule;
-  // scale1: two messages before this cutoff, two at/after it — the range edge cuts
-  // the session in half, which is the case Explore's rollup used to over-count.
-  const cutoff = '2026-02-02T00:00:00.000Z';
-  const ranged = rangedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
-  const cells = bucketedUsage(db, 'AND s.id = ?', ['scale1'], cutoff, 'day');
-  assert.equal(ranged[0].cells.input, 50);
+  // drift1 has three hourly messages of one token each; this cutoff leaves two of the
+  // three in-range, so the share is 2/3 and NOTHING divides evenly: the ranged cell
+  // rounds to 67 while two independently-rounded buckets would come out 33+33 = 66.
+  // The range edge cutting the session and the rounding not dividing are the two
+  // conditions together, which is exactly the case Explore's rollup has to survive.
+  const cutoff = '2026-08-01T01:30:00.000Z';
+  const ranged = rangedUsage(db, 'AND s.id = ?', ['drift1'], cutoff);
+  assert.equal(ranged[0].cells.input, 67, 'billed input 100 * 2/3');
+  const cells = bucketedUsage(db, 'AND s.id = ?', ['drift1'], cutoff, 'hour');
+  assert.equal(cells.length, 2, 'only the two in-range messages get a bucket');
   assert.deepEqual(sumCells(cells), ranged[0].cells);
+  // Also holds where the ratio does divide (scale1: two of four messages in-range).
+  const scaleCutoff = '2026-02-02T00:00:00.000Z';
+  const scaleRanged = rangedUsage(db, 'AND s.id = ?', ['scale1'], scaleCutoff);
+  assert.equal(scaleRanged[0].cells.input, 50);
+  assert.deepEqual(sumCells(bucketedUsage(db, 'AND s.id = ?', ['scale1'], scaleCutoff, 'day')), scaleRanged[0].cells);
 });

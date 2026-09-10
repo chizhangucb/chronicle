@@ -337,7 +337,7 @@ test('rollup=total: output unchanged, buckets omitted, rollup fields present', (
 });
 
 // Bucket placement follows the per-message token share within the session (#306:
-// bucketedUsage), not the session's started_at — for these fixtures the two agree
+// bucketedUsage), not the session's started_at. For these fixtures the two agree
 // (each session's messages sit in the local day it started), so the per-bucket
 // figures below are unchanged by that switch.
 test('rollup=daily: buckets by in-range message share, reconcile to the range total', () => {

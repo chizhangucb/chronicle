@@ -62,7 +62,7 @@ function scaleCell(cell: UsageCell, ratio: number): UsageCell {
   };
 }
 
-// Difference of two cumulative cells — the per-bucket slice in bucketedUsage's
+// Difference of two cumulative cells: the per-bucket slice in bucketedUsage's
 // running-remainder distribution below.
 function subtractCell(a: UsageCell, b: UsageCell): UsageCell {
   return {
@@ -99,15 +99,21 @@ function localBucketKeyFromIso(iso: string, bucket: UsageBucket): string {
   }
 }
 
-// SQL local-time bucket key expression for a timestamp column — format matches
+// SQL local-time bucket key expression for a timestamp column. The format matches
 // localBucketKeyFromIso exactly (hour: 'YYYY-MM-DDTHH', day: 'YYYY-MM-DD', week: the
-// opening Monday as 'YYYY-MM-DD', month: 'YYYY-MM').
+// opening Monday as 'YYYY-MM-DD', month: 'YYYY-MM'), so a key sorts chronologically as
+// a plain string and labels directly through shared/bucketLabel.ts.
+//
+// The ONE owner of this expression. server/explore.ts's bucketExpr, which speaks the
+// rollup names Explore's wire uses, delegates here rather than keeping a second copy of
+// the same SQL: the two had drifted into identical switches, one per vocabulary.
 //
 // 'localtime' is applied exactly ONCE per value, never chained: the week branch's
-// inner strftime('%w', …, 'localtime') is a separate call computing the LOCAL weekday,
-// and the outer date(…, 'localtime', '-N days') converts to local first and then
-// subtracts. Same rule (and same expression) as server/explore.ts's bucketExpr.
-function bucketKeyExpr(bucket: UsageBucket, column: string): string {
+// inner strftime('%w', ..., 'localtime') is a separate call computing the LOCAL
+// weekday, and the outer date(..., 'localtime', '-N days') converts to local first and
+// then subtracts. Chaining two 'localtime' modifiers onto one value would double-apply
+// the offset.
+export function bucketKeyExpr(bucket: UsageBucket, column: string): string {
   switch (bucket) {
     case 'hour': return `strftime('%Y-%m-%dT%H', ${column}, 'localtime')`;
     case 'day': return `strftime('%Y-%m-%d', ${column}, 'localtime')`;
@@ -306,8 +312,8 @@ export function bucketedUsage(
       // Cumulative (running-remainder) rounding, not per-bucket rounding: each
       // bucket's cell is the difference between the scaled cell at the cumulative
       // in-range share up to and including it, and the same at the share before it.
-      // Rounding each bucket on its own would drift — three equal buckets of a billed
-      // 100 come out 33+33+33 = 99 — and the drift lands exactly where the operator
+      // Rounding each bucket on its own would drift (three equal buckets of a billed
+      // 100 come out 33+33+33 = 99), and the drift lands exactly where the operator
       // reads it, as a stacked chart that does not add up to its own total bar. This
       // way the buckets sum to scaleCell(cell, inRangeShare), which IS rangedUsage's
       // cell for the same session and model, at every granularity.
