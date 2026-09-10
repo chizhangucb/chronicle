@@ -105,7 +105,7 @@ test('session delete tombstones, so a following sync does not resurrect it', asy
 // tracked client file names them or offers a control that would call them. Read
 // off disk (like the page-width and reference-registry pins) because a label and
 // a URL string are what an operator meets, not an exported symbol.
-const CLIENT_SOURCES = execFileSync('git', ['ls-files', '--', 'src'], { encoding: 'utf8' })
+const CLIENT_SOURCES = execFileSync('git', ['-C', REPO, 'ls-files', '--', 'src'], { encoding: 'utf8' })
   .split('\n').filter(Boolean);
 
 const TRANSCRIPT_DELETE = [
