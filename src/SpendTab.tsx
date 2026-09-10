@@ -263,7 +263,10 @@ function PlanWindowsCard(): JSX.Element {
   const { data: pw } = useCachedFetch<PlanWindowsResult>(planWindowsUrl());
   const hasClaude = pw?.accounts.some((a) => a.kind === 'claude');
   return (
-    <div className="card">
+    // `plan-windows` is a hook, not a style: the release walk (test/e2e/walk.mjs)
+    // tolerates a "Loading…" INSIDE this card and nowhere else, because these
+    // meters are the one external read on the page (api.anthropic.com, opt-out).
+    <div className="card plan-windows">
       <h3>Plan windows <span className="sub3">· per account</span></h3>
       {pw == null ? <div className="muted small pad8">Loading…</div> : (
         <>

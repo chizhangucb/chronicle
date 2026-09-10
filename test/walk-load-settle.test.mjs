@@ -14,7 +14,7 @@
 // than the shape of the code under it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { waitForLoadSettle, collectLoadingOffenders } from './e2e/walk.mjs';
+import { waitForLoadSettle, collectLoadingOffenders, capturePage } from './e2e/walk.mjs';
 
 /**
  * A Playwright `Page` stand-in. `settlesAfter` is how many DOM scans still
@@ -31,7 +31,11 @@ function fakePage({ settlesAfter = 1, networkIdle = true, tolerated = () => [] }
       page.loadStateWaits = [...(page.loadStateWaits ?? []), { state, opts }];
       if (!networkIdle) throw new Error(`Timeout ${opts?.timeout}ms exceeded waiting for ${state}`);
     },
-    async evaluate() {
+    // The probes call evaluate() too; only the settle scan passes the scan
+    // options, so the fake answers on the argument it is given rather than on
+    // which function body it was handed.
+    async evaluate(fn, arg) {
+      if (!arg || !('allowSelectors' in arg)) return {};
       page.scans++;
       page.loading = page.scans <= settlesAfter;
       return {
@@ -39,6 +43,7 @@ function fakePage({ settlesAfter = 1, networkIdle = true, tolerated = () => [] }
         tolerated: tolerated(page.scans),
       };
     },
+    locator: () => ({ count: async () => 0 }),
     async screenshot(opts) {
       page.shots.push({ path: opts?.path, loadingAtCapture: page.loading });
     },
@@ -155,4 +160,54 @@ test('collectLoadingOffenders tolerates a placeholder inside an allowed region',
 
   assert.deepEqual(result.blocking.map((o) => o.class), ['muted pad8']);
   assert.deepEqual(result.tolerated.map((o) => o.class), ['muted small pad8']);
+});
+
+// ---- The capture itself ------------------------------------------------------
+
+const settleFast = { settleTimeoutMs: 2_000, settlePollMs: 1 };
+
+test('a cell is only shot once its page has settled', async () => {
+  const page = fakePage({ settlesAfter: 2 });
+  const route = { slug: 'projects', async setup() {} };
+
+  const result = await capturePage(page, route, {
+    width: 1366,
+    screenshotPath: '/tmp/chronicle-walk/projects-1366.png',
+    ...settleFast,
+  });
+
+  assert.equal(page.shots.length, 1);
+  assert.equal(page.shots[0].loadingAtCapture, false, 'the walk must never shoot a "Loading…" cell');
+  assert.equal(page.shots[0].path, '/tmp/chronicle-walk/projects-1366.png');
+  assert.equal(result.settle.settled, true);
+});
+
+test('a page that never settles is reported, never shot', async () => {
+  const page = fakePage({ settlesAfter: Infinity });
+  const route = { slug: 'projects', async setup() {} };
+
+  await assert.rejects(
+    () => capturePage(page, route, { width: 1366, screenshotPath: '/tmp/x.png', settleTimeoutMs: 100, settlePollMs: 5 }),
+    /never settled/,
+  );
+  assert.equal(page.shots.length, 0, 'a stuck page is a loud errored cell, not a mid-load PNG');
+});
+
+test('a route may disclose a region that is allowed to still be loading', async () => {
+  // Plan windows reads api.anthropic.com — outside Chronicle, opt-out, and
+  // slow. That one panel is disclosed in the cell's notes instead of failing
+  // the capture; every other placeholder still blocks.
+  const page = fakePage({
+    settlesAfter: 0,
+    tolerated: () => [{ tag: 'div', class: 'muted small pad8', text: 'Loading…' }],
+  });
+  const route = { slug: 'insights-spend', allowLoadingIn: ['.spend-tab .plan-windows'], async setup() {} };
+  const settleNotes = [];
+
+  const result = await capturePage(page, route, { width: 1366, screenshotPath: '/tmp/spend.png', settleNotes, ...settleFast });
+
+  assert.equal(page.shots.length, 1);
+  assert.equal(result.settle.tolerated.length, 1);
+  assert.equal(settleNotes.length, 1);
+  assert.match(settleNotes[0], /disclosed/);
 });

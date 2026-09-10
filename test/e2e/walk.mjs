@@ -193,6 +193,11 @@ function buildRoutes(base, ctx) {
   });
   routes.push({
     slug: 'insights-spend',
+    // The Claude plan-window meters are an EXTERNAL api.anthropic.com read
+    // (opt-out, slow, and nothing Chronicle controls). A "Loading…" there is
+    // disclosed in the cell's notes rather than failing the capture; every
+    // other placeholder on the Spend tab is a local fetch and still blocks.
+    allowLoadingIn: ['.spend-tab .plan-windows'],
     async setup(page, notes) {
       await gotoInsights(page);
       await page.locator('.tabs .tab', { hasText: 'Spend' }).click();
@@ -215,7 +220,7 @@ function buildRoutes(base, ctx) {
       // we CAPTURE ANYWAY rather than block the walk on an external API — the
       // still-loading panel is a DISCLOSED note below, not a stuck-spinner defect.
       const pwSettled = await page.waitForFunction(() => {
-        const pw = [...document.querySelectorAll('.spend-tab .card')].find((c) => /Plan windows/.test(c.textContent || ''));
+        const pw = document.querySelector('.spend-tab .plan-windows');
         return !!pw && !/Loading…/.test(pw.textContent || '');
       }, { timeout: 8000 }).then(() => true).catch(() => false);
       if (!pwSettled) notes.push('Plan windows still "Loading…" after 8s — the Claude quota read is an external api.anthropic.com call (opt-out); captured mid-load rather than blocking the walk on an external API');
@@ -355,6 +360,33 @@ async function waitForLoadSettle(page, {
     }
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
+}
+
+/**
+ * One walk cell: drive the route, wait for the load to settle, probe, shoot.
+ *
+ * The settle sits BETWEEN setup() and the probes/screenshot on purpose — a
+ * probe reading a half-rendered page is as worthless as a PNG of one, and a
+ * page that never settles throws out of here, so the cell lands in
+ * walk-report.json as an error with no misleading screenshot beside it.
+ */
+async function capturePage(page, route, {
+  width,
+  screenshotPath,
+  settleNotes = [],
+  settleTimeoutMs = SETTLE_TIMEOUT_MS,
+  settlePollMs = SETTLE_POLL_MS,
+}) {
+  await route.setup(page, settleNotes);
+  const settle = await waitForLoadSettle(page, {
+    timeoutMs: settleTimeoutMs,
+    pollMs: settlePollMs,
+    allowLoadingIn: route.allowLoadingIn ?? [],
+    notes: settleNotes,
+  });
+  const probes = await runProbes(page, width);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  return { probes, settle };
 }
 
 // ---- Probes ----------------------------------------------------------------
@@ -594,12 +626,15 @@ async function main() {
         // the walk silently swallowing it. Written into the per-page JSON below.
         const settleNotes = [];
         try {
-          await route.setup(page, settleNotes);
-          const probes = await runProbes(page, width);
           const pngPath = path.join(out, `${slug}.png`);
-          await page.screenshot({ path: pngPath, fullPage: true });
+          const { probes, settle } = await capturePage(page, route, {
+            width,
+            screenshotPath: pngPath,
+            settleNotes,
+          });
           pageReport.ok = true;
           pageReport.probes = probes;
+          pageReport.settle = settle;
           pageReport.screenshot = path.basename(pngPath);
           renderedCount++;
         } catch (err) {
@@ -646,4 +681,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders };
+export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders, capturePage };
