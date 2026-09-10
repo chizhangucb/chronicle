@@ -259,6 +259,104 @@ function buildRoutes(base, ctx) {
   return routes;
 }
 
+// ---- Load settle ------------------------------------------------------------
+//
+// Every per-route setup() above waits on ONE structural selector, which lands
+// as soon as the shell mounts — while the SWR fetches behind it are still in
+// flight. The first release walk shot 6 of its 36 cells that way and caught a
+// "Loading…" placeholder in each, so those cells were not judgeable (#205).
+// The gate below runs between setup() and the capture: network quiet first,
+// then the DOM scanned until no placeholder is left.
+
+// Default budget for the whole settle (network idle + DOM scans). Generous
+// enough for a cold Insights fetch over a large DB, short enough that a
+// genuinely stuck page lands as one errored cell in walk-report.json rather
+// than hanging the walk.
+const SETTLE_TIMEOUT_MS = 12_000;
+// Network idle is best-effort inside that budget: a live session's SSE stream
+// (or a polling surface) legitimately never goes idle, and those routes still
+// have to be captured. The DOM scan is the authority.
+const NETWORK_IDLE_BUDGET_MS = 5_000;
+const SETTLE_POLL_MS = 150;
+// The client's one loading placeholder wording (src/*.tsx: `<div className=
+// "muted small pad8">Loading…</div>` and friends). Kept as a source string
+// because it is compiled inside the browser, not here.
+const LOADING_PATTERN = '^(Loading…|Loading\\.\\.\\.)$';
+
+// Runs IN THE BROWSER via page.evaluate — deliberately self-contained (no
+// module-scope references), because Playwright ships this function's source
+// across and re-compiles it there. Returns the loading placeholders still on
+// screen, split into the ones that block a capture and the ones a route has
+// disclosed as tolerable (see `allowLoadingIn` on a route).
+function collectLoadingOffenders({ allowSelectors = [], pattern = '^Loading…$' } = {}) {
+  const re = new RegExp(pattern);
+  const blocking = [];
+  const tolerated = [];
+  for (const el of document.querySelectorAll('body *')) {
+    // Only the leaf that actually renders the text: every ancestor's
+    // textContent contains it too, and reporting the whole chain buries the
+    // one element a reviewer needs to see.
+    if (el.children.length > 0) continue;
+    const text = (el.textContent || '').trim();
+    if (!re.test(text)) continue;
+    const offender = {
+      tag: el.tagName.toLowerCase(),
+      class: typeof el.className === 'string' ? el.className : '',
+      text: text.slice(0, 60),
+    };
+    if (allowSelectors.some((sel) => el.closest(sel))) tolerated.push(offender);
+    else blocking.push(offender);
+    if (blocking.length + tolerated.length >= 20) break;
+  }
+  return { blocking, tolerated };
+}
+
+function describeOffenders(offenders) {
+  return offenders.map((o) => `${o.tag}${o.class ? `.${o.class.trim().split(/\s+/).join('.')}` : ''} "${o.text}"`).join(', ');
+}
+
+/**
+ * Hold until the page has finished loading, or throw.
+ *
+ * Resolves with `{settled, networkIdle, waitedMs, tolerated}`. Throws once
+ * `timeoutMs` is spent and a blocking "Loading…" placeholder is still on
+ * screen — the caller records that as this cell's error, so a stuck page is
+ * one loud failed cell in the report instead of a hung walk.
+ */
+async function waitForLoadSettle(page, {
+  timeoutMs = SETTLE_TIMEOUT_MS,
+  pollMs = SETTLE_POLL_MS,
+  allowLoadingIn = [],
+  notes,
+} = {}) {
+  const started = Date.now();
+  const scanArgs = { allowSelectors: allowLoadingIn, pattern: LOADING_PATTERN };
+
+  let networkIdle = true;
+  try {
+    await page.waitForLoadState('networkidle', { timeout: Math.min(timeoutMs, NETWORK_IDLE_BUDGET_MS) });
+  } catch {
+    networkIdle = false;
+    notes?.push(`network never went idle within ${Math.min(timeoutMs, NETWORK_IDLE_BUDGET_MS)}ms (a live SSE stream or a polling surface holds a request open) — settled on the DOM instead`);
+  }
+
+  for (;;) {
+    const scan = await page.evaluate(collectLoadingOffenders, scanArgs);
+    const blocking = scan?.blocking ?? [];
+    const tolerated = scan?.tolerated ?? [];
+    if (blocking.length === 0) {
+      if (tolerated.length) {
+        notes?.push(`captured with ${tolerated.length} disclosed placeholder(s) still loading: ${describeOffenders(tolerated)}`);
+      }
+      return { settled: true, networkIdle, waitedMs: Date.now() - started, tolerated };
+    }
+    if (Date.now() - started >= timeoutMs) {
+      throw new Error(`load never settled: still showing "Loading…" after ${timeoutMs}ms — ${describeOffenders(blocking)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
 // ---- Probes ----------------------------------------------------------------
 
 // (a) Overflow: documentElement.scrollWidth must not exceed innerWidth, plus
@@ -548,4 +646,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { probePopoverClip };
+export { probePopoverClip, waitForLoadSettle, collectLoadingOffenders };
