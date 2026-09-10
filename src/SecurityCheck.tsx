@@ -1,15 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import Modal from './Modal.tsx';
 import { api } from './api.js';
-import type { SecurityFinding, SecurityScanResult } from '../shared/results.ts';
-import type { SecurityRuleRow } from '../shared/rows.ts';
 
 // One-Click Security Check (FR-SEC-4): preview detections highlighted next to
 // redacted output; manage custom rules; export a one-way redacted copy.
 
-// The scan payload and the rule row are declared in shared/results.ts (#307),
-// beside every other route contract, so this modal renders what the route
-// sends instead of keeping its own copy of both shapes.
+// A custom redaction/allow rule (server/security.js rule row).
+export interface SecurityRule {
+  id: number;
+  pattern: string;
+  replacement: string;
+  kind: 'redact' | 'allow';
+  enabled: boolean;
+  name?: string;
+}
+
+// One glob-pattern match within a scanned message's text or tool_input.
+export interface SecurityFinding {
+  field: 'text' | 'tool_input';
+  start: number;
+  end: number;
+  match: string;
+  name?: string;
+}
+
+// One scanned message, as returned by GET /api/sessions/:id/security-check.
+export interface SecurityCheckMessage {
+  seq: number;
+  kind: string;
+  tool_name?: string | null;
+  originalText?: string | null;
+  originalInput?: string | null;
+  redactedText?: string | null;
+  redactedInput?: string | null;
+  findings: SecurityFinding[];
+}
+
+export interface SecurityScanResult {
+  error?: string;
+  findingCount: number;
+  totals: Record<string, number>;
+  messages: SecurityCheckMessage[];
+}
 
 export interface SecurityCheckProps {
   sessionId: string;
@@ -25,16 +57,18 @@ interface RuleForm {
 
 export default function SecurityCheck({ sessionId, projectName, onClose }: SecurityCheckProps) {
   const [scan, setScan] = useState<SecurityScanResult | null>(null);
-  const [rules, setRules] = useState<SecurityRuleRow[]>([]);
+  const [rules, setRules] = useState<SecurityRule[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [form, setForm] = useState<RuleForm>({ pattern: '', replacement: '****', kind: 'redact' });
 
   async function refresh() {
     try {
-      // A 404 or a scan error arrives as a rejected promise from the fetch
-      // module, carrying the server's own message — see src/api.ts.
-      const [s, r] = await Promise.all([api.securityCheck(sessionId), api.securityRules()]);
+      const [s, r] = await Promise.all([
+        fetch(`/api/sessions/${encodeURIComponent(sessionId)}/security-check`).then((x) => x.json()) as Promise<SecurityScanResult>,
+        fetch('/api/security/rules').then((x) => x.json()) as Promise<SecurityRule[]>,
+      ]);
+      if (s.error) throw new Error(s.error);
       setScan(s); setRules(r);
     } catch (e) { setError(String((e as Error).message)); }
   }
@@ -51,7 +85,7 @@ export default function SecurityCheck({ sessionId, projectName, onClose }: Secur
     await api.deleteSecurityRule(id);
     refresh();
   }
-  async function toggle(rule: SecurityRuleRow) {
+  async function toggle(rule: SecurityRule) {
     await api.toggleSecurityRule(rule.id, !rule.enabled);
     refresh();
   }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { KIND_LABEL } from './kinds.ts';
-import type { DisplayKind, Event } from '../shared/types.ts';
+import type { DisplayKind, Event } from '@shared/types.ts';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
 // Original messages left, compressed preview right, token stats +

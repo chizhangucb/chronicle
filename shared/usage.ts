@@ -10,8 +10,8 @@
 // client aggregation alike — imports it (#301, audit F4).
 //
 // Framework-free, like the rest of `shared/`: no db handle, no express, no
-// React, and relative imports only (`../shared/usage.ts`) — the one convention
-// `shared/` has, on both sides.
+// React. Relative imports only (`../shared/usage.ts`), never the `@shared`
+// alias — value imports through the alias throw under plain `node --test`.
 
 // One model's aggregated token usage. Every field is a plain count, never
 // null: a cell that came out of `parseUsage` always has all five numbers.
@@ -110,26 +110,4 @@ export function totalTokens(cells: UsageByModel): number {
   let n = 0;
   for (const cell of Object.values(cells)) n += cellTotal(cell);
   return n;
-}
-
-// ---- Ranged cells (the in-range share of a session's billed usage) ----
-// Computed by server/rangeUsage.ts and shipped to the client on Insights, the
-// project page and Explore, which price them with the client-side price table.
-
-/** One session's usage for one model, scaled to its in-range share. */
-export interface RangeUsageCell {
-  sessionId: string;
-  projectId: number;
-  model: string;
-  source: string;
-  cells: UsageCell;
-}
-
-// Granularities the bucketing primitive works in. hour/day serve Insights'
-// spend-over-time; week/month serve Explore's weekly/monthly rollups (#306).
-export type UsageBucket = 'hour' | 'day' | 'week' | 'month';
-
-/** A ranged cell placed in one LOCAL time bucket. */
-export interface BucketedUsageCell extends RangeUsageCell {
-  bucket: string;
 }

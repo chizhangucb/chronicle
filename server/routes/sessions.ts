@@ -1,16 +1,24 @@
 import type { Express, Request, Response } from 'express';
-import { db, tombstoneSession, removeTombstone } from '../db.ts';
-import type { MessageRow, MinorSessionRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
+import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
 import { invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
-// The session payload's shapes live in shared/results.ts (#307).
-import type {
-  DeleteSessionResult, RenameSessionResult, ResolveSessionResult, SessionMessagesResult,
-} from '../../shared/results.ts';
 
 type PeerRow = Pick<SessionRow, 'id' | 'file_path' | 'ended_at'>;
+
+interface MinorSessionRow {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  started_at: string | null;
+  project_name: string;
+}
 
 export function mountSessions(app: Express): void {
   // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----
@@ -44,7 +52,7 @@ export function mountSessions(app: Express): void {
 
   // Tiny resolver for chronicle://session/<id> deep links.
   app.get('/sessions/:id/resolve', (req: Request, res: Response) => {
-    const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string)) as unknown as ResolveSessionResult | undefined;
+    const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string));
     if (!s) return res.status(404).json({ error: 'Not found' });
     res.json(s);
   });
@@ -58,9 +66,7 @@ export function mountSessions(app: Express): void {
       db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, (req.params.id as string));
       invalidateCache();
     }
-    const renamed = db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?')
-      .get((req.params.id as string)) as unknown as RenameSessionResult;
-    res.json(renamed);
+    res.json(db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?').get((req.params.id as string)));
   });
 
   app.get('/sessions/:id/messages', (req: Request, res: Response) => {
@@ -71,9 +77,8 @@ export function mountSessions(app: Express): void {
     const commits = session.started_at && session.ended_at
       ? gitEngine.commitsBetween(project.path, session.started_at, session.ended_at) : [];
     const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
-    const payload: SessionMessagesResult = { session, project, messages, commits, git: gitEngine.repoInfo(project.path),
-      liveCandidate: isLiveCandidate(session.file_path, session, peers) };
-    res.json(payload);
+    res.json({ session, project, messages, commits, git: gitEngine.repoInfo(project.path),
+      liveCandidate: isLiveCandidate(session.file_path, session, peers) });
   });
 
   // Delete a session's imported copy from Chronicle. The source transcript is
@@ -93,8 +98,7 @@ export function mountSessions(app: Express): void {
     // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.
     tombstoneSession(session.source, session.id);
     invalidateCache();
-    const deleted: DeleteSessionResult = { ok: true, source: session.source, projectId: session.project_id };
-    res.json(deleted);
+    res.json({ ok: true, source: session.source, projectId: session.project_id });
   });
 
   // ---- Live streaming (FR-LS): SSE tail of the session's log file ----

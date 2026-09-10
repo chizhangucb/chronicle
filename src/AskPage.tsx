@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from './api.js';
-import type { AskCostMode, AskTurn } from '../shared/results.ts';
+import { api, type AskTurn, type AskCostMode } from './api.js';
 import { useCostMode } from './costMode.js';
 import InfoTip from './InfoTip.js';
 

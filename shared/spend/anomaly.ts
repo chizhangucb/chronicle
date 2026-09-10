@@ -8,7 +8,7 @@
 // strictly before `today`. Flag when today's cost exceeds `multiplier`x that
 // median; escalate past `escalation`x. The same rule runs per dimension value
 // against its own trailing median, floored at `dimFlagFloorUsd` so sub-dollar
-// noise never "moves". Imported by relative path from both sides.
+// noise never "moves". Relative-import value module (never @shared), B3.
 
 import type { AnomalyThresholds, SpendThresholds } from './thresholds.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from './thresholds.ts';

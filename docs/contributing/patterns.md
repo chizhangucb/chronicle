@@ -16,9 +16,8 @@ The rules that follow from that:
 - **Explicit `.ts`/`.tsx` extensions on relative imports**, server side.
 - **Full `strict: true`.** Type the real shape rather than reaching for `any` or `@ts-ignore`.
   A type assertion is a claim you are making on the compiler's behalf, so it needs to be true.
-- **`shared/` is the cross-boundary contract.** `types.ts` for the event model, `rows.ts` /
-  `results.ts` / `explore.ts` for what the routes answer with. Both sides import it by relative
-  path — there is no alias.
+- **`shared/types.ts` is the cross-boundary contract.** The server imports it relatively; the
+  client imports it through the `@shared` alias.
 
 The one real compile is `npm run prepack`, which emits `dist-server/` for publishing. Local
 development never touches that path.

@@ -1,7 +1,8 @@
 // Chronicle shared type contract — the normalized event model that every parser,
 // the DB layer, and the client agree on. Framework-free by design (no React /
-// express imports): both sides import it by relative path
-// (`../shared/types.ts`), the one convention `shared/` has (#307).
+// express imports): it is imported by the server via a relative path
+// (`../shared/types.ts`) and by the client via the `@shared` alias
+// (vite.config.js resolve.alias + tsconfig paths).
 //
 // These names/optionality are cross-checked against the REAL code:
 //   server/parsers/claudeCode.js + codex.js (event + usage shapes),

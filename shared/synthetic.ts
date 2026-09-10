@@ -2,8 +2,8 @@
 // The ONE definition of "this role=user message is not a human prompt". Ported
 // from the two former copies (the duration math + the client stats) so the
 // active-time metric and the display-name fallback can never drift apart.
-// Imported by relative path from both sides, like every shared/ module: the
-// server's parsers and duration math, and the client's session stats.
+// Relative-import value module (never @shared), B3 — imported by both server
+// parsers/duration math and client session stats.
 //
 // Not every role=user message is a human turn: task notifications, system
 // reminders, command wrappers, interrupts, and cross-session (agent-to-agent

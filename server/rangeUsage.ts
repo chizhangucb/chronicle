@@ -23,10 +23,25 @@
 // the query) and its binds. This module never imports scope.ts, so it stays testable
 // standalone with a bare in-memory-style temp DB.
 import type { DatabaseSync } from 'node:sqlite';
-import { emptyCell, parseUsage, type BucketedUsageCell, type RangeUsageCell, type UsageBucket, type UsageCell } from '../shared/usage.ts';
+import { emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
 
-// The three shapes this primitive answers with live in shared/usage.ts (#307):
-// the client prices them, so it reads the same contract the server ships.
+export interface RangeUsageCell {
+  sessionId: string;
+  projectId: number;
+  model: string;
+  source: string;
+  cells: UsageCell;
+}
+
+// Granularities the primitive buckets by. hour/day serve Insights' spend-over-time;
+// week/month were added for Explore's weekly/monthly rollups (#306), which used to
+// place a session's whole billed cell on its started_at bucket instead of scaling it
+// to in-range share the way the ranked rows do.
+export type UsageBucket = 'hour' | 'day' | 'week' | 'month';
+
+export interface BucketedUsageCell extends RangeUsageCell {
+  bucket: string;
+}
 
 // The one spelling of "this session is in range": a session whose activity ran INTO
 // the range counts, even if it started earlier — a range always extends to "now", so

@@ -8,9 +8,22 @@ import { db } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
-// Declared in shared/results.ts (#307): the client prices these cells, so both
-// sides read one contract.
-import type { ChurnSession, ModelCacheCells, RereadFile, RightSizingModel, WasteResult } from '../shared/results.ts';
+export interface ModelCacheCells { cw5m: number; cw1h: number }
+export interface ChurnSession {
+  session: string; project: string;
+  writeTokens: number; readTokens: number;
+  byModel: Record<string, ModelCacheCells>; // for the premium-$ pricing
+}
+export interface RightSizingModel {
+  model: string; messages: number;
+  input: number; output: number; cacheRead: number; cw5m: number; cw1h: number;
+}
+export interface RereadFile { path: string; rereads: number; sessions: number }
+export interface WasteResult {
+  cacheChurn: { sessionsFlagged: number; top: ChurnSession[] };
+  rightSizing: { candidates: RightSizingModel[] }; // small-turn msgs; client filters premium + reprices
+  rereads: { rereadCalls: number; sessionsAffected: number; estWastedTokens: number; topFiles: RereadFile[] };
+}
 
 interface ChurnRow { session_id: string; project: string; writeTok: number; readTok: number }
 interface ModelCacheRow { session_id: string; model: string; cw5m: number; cw1h: number }

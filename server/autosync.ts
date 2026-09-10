@@ -14,8 +14,7 @@ import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from './pars
 import { scanCursorProjects, parseCursorWorkspace } from './parsers/cursor.ts';
 import { readConfig } from './config.ts';
 import type { ParseResult } from '../shared/types.ts';
-// The status shape the Settings surface reads (shared/results.ts, #307).
-import type { AutosyncStatus } from '../shared/results.ts';
+
 
 export interface SyncResultOk {
   ok: true;
@@ -173,7 +172,7 @@ export async function runIncrementalSync(): Promise<SyncResult> {
   return st.lastResult as SyncResult;
 }
 
-export function autoSyncStatus(): AutosyncStatus {
+export function autoSyncStatus(): { enabled: boolean; running: boolean; lastRun: string | null; lastResult: SyncResult | null; firstPendingAt: number | null } {
   const st = state();
   return { enabled: autoSyncEnabled(), running: st.running, lastRun: st.lastRun, lastResult: st.lastResult, firstPendingAt: st.firstPendingAt };
 }

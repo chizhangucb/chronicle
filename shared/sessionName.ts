@@ -6,7 +6,8 @@
 // lives here so those two answers cannot disagree — it used to be a server
 // copy plus a near-copy client twin.
 //
-// Imported by relative path from both sides, like shared/pricing.ts.
+// Relative-import value module (never @shared), same B3 rule as
+// shared/pricing.ts and shared/errors.ts.
 
 import { isSyntheticUserText } from './synthetic.ts';
 

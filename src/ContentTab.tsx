@@ -1,6 +1,5 @@
 import React, { useMemo, type JSX } from 'react';
-import { contentUrl } from './api.ts';
-import type { Characteristic, ContentResult } from '../shared/results.ts';
+import { contentUrl, type Characteristic, type ContentResult } from './api.ts';
 import { CATEGORICAL_COLORS } from './colors.ts';
 import { shakespeareMultiple } from './insights/stats.ts';
 import { pluralize } from './format.ts';

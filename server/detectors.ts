@@ -8,9 +8,19 @@ import { db } from './db.ts';
 import { queryContext, whereOf, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
-// Declared in shared/results.ts (#307): the client derives and grades the rates
-// from these counts, so both sides read one contract.
-import type { DetectorCounts } from '../shared/results.ts';
+export interface DetectorCounts {
+  /** assistant messages carrying a model in the window — the denominator for
+   * the jumbo and long-context shares. */
+  assistantRows: number;
+  /** assistant messages whose output exceeded the jumbo threshold. */
+  jumboRows: number;
+  /** assistant messages whose fed-in context (input + cache-read) exceeded the
+   * long-context threshold. */
+  longContextRows: number;
+  /** token sums for the cache-hit rate = cacheRead / (cacheRead + input). */
+  cacheReadTokens: number;
+  inputTokens: number;
+}
 
 interface CountRow {
   assistantRows: number | null;

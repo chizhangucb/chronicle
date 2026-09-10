@@ -1,23 +1,10 @@
-// The client's fetch layer, and nothing else (#307, audit F10/F23).
-//
-// Every read and every write the app makes goes through this module: one place
-// that attaches the write token, retries the token rotation, turns a non-OK
-// response into an Error carrying the server's message, and builds each URL.
-// The SHAPES it returns are not declared here — they live in shared/ (rows.ts,
-// results.ts, explore.ts, usage.ts) and are imported by the server engines that
-// compute them and by the components that render them, so a response shape has
-// one declaration and no component keeps a copy.
-import type { Project } from '../shared/types.ts';
-import type { MinorSessionRow, SecurityRuleRow } from '../shared/rows.ts';
-import type { ExploreQueryParams, ExploreWireResult } from '../shared/explore.ts';
-import type {
-  AskCostMode, AskStatus, AskTurn, AutosyncStatus, ContentResult,
-  DeleteSessionResult, GitAtResult, GitFileResult, GitTreeResult,
-  ImportPayload, ImportResult, InsightsResult, LiveWatcher, ProjectDetailResult,
-  ProjectListItem, RenameSessionResult, ResolveSessionResult, ScanParams, ScanResult,
-  SearchParams, SearchResponse, SecurityScanResult, SessionMessagesResult,
-  SessionSyncResult, Settings, SettingsPatch, SyncRunResult,
-} from '../shared/results.ts';
+// Client fetch wrapper — every Chronicle REST endpoint in one place. Response
+// shapes are declared locally where the server doesn't already export a type
+// (see server/routes/*.ts); shared entities (Project, scan shapes) come from
+// `@shared/types.ts`. `fetch`'s `res.json()` return is `unknown` at the type
+// level — cast it once per call to the shape the route actually sends.
+import type { Kind, Project, ScannedProject, ScannedSession, SourceId } from '@shared/types.ts';
+import type { UsageByModel, UsageCell } from '../shared/usage.ts';
 import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
 
 // Mutating methods carry the per-boot write token. Every write in
@@ -44,12 +31,532 @@ async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// Exported for `useCachedFetch.ts` (the client's stale-while-revalidate
-// layer): the hook takes a plain URL string, not an `api.*` call, so it needs
-// the same fetch + error-message extraction every `api.*` function gets from
-// `j` — reusing it (rather than a bare `fetch`) keeps the error shape identical
-// on both paths (e.g. ProjectDetail's rename/associate error banners).
+// Exported for `useCachedFetch.ts` (Task 5, client SWR layer): the hook takes
+// a plain URL string, not an `api.*` call, so it needs the same fetch+error-
+// message-extraction behavior every `api.*` function already gets from `j`
+// — reusing it (rather than a bare `fetch`) keeps error shape identical to
+// pre-hook code (e.g. ProjectDetail's rename/associate error banners).
 export const fetchJson = j;
+
+// ---- Scan / import (Import wizard) ----
+
+export interface AnnotatedScannedSession extends ScannedSession {
+  imported: boolean;
+}
+
+export interface AnnotatedScannedProject extends Omit<ScannedProject, 'sessions'> {
+  imported: boolean;
+  sessions?: AnnotatedScannedSession[];
+}
+
+export type ScanResult = Partial<Record<SourceId | string, AnnotatedScannedProject[]>>;
+
+export interface ScanParams {
+  source?: string;
+  dir?: string;
+}
+
+// Matches server/routes/import-sync.ts GatherParsedParams — what the client
+// sends to POST /api/import (a subset of a scanned item, or a hand-typed dir).
+export interface ImportPayload {
+  source: string;
+  logDir?: string | null;
+  files?: string[];
+  directory?: string;
+  sessionIds?: string[];
+  physicalPath?: string | null;
+}
+
+export interface ImportProjectAgg {
+  id: number;
+  name: string;
+  path: string;
+  created: boolean;
+  sessions: number;
+  messages: number;
+}
+
+export interface ImportResult {
+  ok: true;
+  imported: number;
+  skippedSessions: number;
+  totalMessages: number;
+  projects: ImportProjectAgg[];
+  projectId: number | null;
+}
+
+// ---- Projects ----
+
+export interface RepoInfo {
+  isRepo: boolean;
+  commitCount?: number;
+  branch?: string | null;
+}
+
+export interface ProjectListItem extends Project {
+  session_count: number;
+  message_count: number;
+  last_active: string | null;
+  sources: string | null;
+  git: RepoInfo;
+  // Any session in the project has an open live watcher or ended in the last
+  // 5 minutes (server/routes/projects.ts, Task 17).
+  live: boolean;
+}
+
+export interface ProjectSessionSummary {
+  id: string;
+  source: string;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  first_prompt: string | null;
+  name: string | null;
+  summary: string | null;
+  context_tokens: number | null;
+  usage: string | null;
+  agent_active_ms: number | null;
+  char_count: number | null;
+  liveCandidate: boolean;
+  ongoing: boolean;
+}
+
+export interface NameCount {
+  name: string | null;
+  count: number;
+}
+
+export interface KindCount {
+  kind: string;
+  count: number;
+}
+
+export interface DayCount {
+  day: string;
+  count: number;
+}
+
+export interface ProjectDetail {
+  project: Project;
+  sessions: ProjectSessionSummary[];
+  git: RepoInfo;
+  analytics: {
+    toolDist: NameCount[];
+    kindDist: KindCount[];
+    activity: DayCount[];
+    errors: number;
+    commits: number;
+    // Was missing from this type despite the server always returning it
+    // (server/routes/projects.ts) -- found while scoping the day-bucketed
+    // pricing fix, which touches this exact field. Day-bucketed (BucketedUsageCell, not
+    // RangeUsageCell) so a session straddling a rate change prices
+    // correctly. src/ProjectDetail.tsx's actual fetch uses its own local
+    // ProjectDetailData/ProjectAnalytics types, not this one (this type's
+    // only other reader, SessionView.tsx, only reads `.sessions`) -- kept in
+    // sync here for accuracy, not unified into one type (out of scope for
+    // a pricing fix).
+    rangedTokensByModel: BucketedUsageCell[];
+  };
+}
+
+export interface SyncResult {
+  ok: true;
+  imported: number;
+  skippedSessions: number;
+  totalMessages: number;
+  sources: string[];
+}
+
+// ---- Sessions ----
+
+// A normalized message row as stored/returned by the server — mirrors
+// server/db.ts MessageRow. shared/types.ts `Event` is the pre-insert shape
+// parsers produce; this is the persisted/read-back shape (id/session_id are
+// always present, `kind` always set), so it stays a local type rather than
+// reusing `Event` directly.
+export interface Message {
+  id: number;
+  session_id: string;
+  seq: number;
+  uuid: string | null;
+  ts: string | null;
+  kind: Kind;
+  text: string | null;
+  tool_name: string | null;
+  tool_input: string | null;
+  tool_use_id: string | null;
+  model: string | null;
+  is_sidechain: 0 | 1;
+  agent_type: string | null;
+  workflow_id: string | null;
+  agent_id: string | null;
+  agent_desc: string | null;
+  skill: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_w5m_tokens: number | null;
+  cache_w1h_tokens: number | null;
+}
+
+// Mirrors server/db.ts SessionRow (full `sessions` row).
+export interface Session {
+  id: string;
+  project_id: number;
+  source: string;
+  file_path: string;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  first_prompt: string | null;
+  context_tokens: number | null;
+  name: string | null;
+  summary: string | null;
+  usage: string | null;
+  sidechain_count: number;
+  imported_at: string | null;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+}
+
+export interface Commit {
+  hash: string;
+  date: string;
+  subject: string;
+  beforeHistory?: boolean;
+}
+
+export interface SessionMessagesResult {
+  session: Session;
+  project: Project;
+  messages: Message[];
+  commits: Commit[];
+  git: RepoInfo;
+  liveCandidate: boolean;
+}
+
+export interface RenameSessionResult {
+  id: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+}
+
+export interface SessionSyncResult {
+  ok: true;
+  imported: number;
+  totalMessages: number;
+}
+
+export interface DeleteSessionResult {
+  ok: true;
+  source: string;
+  projectId: number;
+}
+
+// ---- Minor sessions bucket (noise gate) ----
+
+export interface MinorSession {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  started_at: string | null;
+  project_name: string;
+}
+
+export interface ResolveSessionResult {
+  id: string;
+  project_id: number;
+}
+
+// ---- Search ----
+
+export interface SearchParams {
+  q?: string;
+  scope?: string;
+  days?: string | number;
+  project?: string | number;
+  // Empty-query "recent" branch only: page offset for the Home ledger's
+  // lazy-scroll (server returns 50 per page). See server/routes/search.ts.
+  offset?: number;
+}
+
+export interface SearchResultItem {
+  id: string;
+  project_id: number;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  project_name: string;
+  matchCount: number;
+  snippet: string;
+  seq?: number;
+  ts: string | null;
+  // Only populated on the empty-query "recent" branch of GET /api/search (see
+  // server/routes/search.ts) — the FTS/LIKE match branch doesn't select them,
+  // so they're undefined there. Used by the Home ledger's Cost/Active/Msgs columns.
+  message_count?: number;
+  usage?: string | null;
+  agent_active_ms?: number | null;
+}
+
+export interface SearchResponse {
+  recent: boolean;
+  results: SearchResultItem[];
+}
+
+// ---- Settings ----
+
+export interface Settings {
+  autoSync: boolean;
+  autoSyncPaused: boolean;
+  ask: boolean;
+  minorActiveMsThreshold: number;
+  minorMessageCountThreshold: number;
+  planWindows: boolean;
+  // Monthly spend budget in USD, or null when unset. Server-visible so
+  // the Spend tab reads the same value wherever it is shown.
+  monthlyBudget: number | null;
+}
+
+// Subscription plan windows — mirrors server/planWindows.ts. One
+// card per ACCOUNT. Codex is local (always); Claude is OUTBOUND, opt-out,
+// default ON.
+export interface AccountWindow { label: string; utilization: number; resetsAt: string | null; }
+export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[]; }
+export interface PlanWindowsResult { claudeEnabled: boolean; claudeUnauthed: boolean; accounts: PlanAccount[]; }
+export function planWindowsUrl(): string { return '/api/plan-windows'; }
+
+// ---- /ask: local claude-CLI-backed metric chat over chronicle.db ----
+export interface AskStatus {
+  enabled: boolean;      // toggleOn && claudePresent && !demo
+  toggleOn: boolean;
+  claudePresent: boolean;
+  demo: boolean;
+}
+export type AskCostMode = 'list' | 'billed';
+export interface AskTurn {
+  id: string;
+  ts: string;
+  question: string;
+  costBasis: AskCostMode;
+  ok: boolean;
+  prose: string;
+  sql: string | null;
+  columns: string[];
+  rows: unknown[][];
+  rowCount: number;
+  truncated: boolean;
+  note?: string;
+  error?: string;
+}
+
+export type SettingsPatch = Partial<Settings>;
+
+// ---- Autosync status (Settings section, near Settings) ----
+
+export interface AutosyncStatus {
+  enabled: boolean;
+  running: boolean;
+  lastRun: string | null;
+  lastResult: { ok: true; imported: number; checked: number; ms: number } | { ok: true; skipped: string } | { ok: false; error: string } | null;
+}
+
+// ---- Insights (global cross-project rollup, Task 5d-4) ----
+
+// Mirrors server/insights.ts InsightsSessionRow/InsightsResult.
+export interface InsightsSessionRow {
+  id: string;
+  project_id: number;
+  project_name: string;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+  context_tokens: number | null;
+  usage: string | null;
+}
+
+// Ranged billed cells (feedback-round Task 2/3): per-session, per-model,
+// in-range-scaled token cells — mirrors server/rangeUsage.ts's
+// RangeUsageCell/BucketedUsageCell VERBATIM (same field names; the server
+// returns these as plain JSON, no adapter needed). The client prices these via
+// src/models.ts costOf (src/rangedUsage.ts's aggregation helpers) instead of
+// summing raw `sessions.usage`, so a session that started before the active
+// window but ran INTO it contributes only its in-range share.
+export interface RangeUsageCell {
+  sessionId: string;
+  projectId: number;
+  model: string;
+  source: string;
+  cells: UsageCell;
+}
+export interface BucketedUsageCell extends RangeUsageCell {
+  bucket: string;
+}
+
+export interface InsightsResult {
+  sessions: InsightsSessionRow[];
+  toolDist: NameCount[];
+  kindDist: KindCount[];
+  modelDist: { model: string; count: number }[];
+  // Fixed 30-day-trailing model distribution (mirrors server/insights.ts) —
+  // Working Rhythm's "Favorite model" reads this, not `modelDist`, so it
+  // stays in step with its fixed-range card-mates.
+  modelDistFixed: { model: string; count: number }[];
+  errors: number;
+  errorsByProject: { project_id: number; head_count: number; error_count: number }[];
+  commits: number;
+  dailyActivity: DayCount[];
+  hourlyActivity: { dow: number; hour: number; count: number }[];
+  projects: { id: number; name: string }[];
+  // See the RangeUsageCell/BucketedUsageCell comment above. Day-bucketed
+  // (was RangeUsageCell[]) so the client can price a range that
+  // straddles a rate change (e.g. Sonnet 5's intro window) correctly per day.
+  rangedTokensByModel: BucketedUsageCell[];
+  dailySpend: BucketedUsageCell[];
+  // Only computed server-side (non-null) for a short range (days<=2) — the
+  // client falls back to dailySpend otherwise (see server/insights.ts).
+  hourlySpend: BucketedUsageCell[] | null;
+}
+
+// ---- Home dashboard activity feed — mirrors server/activity.ts ----
+// Every token figure is a per-model CELL; the client prices it via
+// models.ts costOf (the price table stays client-side — hard constraint).
+export type ActivityTokensByModel = UsageByModel;
+export interface ActivitySessionLite {
+  id: string; name: string; projectName: string; source: string;
+  live: boolean; endedAt: string | null;
+  tokensByModel: ActivityTokensByModel; errorCount: number;
+}
+export interface ActivityBurn {
+  rangeSpendTokensByModel: ActivityTokensByModel;
+  // Day-bucketed breakdown of rangeSpendTokensByModel — see
+  // server/activity.ts's ActivityBurn comment for why only this field (not
+  // baseline/topSession) is day-bucketed.
+  rangeSpendTokensByModelByDay: Record<string, ActivityTokensByModel>;
+  baselineTokensByModel: ActivityTokensByModel;
+  topSessionId: string | null; topSessionName: string | null;
+  topSessionTokensByModel: ActivityTokensByModel;
+  // 2c: per-day per-dimension cells for the anomaly tile (client prices
+  // → CostedDay[] → shared computeAnomaly), and the local today.
+  anomalyDays: AnomalyDayCells[];
+  today: string;
+}
+export interface AnomalyDayCells {
+  day: string;
+  byModel: ActivityTokensByModel;
+  byProject: Record<string, ActivityTokensByModel>;
+  bySource: Record<string, ActivityTokensByModel>;
+}
+export interface ActivityResult {
+  live: ActivitySessionLite[]; recent: ActivitySessionLite[]; burn: ActivityBurn;
+}
+
+// ---- Explore / Content (Task 5e-0 backend engine) ----
+// These interfaces mirror server/explore.ts and server/content.ts VERBATIM —
+// keep them in sync if the server types change.
+
+export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+// Explore alone answers with `cw5m`/`cw1h` rather than the shared cell's
+// `cacheWrite5m`/`cacheWrite1h` — a frozen wire name, renamed server-side at
+// the response boundary (server/explore.ts's toWire). Everything else on this
+// page reads the shared UsageCell.
+export interface ModelUsageCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface ExploreRow {
+  key: string; label: string;
+  tokensByModel: Record<string, ModelUsageCell>;
+  // Day-bucketed breakdown of tokensByModel, for EXACT_USAGE_GROUPS
+  // rows (model/project/source/session) only — see server/explore.ts's
+  // ExploreRow comment.
+  tokensByModelByDay?: Record<string, Record<string, ModelUsageCell>>;
+  requests: number; sessions: number; errors: number; activeMs: number;
+  segments: { key: string; label: string; tokens: number }[];
+  // Only set on the synthetic key==='Other' row — count of folded-in group
+  // values, read by the "+N in Other" legend.
+  otherCount?: number;
+}
+// One (bucket × series) cell in a time-rollup — metric-specialized (only the
+// dimension the chosen metric reads is populated). Structurally a superset of
+// what metricValue/rowSpend/rowTokens read, so those helpers accept it directly.
+export interface ExploreCell {
+  tokensByModel: Record<string, ModelUsageCell>;
+  requests: number; sessions: number; errors: number; activeMs: number;
+}
+export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
+export interface ExploreResult {
+  metric: 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
+  group: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider';
+  subgroup: 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider' | null;
+  calibrated: boolean; rows: ExploreRow[];
+  rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
+}
+
+// D4 (feedback-round Task 12): the client never branches on `key` — every
+// field a row needs to render (label/why/info/format/value) travels on the
+// Characteristic itself, mirroring server/content.ts's Characteristic
+// contract exactly (this type is intentionally NOT imported from the server
+// module — the client/server split is the existing convention in this file,
+// see e.g. ExploreResult above).
+export type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
+
+export interface Characteristic {
+  key: string;
+  label: string;
+  why: string;
+  info: string;
+  format: CharacteristicFormat;
+  value: number;
+  value2?: number;
+  warn?: boolean;
+  count?: number;
+  countOne?: string;
+  countMany?: string;
+  exact: boolean;
+}
+
+export interface ContentResult {
+  composition: { key: string; tokens: number }[];
+  toolResultsByTool: { key: string; tokens: number }[];
+  skills: { key: string; count: number; tokens: number }[];
+  subagents: { key: string; runs: number; tokens: number }[];
+  // At 'all'/'project' scope: 7 token-share characteristics. At 'session'
+  // scope: 6 absolute session facts (threshold predicates that collapse to
+  // 0%/100% at N=1 are replaced — see server/content.ts).
+  characteristicsScope: 'all' | 'project' | 'session';
+  characteristics: Characteristic[];
+  calibratedTotalTokens: number;
+  // composition, toolResultsByTool, and skills[].tokens are calibrated
+  // (text-length→billed); subagents[].tokens are exact.
+  calibrated: boolean;
+}
+
+export interface ExploreQueryParams {
+  scope: 'all' | 'project' | 'session'; id?: string | number; days?: number | null;
+  metric: 'spend'|'tokens'|'requests'|'active'|'sessions'|'errors';
+  group: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider';
+  subgroup?: 'model'|'project'|'source'|'tool'|'skill'|'subagent'|'hour'|'session'|'mcp'|'provider'; topN?: number;
+  rollup?: ExploreRollup;
+}
+
+// ---- Git ----
+
+export type GitAtResult = { commit: Commit | null } | { noRepo: true };
+export type GitTreeResult = { files: string[]; changed: string[] } | { noRepo: true };
+export type GitFileResult =
+  | { content: string | null; previous: string | null; prevCommit: string | null; changedInCommit: boolean }
+  | { noRepo: true };
 
 // ---- Pure URL builders ----
 // Kept separate from the fetching `api.*` functions below so `useCachedFetch`
@@ -80,6 +587,16 @@ export function activityUrl(since?: string | null, days?: number | null): string
   const qs = p.toString();
   return '/api/activity' + (qs ? `?${qs}` : '');
 }
+// Efficiency detector counts — mirrors server/detectors.ts. The
+// client derives + grades the rates (cache hit, jumbo, long context) with the
+// shared thresholds; error rate is derived from /api/insights.
+export interface DetectorCounts {
+  assistantRows: number;
+  jumboRows: number;
+  longContextRows: number;
+  cacheReadTokens: number;
+  inputTokens: number;
+}
 export function detectorsUrl(days?: number | null): string {
   const p = new URLSearchParams();
   if (days) p.set('days', String(days));
@@ -87,21 +604,22 @@ export function detectorsUrl(days?: number | null): string {
   return '/api/detectors' + (qs ? `?${qs}` : '');
 }
 
+// Efficiency WASTE signals — mirrors server/waste.ts. Ships token
+// cells + counts; the client prices the premium / savings / wasted-$.
+export interface WasteChurnSession { session: string; project: string; writeTokens: number; readTokens: number; byModel: Record<string, { cw5m: number; cw1h: number }>; }
+export interface WasteRightSizingModel { model: string; messages: number; input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
+export interface WasteRereadFile { path: string; rereads: number; sessions: number; }
+export interface WasteResult {
+  cacheChurn: { sessionsFlagged: number; top: WasteChurnSession[] };
+  rightSizing: { candidates: WasteRightSizingModel[] };
+  rereads: { rereadCalls: number; sessionsAffected: number; estWastedTokens: number; topFiles: WasteRereadFile[] };
+}
 export function wasteUrl(days?: number | null): string {
   const p = new URLSearchParams();
   if (days) p.set('days', String(days));
   const qs = p.toString();
   return '/api/waste' + (qs ? `?${qs}` : '');
 }
-
-// Subscription plan windows: one card per ACCOUNT (server/planWindows.ts).
-// Codex is local (always); Claude is the one OUTBOUND read, opt-out, default on.
-export function planWindowsUrl(): string { return '/api/plan-windows'; }
-
-function securityCheckUrl(sessionId: string): string {
-  return `/api/sessions/${encodeURIComponent(sessionId)}/security-check`;
-}
-function securityRulesUrl(): string { return '/api/security/rules'; }
 
 export function contentUrl(scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): string {
   const p = new URLSearchParams({ scope });
@@ -123,8 +641,8 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
   }),
   deleteProject: (id: number | string): Promise<{ ok: true }> => j(`/api/projects/${id}`, { method: 'DELETE' }),
-  syncProject: (id: number | string): Promise<SyncRunResult> => j(`/api/projects/${id}/sync`, { method: 'POST' }),
-  project: (id: number | string, days?: number | string): Promise<ProjectDetailResult> =>
+  syncProject: (id: number | string): Promise<SyncResult> => j(`/api/projects/${id}/sync`, { method: 'POST' }),
+  project: (id: number | string, days?: number | string): Promise<ProjectDetail> =>
     j(projectUrl(id, days)),
   search: (params: SearchParams): Promise<SearchResponse> =>
     j('/api/search?' + new URLSearchParams(params as Record<string, string>)),
@@ -138,7 +656,7 @@ export const api = {
   undoDeleteSession: (source: string, id: string): Promise<{ ok: true }> => j('/api/sessions/undo-delete', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, id }),
   }),
-  minorSessions: (): Promise<MinorSessionRow[]> => j('/api/sessions/minor'),
+  minorSessions: (): Promise<MinorSession[]> => j('/api/sessions/minor'),
   promoteSession: (id: string): Promise<{ ok: true }> => j(`/api/sessions/${encodeURIComponent(id)}/promote`, { method: 'POST' }),
   settings: (): Promise<Settings> => j('/api/settings'),
   patchSettings: (patch: SettingsPatch): Promise<Settings> => j('/api/settings', {
@@ -162,15 +680,15 @@ export const api = {
   }),
   // Security-rule CRUD (were raw fetches in SecurityCheck.tsx; same reason).
   createSecurityRule: (rule: { pattern: string; replacement: string; kind: string; name: string }): Promise<unknown> =>
-    j(securityRulesUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rule) }),
-  deleteSecurityRule: (id: number): Promise<unknown> => j(`${securityRulesUrl()}/${id}`, { method: 'DELETE' }),
+    j('/api/security/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rule) }),
+  deleteSecurityRule: (id: number): Promise<unknown> => j(`/api/security/rules/${id}`, { method: 'DELETE' }),
   toggleSecurityRule: (id: number, enabled: boolean): Promise<unknown> =>
-    j(`${securityRulesUrl()}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }),
+    j(`/api/security/rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }),
   // Open live-watcher list (server/live.ts liveStatus()) — used to detect "a
   // session in this project/view is live" from state that didn't necessarily
   // originate from THIS tab's own EventSource (another tab, or a test's raw
   // EventSource against the same session).
-  liveWatchers: (): Promise<LiveWatcher[]> => j('/api/live/status'),
+  liveWatchers: (): Promise<{ sessionId: string; file?: string; clients: number; offset?: number }[]> => j('/api/live/status'),
   resolveSession: (id: string): Promise<ResolveSessionResult> => j(`/api/sessions/${encodeURIComponent(id)}/resolve`),
   gitAt: (project: number | string, ts: string): Promise<GitAtResult> =>
     j(`/api/git/at?project=${project}&ts=${encodeURIComponent(ts)}`),
@@ -179,14 +697,9 @@ export const api = {
   gitFile: (project: number | string, commit: string, path: string): Promise<GitFileResult> =>
     j(`/api/git/file?project=${project}&commit=${commit}&path=${encodeURIComponent(path)}`),
   insights: (days?: number): Promise<InsightsResult> => j(insightsUrl(days)),
-  explore: (q: ExploreQueryParams): Promise<ExploreWireResult> => j(exploreUrl(q)),
-  content: (scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): Promise<ContentResult> =>
+  explore: (q: ExploreQueryParams): Promise<ExploreResult> => j(exploreUrl(q)),
+  content: (scope: 'all'|'project'|'session', id?: string|number, days?: number|null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
-  // The redaction preview and its rule list (were raw fetches in
-  // SecurityCheck.tsx, with their own copies of the two shapes).
-  securityCheck: (sessionId: string): Promise<SecurityScanResult> =>
-    j(securityCheckUrl(sessionId)),
-  securityRules: (): Promise<SecurityRuleRow[]> => j(securityRulesUrl()),
   // Demo mode. `available` is false under `npm run dev`, where
   // there is no CLI to restart the process.
   demoStatus: (): Promise<{ demo: boolean; available: boolean }> => j('/api/demo/status'),

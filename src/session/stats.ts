@@ -1,10 +1,10 @@
 // Session Overview stats helpers (see src/session/OverviewMode.tsx).
 //
-// These functions run over BOTH server-persisted rows (shared/rows.ts
-// `MessageRow`) and freshly parsed/live events (shared/types.ts `Event`). A
-// shared `Event`-typed parameter would reject a caller holding a wider
-// `kind: string`, so this local `StatMessage` mirrors the shared `Event`
-// fields but keeps `kind` as `string` (a `Kind` value is
+// These functions run over BOTH server-persisted rows (src/api.ts `Message`,
+// `kind: string`) and freshly parsed/live events (@shared `Event`, `kind: Kind`
+// — a narrower union). A shared `Event`-typed parameter would reject the wider
+// `Message.kind: string` at call sites, so this local `StatMessage` mirrors
+// @shared's `Event` fields but keeps `kind` as `string` (a `Kind` value is
 // still assignable to it, since `Kind` is a subtype of `string`) — the honest
 // common shape both callers satisfy — it extends shared/durations.ts's
 // `TimedMessage`, which is that shape narrowed to the fields the shared

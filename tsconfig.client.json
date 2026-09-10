@@ -1,6 +1,6 @@
 {
-  // Client (React, Vite-bundled). Bundler resolution + react-jsx. `shared/` is
-  // reached by relative path, like the server reaches it — no alias (#307).
+  // Client (React, Vite-bundled). Bundler resolution + react-jsx; `@shared` maps
+  // to the repo-root shared/ contract, matching the Vite alias in vite.config.js.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "esnext",
@@ -8,6 +8,9 @@
     "jsx": "react-jsx",
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": [],
+    "paths": {
+      "@shared/*": ["./shared/*"]
+    },
     "tsBuildInfoFile": "./node_modules/.cache/tsc/client.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "shared/**/*.ts"]

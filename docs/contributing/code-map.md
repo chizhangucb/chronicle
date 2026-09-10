@@ -65,18 +65,15 @@ Three files are single sources of truth and are the reason a shared meaning cann
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 
-`api.ts` is the client fetch layer and only that: every read and write goes through it, it
-declares no response shape (they live in `shared/`), and no component fetches on its own.
-`charts/ChartWrapper.tsx` is the only place Recharts is wrapped. The `use*.ts` hooks own
-polled and streamed server state.
+`api.ts` is the client fetch layer. `charts/ChartWrapper.tsx` is the only place Recharts is
+wrapped. The `use*.ts` hooks own polled and streamed server state.
 
 ## `shared/`
 
 `types.ts` is the cross-boundary contract: the normalized event model (`Kind`, `Event`,
-`Session`). Both sides import it by relative path. Alongside it: `rows.ts`, `results.ts` and
-`explore.ts` (the row and result shapes every route answers with, imported by the engine that
-computes each one and the surface that renders it), `usage.ts` (the one token cell, `parseUsage`,
-`addCell` and the ranged/bucketed cells every surface reads a session's usage through), `pricing.ts` (the shared cost arithmetic),
+`Session`). The server imports it relatively; the client imports types via the `@shared` alias
+and values relatively. Alongside it: `usage.ts` (the one token cell, `parseUsage` and `addCell`
+every surface reads a session's usage through), `pricing.ts` (the shared cost arithmetic),
 `contextWindows.ts`, `provider.ts`, `bucketLabel.ts`, `synthetic.ts`, `spend/` (budget, anomaly,
 thresholds), and the three the client used to copy by hand — `errors.ts` (the tool-result error
 heuristic), `durations.ts` (agent-active and engaged time, with their two gap caps) and

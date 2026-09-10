@@ -4,8 +4,7 @@
 // algorithm lives in shared/spend/anomaly.ts. Prices every day at its own rate
 // and honors the List/Billed toggle.
 import { costOf, type CostMode } from '../models.js';
-import type { ActivityResult } from '../../shared/results.ts';
-import type { UsageByModel } from '../../shared/usage.ts';
+import type { ActivityResult, ActivityTokensByModel } from '../api.js';
 import type { CostedDay, AnomalyDimension, FlaggedDay } from '../../shared/spend/anomaly.ts';
 import { computeFlaggedDays } from '../../shared/spend/anomaly.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../../shared/spend/thresholds.ts';
@@ -18,7 +17,7 @@ export const MOVER_GLYPH: Record<AnomalyDimension, string> = {
 };
 
 // Price a bag of per-model token cells at a SPECIFIC day's rate.
-export function priceCellsAtDay(byModel: UsageByModel, day: string, mode: CostMode): number {
+export function priceCellsAtDay(byModel: ActivityTokensByModel, day: string, mode: CostMode): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
   return total;

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 
 // Mount the Express API inside the Vite dev server: one process, one port.
@@ -18,7 +19,12 @@ function chronicleApi() {
 
 export default defineConfig({
   plugins: [react(), chronicleApi()],
-  // No path alias: `shared/` is imported by relative path from both sides (#307),
-  // so Vite, `tsc` and plain `node --test` all resolve it the same way.
+  // `@shared` → repo-root shared/ (the cross-boundary type contract). Mirrors the
+  // tsconfig.client.json `paths` mapping so `tsc` and Vite resolve it the same way.
+  resolve: {
+    alias: {
+      '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
+    },
+  },
   server: { port: 4173, strictPort: true },
 });

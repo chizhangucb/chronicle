@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api.js';
-import type { AskStatus } from '../shared/results.ts';
+import { api, type AskStatus } from './api.js';
 
 // Whether the `∴ Ask` entry + /ask route are live. enabled requires
 // the Settings toggle ON, the claude CLI present, and a non-demo console — all

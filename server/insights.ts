@@ -18,15 +18,62 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
-import { bucketedUsage } from './rangeUsage.ts';
-import type { BucketedUsageCell } from '../shared/usage.ts';
+import { bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
 import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 
-// The row and result shapes live in shared/ (#307) — shared/rows.ts for the
-// session row and the count rows, shared/results.ts for the result — so the
-// client reads the contract this engine writes instead of retyping it.
-import type { DayCount, InsightsSessionRow, KindCount, ProjectErrorCount, ToolCount } from '../shared/rows.ts';
-import type { InsightsResult, ScopedAggregates } from '../shared/results.ts';
+export interface InsightsSessionRow {
+  id: string;
+  project_id: number;
+  project_name: string;
+  source: string;
+  name: string | null;
+  summary: string | null;
+  first_prompt: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  message_count: number;
+  agent_active_ms: number | null;
+  engaged_ms: number | null;
+  context_tokens: number | null;
+  usage: string | null;
+}
+
+export interface InsightsResult {
+  sessions: InsightsSessionRow[];
+  toolDist: ToolCount[];
+  kindDist: KindCount[];
+  modelDist: { model: string; count: number }[];
+  // Fixed 30-day-trailing model distribution — same window as
+  // hourlyActivity (see HOURLY_WINDOW_DAYS below), NOT the `days=` cutoff.
+  // Working Rhythm's "Favorite model" stat reads this instead of `modelDist`
+  // so it stays in step with its card-mates (Active days/streaks/Peak hour),
+  // which all use the same fixed window and must not move when the page's
+  // range control changes.
+  modelDistFixed: { model: string; count: number }[];
+  errors: number;
+  errorsByProject: ProjectErrorCount[];
+  commits: number;
+  dailyActivity: DayCount[];
+  hourlyActivity: { dow: number; hour: number; count: number }[];
+  projects: { id: number; name: string }[];
+  // Ranged billed cells (Task 2, feedback-round P0 fix): per-session,
+  // per-model, per-LOCAL-day, in-range-scaled — the client (Task 3, with
+  // day-aware pricing) prices these for the KPI strip / spend-by-model /
+  // sources / top-sessions instead of summing raw `sessions.usage`, so a
+  // session that started before the range but ran INTO it (the root defect
+  // — see server/rangeUsage.ts) contributes its in-range share instead of
+  // vanishing (old gate) or over-counting (naive overlap-only gate). Day-
+  // bucketed so a session whose usage straddles a rate change (e.g.
+  // Sonnet 5's intro window) prices each day's share at that day's rate.
+  rangedTokensByModel: BucketedUsageCell[];
+  // Same cells, additionally bucketed by LOCAL calendar day — feeds the
+  // Today/7d/30d spend-over-time chart without a UTC/local double-shift.
+  dailySpend: BucketedUsageCell[];
+  // Same, bucketed by LOCAL hour-of-day — only meaningful (and only
+  // computed) for a short window, so it's null unless days<=2 (Today or just
+  // past it); the client falls back to dailySpend otherwise.
+  hourlySpend: BucketedUsageCell[] | null;
+}
 
 // ---- The scoped aggregates (#305) ----
 //
@@ -42,6 +89,22 @@ import type { InsightsResult, ScopedAggregates } from '../shared/results.ts';
 // (see db.ts) instead of a full scan of the fat messages table. That scan was
 // the 0.1-3.6s-per-query (multi-second cold) cost behind every Insights range
 // click.
+
+export interface ToolCount { name: string; count: number }
+export interface KindCount { kind: string; count: number }
+export interface DayCount { day: string; count: number }
+export interface ProjectErrorCount { project_id: number; head_count: number; error_count: number }
+
+/** The four scoped aggregates plus the ranged billed cells: the whole of what
+ * the project page reports beyond its session list and its Git data. */
+export interface ScopedAggregates {
+  toolDist: ToolCount[];
+  kindDist: KindCount[];
+  /** Message count per LOCAL calendar day, over the range. */
+  activity: DayCount[];
+  errors: number;
+  rangedTokensByModel: BucketedUsageCell[];
+}
 
 const TOOL_DIST_LIMIT = 24;
 

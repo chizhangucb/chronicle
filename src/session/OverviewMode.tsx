@@ -17,8 +17,7 @@ import {
 // import — a live session and a stored session must report the same numbers.
 import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
 import type { PlaybackMessage } from './MessageRow.tsx';
-import type { SessionData, LiveStatus } from '../SessionView.tsx';
-import type { SessionRow } from '../../shared/rows.ts';
+import type { Session, SessionData, LiveStatus } from '../SessionView.tsx';
 import { parseUsage, type UsageByModel, type UsageCell } from '../../shared/usage.ts';
 import type { DeletedEntry } from '../SessionSelect.tsx';
 
@@ -543,7 +542,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
 }
 
 interface DeleteZoneProps {
-  session: SessionRow;
+  session: Session;
   liveStatus: LiveStatus;
   onDeleted: (undo?: DeletedEntry) => void;
 }

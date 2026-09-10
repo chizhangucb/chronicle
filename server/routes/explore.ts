@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { computeExplore, toWire } from '../explore.ts';
-import type { ExploreGroup, ExploreMetric, ExploreRollup } from '../../shared/explore.ts';
+import { computeExplore, toWire, type ExploreMetric, type ExploreGroup, type ExploreRollup } from '../explore.ts';
 import { rangeOf, type Scope } from '../scope.ts';
 import { cached } from '../cache.ts';
 

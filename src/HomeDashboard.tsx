@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { api, insightsUrl, activityUrl } from './api.js';
-import type { ActivityResult, ActivitySessionLite, InsightsResult, ProjectListItem } from '../shared/results.ts';
-import type { UsageByModel } from '../shared/usage.ts';
+import {
+  api, insightsUrl, activityUrl,
+  type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
+} from './api.js';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import { WelcomeEmpty } from './ProjectsPage.js';
+import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { costOf, type CostMode } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';
@@ -65,7 +67,7 @@ function fmtActive(ms: number): string {
 // Price a bag of per-model token cells client-side (the price table lives ONLY
 // in src/models.ts — hard constraint; the server returns tokens, never $).
 // `mode` defaults to theoretical/list price.
-function priceCells(byModel: UsageByModel, mode: CostMode = 'theoretical'): number {
+function priceCells(byModel: ActivityTokensByModel, mode: CostMode = 'theoretical'): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, undefined, mode) ?? 0;
   return total;
@@ -73,7 +75,7 @@ function priceCells(byModel: UsageByModel, mode: CostMode = 'theoretical'): numb
 // Same as priceCells, but prices EACH day's cells at that day's own rate
 // before summing — for burn.rangeSpendTokensByModelByDay, the
 // figure that overstates Sonnet-5-heavy spend under a single flat rate.
-function priceCellsByDay(byDayModel: Record<string, UsageByModel>, mode: CostMode = 'theoretical'): number {
+function priceCellsByDay(byDayModel: Record<string, ActivityTokensByModel>, mode: CostMode = 'theoretical'): number {
   let total = 0;
   for (const [day, byModel] of Object.entries(byDayModel)) {
     for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
@@ -82,7 +84,7 @@ function priceCellsByDay(byDayModel: Record<string, UsageByModel>, mode: CostMod
 }
 
 export interface HomeDashboardProps {
-  projects: ProjectListItem[] | null;
+  projects: ProjectSummary[] | null;
   onOpenProject: (id: number | string) => void;
   onOpenSession?: (id: string, projectId: number) => void;
   onImport: () => void;

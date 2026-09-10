@@ -6,8 +6,8 @@
 // disagree — it used to be a server copy plus a hand-written client twin kept
 // in step by a gotcha entry.
 //
-// Imported by relative path from both sides, like shared/pricing.ts and
-// shared/errors.ts.
+// Relative-import value module (never @shared), same B3 rule as
+// shared/pricing.ts and shared/errors.ts.
 
 // "Not a human turn" is shared/synthetic.ts's one definition, the same one the
 // parsers derive a first prompt with. It folds cross-session (agent-to-agent

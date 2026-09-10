@@ -1,10 +1,9 @@
 import React, { useMemo, useState, type JSX } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
-import type { InsightsResult } from '../../shared/results.ts';
+import type { InsightsResult } from '../api.js';
 import {
-  costOfCells, costOfBucketedCells, groupByKey, groupByBucket, sumByKeyModel,
+  costOfCells, costOfBucketedCells, groupByKey, groupByBucket, sumByKeyModel, type BucketedCell,
 } from '../rangedUsage.ts';
-import type { BucketedUsageCell } from '../../shared/usage.ts';
 import { densifyBuckets, capDenseBuckets, fmtDayLabel, fmtHourLabel } from '../charts/timeBuckets.ts';
 import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.tsx';
 import { CATEGORICAL_COLORS } from '../colors.ts';
@@ -69,13 +68,13 @@ export default function SpendOverTime({ result }: { result: InsightsResult }): J
   const useHourly = result.hourlySpend != null;
   const bucketUnit = useHourly ? 'hour' as const : 'day' as const;
 
-  const groupKeyOf = (c: BucketedUsageCell): string => {
+  const groupKeyOf = (c: BucketedCell): string => {
     if (stack === 'provider') return PSEUDO_MODELS.has(c.model) ? '__pseudo' : providerOf(c.model);
     return otherProjectIds.has(c.projectId) ? 'other' : String(c.projectId);
   };
 
   const chartData = useMemo(() => {
-    const cells = useHourly ? result.hourlySpend! : result.dailySpend;
+    const cells = (useHourly ? result.hourlySpend! : result.dailySpend) as BucketedCell[];
     const byBucket = groupByBucket(cells);
     // Dense-fill so equal bar spacing = equal time, capped to avoid runaway.
     const denseKeys = densifyBuckets([...byBucket.keys()], bucketUnit);

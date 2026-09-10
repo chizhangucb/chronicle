@@ -1,6 +1,6 @@
 import React, { useMemo, type JSX } from 'react';
 import { currentStreak, longestStreak, activeDaysCount, peakHour, shakespeareMultiple } from './stats.ts';
-import type { InsightsResult } from '../../shared/results.ts';
+import type { InsightsResult } from '../api.ts';
 import { parseUsage } from '../../shared/usage.ts';
 
 export interface WorkingRhythmProps {

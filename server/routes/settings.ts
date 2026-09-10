@@ -1,8 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync } from '../autosync.ts';
-import { readConfig, writeConfig, type ChronicleConfig, type ConfigPatch } from '../config.ts';
-// The resolved settings view every surface reads (shared/results.ts, #307).
-import type { Settings } from '../../shared/results.ts';
+import { readConfig, writeConfig, type ConfigPatch } from '../config.ts';
 import { DEFAULT_MINOR_ACTIVE_MS, DEFAULT_MINOR_MESSAGE_COUNT } from '../noiseGate.ts';
 
 // A stored budget is only meaningful as a positive number; anything else reads
@@ -11,25 +9,20 @@ function normalizeBudget(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
 
-// The resolved settings view, from the stored (partial) config: one spelling,
-// so GET and PATCH cannot answer with different defaults.
-function settingsView(cfg: ChronicleConfig): Settings {
-  return {
-    autoSync: cfg.autoSync !== false,
-    autoSyncPaused: cfg.autoSyncPaused === true,
-    ask: cfg.ask === true,
-    minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
-    minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
-    planWindows: cfg.planWindows !== false,
-    monthlyBudget: normalizeBudget(cfg.monthlyBudget),
-  };
-}
-
 export function mountSettings(app: Express): void {
   // ---- Auto-sync & settings ----
   // Settings live in ~/.chronicle/config.json.
   app.get('/settings', (_req: Request, res: Response) => {
-    res.json(settingsView(readConfig()));
+    const cfg = readConfig();
+    res.json({
+      autoSync: cfg.autoSync !== false,
+      autoSyncPaused: cfg.autoSyncPaused === true,
+      ask: cfg.ask === true,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      planWindows: cfg.planWindows !== false,
+      monthlyBudget: normalizeBudget(cfg.monthlyBudget),
+    });
   });
 
   app.patch('/settings', (req: Request, res: Response) => {
@@ -48,7 +41,15 @@ export function mountSettings(app: Express): void {
     }
     const cfg = writeConfig(patch);
     if ('autoSync' in patch) (patch.autoSync ? startAutoSync() : stopAutoSync());
-    res.json(settingsView(cfg));
+    res.json({
+      autoSync: cfg.autoSync !== false,
+      autoSyncPaused: cfg.autoSyncPaused === true,
+      ask: cfg.ask === true,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      planWindows: cfg.planWindows !== false,
+      monthlyBudget: normalizeBudget(cfg.monthlyBudget),
+    });
   });
 
   app.get('/autosync/status', (_req: Request, res: Response) => res.json(autoSyncStatus()));

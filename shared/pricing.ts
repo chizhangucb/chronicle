@@ -10,8 +10,13 @@
 // to the UI: src/models.ts re-exports every symbol below via a relative path,
 // so no client importer changes.
 //
-// Imported by relative path from both sides, like every shared/ module: one
-// convention, so Vite, `tsc` and plain `node --test` resolve it identically.
+// IMPORTANT (review B3): every importer of this VALUE module MUST use a
+// relative path, NEVER the `@shared` alias. `@shared` is wired only in
+// vite.config.js + tsconfig `paths`, and only ever exercised by `import type`
+// elsewhere; a VALUE `from '@shared/pricing'` throws ERR_MODULE_NOT_FOUND under
+// plain `node --test` and under the tsc-compiled server. Relative resolves
+// under Vite, Node native-TS, and the server build alike (same reason
+// shared/contextWindows.ts is imported relatively).
 
 // Per-model list price in USD per 1M tokens, from the Anthropic pricing table
 // (platform.claude.com). 5m and 1h cache writes are priced separately — Claude

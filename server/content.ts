@@ -16,9 +16,6 @@ import { rangedUsage } from './rangeUsage.ts';
 // replaces a former hand-inlined copy that had to be kept in sync manually.
 import { contextWindowFor } from '../shared/contextWindows.ts';
 import { parseUsage } from '../shared/usage.ts';
-// Declared in shared/results.ts (#307) so src/ContentTab.tsx renders the very
-// contract this engine writes.
-import type { Characteristic, ContentResult } from '../shared/results.ts';
 
 // Named thresholds for the usage-characteristics block (spec §2.5, reshaped
 // by feedback-round D4). Every "share" at all/project scope is a TOKEN share
@@ -58,6 +55,51 @@ const AUTONOMOUS_ENGAGED_RATIO = 0.25;
 // (see src/ContentTab.tsx), it does not switch on `key`. `format` says how to
 // read `value` (and the optional secondary `value2`, always a percent — used
 // only by session-scope `peakContextTokens`, "N tokens (M% of window)").
+export type CharacteristicFormat = 'percent' | 'tokens' | 'hours';
+
+export interface Characteristic {
+  key: string;
+  label: string;   // bold lead-in text, after the formatted value
+  why: string;      // one-line plain-language explainer
+  info: string;      // full-sentence InfoTip copy
+  format: CharacteristicFormat;
+  value: number;      // the leading number, read per `format`
+  value2?: number;    // secondary percent value, e.g. peakContextTokens' "% of window"
+  warn?: boolean;      // visual emphasis (mirrors the old contextPressureShare >=40% "warn" callout)
+  count?: number;      // qualifying session/run/turn count, when meaningful
+  countOne?: string;    // pluralize() singular label for `count`
+  countMany?: string;   // pluralize() plural label for `count`
+  exact: boolean;
+}
+
+export interface ContentResult {
+  composition: { key: string; tokens: number }[];            // by kind, calibrated
+  toolResultsByTool: { key: string; tokens: number }[];       // calibrated
+  skills: { key: string; count: number; tokens: number }[];   // count exact, tokens calibrated
+  subagents: { key: string; runs: number; tokens: number }[]; // both exact
+  // Scope-tagged per-scope set: at 'all'/'project' scope, the 7 token-share
+  // characteristics (spec §2.5) — NOT a breakdown of one another (they can
+  // overlap: a session can be both an eightHourSessions AND a highContextRel
+  // session). At 'session' scope, the four threshold predicates that collapse
+  // to a meaningless 0%/100% at N=1 (eightHourSessions/highContextAbs/
+  // highContextRel/autonomousShare) are replaced by absolute session facts
+  // (marathon badge, peak context tokens + % of window, unattended ratio);
+  // cacheEfficiency/subagentTurns/workflowRuns stay (real, non-binary
+  // percentages even for one session). Every numerator comes from session-level
+  // columns (sessions.usage/agent_active_ms/engaged_ms/context_tokens, computed
+  // at import time) or EXACT per-message sidechain token columns — never from
+  // the message-text-length calibration `calibrateByBucket` uses elsewhere in
+  // this file, so every entry is `exact: true` today.
+  characteristicsScope: 'all' | 'project' | 'session';
+  characteristics: Characteristic[];
+  calibratedTotalTokens: number;
+  // Explicit contract marker so the UI can badge calibrated cells: composition,
+  // toolResultsByTool, and skills[].tokens are calibrated (text-length→billed
+  // estimate, see calibrate.ts); subagents[].tokens are exact (per-message
+  // sidechain token columns). Always true today — every ContentResult mixes
+  // at least one calibrated field.
+  calibrated: boolean;
+}
 
 export function computeContent(scope: Scope, range: Range): ContentResult {
   const q = queryContext(scope, range);

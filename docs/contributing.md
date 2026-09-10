@@ -50,9 +50,9 @@ type checker only, never a compiler for dev/local runs. This has real constraint
   type the real shape.
 - **`shared/types.ts`** (repo root) is the cross-boundary contract — the normalized event model
   (`Kind`, `Event`, `Session`, …); the token cell and the one parse of a session's usage JSON
-  live beside it in `shared/usage.ts` (`UsageCell`, `parseUsage`, `addCell`), and the row and
-  result shapes every route answers with live in `shared/rows.ts`, `shared/results.ts` and
-  `shared/explore.ts`. Both sides import `shared/` by relative path — one convention, no alias.
+  live beside it in `shared/usage.ts` (`UsageCell`, `parseUsage`, `addCell`). The server imports
+  `shared/` relatively; the client imports types via the `@shared` alias and VALUES relatively
+  (`../shared/usage.ts`) — an alias value import throws under plain `node --test`.
 
 The one place a real build happens is publishing: `npm run prepack` compiles the server to
 plain JS (`dist-server/`) so the published npm package doesn't require Node to strip types from

@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState, type JSX } from 'react';
-import type { ExploreWireResult, ExploreWireRow } from '../shared/explore.ts';
-import type { AccountWindow, ActivityResult, DetectorCounts, InsightsResult, PlanAccount, PlanWindowsResult, WasteResult } from '../shared/results.ts';
+import type { InsightsResult, ActivityResult, ExploreResult, ExploreRow, DetectorCounts, WasteResult, PlanWindowsResult, AccountWindow, PlanAccount } from './api.js';
 import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, planWindowsUrl } from './api.js';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
-import { costOfBucketedCells, groupByBucket, groupByKey } from './rangedUsage.ts';
+import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
 import InfoTip from './InfoTip.tsx';
 import SortCaret from './SortCaret.tsx';
@@ -102,7 +101,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   const monthPrefix = today ? today.slice(0, 8) : '';
   const monthDays: CostedDay[] = useMemo(() => {
     if (!monthInsights) return [];
-    const byBucket = groupByBucket(monthInsights.dailySpend);
+    const byBucket = groupByBucket(monthInsights.dailySpend as BucketedCell[]);
     return [...byBucket]
       .map(([bucket, cells]) => ({ day: bucket.slice(0, 10), cost: costOfBucketedCells(cells, mode) }))
       .filter((d) => d.day.startsWith(monthPrefix));
@@ -395,7 +394,7 @@ function EfficiencyCard({ insights, range, days }: { insights: InsightsResult | 
 // ---- Priced skills | MCP server spend — both from the
 // Explore engine (client prices tokensByModel). MCP is calibrated + double-counts
 // (one turn can hit several servers), so its total does not sum to the day. ----
-function tokensOfRow(row: ExploreWireRow): number {
+function tokensOfRow(row: ExploreRow): number {
   let n = 0;
   for (const u of Object.values(row.tokensByModel)) n += u.input + u.output + u.cacheRead + u.cw5m + u.cw1h;
   return n;
@@ -408,8 +407,8 @@ function fmtTok(n: number): string {
 
 function SkillsMcpRow({ range, days }: { range: RangeKey; days: number | null }): JSX.Element {
   const { mode } = useCostMode();
-  const { data: skillRes } = useCachedFetch<ExploreWireResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'skill', days }));
-  const { data: mcpRes } = useCachedFetch<ExploreWireResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'mcp', days }));
+  const { data: skillRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'skill', days }));
+  const { data: mcpRes } = useCachedFetch<ExploreResult>(exploreUrl({ scope: 'all', metric: 'spend', group: 'mcp', days }));
 
   const skills = useMemo(() => (skillRes?.rows ?? [])
     .map((r) => ({ name: r.label, runs: r.requests, tokens: tokensOfRow(r), cost: rowSpend(r, undefined, mode) }))
