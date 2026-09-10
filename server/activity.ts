@@ -198,7 +198,7 @@ function sumRange(q: QueryContext, from: string | null, to: string | null): Toke
 // bucketKeyExpr, insights.ts's calendar heatmap). This used to bucket by UTC
 // day — `substr(started_at,1,10)` against UTC midnights — so an evening
 // session west of UTC (or an early-morning one east of it) was medianed into
-// the wrong day, or fell outside the window entirely, and "above your usual"
+// the wrong day, or fell outside the range entirely, and "above your usual"
 // was off by a timezone (ticket #304).
 function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -306,7 +306,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   // bucketedUsage instead attributes its in-range share, split by LOCAL day so the client
   // can price a window straddling a rate change (e.g. Sonnet 5's intro window) correctly.
   // The token range is already null for "All" (extends-to-now semantics match
-  // bucketedUsage's cutoffIso===null "All window" signal exactly).
+  // bucketedUsage's cutoffIso===null "All range" signal exactly).
   const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
   const rangeSpendTokensByModel: TokensByModel = {};
   const rangeSpendTokensByModelByDay: Record<string, TokensByModel> = {};
