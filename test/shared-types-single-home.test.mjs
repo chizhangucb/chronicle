@@ -196,3 +196,142 @@ test('the hand-typed mirrors of the shared shapes are gone', () => {
     assert.deepEqual(hits, [], `${name} was a hand-typed mirror and should not come back`);
   }
 });
+
+// ---- The structural half of the pin ----
+
+// Matching by NAME alone is how the five mirrors above escaped this file:
+// `SearchData` is `SearchResponse` retyped under another name, so no name in
+// the tables ever collided. The pin below reads the DECLARED FIELD SET — each
+// field's name, its optionality and its declared type — so a copy fails it
+// whatever it is called.
+//
+// A copy retypes the shapes it references too (`SearchData.results` was
+// `SearchResult[]`, the local copy of `SearchResultItem`), so a reference to a
+// pinned shape and a reference to a shape declared in the copy's own file both
+// normalize to one placeholder: that substitution is the whole of what a
+// rename can hide. Everything else has to match literally, which is what keeps
+// the deliberate dialects apart from the copies — server/detectors.ts's
+// `CountRow` reads `number | null` off SQLite where `DetectorCounts` promises
+// `number`, server/config.ts's `ChronicleConfig` is the all-optional stored
+// form of `Settings`, and server/explore.ts's `ExploreRow` carries `UsageCell`
+// where the wire carries `ExploreWireCell`.
+//
+// It reads a LITERAL copy: a lossy one (SearchResult dropped four fields) is
+// not the same field set and only the name tables catch it.
+const PINNED = [...ROW_TYPES, ...RESULT_TYPES].map(({ name }) => name);
+
+function stripComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
+// Split an interface body into members: `;` and `,` at brace/paren/generic
+// depth 0. A `=>` is not a closing generic, so a function-typed field stays in
+// one piece.
+function members(body) {
+  const out = [];
+  let buf = '', depth = 0, prev = '';
+  for (const ch of body) {
+    if ('{(['.includes(ch) || ch === '<') depth++;
+    else if ('})]'.includes(ch) || (ch === '>' && prev !== '=')) depth--;
+    if (depth === 0 && (ch === ';' || ch === ',')) { out.push(buf); buf = ''; prev = ch; continue; }
+    buf += ch; prev = ch;
+  }
+  out.push(buf);
+  return out;
+}
+
+/** Every object shape a file declares: `interface X { … }` and `type X = { … }`,
+ * with the fields each one declares itself (an `extends` clause contributes
+ * nothing — the pin reads what is written here). */
+function shapesOf(rel, text) {
+  const out = [];
+  const re = /(?:^|\n)\s*(?:export\s+)?(?:interface\s+(\w+)|type\s+(\w+)\s*=\s*(?=\{))/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const open = text.indexOf('{', re.lastIndex - 1);
+    // `interface X extends Y {`: only the heritage clause may sit in between.
+    if (open < 0 || /[;=)]/.test(text.slice(re.lastIndex, open))) continue;
+    let depth = 0, end = open;
+    for (; end < text.length; end++) {
+      if (text[end] === '{') depth++;
+      else if (text[end] === '}' && --depth === 0) break;
+    }
+    const fields = members(stripComments(text.slice(open + 1, end)))
+      .map((member) => /^\s*(?:readonly\s+)?(\w+)(\?)?\s*:\s*([\s\S]+)$/.exec(member))
+      .filter(Boolean)
+      .map(([, name, optional, type]) => ({ name, optional: !!optional, type: type.replace(/\s+/g, ' ').trim() }));
+    out.push({ rel, name: m[1] || m[2], fields });
+  }
+  return out;
+}
+
+/** The declared field set, as one comparable string. Type names that a rename
+ * could swap — a pinned shape, or a shape declared in the same file — collapse
+ * to a placeholder; every other name is compared as written. */
+function fieldSet(shape, siblings) {
+  const placeholder = (type) => type.replace(/\b[A-Z]\w*\b/g, (id) => (PINNED.includes(id) || siblings.has(id) ? '«shape»' : id));
+  return shape.fields
+    .map(({ name, optional, type }) => `${name}${optional ? '?' : ''}: ${placeholder(type)}`)
+    .sort()
+    .join('; ');
+}
+
+/** Declarations outside shared/ that carry a pinned shape's field set — the
+ * copy that a name table cannot see. */
+function structuralCopies(sources) {
+  const shapes = sources.flatMap(({ rel, text }) => shapesOf(rel, text));
+  const siblingsOf = (rel) => new Set(shapes.filter((s) => s.rel === rel).map((s) => s.name));
+  // A shape with a single field says too little to identify a copy by.
+  const named = shapes.filter((s) => s.fields.length > 1);
+  const homes = named.filter((s) => s.rel.startsWith('shared/') && PINNED.includes(s.name));
+  const copies = [];
+  for (const home of homes) {
+    const sig = fieldSet(home, siblingsOf(home.rel));
+    for (const candidate of named) {
+      // shared/ is the home region: two shared shapes that coincide (rates per
+      // MTok and token counts are both five numbers) each keep one home, which
+      // the name tables above already pin. A copy lives outside it.
+      if (candidate.rel.startsWith('shared/')) continue;
+      if (fieldSet(candidate, siblingsOf(candidate.rel)) === sig) {
+        copies.push(`${candidate.rel} declares ${candidate.name}, the field set of ${home.name} (${home.rel})`);
+      }
+    }
+  }
+  return copies;
+}
+
+test('no shared shape is declared a second time under another name', () => {
+  assert.deepEqual(structuralCopies(SOURCES), []);
+});
+
+test('a renamed copy of a shared shape fails the pin', () => {
+  // The pin has to bite on the case it exists for, or it passes by reading
+  // nothing: `SearchData`, the mirror this file used to miss, retyped once more.
+  const copy = `
+    interface SearchHit {
+      id: string;
+      project_id: number;
+      source: string;
+      name: string | null;
+      summary: string | null;
+      first_prompt: string | null;
+      project_name: string;
+      matchCount: number;
+      snippet: string;
+      seq?: number;
+      ts: string | null;
+      message_count?: number;
+      usage?: string | null;
+      agent_active_ms?: number | null;
+    }
+    interface SearchPayload {
+      recent: boolean;
+      results: SearchHit[];
+    }
+  `;
+  const copies = structuralCopies([...SOURCES, { rel: 'src/Renamed.tsx', text: copy }]);
+  assert.deepEqual(copies.map((c) => c.split(' declares ')[1]).sort(), [
+    'SearchHit, the field set of SearchResultItem (shared/rows.ts)',
+    'SearchPayload, the field set of SearchResponse (shared/results.ts)',
+  ]);
+});
