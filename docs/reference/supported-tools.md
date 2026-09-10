@@ -59,8 +59,8 @@ Default path constants live in each parser (`CLAUDE_PROJECTS_DIR`, `CODEX_SESSIO
 ### Per-tool caveats
 
 - **Cursor and OpenCode share one database across sessions.** Because one file backs many
-  sessions, per-session source-file deletion is disabled for these tools (it's offered only
-  for one-file-per-session sources: Claude Code, Codex).
+  sessions, a sync of one session re-reads the whole database, where a Claude Code or Codex
+  sync re-reads just that session's own transcript file.
 
 ## Known limitations
 
