@@ -7,7 +7,7 @@ import type { UsageCell } from '../../shared/usage.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 
-export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
+const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
 interface HeadSniff {
   cwd: string | null;
@@ -84,7 +84,7 @@ interface AgentMeta {
 }
 
 // Scan ~/.claude/projects for importable projects with session/message estimates.
-export function scanClaudeProjects(baseDir: string = CLAUDE_PROJECTS_DIR): ScannedProject[] {
+function scanClaudeProjects(baseDir: string = CLAUDE_PROJECTS_DIR): ScannedProject[] {
   if (!fs.existsSync(baseDir)) return [];
   const results: ScannedProject[] = [];
   for (const dirent of fs.readdirSync(baseDir, { withFileTypes: true })) {
@@ -194,7 +194,7 @@ export function reduceCwd(pick: string, seen: Set<string>): string {
 // itself hasn't changed. Used by scanClaudeProjects' `modifiedAt` above and by
 // server/autosync.ts's incremental-sync mtime pre-filter. Returns null only
 // when the main file itself can't be stat'd (the caller falls back).
-export function claudeSessionMtimeMs(file: string): number | null {
+function claudeSessionMtimeMs(file: string): number | null {
   let m: number;
   try { m = fs.statSync(file).mtime.getTime(); } catch { return null; }
   const subagentsDir = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents');
@@ -271,7 +271,7 @@ function agentIdFromFile(agentFile: string): string | null {
 }
 
 // Parse a single JSONL entry into normalized events (shared by import + live tail).
-export function parseClaudeLine(o: ClaudeLine): Event[] {
+function parseClaudeLine(o: ClaudeLine): Event[] {
   const events: Event[] = [];
   if (o.type === 'user' && o.message) {
     const content = o.message.content;
@@ -467,7 +467,7 @@ function foldCallsByModel(reg: CallRegistry): Map<string, UsageCell> {
 }
 
 // Parse one session JSONL file into { session, events }.
-export async function parseClaudeSession(file: string): Promise<ParseResult> {
+async function parseClaudeSession(file: string): Promise<ParseResult> {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
   const events: Event[] = [];
   let sessionId = path.basename(file, '.jsonl');

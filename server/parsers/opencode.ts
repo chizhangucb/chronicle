@@ -7,7 +7,7 @@ import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 import { newestMtimeMs } from './source.ts';
 
-export const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
+const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 
 interface Snapshot {
   db: DatabaseSync;
@@ -68,7 +68,7 @@ function openSnapshot(dbPath: string): Snapshot {
   return { db: new DatabaseSync(copy), cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }) };
 }
 
-export function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
+function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
   if (!fs.existsSync(dbPath)) return [];
   let snap: Snapshot | undefined;
   try {
@@ -113,7 +113,7 @@ export function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProje
 
 // Parse all top-level sessions for one project directory.
 // sessionIds (optional) restricts to a subset of session ids.
-export function parseOpencodeSessions(dbPath: string, directory: string | undefined, sessionIds?: string[]): ParseResult[] {
+function parseOpencodeSessions(dbPath: string, directory: string | undefined, sessionIds?: string[]): ParseResult[] {
   const snap = openSnapshot(dbPath);
   try {
     let sessions = snap.db.prepare(

@@ -52,8 +52,8 @@ these — see the read-only column.
 > so the parsers copy the `-wal` and `-shm` files to a temp location and open the copy. Your
 > tools' live databases are never touched.
 
-Default path constants live in each parser (`CLAUDE_PROJECTS_DIR`, `CODEX_SESSIONS_DIR`,
-`OPENCODE_DB` in `server/parsers/*.ts`). Only Cursor exposes an environment override.
+Each parser's `Source.defaultRoot()` (`server/parsers/*.ts`) answers where that tool's
+records live on this machine. Only Cursor exposes an environment override.
 
 ### Per-tool caveats
 

@@ -292,7 +292,7 @@ function stripUserEnvelope(text: string): string {
     .trim();
 }
 
-export function parseAgentTranscriptJsonl(filePath: string, { createdAt, lastUpdatedAt }: AgentSessionOptions = {}): Event[] {
+function parseAgentTranscriptJsonl(filePath: string, { createdAt, lastUpdatedAt }: AgentSessionOptions = {}): Event[] {
   const { start: anchorStart, end: anchorEnd } = anchorIso(createdAt, lastUpdatedAt);
   const fileEnd = fileMtimeIso(filePath);
   const lines = fs.readFileSync(filePath, 'utf8').trim().split('\n').filter(Boolean);
@@ -359,7 +359,7 @@ function parseComposerFromGlobal(globalDb: DatabaseSync, header: AgentComposerHe
   return events;
 }
 
-export function parseCursorAgentSessions(folder: string | null, userDir: string = cursorUserDir()): ParseResult[] {
+function parseCursorAgentSessions(folder: string | null, userDir: string = cursorUserDir()): ParseResult[] {
   if (!folder) return [];
   const globalSnap = getGlobalSnapshot(userDir);
   try {
@@ -396,7 +396,7 @@ function mergeSessions(...groups: ParseResult[][]): ParseResult[] {
   return [...byId.values()];
 }
 
-export function scanCursorProjects(userDir: string = cursorUserDir()): ScannedProject[] {
+function scanCursorProjects(userDir: string = cursorUserDir()): ScannedProject[] {
   const wsRoot = path.join(userDir, 'workspaceStorage');
   const results: ScannedProject[] = [];
   const seenPaths = new Set<string>();
@@ -480,7 +480,7 @@ function isAgentTranscriptRoot(dir: string): boolean {
   return dir.endsWith(`${path.sep}agent-transcripts`) || dir.endsWith('/agent-transcripts');
 }
 
-export function parseCursorWorkspace(wsDir: string, userDir: string = cursorUserDir(), physicalPath: string | null = null): ParseResult[] {
+function parseCursorWorkspace(wsDir: string, userDir: string = cursorUserDir(), physicalPath: string | null = null): ParseResult[] {
   if (isAgentTranscriptRoot(wsDir)) {
     const folder = physicalPath || null;
     return parseCursorAgentSessions(folder, userDir).filter((s) => s.events.length);

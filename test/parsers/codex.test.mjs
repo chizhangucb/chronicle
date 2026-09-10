@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { scanCodexProjects, parseCodexSession } from '../../server/parsers/codex.ts';
+import { codexSource } from '../../server/parsers/codex.ts';
+
+// Through the `Source` interface, the one way in (#309).
+const parseCodexSession = async (file) => (await codexSource.parse({ files: [file] }))[0];
+const scanCodexProjects = (dir) => codexSource.scan(dir);
 
 const FIXTURE_BASE = 'test/fixtures/codex-sessions';
 const FIXTURE_FILE = path.join(
