@@ -1,9 +1,9 @@
 // The roster refresher's own suite (issue #192).
 //
-// The script maintains the volatile columns of the routing roster that
-// server/routing.ts reads and the Spend tab's ROUTING COMPLIANCE section
-// renders. #192 moved it to scripts/, where Chronicle's own tooling lives, and
-// its guards moved here with it.
+// The script maintains the volatile columns of the routing roster, an operator
+// document. Chronicle itself does not read it: the Spend tab's roster grading
+// is retired. #192 moved the script to scripts/, where Chronicle's own tooling
+// lives, and its guards moved here with it.
 //
 // The filename stays snake_case against the repo's kebab-case script
 // convention because it is an importable Python module, and `import
@@ -34,8 +34,6 @@ const tmp = (t, prefix) => {
   return dir;
 };
 
-// Never inherits an ambient CHRONICLE_ROSTER_MD: a shell that exported one
-// would otherwise steer a guard at the operator's real roster.
 /**
  * Decide what a spawnSync result that could not start python3 means. Returns
  * true when the caller should `return` (it has been skipped); false when
@@ -47,6 +45,8 @@ const skipWithoutPython = (t, result) => {
   return true;
 };
 
+// Never inherits an ambient CHRONICLE_ROSTER_MD: a shell that exported one
+// would otherwise steer a guard at the operator's real roster.
 const py = (args, env = {}) => spawnSync('python3', args, {
   encoding: 'utf8',
   env: {

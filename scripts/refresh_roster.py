@@ -12,8 +12,9 @@ up against the catalog's model id. Rows whose route is not `openrouter/...` (e.g
 future direct-Anthropic route) are left untouched.
 
 This lives in scripts/ because it maintains an operator document rather than
-anything the app runs (issue #192). What does read the roster is server/routing.ts,
-behind the Spend tab's ROUTING COMPLIANCE section.
+anything the app runs (issue #192). Nothing in Chronicle reads the roster: the
+Spend tab's roster grading was retired with the surfaces that read files outside
+the data folder, so the reader is the operator.
 
 The filename stays snake_case against the repo's kebab-case script convention
 because test/refresh-roster.test.mjs imports these functions as a module, and

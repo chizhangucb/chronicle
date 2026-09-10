@@ -3,7 +3,13 @@
 //
 // It was written for two callers because two copies drifted apart once already
 // (issue #186). The second caller was the proxy runtime suite, deleted with the
-// spine it pinned (#296), and the patterns only it read went with it.
+// spine it pinned (#296), and the patterns only it read moved into the sweep
+// below rather than going with it.
+//
+// It stays its own file on one caller because it is the registry, not the pin:
+// repo-shape exempts it BY PATH from its own vocabulary sweep, and a registry a
+// pin must not read itself is easier to keep honest as a file than as a block
+// inside the file doing the reading.
 
 /** Paths into the author's private checkout, and the machine-only dirs the
  *  runtime used to reach. No tracked file may name one. */
@@ -29,6 +35,10 @@ export const RETIRED_WORDS = [
   { word: 'hub', re: /\bhubs?\b/i },
   { word: 'nisse', re: /\bnisse\b/i },
   { word: 'varde', re: /\bvarde\b/i },
+  // The sibling repo named as a path rather than a word. It was swept over
+  // litellm/ only until the proxy spine went (#296); the coupling it implies is
+  // not ours to document anywhere, so it is swept repo-wide here instead.
+  { word: 'foreign consumer path', re: /aggregator\/sources/i },
   { word: 'AIOS', re: /\baios\b/i },
   { word: 'private ticket id', re: PRIVATE_TICKET },
 ];
