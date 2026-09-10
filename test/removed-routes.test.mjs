@@ -79,6 +79,12 @@ const GONE = [
   ['POST', '/gate/apply'],
   ['POST', '/gate/confirm'],
   ['POST', '/gate/undo'],
+  // The local view log. Its module went with the route, so there is no
+  // recorder left to mount even if a caller kept the URL.
+  ['POST', '/view-log'],
+  ['GET', '/view-log/summary'],
+  ['DELETE', '/view-log'],
+  ['PATCH', '/view-log/settings'],
   // Context causality (#298): the heuristic read-to-change read is gone, so
   // the sessions router must not answer for it. Its neighbours on the same
   // router are asserted below, so an unmounted sessions router cannot pass.

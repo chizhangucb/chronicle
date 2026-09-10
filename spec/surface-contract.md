@@ -373,11 +373,6 @@ never switches on a characteristic's `key`):
 
 Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude plan windows
 (quota)** · **Ask (experimental)**.
-Then one BLOCK, fenced by a rule: the **Local view log** — an on/off toggle, a one-paragraph
-statement of exactly what is recorded and that it never leaves the machine, the captured-rows count
-and date range, a top-5 surfaces table (Surface / You / Agent / Typical visit, human vs agent
-collapsed at read time), and a **Clear the log** action. The block renders "Nothing recorded yet"
-when empty and is absent in demo (demo never records).
 
 ## Pin inventory (each enumerable → its guarding e2e test — the contract self-audits)
 
@@ -386,6 +381,7 @@ when empty and is absent in demo (demo never records).
 | Sidebar `sb-top` = exactly Insights + Projects, no Home entry, no `⌂`, on every install and in every mode | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
 | Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
+| The local record of which surface was looked at is gone: no table on an upgraded data folder, no route, no client call, no Settings block; WAL stays on for the SQLite-backed parsers | `test/view-log-removed.test.mjs` |
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |

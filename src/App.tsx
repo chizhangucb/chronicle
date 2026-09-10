@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useLocation, useRoute, useSearch } from 'wouter';
 import * as Toast from '@radix-ui/react-toast';
-import { api, type Settings, type ViewLogSummary } from './api.js';
+import { api, type Settings } from './api.js';
 import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
@@ -11,7 +11,6 @@ import ProjectsPage from './ProjectsPage.jsx';
 import AskPage from './AskPage.tsx';
 import ReferencePage from './ReferencePage.tsx';
 import { useAskStatus } from './useAskStatus.ts';
-import { useViewLog } from './useViewLog.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
@@ -69,20 +68,6 @@ export default function App() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-
-  // Local-only view log. Mounted ONCE here so every route change in
-  // the app funnels through one recorder. The tab argument is what lets the log
-  // distinguish "opened /" from "lives in the Spend tab" — the actual question
-  // when deciding whether a tab earns its space. Home tabs are a `?tab=` param;
-  // the project view's Explore/Content are their own routes, so they are read
-  // off the path instead.
-  const viewTab = atHome || atInsights
-    ? (new URLSearchParams(search).get('tab') ?? 'overview')
-    : atProjExplore ? 'explore'
-    : atProjContent ? 'content'
-    : atProject ? 'overview'
-    : null;
-  useViewLog(viewTab);
 
   // {status: 'live'|'reconnecting'|'stopped', sessionId?} — reported by the
   // session/project views so the pill stays visible anywhere in the project.
@@ -381,91 +366,9 @@ function SettingsModal({ onClose, onAskChanged }: SettingsModalProps) {
                 ) : null}
               </span>
             </label>
-            <ViewLogSettings />
           </div>
         )}
     </Modal>
   );
 }
 
-// The view-log readout. A recorder of the operator's own
-// behavior gets a visible switch, an honest count, and a Clear button — being
-// invisible machinery would be the wrong posture even for something that never
-// leaves the machine.
-//
-// It reads the log rather than merely toggling it because the numbers are the
-// point: a human/agent split you can see is what makes the actor columns
-// trustworthy. Deeper questions ("which surface did I actually live in last
-// month") go through /ask, which already runs SELECT-only over the same db.
-function ViewLogSettings() {
-  const [summary, setSummary] = useState<ViewLogSummary | null>(null);
-  const [busy, setBusy] = useState(false);
-  const load = () => { api.viewLogSummary().then(setSummary).catch(() => setSummary(null)); };
-  useEffect(load, []);
-
-  if (!summary) return null;
-
-  // Dwell reads as seconds under a minute, minutes above: "4.2m" is a visit,
-  // "38s" is a bounce, and the two need to be distinguishable at a glance.
-  const fmtDwell = (ms: number | null) => (ms == null ? '-' : ms < 60000 ? `${Math.round(ms / 1000)}s` : `${(ms / 60000).toFixed(1)}m`);
-  const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : '-');
-
-  return (
-    <div className="settings-block">
-      <label className="settings-block-head">
-        <input
-          type="checkbox"
-          checked={summary.enabled}
-          disabled={busy}
-          onChange={async () => {
-            setBusy(true);
-            try { await api.viewLogSetEnabled(!summary.enabled); load(); } catch { /* ignore */ }
-            setBusy(false);
-          }}
-        />
-        <span>Local view log</span>
-      </label>
-      <p className="muted small">
-        Records which Chronicle surfaces you use (route, tab, time spent), tagged human or agent so automated runs do not read as yours. Stored only in chronicle.db on this machine, kept 180 days, and never sent anywhere.
-      </p>
-      {summary.rows === 0 ? (
-        <p className="muted small">Nothing recorded yet.</p>
-      ) : (
-        <>
-          <p className="muted small">
-            {summary.rows} events · {summary.humanRows} you · {summary.agentRows} agent · {day(summary.firstTs)} → {day(summary.lastTs)}
-          </p>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Surface</th><th>You</th><th>Agent</th><th>Typical visit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.routes.slice(0, 5).map((r) => (
-                <tr key={r.route}>
-                  <td>{r.route}</td>
-                  <td>{r.humanVisits}</td>
-                  <td>{r.agentVisits}</td>
-                  <td>{fmtDwell(r.humanDwellMs)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            type="button"
-            className="btn ghost small"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try { await api.viewLogClear(); load(); } catch { /* ignore */ }
-              setBusy(false);
-            }}
-          >
-            Clear the log
-          </button>
-        </>
-      )}
-    </div>
-  );
-}

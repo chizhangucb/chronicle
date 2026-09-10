@@ -64,8 +64,7 @@ https://github.com/chizhangucb/chronicle/releases
   a compatibility ritual.
 
   **Settings rows gone with their features:** the "Home bands" toggle. What remains is
-  auto-sync, pause auto-sync, Claude plan windows, Ask, the monthly budget, and the local
-  view log.
+  auto-sync, pause auto-sync, Claude plan windows, Ask and the monthly budget.
 
   **Also removed:** the daily-digest job that wrote into the old operations folder, and its
   launchd template. The published package now ships no job template at all. Demo mode still
@@ -99,10 +98,6 @@ https://github.com/chizhangucb/chronicle/releases
 - **Install it as an app.** Chrome and Edge will offer to install Chronicle, and
   `npx chronicle-cli --app` opens it in its own window with no tab strip or address bar.
   No service worker, so an upgrade is never masked by a cached page.
-- **A local view log, off-switch included.** Chronicle can record which of its own surfaces
-  you use, tagged human or agent so automated runs never read as yours. It lives only in
-  your database, is kept 180 days, and never leaves the machine. Settings shows the counts
-  and clears them.
 - **Consistent page widths.** Every non-dashboard page now shares one frame width instead
   of six different ones, with long prose holding its own comfortable line length.
 
