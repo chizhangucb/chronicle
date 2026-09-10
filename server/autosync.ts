@@ -93,9 +93,14 @@ function state(): AutoSyncState {
 // The directory to watch for a path that names a source's records: the path
 // itself when it is a directory, its parent when it is a store file (a SQLite
 // write can land in the `-wal` sibling without touching the file itself).
+// A path that isn't there yet is read by its spelling: a store file (it has an
+// extension) is watched through the dir it will appear in, a log root is left
+// as itself — watching ITS parent would mean recursively watching an unrelated
+// tree (`~/.claude`, `~/.codex`, the whole Cursor app dir), and the backstop
+// timer already covers a root that appears later.
 function watchDirOf(p: string): string {
-  try { if (fs.statSync(p).isDirectory()) return p; } catch { /* gone — watch where it would appear */ }
-  return path.dirname(p);
+  try { return fs.statSync(p).isDirectory() ? p : path.dirname(p); } catch { /* not there — go by the spelling */ }
+  return path.extname(p) ? path.dirname(p) : p;
 }
 
 // One incremental pass over every source. Imports sessions that are NEW in an
@@ -194,7 +199,7 @@ export function startAutoSync(): void {
     ...s.scan().map((item) => watchDirOf(item.logDir)),
   ]));
   const dirs = [...candidates].filter((d) => ![...candidates].some((o) => o !== d && d.startsWith(o + path.sep)));
-  for (const d of new Set(dirs)) {
+  for (const d of dirs) {
     try {
       if (!fs.existsSync(d)) continue;
       const w = fs.watch(d, { recursive: true }, () => scheduleDebounced());

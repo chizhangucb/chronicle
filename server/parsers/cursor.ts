@@ -135,12 +135,20 @@ function agentTranscriptRoot(fsPath: string): string {
 // Read-only guarantee: copy the SQLite file (+WAL) to temp before opening.
 function openSnapshot(dbPath: string): Snapshot {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-cursor-'));
-  const copy = path.join(tmp, path.basename(dbPath));
-  fs.copyFileSync(dbPath, copy);
-  for (const ext of ['-wal', '-shm']) {
-    if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
+  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
+  try {
+    const copy = path.join(tmp, path.basename(dbPath));
+    fs.copyFileSync(dbPath, copy);
+    for (const ext of ['-wal', '-shm']) {
+      if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
+    }
+    return { db: new DatabaseSync(copy), cleanup };
+  } catch (err) {
+    // A copy that never completed still made the temp dir; drop it rather than
+    // leaving it behind for the life of the process.
+    cleanup();
+    throw err;
   }
-  return { db: new DatabaseSync(copy), cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }) };
 }
 
 function globalSnapshotFingerprint(dbPath: string): string | null {
@@ -606,7 +614,11 @@ export const cursorSource: Source = {
   // global store, so only the workspace spelling is gated on being there.
   async parse({ logDir, physicalPath, root }): Promise<ParseResult[]> {
     if (!logDir) return [];
-    if (!isAgentTranscriptRoot(logDir) && !fs.existsSync(logDir)) return [];
+    // The workspace spelling has to name a directory holding a `state.vscdb`:
+    // a target that is a file, or a directory with no store in it, reads as
+    // nothing rather than throwing out of the snapshot copy (live probes both
+    // spellings of a store it has not scanned, and only one of them fits).
+    if (!isAgentTranscriptRoot(logDir) && !fs.existsSync(path.join(logDir, 'state.vscdb'))) return [];
     return parseCursorWorkspace(logDir, root ?? cursorUserDir(), physicalPath ?? null);
   },
 
