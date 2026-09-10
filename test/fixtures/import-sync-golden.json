@@ -204,6 +204,37 @@
       "error": "Unsupported source: nope"
     }
   },
+  "POST /import claude-code missing dir": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 0,
+      "skippedSessions": 0,
+      "totalMessages": 0,
+      "projects": [],
+      "projectId": null
+    }
+  },
+  "POST /import codex logDir only": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "imported": 1,
+      "skippedSessions": 0,
+      "totalMessages": 5,
+      "projects": [
+        {
+          "id": 2,
+          "name": "example-repo",
+          "path": "/Users/dev/example-repo",
+          "created": false,
+          "sessions": 1,
+          "messages": 5
+        }
+      ],
+      "projectId": 2
+    }
+  },
   "POST /projects/:id/sync": {
     "status": 200,
     "body": {

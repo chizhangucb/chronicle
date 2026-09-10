@@ -20,11 +20,20 @@
 //     modifiedAt, the DB's created_at/imported_at) to <seeded>, before
 //     comparing.
 //
-// The slice has exactly one intended difference, visible as the only change in
-// this file's golden: a Cursor scan item now carries the `root` it was scanned
-// under, because `Source.scan` stamps it so a scanned item is a complete parse
-// target (#308). Additive; every other key is byte-identical to the pre-slice
-// capture.
+// The slice's intended differences are the only changes in this file's golden,
+// each one a consequence of the interface deciding what the route used to:
+//   - a Cursor scan item carries the `root` it was scanned under, because
+//     `Source.scan` stamps it so a scanned item is a complete parse target
+//     (#308). Additive;
+//   - a target that names nothing readable now imports nothing (200,
+//     `imported: 0`) instead of the route rejecting it (400 'Log directory not
+//     found'). The route cannot tell the two apart without naming a source:
+//     Cursor's Agent-transcript target legitimately names a directory that need
+//     not exist, and only Cursor's parse knows that;
+//   - a Codex import that names a log dir and no files reads that dir's
+//     transcripts, the way a Claude Code one always did, instead of importing
+//     nothing.
+// Every other key is byte-identical to the pre-slice capture.
 // Regenerate (only when import/sync JSON is meant to change) with
 // `UPDATE_IMPORT_SYNC_GOLDEN=1 node --test test/import-sync-golden.test.mjs`.
 import { test, before, after } from 'node:test';
@@ -46,8 +55,6 @@ const UPDATE = process.env.UPDATE_IMPORT_SYNC_GOLDEN === '1';
 
 let teardown, server, baseUrl, home, dataDir;
 let projectId, sessionId, codexFile, cursorWorkspace;
-
-const get = async (route) => ({ status: (await fetch(`${baseUrl}${route}`)).status, body: undefined });
 
 async function call(method, route, body) {
   const res = await fetch(`${baseUrl}${route}`, {
@@ -132,6 +139,14 @@ test('import and sync answer what the pre-slice commit answered', async () => {
     source: 'cursor', logDir: cursorWorkspace, physicalPath: '/tmp/cursor-fixture-project',
   }));
   record('POST /import unsupported', await call('POST', '/import', { source: 'nope' }));
+  // A target that names nothing readable: the two shapes where a source's
+  // parse, not the route, decides there is nothing there.
+  record('POST /import claude-code missing dir', await call('POST', '/import', {
+    source: 'claude-code', logDir: path.join(home, 'no-such-dir'),
+  }));
+  record('POST /import codex logDir only', await call('POST', '/import', {
+    source: 'codex', logDir: path.join(FIXTURES, 'codex-sessions'),
+  }));
 
   // Sync: the project the Claude Code fixture imported into, then one of its
   // sessions, then the two not-found paths.

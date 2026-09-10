@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Response } from 'express';
 import { db } from './db.ts';
 import type { SessionRow } from '../shared/rows.ts';
@@ -132,8 +133,9 @@ class Watcher {
       for (const line of lines) {
         if (!line.trim()) continue;
         // FR-LS-6: `tail` yields no events for a line it cannot read, rather
-        // than throwing, so one bad line never stops the stream.
-        for (const e of tail(this.source, line)) events.push({ ...e, seq: this.seq++ });
+        // than throwing, so one bad line never stops the stream. Non-null: this
+        // watcher is only built for a source that declares it.
+        for (const e of (this.source.tail as (l: string) => Event[])(line)) events.push({ ...e, seq: this.seq++ });
       }
       if (events.length) this.broadcast({ type: 'messages', events });
     });
@@ -187,6 +189,9 @@ class SqlitePollWatcher {
   clients: Set<Response>;
   lastCount: number;
   lastMtime: number;
+  // A store re-parse is async and can outlast the poll interval; a second one
+  // on top of it would race `lastCount` and broadcast the same events twice.
+  checking: boolean;
   seq: number;
   pollMs: number;
   poll: NodeJS.Timeout;
@@ -205,6 +210,7 @@ class SqlitePollWatcher {
     this.clients = new Set();
     this.lastCount = countStored(sessionId);
     this.lastMtime = 0;
+    this.checking = false;
     this.seq = 1_000_000;
     this.pollMs = 2000;
     this.poll = setInterval(() => { this.check().catch(() => {}); }, this.pollMs);
@@ -213,14 +219,17 @@ class SqlitePollWatcher {
 
   async fetchEvents(): Promise<Event[]> {
     for (const target of this.targets) {
-      const parsed = await this.source.parse(target);
-      const hit = parsed.find((p) => p.session.id === this.sessionId);
-      if (hit) return hit.events;
+      try {
+        const parsed = await this.source.parse(target);
+        const hit = parsed.find((p) => p.session.id === this.sessionId);
+        if (hit) return hit.events;
+      } catch { /* not a target this source can read — try the next spelling */ }
     }
     return [];
   }
 
   async check(): Promise<void> {
+    if (this.checking) return;
     // The source knows what counts as a write to its store (a `-wal` sidecar
     // is one; the main file may never be touched).
     const mtime = this.source.mtime(this.session.file_path);
@@ -232,6 +241,7 @@ class SqlitePollWatcher {
     this.lastMtime = mtime;
     this.idleSince = Date.now();
     this.setPollInterval(2000);
+    this.checking = true;
     try {
       const events = await this.fetchEvents();
       if (events.length > this.lastCount) {
@@ -239,7 +249,9 @@ class SqlitePollWatcher {
         this.lastCount = events.length;
         this.broadcast({ type: 'messages', events: fresh });
       }
-    } catch { /* transient parse failure — retry next poll (FR-LS-6) */ }
+    } catch { /* transient parse failure — retry next poll (FR-LS-6) */ } finally {
+      this.checking = false;
+    }
   }
 
   setPollInterval(ms: number): void {
@@ -279,22 +291,21 @@ function countStored(sessionId: string): number {
   return (db.prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sessionId) as { n: number } | undefined)?.n ?? 0;
 }
 
-// One appended line to its events, through the source that wrote it. A source
-// with no `tail` has no line to read (its store is not append-only), so it
-// yields nothing rather than being guessed at.
-function tail(source: Source, line: string): Event[] {
-  return source.tail?.(line) ?? [];
-}
-
-// Where a stored session can be re-read from: the scanned projects that sit on
-// this session's project path. Resolved once per watcher — a scan walks the
-// source's root, which is too much to redo every poll. A session whose project
-// the source can no longer scan has no target, so nothing streams for it: the
-// stored messages still render, the live tail is simply empty.
+// Where a stored session can be re-read from, in the order worth trying: the
+// scanned projects sitting on this session's project path, then the store the
+// session itself names. The second is what covers a session imported from a
+// store the default scan does not walk (a hand-picked directory, a fixture);
+// a source spells that store either as the file (`opencode.db`) or as the
+// directory holding it (a Cursor workspace), so both spellings are offered and
+// the one the source cannot read simply parses to nothing.
+//
+// Resolved once per watcher — a scan walks the source's root, which is too
+// much to redo every poll.
 function storeTargets(source: Source, session: SessionRow): ParseTarget[] {
   const projectPath = (db.prepare('SELECT path FROM projects WHERE id = ?').get(session.project_id) as { path: string } | undefined)?.path;
-  if (!projectPath) return [];
-  return source.scan().filter((item) => item.physicalPath === projectPath);
+  const scanned = projectPath ? source.scan().filter((item) => item.physicalPath === projectPath) : [];
+  const own = { directory: projectPath, physicalPath: projectPath ?? null };
+  return [...scanned, { ...own, logDir: session.file_path }, { ...own, logDir: path.dirname(session.file_path) }];
 }
 
 export function attachLiveStream(sessionId: string, res: Response): boolean {

@@ -32,8 +32,11 @@ import type {
 // Lifted to module scope so the demo seeder can drive the SAME
 // parse+import path the HTTP route uses, instead of writing rows into the DB
 // directly. They only ever closed over module imports, so this is a pure move.
-// Gather parsed {session, events} pairs per source. files/sessionIds restrict
-// the import to a user-selected subset of sessions.
+// Gather parsed {session, events} pairs for one target: the payload IS the
+// target (files/sessionIds restrict the import to a user-selected subset), so
+// this is a lookup and a call. A target that names nothing readable parses to
+// nothing rather than erroring — only a source with no parser is a 400, since
+// "this directory holds no sessions" is an answer, not a failure.
 export async function gatherParsed(target: GatherParsedParams): Promise<ParseResult[]> {
   const source = sourceById(target.source);
   if (!source) throw bad(`Unsupported source: ${target.source}`);
@@ -92,7 +95,7 @@ export function mountImportSync(app: Express): void {
       catch (err) { return res.status(500).json({ error: errMessage(err) }); }
     }
     // Every source at its own default root.
-    const scan = Object.fromEntries(SOURCES.map((s) => [s.id, annotateScan(s.scan())])) as ScanResult;
+    const scan: ScanResult = Object.fromEntries(SOURCES.map((s) => [s.id, annotateScan(s.scan())]));
     res.json(scan);
   });
 

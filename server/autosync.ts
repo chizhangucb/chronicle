@@ -138,7 +138,7 @@ export async function runIncrementalSync(): Promise<SyncResult> {
     };
     for (const source of SOURCES) {
       for (const item of source.scan()) {
-        if (!item.physicalPath || !projectPaths.has(item.physicalPath) || !item.logDir) continue;
+        if (!item.physicalPath || !projectPaths.has(item.physicalPath)) continue;
         const files = importableFiles(item);
         if (!files.length) {
           checked++;
@@ -182,13 +182,18 @@ export function startAutoSync(): void {
   const st = state();
   stopAutoSync();
   if (!autoSyncEnabled()) return;
-  // fs-watch one dir per source, its own default root (recursive works on
-  // macOS/Windows; a dir that doesn't exist or can't be watched is skipped —
-  // the timer is the backstop). One watcher per source, not one per scanned
-  // project: the root covers every project under it, and for Cursor it covers
-  // the global store its composer bubbles live in as well as the per-workspace
-  // ones — a write there used to reach no watcher at all.
-  const dirs = SOURCES.map((s) => watchDirOf(s.defaultRoot()));
+  // fs-watch every dir a source's records can be written to: its default root,
+  // plus any scanned project that sits outside it (Cursor files a project's
+  // Agent transcripts under ~/.cursor/projects, nowhere near its user dir).
+  // A dir already covered by a watched ancestor is dropped — the watch is
+  // recursive, so one watcher over the root is the whole subtree (recursive
+  // works on macOS/Windows; a dir that doesn't exist or can't be watched is
+  // skipped — the timer is the backstop).
+  const candidates = new Set(SOURCES.flatMap((s) => [
+    watchDirOf(s.defaultRoot()),
+    ...s.scan().map((item) => watchDirOf(item.logDir)),
+  ]));
+  const dirs = [...candidates].filter((d) => ![...candidates].some((o) => o !== d && d.startsWith(o + path.sep)));
   for (const d of new Set(dirs)) {
     try {
       if (!fs.existsSync(d)) continue;

@@ -324,11 +324,21 @@ the pair is kept so a later pass can verify that or join the rows belonging to o
 
 ## Ingestion: scan, then import
 
-Every parser lives in `server/parsers/<tool>.ts` and exports two kinds of function:
+Every parser lives in `server/parsers/<tool>.ts` and exports one thing: the `Source` it
+implements (`server/parsers/source.ts`). The interface is what import, autosync and live call,
+so none of them names a coding tool in code:
 
-- **`scan<Tool>Projects()`** — cheap, read-only. Lists importable projects/sessions with size
+- **`scan(root?)`** — cheap, read-only. Lists importable projects/sessions with size
   estimates, without parsing message bodies. Backs the import wizard.
-- **A parse function** — reads a session's native log and returns `{ session, events }`.
+- **`parse(target)`** — reads what a scanned item (or any narrower target built from one)
+  points at, and returns `{ session, events }` per session.
+- **`mtime(unit)`** — the newest write time of one importable unit, for the incremental sync's
+  freshness check.
+- **`tail(line)`**, optional — one appended transcript line to its events. Present only where
+  the store is an append-only file (Claude Code, Codex); live re-parses a SQLite store
+  instead, and the presence of `tail` is what picks between the two.
+
+`server/parsers/registry.ts` lists the four and looks one up by id.
 
 The four parsers wired in today:
 
@@ -377,15 +387,15 @@ shortest seen ancestor so a project's sessions group together.
 
 ### HOWTO: add a new source
 
-1. **Write `server/parsers/newtool.ts`** exporting `scanNewtoolProjects()` (cheap listing) and
-   a parse function returning `{ session, events }` where each event is a normalized row
-   (`{ ts, kind, text?, tool_name?, tool_input?, tool_use_id?, uuid?, model? }`). Populate
-   `cwd` on the session; if the source is a WAL SQLite DB, copy the `-wal`/`-shm` sidecars to
-   temp exactly as Cursor/OpenCode do.
-2. **Wire it into `server/routes/import-sync.ts`** — import the two functions, add it to the
-   scanner map for `GET /scan`, and add a branch so `POST /import` routes to it. Add it to
-   `server/autosync.ts`'s per-source loop too, so it participates in invisible sync.
-3. **Add it to `SOURCES` in `src/ImportWizard.tsx`** with a matching `key`.
+1. **Write `server/parsers/newtool.ts`** exporting one `Source`: `defaultRoot()`, `scan()`
+   (cheap listing), `parse()` returning `{ session, events }` per session where each event is
+   a normalized row (`{ ts, kind, text?, tool_name?, tool_input?, tool_use_id?, uuid?,
+   model? }`), and `mtime()`. Add `tail()` only if the store is an append-only transcript.
+   Populate `cwd` on the session; if the source is a WAL SQLite DB, copy the `-wal`/`-shm`
+   sidecars to temp exactly as Cursor/OpenCode do.
+2. **Add it to `SOURCES` in `server/parsers/registry.ts`.** That is the whole wiring: import,
+   autosync and live read the registry, so none of them changes.
+3. **Add it to the wizard's source list in `src/ImportWizard.tsx`** with a matching `key`.
 4. **Validate against a fixture, then real data.** Drop a sample log in `test/fixtures/` and
    confirm scan lists it and import produces sane rows; then import a real session and
    time-travel through it.
