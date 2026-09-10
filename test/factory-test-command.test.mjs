@@ -7,12 +7,12 @@
 // before a single test reports. That is what happened on #320, where the gate
 // posted a red check naming a healthy unit test alongside the spec.
 //
-// scripts/ci/factory-test-command.sh is the command that routes. Two things
-// about it can quietly rot, so both are pinned here: the rule that says which
-// files are browser specs, against playwright.config.ts, which is where that
-// rule really lives; and the exit status, because a router that swallows a
-// failing file hands us a green gate over a red test. Same shape as the other
-// config guards (test/e2e-parallel-config.test.mjs).
+// scripts/ci/factory-test-command.sh is the command that routes; its own header
+// says why it routes the way it does. Two things about it can quietly rot, so
+// both are pinned here by behaviour: where Playwright looks for specs, since
+// playwright.config.ts is where that rule really lives, and the exit status,
+// since a command that swallows a failing file hands us a green gate over a red
+// test. Same shape as the other config guards (test/e2e-parallel-config.test.mjs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -23,11 +23,10 @@ import { fileURLToPath } from 'node:url';
 import config from '../playwright.config.ts';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ROUTER = path.join(REPO, 'scripts/ci/factory-test-command.sh');
-const router = fs.readFileSync(ROUTER, 'utf8');
+const ROUTING_COMMAND = path.join(REPO, 'scripts/ci/factory-test-command.sh');
 
-// A stub for each command the router dispatches to: it records what it was
-// asked to run, and fails for the files named in FAIL_ON.
+// A stub for each command it dispatches to: it records what it was asked to
+// run, and fails for the files named in FAIL_ON.
 const STUB = `#!/usr/bin/env bash
 echo "$(basename "$0") $*" >> "$CALLS"
 for doomed in $FAIL_ON; do
@@ -36,7 +35,7 @@ done
 exit 0
 `;
 
-/** Run the real router over these files, with the named ones failing. */
+/** Run the real routing test command over these files, with the named ones failing. */
 const route = (t, files, failOn = []) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-test-command-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -44,13 +43,15 @@ const route = (t, files, failOn = []) => {
   for (const command of ['npm', 'node']) {
     fs.writeFileSync(path.join(dir, command), STUB, { mode: 0o755 });
   }
-  // Invoked the way the merge gate invokes a target's test command, so a copy
-  // that lost its executable bit fails here rather than in CI.
-  const result = spawnSync('sh', ['-c', `${ROUTER} "$@"`, 'sh', ...files], {
+  // The same form the gate invokes a target's test command in, so this runs the
+  // real file the way CI will: a copy that lost its executable bit, or whose
+  // shebang stopped resolving, reaches the assertions below as an empty call
+  // list rather than passing quietly.
+  const result = spawnSync('sh', ['-c', `${ROUTING_COMMAND} "$@"`, 'sh', ...files], {
     encoding: 'utf8',
     env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, CALLS: calls, FAIL_ON: failOn.join(' ') },
   });
-  assert.equal(result.error, undefined, 'the router did not run at all');
+  assert.equal(result.error, undefined, 'the routing test command could not be spawned');
   return {
     code: result.status,
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
@@ -58,13 +59,17 @@ const route = (t, files, failOn = []) => {
   };
 };
 
-test('the browser specs the router recognises are the ones Playwright would run', () => {
-  // The router matches `test/e2e/*.spec.ts`. That is testDir + testMatch, and
-  // this is what stops the two from drifting apart: a spec Playwright would run
-  // and the router would not goes to `node --test` and dies on import.
-  assert.equal(config.testDir, './test/e2e', 'testDir moved; the router still matches test/e2e/');
-  assert.equal(config.testMatch, '**/*.spec.ts', 'testMatch changed; the router still matches *.spec.ts');
-  assert.match(router, /test\/e2e\/\*\.spec\.ts\)/, 'the router no longer matches the directory and suffix above');
+test('a spec where Playwright looks for one reaches the browser suite', (t) => {
+  // Built from the config rather than written down. Move testDir or testMatch
+  // and the path built here moves with it, while a routing command still
+  // matching the old place sends the spec to `node --test`, where it dies on
+  // import. Nested too: testMatch is `**/`-prefixed and a case glob crosses `/`.
+  const dir = config.testDir.replace(/^\.\//, '');
+  const name = config.testMatch.replace('**/*', 'invented');
+  for (const spec of [dir + '/' + name, dir + '/nested/' + name]) {
+    const run = route(t, [spec]);
+    assert.match(run.calls[0], /^npm run test:e2e --/, spec + ' is where Playwright looks; it must reach the browser suite');
+  }
 });
 
 test('a browser spec goes to the browser suite and a unit test to node --test', (t) => {
@@ -77,21 +82,21 @@ test('a browser spec goes to the browser suite and a unit test to node --test', 
   assert.equal(run.code, 0, 'every file passed, so the router passes');
 });
 
-test('a real browser spec from this repo routes to the browser suite', (t) => {
-  // Read off the tree rather than written down, so a rename of the spec files
-  // cannot leave this guard pinning a path that no longer exists.
-  const specs = fs.readdirSync(path.join(REPO, 'test/e2e')).filter((f) => f.endsWith('.spec.ts'));
-  assert.ok(specs.length > 0, 'no browser specs found to check the routing against');
-  for (const spec of specs) {
-    const run = route(t, [`test/e2e/${spec}`]);
-    assert.match(run.calls[0], /^npm run test:e2e --/, `${spec} must go to the browser suite`);
-  }
-});
-
-test('a file that failed fails the router, so the gate still sees a real result', (t) => {
+test('a file that failed fails the whole command, so the gate still sees a real result', (t) => {
   const run = route(t, ['test/languages-removed.test.mjs'], ['test/languages-removed.test.mjs']);
   assert.equal(run.calls.length, 1, 'the file must actually have been run');
-  assert.notEqual(run.code, 0, 'a router that swallows a failure hands us a green gate over a red test');
+  assert.notEqual(run.code, 0, 'swallowing a failure hands us a green gate over a red test');
+});
+
+test('a leading ./ still reaches the browser suite, since a hand run writes the path that way', (t) => {
+  const run = route(t, ['./test/e2e/ask.spec.ts']);
+  assert.match(run.calls[0], /^npm run test:e2e --/, 'a ./-prefixed spec must not fall through to node --test');
+});
+
+test('given no files at all it fails rather than reporting a quiet success', (t) => {
+  const run = route(t, []);
+  assert.deepEqual(run.calls, [], 'nothing should have been run');
+  assert.notEqual(run.code, 0, 'answering green having run nothing is the one thing the gate must never be told');
 });
 
 test('a failing file never stops the ones after it, since the gate judges each on its own', (t) => {

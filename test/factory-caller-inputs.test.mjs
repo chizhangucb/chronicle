@@ -77,7 +77,9 @@ const FACTORY_ROLES = {
   implement: { workflow: 'agent-implement.yml', inputs: ['factory_ref', 'node_version'] },
   review: { workflow: 'agent-review.yml', inputs: ['factory_ref', 'node_version'] },
   'implement-pr': { workflow: 'agent-implement-pr.yml', inputs: ['factory_ref', 'node_version'] },
-  'merge-gate': { workflow: 'merge-gate.yml', inputs: ['factory_ref', 'node_version'] },
+  // test_command and install_command: both declared by merge-gate.yml, and both
+  // needed to route a browser spec to the browser suite with Chromium installed (#335).
+  'merge-gate': { workflow: 'merge-gate.yml', inputs: ['factory_ref', 'node_version', 'test_command', 'install_command'] },
   audit: { workflow: 'agent-audit.yml', inputs: ['factory_ref', 'node_version'] },
   'update-branch': { workflow: 'update-branch.yml', inputs: ['factory_ref'] },
 };

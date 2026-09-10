@@ -15,6 +15,18 @@
 # build is not: `ensureClientBuilt()` in test/e2e/harness.ts builds it from
 # inside globalSetup, so it is paid only when a browser spec actually runs.
 #
+# This file has to be on main before the caller names it. The gate's other side
+# is a checkout of the base branch with only the PR's changed TEST files laid
+# over it, so until this has merged it is absent there, and the base side fails
+# for want of this file rather than for want of the test.
+#
+# What naming any command of our own costs: the gate can only tell "died before
+# any test reported" from "ran and failed" for its own default, `node --test`,
+# because that is the only output it will parse. Under this command every file
+# counts as having run, so a unit file that dies on import is blamed as a
+# failure rather than passed over. That is the trade for a real red-green proof
+# on browser specs, which is the half we cannot get any other way.
+#
 # Lives here rather than inline in the caller so test/factory-test-command.test.mjs
 # can drive the real routing instead of pattern-matching YAML, the same reason
 # e2e-applies.sh sits beside it. That script answers a different question, for
@@ -33,11 +45,24 @@ set -uo pipefail
 # directory is created by globalSetup and inherited by the workers, and
 # currentRunDir() throws rather than guess when something else invokes it.
 run_test_file() {
-  case "$1" in
+  # A leading ./ is stripped first: the gate hands over repo-relative paths as
+  # git prints them, but a hand run naturally writes ./test/e2e/x.spec.ts, and
+  # that spelling falling through to `node --test` is the very bug this file
+  # exists to prevent.
+  case "${1#./}" in
     test/e2e/*.spec.ts) npm run test:e2e -- "$1" ;;
     *)                  node --test "$1" ;;
   esac
 }
+
+# Given nothing to run, say so and fail. The gate always passes exactly one
+# file, so reaching here empty means something went wrong upstream, and a
+# command that answers that with a silent success is a green check over
+# nothing run at all.
+if [ "$#" -eq 0 ]; then
+  echo "factory-test-command: no test files given" >&2
+  exit 2
+fi
 
 status=0
 for file in "$@"; do
