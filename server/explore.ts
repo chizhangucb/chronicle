@@ -121,7 +121,6 @@ export function pickRollup(
   return 'monthly';
 }
 
-
 // D6. `mcp` (per-MCP-server spend, derived from the `mcp__server__tool`
 // tool_name shape) is calibrated exactly like
 // tool/skill: an MCP call is a tool_use row, so its token magnitude is
@@ -176,17 +175,19 @@ function usageRowKey(group: ExploreGroup, c: BucketedUsageCell, projectNameById:
 // Precomputed per-session error counts per group value, optionally split across time
 // buckets. One query shape for the ranked rows and the rollup, so the scope, the
 // overlap gate and the minor gate are written once (see SESSION_ERROR_GROUPS).
+// `bucketExpr` is the caller's, so its binds (if any) come first, ahead of the overlap
+// gate's cutoff and the scope's params.
 function sessionErrorRows(
   group: ExploreGroup, scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] },
-  bucketCol: string | null,
+  bucketExpr: string | null, bucketBinds: (string|number)[] = [],
 ): { gk: string|number|null; bkt: string; errors: number }[] {
-  const bkt = bucketCol ? `${bucketCol} AS bkt` : `'' AS bkt`;
+  const bkt = bucketExpr ? `${bucketExpr} AS bkt` : `'' AS bkt`;
   return db.prepare(`
     SELECT ${errorGroupCol(group)} AS gk, ${bkt}, SUM(COALESCE(s.error_count, 0)) AS errors
     FROM sessions s JOIN projects p ON p.id = s.project_id
     WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}
     GROUP BY gk, bkt
-  `).all(cutoff, ...sc.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
+  `).all(...bucketBinds, cutoff, ...sc.params) as unknown as { gk: string|number|null; bkt: string; errors: number }[];
 }
 
 // One parsed `sessions.usage` row's per-model billed cells, plus the session's
@@ -347,7 +348,6 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
   // message in the session, and misattributed for tool/skill/subagent since
   // an arbitrary same-session tool_result isn't the one that actually errored
   // for that group value).
-  const errCol = errorGroupCol(q.group);
   if (SESSION_ERROR_GROUPS.includes(q.group)) {
     for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, null)) {
       if (e.gk == null) continue;
@@ -356,7 +356,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     }
   } else {
     const errRows = db.prepare(`
-      SELECT ${errCol} AS gk, substr(r.text,1,200) AS head
+      SELECT ${errorGroupCol(q.group)} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (
         SELECT MIN(u2.id) FROM messages u2
@@ -408,6 +408,10 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     : new Map<number, string>();
 
   let usageRows: SessionUsageParsed[] = [];
+  // Hoisted so the rollup below can reuse this exact scan when its granularity is also
+  // 'day' (the two calls take identical arguments) instead of paying for a second
+  // sessions×messages pass over the same rows.
+  let dayBucketedCells: BucketedUsageCell[] | null = null;
   if (EXACT_USAGE_GROUPS.includes(q.group)) {
     // Token MAGNITUDE for these groups comes from bucketedUsage (Task 2; day-
     // bucketed) — per-session, per-model, per-LOCAL-day billed cells scaled to their
@@ -418,6 +422,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
     const bucketedCells = bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, 'day');
+    dayBucketedCells = bucketedCells;
     const acc = new Map<string, Record<string, UsageCell>>();
     const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
     for (const c of bucketedCells) {
@@ -617,7 +622,7 @@ export function computeExplore(q: ExploreQuery): ExploreResult {
     effectiveRollup = q.rollup === 'hourly' ? 'hourly' : pickRollup(q.rollup, (r) =>
       (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
-    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById });
+    buckets = computeRollupBuckets(q, effectiveRollup, rows, { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells });
   }
 
   return {
@@ -690,10 +695,14 @@ interface RollupCtx {
   // Project id → name, so a usage cell (which carries projectId) can be keyed the way
   // groupExpr('project') keys the ranked rows. Populated only for group='project'.
   projectNameById: Map<number, string>;
+  // The day-granularity bucketedUsage scan computeExplore already ran for the ranked
+  // rows (EXACT_USAGE_GROUPS only, null otherwise), reused verbatim when this rollup's
+  // granularity is 'day', since the call would take identical arguments.
+  dayBucketedCells: BucketedUsageCell[] | null;
 }
 function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: ExploreRow[], ctx: RollupCtx): ExploreBucket[] {
   if (effective === 'total') return [];
-  const { cutoff, cutoffIso, sc, base, g, projectNameById } = ctx;
+  const { cutoff, cutoffIso, sc, base, g, projectNameById, dayBucketedCells } = ctx;
   // `base` (from computeExplore) now carries overlapGate + a trailing `AND m.ts >= ?`
   // placeholder — see the computeExplore `base` comment. Bind order: cutoff (overlap),
   // sc.params (scope), cutoff again (m.ts), then any caller-supplied extras.
@@ -707,8 +716,11 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
   // the ranked rows above (already rangedUsage/bucketedUsage-scaled), so the stacked
   // chart and the total bar disagreed. bucketedUsage's buckets sum to exactly the
   // ranged cell, so they now agree by construction.
+  const grain = USAGE_BUCKET_FOR[effective];
   const usageCells = (): BucketedUsageCell[] =>
-    bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, USAGE_BUCKET_FOR[effective]);
+    (grain === 'day' && dayBucketedCells)
+      ? dayBucketedCells
+      : bucketedUsage(db, `${minorGate(q.scope)} ${sc.sql}`, sc.params, cutoffIso, grain);
 
   // series identity: topN group values are their own series; everything else
   // (present iff `rows` was folded) collapses to 'Other'.
@@ -786,9 +798,25 @@ function computeRollupBuckets(q: ExploreQuery, effective: ExploreRollup, rows: E
     // whole-session precomputed column, agent_active_ms. Bucketing this column by the
     // erroring message's own ts is not available: the column is one number per
     // session, with no per-error timestamp to slice by.
-    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, bs)) {
+    //
+    // Clamped to the range with MAX(started_at, cutoff): a session that began months
+    // before the range still overlaps it, and its unclamped start bucket would draw a
+    // bar months outside the range the operator selected. The All range binds '',
+    // where MAX is the start itself. (`metric === 'active'` below is unclamped and has
+    // the same shape; changing what it draws is not this ticket's number change.)
+    // bucketExpr repeats its timestamp argument (the weekly key reads it three times),
+    // so the clamp's bind is repeated to match rather than assumed to appear once.
+    const clamped = bucketExpr(effective, 'MAX(s.started_at, ?)');
+    const clampBinds = Array((clamped.match(/\?/g) ?? []).length).fill(cutoff);
+    // Only series the ranked rows actually carry: the rows drop a group value with no
+    // in-range messages, so crediting it here would draw a bar the table has no line
+    // for and break the reconciliation between them.
+    const seriesInRows = new Set(rows.map((r) => r.key));
+    for (const e of sessionErrorRows(q.group, q.scope, cutoff, sc, clamped, clampBinds)) {
       if (e.gk == null) continue;
-      cell(String(e.bkt), seriesKeyFor(String(e.gk))).errors += e.errors;
+      const sk = seriesKeyFor(String(e.gk));
+      if (!seriesInRows.has(sk)) continue;
+      cell(String(e.bkt), sk).errors += e.errors;
     }
   } else if (q.metric === 'errors') {
     const errCol = errorGroupCol(q.group);

@@ -161,7 +161,7 @@ constant; readability is solved on the TEXT, not by moving the frame.
   `session` dimensions read the per-session error count precomputed at import, so they carry the
   same whole-session range tradeoff Insights' error rate does: a session overlapping the range
   edge reports its full error count, and the rollup charts a session's errors on the bucket it
-  started in, as it already does for agent-active time. `tool`, `skill`, `model`, `subagent`, `mcp`, `provider` and
+  started in, clamped to the first bucket of the range so no bar falls outside the range selected. `tool`, `skill`, `model`, `subagent`, `mcp`, `provider` and
   `hour` name something inside the session, so they stay on the per-message heuristic and an
   erroring result with no pairable call attributes to none of them. Guard:
   `test/explore-errors.test.mjs`.

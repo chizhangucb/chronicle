@@ -125,7 +125,12 @@ https://github.com/chizhangucb/chronicle/releases
 
 - Explore's project, source and session error counts now include an erroring tool result
   whose originating call is missing from the transcript. Those three read the error count
-  Chronicle stores per session at import, so the page answers faster too.
+  Chronicle stores per session at import, so the page answers faster too. That count is a
+  whole-session total, the same one the Insights error rate reads, so on a range whose edge
+  cuts through a session those three dimensions now report its full error count rather than
+  only the errors inside the range, and the time chart draws them on the bar the session
+  started in (or the first bar of the range, for a session that started before it). Every dimension that names something inside a session, `tool` through `hour`,
+  still counts per message and inside the range.
 
 - Turning Ask on now says why it is unavailable when it cannot run, instead of appearing
   to do nothing.

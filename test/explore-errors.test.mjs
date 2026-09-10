@@ -56,6 +56,22 @@ before(async () => {
       { kind: 'tool_result', tool_use_id: 'orphan-9', text: 'Error: boom', ts: '2026-08-02T10:24:03.000Z' },
     ]),
   );
+
+  // A session that overlaps a 7-day range (it ran until yesterday) but whose messages
+  // all predate the range. Its precomputed error count is real, yet the ranked rows
+  // hold no line for it (they are built from in-range messages), and its start bucket
+  // sits a month outside the range.
+  const DAY = 86400000;
+  const staleNow = Date.now();
+  replaceSession(
+    { id: 'seStale', project_id: proj.id, source: 'codex', file_path: '/tmp/seStale.jsonl',
+      started_at: new Date(staleNow - 30 * DAY).toISOString(),
+      ended_at: new Date(staleNow - 1 * DAY).toISOString() },
+    rhythmEvents(new Date(staleNow - 30 * DAY).toISOString(), [
+      { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'es1', ts: new Date(staleNow - 30 * DAY + 3600000).toISOString() },
+      { kind: 'tool_result', tool_use_id: 'es1', text: 'Error: boom', ts: new Date(staleNow - 30 * DAY + 3600001).toISOString() },
+    ]),
+  );
 });
 after(() => teardown());
 
@@ -70,7 +86,7 @@ test('group=source counts every erroring tool_result in the session, paired or n
 
 test('group=project sums the precomputed error count of every session in scope', () => {
   const r = explore.computeExplore({ ...q, group: 'project', rollup: 'total' });
-  assert.equal(r.rows.find((x) => x.key === projectName)?.errors, 2);
+  assert.equal(r.rows.find((x) => x.key === projectName)?.errors, 3); // sePaired, seUnpaired, seStale
 });
 
 test('group=session reports each session own error count', () => {
@@ -84,8 +100,8 @@ test('group=session reports each session own error count', () => {
 // unpaired result attributes to no tool at all.
 test('group=tool still attributes errors through the tool_use pairing', () => {
   const r = explore.computeExplore({ ...q, group: 'tool', rollup: 'total' });
-  assert.equal(r.rows.find((x) => x.key === 'Bash')?.errors, 1);
-  assert.equal(r.rows.reduce((n, x) => n + x.errors, 0), 1,
+  assert.equal(r.rows.find((x) => x.key === 'Bash')?.errors, 2); // sePaired + seStale
+  assert.equal(r.rows.reduce((n, x) => n + x.errors, 0), 2,
     'the unpaired result names no tool, so it stays out of the per-tool attribution');
 });
 
@@ -96,8 +112,31 @@ test('errors rollup: the buckets of a session-level group sum to its total', () 
       const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
       const bucketTotal = (r.buckets ?? []).reduce(
         (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
-      assert.equal(rowTotal, 2, `group=${group} rollup=${rollup}: total bar`);
+      assert.equal(rowTotal, 3, `group=${group} rollup=${rollup}: total bar`);
       assert.equal(bucketTotal, rowTotal, `group=${group} rollup=${rollup}: stacked chart`);
+    }
+  }
+});
+
+// Under a range, the precomputed count is a whole-session total, so the chart's bars
+// must still stay inside the range and still add up to the table beside them.
+test('errors rollup under a range: bars stay inside the range and reconcile with the rows', () => {
+  const firstInRange = (() => {
+    const d = new Date(Date.now() - 7 * 86400000);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  })();
+  for (const group of ['project', 'source', 'session']) {
+    const r = explore.computeExplore({
+      scope: { type: 'all' }, days: 7, metric: 'errors', group, rollup: 'daily', topN: 10,
+    });
+    const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
+    const bucketTotal = (r.buckets ?? []).reduce(
+      (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
+    assert.equal(bucketTotal, rowTotal, `group=${group}: stacked chart must equal the total bar`);
+    for (const b of r.buckets ?? []) {
+      assert.ok(b.bucket >= firstInRange,
+        `group=${group}: bucket ${b.bucket} falls outside the 7-day range (first in-range day ${firstInRange})`);
     }
   }
 });
