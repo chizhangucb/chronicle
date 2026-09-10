@@ -44,7 +44,7 @@ The parser is the only place that knows a tool's native format.
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
 | `live.ts` | JSONL tail and SQLite poll, pushed over SSE |
 | `security.ts` | Detectors, custom rules, `scanText()` / `scanSession()` |
-| `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines |
+| `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines. `insights.ts` also serves the project page's aggregates (`computeScopedAggregates`) |
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
 | `scope.ts` | The query context: scope clause, the one minor gate, and the session/message/token ranges |
 | `cache.ts` | The generation-keyed analytics cache |

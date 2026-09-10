@@ -103,8 +103,8 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
     // silently dropped those rows from All as well (`NULL >= ''` is NULL) —
     // an accident of the sentinel, not a rule. Pinned in both directions by
     // test/message-range-null-ts.test.mjs. A query whose output is keyed BY
-    // the timestamp (a day bucket) still needs its own `AND m.ts IS NOT NULL`
-    // — see server/routes/projects.ts's activity query.
+    // the timestamp (a day bucket) still needs its own `AND m.ts IS NOT NULL`,
+    // see server/insights.ts's dailyMessageCounts.
     messages(alias = 'm'): SqlFragment {
       if (cutoff == null) return { sql: '', params: [] };
       return { sql: `AND ${alias}.ts >= ?`, params: [cutoff] };
@@ -122,8 +122,9 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
 // Under All the message range filters nothing, so a message with no timestamp
 // survives to the GROUP BY and keys a bucket with SQL NULL, which reaches the
 // client as the literal string "null". Counting an undated message under All is
-// the rule; giving it a bucket of its own is not. Call sites: the activity
-// query in server/routes/projects.ts, the rollup in server/explore.ts.
+// the rule; giving it a bucket of its own is not. Call sites: the day-keyed
+// dailyMessageCounts in server/insights.ts (which the project page's activity
+// chart reads through too, #305), the rollup in server/explore.ts.
 // Bind-free, so it composes into whereOf(...) or straight into a WHERE body.
 // Necessary, not sufficient: a stored `ts` is whatever the transcript carried
 // (server/db.ts validates nothing), so a non-NULL one can still bucket to NULL.

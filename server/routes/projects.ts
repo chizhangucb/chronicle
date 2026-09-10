@@ -5,8 +5,8 @@ import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
-import { bucketedUsage, type BucketedUsageCell } from '../rangeUsage.ts';
-import { queryContext, rangeOf, tsNotNull, whereOf } from '../scope.ts';
+import { computeScopedAggregates } from '../insights.ts';
+import { queryContext, rangeOf, whereOf, type Scope } from '../scope.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -87,8 +87,9 @@ export function mountProjects(app: Express): void {
   app.get('/projects/:id', (req: Request, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
-    // The DB-derived half (sessions + the four aggregation queries below) is
-    // cached keyed by the full request URL — it only changes on a DB write.
+    // The DB-derived half (the session list plus the engine's scoped
+    // aggregates) is cached keyed by the full request URL: it only changes on
+    // a DB write.
     // git.repoInfo/commitCountSince are deliberately computed FRESH on every
     // request, outside the cache: the project-card git pill must show the
     // local checkout's live branch with no caching (see CLAUDE.md gotcha) —
@@ -97,11 +98,14 @@ export function mountProjects(app: Express): void {
     const body = cached(req.originalUrl, () => {
       // Optional time range (?days=7/30/365) — filters sessions and all analytics.
       const days = Number(req.query.days) || null;
-      // One query context for the whole page: the project scope clause, the
+      const scope: Scope = { type: 'project', id: project.id };
+      const range = rangeOf(days);
+      // One query context for the session list: the project scope clause, the
       // minor gate (noise-gated sessions live in the global "minor sessions"
       // bucket, GET /api/sessions/minor, until promoted or ignored) and the
-      // session/message/token ranges — see server/scope.ts.
-      const q = queryContext({ type: 'project', id: project.id }, rangeOf(days));
+      // session range, see server/scope.ts. The analytics take the same scope
+      // and range through the engine below.
+      const q = queryContext(scope, range);
       const cutoff = q.range.cutoffIso ?? '';
       const sessionWhere = q.sessionRows;
       const rawSessions = db.prepare(`SELECT s.id, s.source, s.file_path, s.started_at, s.ended_at, s.message_count, s.first_prompt, s.name, s.summary, s.context_tokens, s.usage, s.agent_active_ms,
@@ -118,47 +122,11 @@ export function mountProjects(app: Express): void {
         try { ongoing = Date.now() - fs.statSync(file_path).mtime.getTime() < ONGOING_MS; } catch {}
         return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
       });
-      // CROSS JOIN pins sessions as the outer loop so messages come from the
-      // covering idx_messages_agg index instead of a full table scan — same
-      // perf-fix shape as server/insights.ts (see the index comment in db.ts).
-      // The session range gates which sessions count; the message range gates
-      // which of their messages do.
-      const toolWhere = whereOf(q.messageRows, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL");
-      const toolDist = db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count
-        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE ${toolWhere.sql}
-        GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(...toolWhere.params);
-      const kindWhere = q.messageRows;
-      const kindDist = db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count
-        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE ${kindWhere.sql} GROUP BY m.kind`).all(...kindWhere.params);
-      // LOCAL-time bucket keys (Task 2 / plan's timezone convention) — see
-      // server/insights.ts's dailyActivity for the same fix.
-      const activityWhere = whereOf(q.messageRows, tsNotNull('m'));
-      const activity = db.prepare(`SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
-        FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-        WHERE ${activityWhere.sql}
-        GROUP BY day ORDER BY day`).all(...activityWhere.params);
-      // Precomputed at import (db.ts replaceSession, shared/errors.ts
-      // heuristic) — no per-request regex over tool_result heads. Session-level
-      // (no messages join), so only the overlap gate applies.
-      // KNOWN WINDOWING TRADEOFF (same as server/insights.ts's errorsByProject, see
-      // that comment for the full rationale): error_count is a WHOLE-SESSION
-      // precomputed total, not scaled to the in-range share the token magnitudes get
-      // via rangedUsage — overlapGate makes a spanning session correctly visible for
-      // "Today", but its error count is its FULL historical count. There's no
-      // per-message error timestamp to cheaply re-slice by without re-running the
-      // tool_result/tool_use pairing join per request (the exact cost this precomputed
-      // column exists to avoid).
-      const errors = ((db.prepare(`SELECT SUM(COALESCE(s.error_count, 0)) AS ec FROM sessions s
-        WHERE ${sessionWhere.sql}`)
-        .get(...sessionWhere.params) as unknown as { ec: number | null }).ec) ?? 0;
-      // Windowed per-model billed cells: the client prices these for the
-      // project KPIs instead of summing raw session.usage, so they agree with the session
-      // list above at every window, including a spanning session's partial in-range share.
-      // Day-bucketed so a session whose usage straddles a rate change (e.g.
-      // Sonnet 5's intro window) prices each day's share at that day's rate.
-      const rangedTokensByModel: BucketedUsageCell[] = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+      // The four aggregates and the ranged billed cells are the Insights
+      // engine's, called with this project's scope (#305), not a second copy
+      // of the same queries. Insights scoped to this project reports the same
+      // numbers because it runs the same code.
+      const { toolDist, kindDist, activity, errors, rangedTokensByModel } = computeScopedAggregates(scope, range);
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, rangedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);

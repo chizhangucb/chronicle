@@ -6,7 +6,7 @@
 // writes through) reaches the rollup's GROUP BY. Its bucket key is SQL NULL,
 // which keys and labels a bucket "null" on the time chart. A query keyed by a
 // timestamp needs scope.ts's tsNotNull on top of the range, the way the
-// activity query in server/routes/projects.ts already does.
+// day-keyed dailyMessageCounts in server/insights.ts already does.
 //
 // Counting the undated message under All stays the rule
 // (test/message-range-null-ts.test.mjs owns it, unchanged). It just gets no
