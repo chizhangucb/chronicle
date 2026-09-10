@@ -36,9 +36,8 @@ browser to the dashboard.
 Chronicle's design philosophy is **Time Travel · Measure · Secure**:
 
 - **Time Travel** — click any message in a session and see your code exactly as it was, a
-  scrubbable timeline over your commit history, a Refine mode for distilling a session into
-  docs or a reusable prompt, and heuristic context causality linking what the AI read to what
-  it changed.
+  scrubbable timeline over your commit history, and a Refine mode for distilling a session
+  into docs or a reusable prompt.
 - **Measure** — **Insights**, a tabbed dashboard (Overview / Explore / Content) available
   across all projects, scoped to one project, or scoped to one session — spend and token
   breakdowns, agent-active duration, tool-call distribution, and first-class **Subagents**

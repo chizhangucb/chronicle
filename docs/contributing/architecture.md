@@ -40,10 +40,9 @@ decision records:
 
 ## Principles that decide arguments
 
-- **No LLM in the analysis path.** Every heuristic (causality, redaction, durations,
-  calibration, the noise gate) is local and deterministic, for cost and for run-to-run
-  stability. `/ask` is the single, opt-in exception, and it spends the user's own
-  subscription, never an API key.
+- **No LLM in the analysis path.** Every heuristic (redaction, durations, calibration, the
+  noise gate) is local and deterministic, for cost and for run-to-run stability. `/ask` is
+  the single, opt-in exception, and it spends the user's own subscription, never an API key.
 - **Read-only on foreign systems.** Source logs and repos are never written. A SQLite source
   is copied to temp, sidecars included, before it is opened.
 - **Destructive operations back up first**, and removal is a tombstone rather than a silent

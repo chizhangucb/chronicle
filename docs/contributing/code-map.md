@@ -43,7 +43,6 @@ The parser is the only place that knows a tool's native format.
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
 | `live.ts` | JSONL tail and SQLite poll, pushed over SSE |
 | `security.ts` | Detectors, custom rules, `scanText()` / `scanSession()` |
-| `causality.ts` | Read-to-change linking with confidence tiers |
 | `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines |
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
 | `scope.ts` | `Scope` to SQL, plus `minorGate()` |

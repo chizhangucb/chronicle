@@ -3,7 +3,7 @@
 // db.js reads process.env.CHRONICLE_DATA_DIR AT IMPORT TIME and opens
 // <dir>/chronicle.db immediately at module scope. So any test that needs an
 // isolated database MUST set CHRONICLE_DATA_DIR to a fresh temp dir BEFORE
-// importing db.js (or anything that imports db.js, like causality.js) — a
+// importing db.js (or anything that imports db.js, like the route modules) — a
 // static top-of-file `import` runs before test code gets a chance to set the
 // env var, so callers must use a dynamic `await import()` after calling this.
 import fs from 'node:fs';
@@ -17,7 +17,7 @@ export async function withTempDb() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-test-'));
   process.env.CHRONICLE_DATA_DIR = dir;
   // Bare specifier (no query string) so this resolves to the SAME cached
-  // module instance that server/causality.js's `import { db } from './db.js'`
+  // module instance that a server module's own `import { db } from './db.js'`
   // resolves to (same absolute file URL) — one shared DatabaseSync, not two
   // separate connections to the same file.
   const dbModule = await import('../server/db.ts');

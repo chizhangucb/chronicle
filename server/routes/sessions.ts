@@ -2,7 +2,6 @@ import type { Express, Request, Response } from 'express';
 import { db, tombstoneSession, removeTombstone, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
-import { analyzeCausality } from '../causality.ts';
 import { invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 
@@ -110,11 +109,4 @@ export function mountSessions(app: Express): void {
     }
   });
   app.get('/live/status', (_req: Request, res: Response) => res.json(liveStatus()));
-
-  // ---- Context Causality (FR-CC) ----
-
-  app.get('/sessions/:id/causality', (req: Request, res: Response) => {
-    try { res.json(analyzeCausality((req.params.id as string))); }
-    catch (err) { res.status(500).json({ error: String((err as Error).message || err) }); }
-  });
 }

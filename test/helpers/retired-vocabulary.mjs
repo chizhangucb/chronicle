@@ -34,12 +34,18 @@ export const FOREIGN_CONSUMER = /\bvarde\b|aggregator\/sources/i;
 /** The product words the shrink retired (spec #215 story 20): the operator
  *  console Chronicle was carved out of, the two sibling repos, and the private
  *  tracker's ticket ids. Case-insensitive; `github` is not a hit because the
- *  pattern is word-anchored. */
+ *  pattern is word-anchored.
+ *
+ *  `causality` joined them with the feature (spec #294, issue #298): the
+ *  heuristic read-to-change links are gone from the engine, the route and
+ *  Playback, so a tracked file naming them either describes a surface the
+ *  operator cannot reach or is about to re-grow one. */
 export const RETIRED_WORDS = [
   { word: 'hub', re: /\bhubs?\b/i },
   { word: 'nisse', re: /\bnisse\b/i },
   { word: 'varde', re: /\bvarde\b/i },
   { word: 'AIOS', re: /\baios\b/i },
+  { word: 'causality', re: /\bcausality\b/i },
   { word: 'private ticket id', re: PRIVATE_TICKET },
 ];
 
@@ -72,10 +78,12 @@ export const RETIRED_ROUTE_PREFIXES = [
   '/view-log', '/api/view-log',
 ];
 
-/** Modules and suites a removal deleted, server, client and test alike. None
- *  may come back. A suite is listed alongside its module so a feature cannot
- *  return with its own tests in tow and look green doing it. */
+/** Modules and suites a removal deleted, server, client and test alike: the
+ *  shrink's, plus the causality engine #298 deleted. None may come back. A
+ *  suite is listed alongside its module so a feature cannot return with its
+ *  own tests in tow and look green doing it. */
 export const RETIRED_MODULE_PATHS = [
+  'server/causality',
   'server/hub/', 'server/gate/', 'server/briefing', 'server/launch',
   'server/machineSessions', 'server/proxyLane', 'server/scopeSuggest',
   'src/ModulesPage', 'src/SafetyPage', 'src/JobsPage', 'src/BriefingPage',
