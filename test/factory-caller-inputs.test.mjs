@@ -2,7 +2,7 @@
 //
 // GitHub validates a reusable workflow's inputs when it PARSES the caller, so
 // one input the factory no longer declares stops every job in this file
-// whatever triggered it: dispatch, implement, review, implement-pr, gate,
+// whatever triggered it: dispatch, implement, review, implement-pr, merge-gate,
 // audit, update-branch. The reconciler is one of them, so nothing would repair
 // the stall either. That is why this is a pin and not a preference.
 //
@@ -77,7 +77,7 @@ const FACTORY_ROLES = {
   implement: { workflow: 'agent-implement.yml', inputs: ['factory_ref', 'node_version'] },
   review: { workflow: 'agent-review.yml', inputs: ['factory_ref', 'node_version'] },
   'implement-pr': { workflow: 'agent-implement-pr.yml', inputs: ['factory_ref', 'node_version'] },
-  gate: { workflow: 'gate.yml', inputs: ['factory_ref', 'node_version'] },
+  'merge-gate': { workflow: 'merge-gate.yml', inputs: ['factory_ref', 'node_version'] },
   audit: { workflow: 'agent-audit.yml', inputs: ['factory_ref', 'node_version'] },
   'update-branch': { workflow: 'update-branch.yml', inputs: ['factory_ref'] },
 };
