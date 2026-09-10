@@ -10,7 +10,7 @@
 //
 // Framework-free, like the rest of `shared/`: no db handle, no express, no
 // React, relative imports only.
-import type { Kind, Project, SourceId } from './types.ts';
+import type { Kind, Project } from './types.ts';
 
 // Full `sessions` row, as read back out of the DB (every column, including the
 // ones added by db.ts's idempotent ALTER TABLE migrations).
@@ -104,7 +104,8 @@ export interface Commit {
 // `file_path` stripped before it reaches the client.
 export interface ProjectSessionSummary {
   id: string;
-  source: SourceId | string;
+  // Untyped TEXT in the DB, like `SessionRow.source`.
+  source: string;
   started_at: string | null;
   ended_at: string | null;
   message_count: number;

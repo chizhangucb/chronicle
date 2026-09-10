@@ -231,7 +231,7 @@ export interface InsightsResult {
   toolDist: ToolCount[];
   kindDist: KindCount[];
   modelDist: { model: string; count: number }[];
-  /** Fixed 30-day-trailing model distribution — the same window as
+  /** Fixed 30-day-trailing model distribution — the same fixed span as
    * `hourlyActivity`, NOT the `days=` cutoff, so Working Rhythm's "Favorite
    * model" stays in step with its fixed-range card-mates. */
   modelDistFixed: { model: string; count: number }[];

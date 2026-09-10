@@ -14,9 +14,9 @@ import type {
   ActivityResult, AskCostMode, AskStatus, AskTurn, AutosyncStatus, ContentResult,
   DeleteSessionResult, DetectorCounts, GitAtResult, GitFileResult, GitTreeResult,
   ImportPayload, ImportResult, InsightsResult, LiveWatcher, ProjectDetailResult,
-  PlanWindowsResult, ProjectListItem, RenameSessionResult, ResolveSessionResult, ScanParams, ScanResult,
+  ProjectListItem, RenameSessionResult, ResolveSessionResult, ScanParams, ScanResult,
   SearchParams, SearchResponse, SecurityRule, SecurityScanResult, SessionMessagesResult,
-  SessionSyncResult, Settings, SettingsPatch, SyncRunResult, WasteResult,
+  SessionSyncResult, Settings, SettingsPatch, SyncRunResult,
 } from '../shared/results.ts';
 import { writeToken, WRITE_TOKEN_HEADER } from './writeToken.ts';
 
@@ -182,9 +182,6 @@ export const api = {
   explore: (q: ExploreQueryParams): Promise<ExploreWireResult> => j(exploreUrl(q)),
   content: (scope: 'all' | 'project' | 'session', id?: string | number, days?: number | null): Promise<ContentResult> =>
     j(contentUrl(scope, id, days)),
-  detectors: (days?: number | null): Promise<DetectorCounts> => j(detectorsUrl(days)),
-  waste: (days?: number | null): Promise<WasteResult> => j(wasteUrl(days)),
-  planWindows: (): Promise<PlanWindowsResult> => j(planWindowsUrl()),
   // The redaction preview and its rule list (were raw fetches in
   // SecurityCheck.tsx, with their own copies of the two shapes).
   securityCheck: (sessionId: string): Promise<SecurityScanResult> =>
