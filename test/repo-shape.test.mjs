@@ -355,21 +355,34 @@ const PROXY_SPINE_NAMES = [
   { name: 'launchd', re: /\blaunchd\b/i },
   { name: 'install-jobs', re: /install-jobs/i },
   { name: 'CHRONICLE_REQUIRE_PYTHON', re: /CHRONICLE_REQUIRE_PYTHON/ },
+  // Where the spine's Python and its tests sat inside the retired checkout,
+  // which test/helpers/retired-vocabulary.mjs used to carry as LEGACY_LAYOUT.
+  // `scripts/litellm` and `scripts/tests/test_litellm` are already hits on the
+  // `litellm` sweep above; `scripts/tests/test_lane_c` was not, so sweep the
+  // retired test FOLDER rather than the two filenames and the next one that
+  // gets cited is caught too. Nothing tracked writes this path -- the repo's
+  // Python tests are `node --test` suites under test/.
+  { name: 'scripts/tests', re: /scripts\/tests\b/i },
 ];
 
 const SPINE_EXEMPT = new Set([
   'docs/agents/design-audit-2026-09-04.md',
   'src/reference/definitions.ts',
 ]);
+// Blanks an exempt file's lines for these four names only, applied inside the
+// report for the same reason stripExemptFile is: the sweepable set every other
+// pin reads stays exactly the same set, so exempting a file here cannot quietly
+// widen what the vocabulary sweeps above allow in it.
+const stripSpineExemptFile = (rel, line) => (SPINE_EXEMPT.has(rel) ? '' : line);
 
 for (const { name, re } of PROXY_SPINE_NAMES) {
   test(`no tracked file points a reader at "${name}"`, () => {
-    const offenders = sweep(
-      (rel, src) =>
-        src.split('\n').flatMap((line, i) =>
-          re.test(line) ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`] : [],
-        ),
-      { skip: (rel) => SPINE_EXEMPT.has(rel) },
+    const offenders = sweep((rel, src) =>
+      src.split('\n').flatMap((line, i) =>
+        re.test(stripSpineExemptFile(rel, line))
+          ? [`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`]
+          : [],
+      ),
     );
     assert.deepEqual(offenders, [], `"${name}" is back:\n  ${offenders.join('\n  ')}`);
   });

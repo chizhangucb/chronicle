@@ -3,9 +3,18 @@
 //
 // It was written for two callers because two copies drifted apart once already
 // (issue #186). The second caller was the proxy runtime suite, deleted with the
-// spine it pinned (#296), and the patterns only it read either moved into the
-// sweep below or, where the sweep already forbids every string they could
-// match, went with it (the `hub `scripts/...`` location header is a `hub`).
+// spine it pinned (#296). Every pattern only that suite read is still forbidden
+// somewhere, one by one, so this note can be cited as coverage:
+//
+//   - LEGACY_LAYOUT `scripts/litellm` and `scripts/tests/test_litellm` -> the
+//     `litellm` sweep in test/repo-shape.test.mjs.
+//   - LEGACY_LAYOUT `scripts/tests/test_lane_c` -> the `scripts/tests` sweep
+//     there, added because that one alternative matched nothing else.
+//   - PRIVATE_LOCATION ``hub `scripts/...` `` -> RETIRED_WORDS `hub` below:
+//     every string it could match carries the word.
+//   - FOREIGN_CONSUMER `varde` -> RETIRED_WORDS `varde` below; its
+//     `aggregator/sources` half had no such twin, so it moved into
+//     RETIRED_WORDS itself as `foreign consumer path`.
 //
 // It stays its own file on one caller because it is the registry, not the pin:
 // repo-shape exempts it BY PATH from its own vocabulary sweep, and a registry a

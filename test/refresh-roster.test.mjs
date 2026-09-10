@@ -11,11 +11,11 @@
 // importing them; a dash would force every caller through importlib to buy
 // nothing.
 //
-// python3 is optional. This is the only suite that shells out to an
-// interpreter, and installing one is not something a contributor working on the
-// React client should owe: without python3 these three tests skip. CI installs
-// Node and nothing else for the same reason (#296), so the skip rule lives here
-// rather than in a helper shared with suites that no longer exist.
+// python3 is optional here, and now everywhere: this is the only suite left
+// that shells out to an interpreter, and installing one is not something a
+// contributor working on the React client should owe. CI installs Node and
+// nothing else for the same reason (#296). test/helpers/python.mjs still holds
+// the one skip-or-run rule.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipWithoutPython } from './helpers/python.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(REPO, 'scripts/refresh_roster.py');
@@ -32,17 +33,6 @@ const tmp = (t, prefix) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
-};
-
-/**
- * Decide what a spawnSync result that could not start python3 means. Returns
- * true when the caller should `return` (it has been skipped); false when
- * python3 ran and the test should continue.
- */
-const skipWithoutPython = (t, result) => {
-  if (!result.error) return false;
-  t.skip('no python3');
-  return true;
 };
 
 // Never inherits an ambient CHRONICLE_ROSTER_MD: a shell that exported one
