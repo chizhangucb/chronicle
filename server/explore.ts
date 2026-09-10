@@ -8,8 +8,8 @@
 import { db } from './db.ts';
 import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { rangedUsage, bucketedUsage, bucketKeyExpr, type BucketedUsageCell, type UsageBucket } from './rangeUsage.ts';
-import { addCellInto, emptyCell, parseUsage, type UsageCell } from '../shared/usage.ts';
+import { rangedUsage, bucketedUsage, bucketKeyExpr } from './rangeUsage.ts';
+import { addCellInto, emptyCell, parseUsage, type BucketedUsageCell, type UsageBucket, type UsageCell } from '../shared/usage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head query for
 // those groups, but the heuristic itself is the shared server-side copy, and the
@@ -25,20 +25,21 @@ import { sessionDisplayName } from '../shared/sessionName.ts';
 import { bucketLabel } from '../shared/bucketLabel.ts';
 export { bucketLabel };
 
-export type ExploreMetric = 'spend' | 'tokens' | 'requests' | 'active' | 'sessions' | 'errors';
-export type ExploreGroup = 'model' | 'project' | 'source' | 'tool' | 'skill' | 'subagent' | 'hour' | 'session' | 'mcp' | 'provider';
-// 'total' collapses time (ranked bars). The four time rollups bucket the range
-// into a stacked time-series; 'total' output is byte-identical to before this
-// feature (plus the two scalar rollup fields on the result). See
-// records/design/2026-08-11-chronicle-explore-rollups/spec.md.
-export type ExploreRollup = 'total' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+// The metric/group/rollup vocabularies and the WIRE shapes live in
+// shared/explore.ts (#307); the client reads them from there. This engine's
+// in-memory row/cell extend the same bases in the shared token-cell dialect,
+// so a field can only be added to both at once.
+import type {
+  ExploreCellBase, ExploreGroup, ExploreMetric, ExploreRollup, ExploreRowBase,
+  ExploreWireCell, ExploreWireCellSet, ExploreWireBucket, ExploreWireResult, ExploreWireRow,
+} from '../shared/explore.ts';
+
 export interface ExploreQuery {
   scope: Scope; range: Range;
   metric: ExploreMetric; group: ExploreGroup; subgroup?: ExploreGroup;
   rollup: ExploreRollup; topN: number;
 }
-export interface ExploreRow {
-  key: string; label: string;
+export interface ExploreRow extends ExploreRowBase {
   tokensByModel: Record<string, UsageCell>;
   // Day-bucketed (LOCAL calendar day, YYYY-MM-DD) breakdown of tokensByModel —
   // Day bucket: lets the client price Spend per day-bucket at that day's rate
@@ -49,35 +50,22 @@ export interface ExploreRow {
   // (tool/skill) and per-message groups (hour/subagent) omit it — their
   // magnitude is already an approximation, priced at the latest/current rate.
   tokensByModelByDay?: Record<string, Record<string, UsageCell>>;
-  requests: number; sessions: number; errors: number; activeMs: number;
-  segments: { key: string; label: string; tokens: number }[];
-  // Only set on the synthetic key==='Other' row: how many non-topN group
-  // values were folded into it (the client's "+N in Other" legend reads this
-  // — it has no way to derive N itself, since it only ever receives the
-  // already-folded topN+Other row set, never the raw pre-fold list).
-  otherCount?: number;
 }
 // One (bucket × series) cell in a time-rollup. Metric-SPECIALIZED: only the
 // dimension the chosen metric reads is populated (tokensByModel for
 // tokens/spend; the matching scalar for requests/sessions/errors/active), the
 // rest stay zero. The client reuses its per-row metricValue/rowSpend/rowTokens
 // on this same shape, so a cell projects to exactly one meaningful number.
-export interface ExploreCell {
+export interface ExploreCell extends ExploreCellBase {
   tokensByModel: Record<string, UsageCell>;
-  requests: number; sessions: number; errors: number; activeMs: number;
 }
-// One time bucket. `bucket` is the raw sortable key (ISO-ish); `label` is the
-// short human string for the axis. `series` is keyed by the SAME group values
-// chosen for the ranked rows (topN group values + 'Other'); a series absent
-// from a bucket is simply omitted (the client fills 0 for continuous stacking).
+// One time bucket, in the engine's dialect. `series` is keyed by the SAME group
+// values chosen for the ranked rows (topN group values + 'Other'); a series
+// absent from a bucket is simply omitted (the client fills 0).
 export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
-export interface ExploreResult {
-  metric: ExploreMetric; group: ExploreGroup; subgroup: ExploreGroup | null;
-  calibrated: boolean; rows: ExploreRow[];
-  // effective rollup actually rendered (post cap-coarsening); requestedRollup =
-  // what the caller asked for. rollup !== requestedRollup ⇒ the client shows a
-  // "too dense, showing <coarser>" note. buckets present iff rollup !== 'total'.
-  rollup: ExploreRollup; requestedRollup: ExploreRollup; buckets?: ExploreBucket[];
+export interface ExploreResult extends Omit<ExploreWireResult, 'rows' | 'buckets'> {
+  rows: ExploreRow[];
+  buckets?: ExploreBucket[];
 }
 
 // Chart legibility cap: at ~90 bars in a ~1000px plot each bar is ≈11px, still
@@ -644,22 +632,6 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
 // renamed, here, in one place. Renaming the wire itself means changing what
 // /api/explore returns, which is a surface-contract question, not this
 // consolidation's.
-export interface ExploreWireCell { input: number; output: number; cacheRead: number; cw5m: number; cw1h: number; }
-export interface ExploreWireRow extends Omit<ExploreRow, 'tokensByModel' | 'tokensByModelByDay'> {
-  tokensByModel: Record<string, ExploreWireCell>;
-  tokensByModelByDay?: Record<string, Record<string, ExploreWireCell>>;
-}
-export interface ExploreWireCellSet extends Omit<ExploreCell, 'tokensByModel'> {
-  tokensByModel: Record<string, ExploreWireCell>;
-}
-export interface ExploreWireBucket extends Omit<ExploreBucket, 'series'> {
-  series: Record<string, ExploreWireCellSet>;
-}
-export interface ExploreWireResult extends Omit<ExploreResult, 'rows' | 'buckets'> {
-  rows: ExploreWireRow[];
-  buckets?: ExploreWireBucket[];
-}
-
 function wireCells(byModel: Record<string, UsageCell>): Record<string, ExploreWireCell> {
   const out: Record<string, ExploreWireCell> = {};
   for (const [model, c] of Object.entries(byModel)) {

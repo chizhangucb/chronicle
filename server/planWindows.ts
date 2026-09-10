@@ -18,19 +18,12 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { readConfig } from './config.ts';
+// Declared in shared/results.ts (#307), so the Spend tab's plan-window card
+// reads the shape this module answers with.
+import type { AccountWindow, PlanAccount, PlanWindowsResult } from '../shared/results.ts';
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const FETCH_TIMEOUT_MS = 15_000;
-
-export interface AccountWindow { label: string; utilization: number; resetsAt: string | null }
-export interface PlanAccount { name: string; kind: 'claude' | 'codex'; plan: string | null; windows: AccountWindow[] }
-export interface PlanWindowsResult {
-  /** Claude toggle state (default ON). False means we never went outbound. */
-  claudeEnabled: boolean;
-  /** true when the Claude toggle is on but no readable credential was found. */
-  claudeUnauthed: boolean;
-  accounts: PlanAccount[];
-}
 
 // ---- Claude (outbound, opt-out, default on) ----
 function readClaudeToken(home: string = homedir()): string | null {

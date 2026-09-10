@@ -13,24 +13,17 @@
 // pricing (never flatten different models' tokens into one bag first) since
 // each model has its own $/token rate.
 import { costOf, type CostMode } from './models.ts';
-import { addCell, emptyCell, type UsageCell } from '../shared/usage.ts';
-
-export interface RangeCell {
-  sessionId: string;
-  projectId: number;
-  model: string;
-  source: string;
-  cells: UsageCell;
-}
-
-export interface BucketedCell extends RangeCell {
-  bucket: string;
-}
+// The cells these helpers fold over are the ones server/rangeUsage.ts ships,
+// declared once in shared/usage.ts (#307) — this module used to keep a
+// field-for-field twin of both under its own names.
+import {
+  addCell, emptyCell, type BucketedUsageCell, type RangeUsageCell, type UsageCell,
+} from '../shared/usage.ts';
 
 // Sums cells into ONE UsageCell per model, ignoring every other dimension
 // (session/project/source/bucket) — used wherever the model IS the group
 // (Spend by model, the Token usage by model table).
-export function sumByModel<T extends RangeCell>(cells: T[]): Map<string, UsageCell> {
+export function sumByModel<T extends RangeUsageCell>(cells: T[]): Map<string, UsageCell> {
   const out = new Map<string, UsageCell>();
   for (const c of cells) out.set(c.model, addCell(out.get(c.model) ?? emptyCell(), c.cells));
   return out;
@@ -40,7 +33,7 @@ export function sumByModel<T extends RangeCell>(cells: T[]): Map<string, UsageCe
 // session, bucket, …) — kept two-level (key → model → cell) so a group
 // spanning multiple models can still be priced correctly per model before
 // summing (see the header comment: never flatten across models pre-price).
-export function sumByKeyModel<T extends RangeCell>(cells: T[], keyOf: (c: T) => string): Map<string, Map<string, UsageCell>> {
+export function sumByKeyModel<T extends RangeUsageCell>(cells: T[], keyOf: (c: T) => string): Map<string, Map<string, UsageCell>> {
   const out = new Map<string, Map<string, UsageCell>>();
   for (const c of cells) {
     let byModel = out.get(keyOf(c));
@@ -53,7 +46,7 @@ export function sumByKeyModel<T extends RangeCell>(cells: T[], keyOf: (c: T) => 
 // Splits a bucketed cell list into one raw cell list per bucket key —
 // callers then apply sumByModel/sumByKeyModel to each bucket's slice (e.g.
 // grouping the Home spend-over-time chart's per-bucket cells by project).
-export function groupByBucket<T extends BucketedCell>(cells: T[]): Map<string, T[]> {
+export function groupByBucket<T extends BucketedUsageCell>(cells: T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const c of cells) {
     const arr = out.get(c.bucket);
@@ -77,7 +70,7 @@ export function costOfCells(byModel: Map<string, UsageCell> | undefined, day?: s
 
 // Splits a cell list into one raw list per arbitrary key (project id, session
 // id, …) — generalizes groupByBucket to any grouping, not just bucket.
-export function groupByKey<T extends RangeCell>(cells: T[], keyOf: (c: T) => string): Map<string, T[]> {
+export function groupByKey<T extends RangeUsageCell>(cells: T[], keyOf: (c: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const c of cells) {
     const arr = out.get(keyOf(c));
@@ -92,7 +85,7 @@ export function groupByKey<T extends RangeCell>(cells: T[], keyOf: (c: T) => str
 // must be split and priced per bucket, then summed, not collapsed first. Compose
 // with groupByKey for a per-key total that still prices correctly per day
 // (e.g. costOfBucketedCells(groupByKey(cells, keyOf).get(key) ?? [])).
-export function costOfBucketedCells<T extends BucketedCell>(cells: T[], mode: CostMode = 'theoretical'): number {
+export function costOfBucketedCells<T extends BucketedUsageCell>(cells: T[], mode: CostMode = 'theoretical'): number {
   let total = 0;
   for (const [day, group] of groupByBucket(cells)) total += costOfCells(sumByModel(group), day, mode);
   return total;

@@ -6,7 +6,7 @@
 //
 // Keyed by DisplayKind = the canonical parser `Kind`s PLUS the client-only 'note'
 // ('Inserted') display kind (user-inserted Refine notes never hit a parser/db).
-import type { DisplayKind } from '@shared/types.ts';
+import type { DisplayKind } from '../shared/types.ts';
 
 export const KIND_LABEL: Record<DisplayKind, string> = {
   user: 'User',

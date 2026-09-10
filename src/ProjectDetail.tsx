@@ -5,9 +5,9 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { api, projectUrl, projectsUrl, type BucketedUsageCell } from './api.js';
+import { api, projectUrl, projectsUrl } from './api.js';
 import { costOf, type CostMode } from './models.js';
-import { parseUsage, type UsageByModel } from '../shared/usage.ts';
+import { parseUsage, type BucketedUsageCell, type UsageByModel } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
@@ -24,69 +24,21 @@ import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
-import type { Project, SourceId } from '@shared/types.ts';
+import type { Project, SourceId } from '../shared/types.ts';
 
-// Git repo info as returned by server/git.ts `repoInfo()`, embedded on both the
-// project list (`/api/projects`) and project detail (`/api/projects/:id`) responses.
-export interface RepoInfo {
-  isRepo: boolean;
-  commitCount?: number;
-  branch?: string | null;
-}
-
-// A session row as returned by GET /api/projects/:id (server/routes/projects.ts):
-// the raw DB columns plus `liveCandidate`/`ongoing` computed server-side, with
-// `file_path` stripped out before it reaches the client.
-export interface ProjectSession {
-  id: string;
-  source: SourceId | string;
-  started_at: string | null;
-  ended_at: string | null;
-  message_count: number;
-  first_prompt: string | null;
-  name: string | null;
-  summary: string | null;
-  context_tokens: number | null;
-  usage: string | null; // JSON-stringified Usage (see @shared/types.ts)
-  agent_active_ms: number | null;
-  char_count: number | null;
-  liveCandidate: boolean;
-  ongoing: boolean;
-}
-
-interface ToolDistRow { name: string | null; count: number; }
-interface KindDistRow { kind: string; count: number; }
-interface ActivityRow { day: string; count: number; }
-
-export interface ProjectAnalytics {
-  toolDist: ToolDistRow[];
-  kindDist: KindDistRow[];
-  activity: ActivityRow[];
-  errors: number;
-  commits: number;
-  // Ranged per-session, per-model, per-day billed cells (Task 2/3, project-
-  // scoped; day-bucketed) — the client prices these via costOf
-  // for the Cost/Tokens KPI tiles and Cost by model bars, instead of summing
-  // raw session.usage, so a session that started before the range but ran
-  // INTO it contributes only its in-range share, and one that straddles a
-  // rate change (e.g. Sonnet 5's intro window) prices each day correctly
-  // (mirrors server/insights.ts's rangedTokensByModel).
-  rangedTokensByModel: BucketedUsageCell[];
-}
-
-export interface ProjectDetailData {
-  project: Project;
-  sessions: ProjectSession[];
-  git: RepoInfo;
-  analytics: ProjectAnalytics;
-}
+// Everything this page renders is declared once in shared/ (#307): the session
+// row and the repo info in shared/rows.ts, the page's own payload (its session
+// list, its Git data and the scoped aggregates the Insights engine computes)
+// in shared/results.ts.
+import type { ProjectSessionSummary, RepoInfo } from '../shared/rows.ts';
+import type { ProjectDetailResult } from '../shared/results.ts';
 
 // Session-list scale UX (v0.2): sort + source filter + windowed rendering.
 const SESSION_WINDOW = 100;
 // `usage` is JSON-stringified per-model token totals (shared/usage.ts) —
 // parsed once here and reused by every KPI/ranking that sums cost or tokens
 // across the session list (Step 3/6 of the 5d-3 brief).
-function sessionUsage(s: ProjectSession): UsageByModel {
+function sessionUsage(s: ProjectSessionSummary): UsageByModel {
   return parseUsage(s.usage);
 }
 // Prices at the session's own start day when known — a session
@@ -94,12 +46,12 @@ function sessionUsage(s: ProjectSession): UsageByModel {
 // one day (no sub-session split, same documented boundary as
 // server/activity.ts's topSession), but this is strictly more correct than
 // the prior flat/latest-rate pricing for every OTHER session in range.
-function sessionCost(s: ProjectSession, mode: CostMode = 'theoretical'): number {
+function sessionCost(s: ProjectSessionSummary, mode: CostMode = 'theoretical'): number {
   const usage = sessionUsage(s);
   const day = s.started_at ? dayKeyOf(new Date(s.started_at)) : undefined;
   return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day, mode) ?? 0), 0);
 }
-function sessionDurationMs(s: ProjectSession): number {
+function sessionDurationMs(s: ProjectSessionSummary): number {
   return s.agent_active_ms ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
 }
 
@@ -200,7 +152,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // error banner below when `data` is still null (a true cold-load failure,
   // e.g. a deleted project's 404): a background revalidation failure on an
   // already-populated pane must not blank/replace working data.
-  const { data, error: loadError, refresh } = useCachedFetch<ProjectDetailData>(projectUrl(id, days ?? undefined));
+  const { data, error: loadError, refresh } = useCachedFetch<ProjectDetailResult>(projectUrl(id, days ?? undefined));
 
   // Project-level LIVE pill: light up when any session log is being written right now.
   useEffect(() => {
@@ -333,7 +285,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   const sortedSessions = useMemo(() => {
     let list = data?.sessions ?? [];
     if (sourceFilter) list = list.filter((s) => s.source === sourceFilter);
-    const by: Record<string, (a: ProjectSession, b: ProjectSession) => number> = {
+    const by: Record<string, (a: ProjectSessionSummary, b: ProjectSessionSummary) => number> = {
       recent: (a, b) => (b.started_at || '').localeCompare(a.started_at || ''),
       cost: (a, b) => sessionCost(b, mode) - sessionCost(a, mode),
       duration: (a, b) => sessionDurationMs(b) - sessionDurationMs(a),

@@ -1,6 +1,6 @@
 import React, { type JSX } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import type { ExploreQueryParams } from '../api.ts';
+import type { ExploreQueryParams } from '../../shared/explore.ts';
 
 // PivotState mirrors ExploreQueryParams' metric/group/subgroup/topN, plus a
 // UI-only `rollup` field (5e-0's server hardcodes rollup='total' — there is

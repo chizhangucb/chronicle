@@ -20,7 +20,7 @@ interface SessionSummaryRow {
   messages: number;
 }
 
-interface SessionRow {
+interface OpenCodeSessionRow {
   id: string;
   directory: string;
   parent_id: string | null;
@@ -115,7 +115,7 @@ export function parseOpencodeSessions(dbPath: string, directory: string | undefi
   const snap = openSnapshot(dbPath);
   try {
     let sessions = snap.db.prepare(
-      'SELECT * FROM session WHERE directory = ? AND parent_id IS NULL').all(directory ?? null) as unknown as SessionRow[];
+      'SELECT * FROM session WHERE directory = ? AND parent_id IS NULL').all(directory ?? null) as unknown as OpenCodeSessionRow[];
     if (sessionIds?.length) sessions = sessions.filter((s) => sessionIds.includes(s.id));
     return sessions.map((s): ParseResult => {
       const parts = snap.db.prepare(`

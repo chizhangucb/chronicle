@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, tombstoneSessionsForProject, type ProjectRow } from '../db.ts';
+import { db, upsertProject, tombstoneSessionsForProject } from '../db.ts';
+import type { ProjectRow, ProjectSessionSummary } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
 import { cached, invalidateCache } from '../cache.ts';
 import { backupDbBeforeDelete } from './_shared.ts';
 import { computeScopedAggregates } from '../insights.ts';
 import { queryContext, rangeOf, whereOf, type Scope } from '../scope.ts';
+import type { ProjectDetailResult, ProjectListItem } from '../../shared/results.ts';
 
 interface ProjectListRow extends ProjectRow {
   session_count: number;
@@ -15,21 +17,11 @@ interface ProjectListRow extends ProjectRow {
   sources: string | null;
 }
 
-interface RawSessionRow {
-  id: string;
-  source: string;
-  file_path: string;
-  started_at: string | null;
-  ended_at: string | null;
-  message_count: number;
-  first_prompt: string | null;
-  name: string | null;
-  summary: string | null;
-  context_tokens: number | null;
-  usage: string | null;
-  agent_active_ms: number | null;
-  char_count: number | null;
-}
+// The session row this route projects, minus the two live flags it computes
+// below: shared/rows.ts owns the shape (#307) and the project page imports it.
+// (`file_path` is selected here to date the transcript, then stripped before
+// the row goes out.)
+type RawSessionRow = Omit<ProjectSessionSummary, 'liveCandidate' | 'ongoing'> & { file_path: string };
 
 // Mirrors server/activity.ts LIVE_WINDOW_MS — a session is "live" if it has an
 // open SSE watcher OR its stored ended_at is within the trailing 5 minutes.
@@ -81,7 +73,8 @@ export function mountProjects(app: Express): void {
         liveProjectIds.add(r.project_id);
       }
     }
-    res.json(projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) })));
+    const list: ProjectListItem[] = projects.map((p) => ({ ...p, git: gitEngine.repoInfo(p.path), live: liveProjectIds.has(p.id) }));
+    res.json(list);
   });
 
   app.get('/projects/:id', (req: Request, res: Response) => {
@@ -130,8 +123,9 @@ export function mountProjects(app: Express): void {
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, rangedTokensByModel }, cutoff };
     });
     const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
-    res.json({ project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),
-      analytics: { ...body.analyticsBase, commits } });
+    const payload: ProjectDetailResult = { project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),
+      analytics: { ...body.analyticsBase, commits } };
+    res.json(payload);
   });
 
   // ---- Project management (FR-PM-3/4/5) ----

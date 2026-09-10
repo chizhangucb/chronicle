@@ -3,7 +3,9 @@
 // footnote. No React, no fetch — straight array math, unit-tested directly
 // (test/insights-stats.test.mjs) via Node's native TS stripping.
 
-export interface DayCount { day: string; count: number; }
+// The row these helpers fold over is the one the Insights engine returns
+// (shared/rows.ts, #307), not a local re-declaration of it.
+import type { DayCount } from '../../shared/rows.ts';
 
 // Longest run of consecutive calendar days with count > 0, ending at `today`
 // (GitHub-style: today's own zero-count does NOT break an in-progress streak

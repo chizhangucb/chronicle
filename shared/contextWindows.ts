@@ -8,10 +8,8 @@
 // against its model's window, so this table is mirrored into `shared/` once
 // instead of hand-copy-pasted into both src/models.ts and server/content.ts
 // (that duplication used to carry an explicit "keep these two in sync"
-// comment — this file removes the need for it). Both sides import it via a
-// relative path (server: `../shared/contextWindows.ts`) or the `@shared`
-// alias (client: `@shared/contextWindows.ts`), matching shared/types.ts's
-// existing import convention.
+// comment — this file removes the need for it). Both sides import it by
+// relative path, the one convention `shared/` has.
 //
 // Cached from the Anthropic model catalog (platform.claude.com, 2026-06) plus
 // common non-Claude models Chronicle can import. Pure lookup — never fetched

@@ -4,8 +4,7 @@
 // (that is the TOOL vendor claude-code/codex/…, already the Sources chart). The
 // client twin of server/explore.ts `providerExpr`; the two MUST agree, so the
 // prefix rules here mirror that CASE expression exactly (test/provider-of.test.mjs
-// pins it). Relative-import value module (never @shared), same B3 rule as
-// shared/pricing.ts.
+// pins it). Imported by relative path from both sides, like shared/pricing.ts.
 
 export type Provider = 'anthropic' | 'openai' | 'google' | 'other';
 

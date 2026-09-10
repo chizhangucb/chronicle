@@ -11,8 +11,8 @@ import { useCostMode } from './costMode.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
-import type { SearchResultItem } from './api.js';
-import type { ProjectSummary } from './ProjectsPage.js';
+import type { SearchResultItem } from '../shared/rows.ts';
+import type { ProjectListItem } from '../shared/results.ts';
 
 // The recent-sessions ledger, extracted from the old HomePage so it
 // can be reused verbatim as the LAST section of the new `/` dashboard while
@@ -101,7 +101,7 @@ function groupByDay(sessions: SearchResultItem[], mode: CostMode): DayGroup[] {
 }
 
 export interface RecentLedgerProps {
-  projects: ProjectSummary[] | null;
+  projects: ProjectListItem[] | null;
   onOpenSession?: (id: string, projectId: number) => void;
   onRefresh: () => void;
   // Filter query (Task 19, PR-2 checkpoint): `/projects` lifts the filter box

@@ -6,7 +6,7 @@
 // answers cannot disagree — it used to be a server copy plus a hand-written
 // client twin kept in step by a gotcha entry.
 //
-// Relative-import value module (never @shared), same B3 rule as
+// Imported by relative path from both sides, like every shared/ module.
 // shared/pricing.ts and shared/provider.ts.
 
 export const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1-9]|command failed|permission denied/i;

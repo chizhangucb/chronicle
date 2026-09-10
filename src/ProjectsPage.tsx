@@ -5,25 +5,12 @@ import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
 import RecentLedger from './RecentLedger.js';
-import type { Project } from '@shared/types.ts';
-import type { RepoInfo } from './ProjectDetail.tsx';
-
-// A project row as returned by GET /api/projects (server/routes/projects.ts
-// ProjectListRow): the projects table columns plus aggregate counts and the
-// embedded git repo info.
-export interface ProjectSummary extends Project {
-  session_count: number;
-  message_count: number;
-  last_active: string | null;
-  sources: string | null;
-  git: RepoInfo;
-  // Any session in the project has an open live watcher or ended in the last
-  // 5 minutes (server/routes/projects.ts, Task 17).
-  live: boolean;
-}
+import type { Project } from '../shared/types.ts';
+// One row of GET /api/projects, declared once in shared/results.ts (#307).
+import type { ProjectListItem } from '../shared/results.ts';
 
 interface ProjectMenuProps {
-  project: ProjectSummary;
+  project: ProjectListItem;
   onRefresh: () => void;
 }
 
@@ -204,7 +191,7 @@ function DemoOffer() {
 }
 
 export interface ProjectsPageProps {
-  projects: ProjectSummary[] | null;
+  projects: ProjectListItem[] | null;
   onOpenProject: (id: number | string) => void;
   onOpenSession?: (id: string, projectId: number) => void;
   onImport: () => void;
@@ -242,7 +229,7 @@ interface UseProjectSelect {
 // shared full-width command bar alongside the session-select flow, and
 // `onBeforeEnter` lets that command bar force-exit the sibling session-select
 // so at most one select mode is ever active.
-function useProjectSelect(projects: ProjectSummary[], onRefresh: () => void, onBeforeEnter?: () => void): UseProjectSelect {
+function useProjectSelect(projects: ProjectListItem[], onRefresh: () => void, onBeforeEnter?: () => void): UseProjectSelect {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number | string>>(() => new Set());
   const [confirming, setConfirming] = useState(false);

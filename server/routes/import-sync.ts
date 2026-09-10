@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, replaceSession, type ProjectRow, type SessionRow } from '../db.ts';
+import { db, upsertProject, replaceSession } from '../db.ts';
+import type { ProjectRow, SessionRow } from '../../shared/rows.ts';
 import { scanClaudeProjects, parseClaudeSession } from '../parsers/claudeCode.ts';
 import { scanCodexProjects, parseCodexSession } from '../parsers/codex.ts';
 import { scanOpencodeProjects, parseOpencodeSessions, OPENCODE_DB } from '../parsers/opencode.ts';
@@ -30,32 +31,11 @@ function errMessage(err: unknown): string {
   return String((err as Error)?.message || err);
 }
 
-interface GatherParsedParams {
-  source: string;
-  logDir?: string | null;
-  files?: string[];
-  directory?: string;
-  sessionIds?: string[];
-  physicalPath?: string | null;
-}
-
-interface ProjectAgg {
-  id: number;
-  name: string;
-  path: string;
-  created: boolean;
-  sessions: number;
-  messages: number;
-}
-
-interface ImportResult {
-  ok: true;
-  imported: number;
-  skippedSessions: number;
-  totalMessages: number;
-  projects: ProjectAgg[];
-  projectId: number | null;
-}
+// What the import wizard POSTs, and what it gets back: shared/results.ts owns
+// both shapes (#307), so the wizard reads the contract this route writes.
+import type {
+  ImportPayload as GatherParsedParams, ImportProjectAgg as ProjectAgg, ImportResult, ScanResult, SyncRunResult,
+} from '../../shared/results.ts';
 
 // Lifted to module scope so the demo seeder can drive the SAME
 // parse+import path the HTTP route uses, instead of writing rows into the DB
@@ -146,12 +126,13 @@ export function mountImportSync(app: Express): void {
     // is a no-op unless CHRONICLE_E2E=1 — airtight in production, where the
     // env var is never set.
     const e2eClaudeDir = process.env.CHRONICLE_E2E === '1' && dir ? dir : undefined;
-    res.json({
+    const scan: ScanResult = {
       'claude-code': annotateScan(scanClaudeProjects(e2eClaudeDir)),
       codex: annotateScan(scanCodexProjects()),
       cursor: annotateScan(scanCursorProjects()),
       opencode: annotateScan(scanOpencodeProjects()),
-    });
+    };
+    res.json(scan);
   });
 
   app.post('/import', async (req: Request, res: Response) => {
@@ -190,7 +171,8 @@ export function mountImportSync(app: Express): void {
         skippedSessions += result.skippedSessions;
         totalMessages += result.totalMessages;
       }
-      res.json({ ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) });
+      const synced: SyncRunResult = { ok: true, imported, skippedSessions, totalMessages, sources: matches.map((m) => m.source) };
+      res.json(synced);
     } catch (err) {
       res.status(errStatus(err)).json({ error: errMessage(err) });
     }

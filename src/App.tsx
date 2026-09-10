@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useLocation, useRoute, useSearch } from 'wouter';
 import * as Toast from '@radix-ui/react-toast';
-import { api, type Settings } from './api.js';
+import { api } from './api.js';
+import type { ProjectListItem, Settings } from '../shared/results.ts';
 import ImportWizard from './ImportWizard.tsx';
 import ProjectDetail from './ProjectDetail.jsx';
 import SessionView from './SessionView.jsx';
@@ -15,24 +16,9 @@ import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
 import { useSyncStatus } from './useSyncStatus.js';
 import { CostModeProvider, CostModeToggle } from './costMode.tsx';
-import type { Project } from '@shared/types.ts';
+import type { Project } from '../shared/types.ts';
 import type { LiveChangeInfo, RailState } from './SessionView.jsx';
 import type { DeletedEntry } from './SessionSelect.js';
-
-// The `/api/projects` list response: a Project row plus per-project aggregates
-// (session_count/message_count/last_active/sources — server/routes/projects.ts
-// ProjectListRow) and the live `git` pill info (server/git.ts RepoInfo), computed
-// fresh on every call (no caching).
-export interface ProjectListItem extends Project {
-  session_count: number;
-  message_count: number;
-  last_active: string | null;
-  sources: string | null;
-  git: { isRepo: boolean; commitCount?: number; branch?: string | null };
-  // Any session in the project has an open live watcher or ended in the last
-  // 5 minutes (server/routes/projects.ts, Task 17).
-  live: boolean;
-}
 
 // Navigation is now driven by real URL routes (wouter): `/` (Home),
 // `/project/:id`, `/session/:id`. The URL itself is the persisted state, so a

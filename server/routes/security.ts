@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
-import { db, type SessionRow, type ProjectRow, type MessageRow } from '../db.ts';
+import { db } from '../db.ts';
+import type { MessageRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from '../security.ts';
 
 const LABEL: Record<string, string> = { user: 'User', assistant: 'Assistant', thinking: 'Thinking', tool_use: 'Tool call', tool_result: 'Tool result' };

@@ -6,9 +6,9 @@
 // keep their `from './models.ts'` import path unchanged. Nothing about client
 // behavior changes; the price table simply moved one folder over.
 //
-// Relative path, NOT the `@shared` alias — see the note in shared/pricing.ts
-// and shared/contextWindows.ts: `@shared` value-imports throw
-// ERR_MODULE_NOT_FOUND under plain `node --test`; relative resolves everywhere.
+// Imported by relative path, the one convention `shared/` has (#307): a
+// relative specifier resolves under Vite, plain `node --test` and the server
+// build alike.
 // verbatimModuleSyntax is on, so type re-exports use `export type`.
 export {
   pricingFor,

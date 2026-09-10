@@ -12,65 +12,16 @@ import OverviewMode from './session/OverviewMode.tsx';
 import { errorDrillIn, subagentRunList, fmtTokNum, fmtDur } from './session/stats.ts';
 import ContentTab from './ContentTab.tsx';
 import { useResizable } from './useResizable.ts';
-import type { ProjectDetail, ProjectSessionSummary } from './api.js';
+import type { ProjectDetailResult, SessionMessagesResult } from '../shared/results.ts';
+import type { Commit, ProjectSessionSummary, SessionRow } from '../shared/rows.ts';
 import type { DeletedEntry } from './SessionSelect.tsx';
 
-// ── Shapes for the GET /api/sessions/:id/messages payload ──────────────────
-// Duplicated from server/db.ts + server/git.ts rather than imported:
-// tsconfig.client.json's program only includes src/**  + shared/**, so it
-// cannot see server/**. Spec #294 moves the server row types into shared/, at
-// which point both sides import one Session/Project contract instead.
-
-// Full `sessions` row shape (mirrors server/db.ts SessionRow). `source` is a
-// plain `string` (not the narrower `SourceId` union) to match the canonical
-// api.ts `Session`/server/db.ts `SessionRow` — the DB column is untyped TEXT.
-export interface Session {
-  id: string;
-  project_id: number;
-  source: string;
-  file_path: string;
-  started_at: string | null;
-  ended_at: string | null;
-  message_count: number;
-  first_prompt: string | null;
-  context_tokens: number | null;
-  name: string | null;
-  summary: string | null;
-  usage: string | null;
-  sidechain_count: number;
-  imported_at: string | null;
-  agent_active_ms: number | null;
-  engaged_ms: number | null;
-}
-
-// Full `projects` row shape (mirrors server/db.ts ProjectRow / shared Project).
-export interface ProjectInfo {
-  id: number;
-  path: string;
-  name: string;
-  created_at?: string;
-}
-
-// Mirrors server/git.ts Commit / RepoInfo.
-export interface CommitInfo {
-  hash: string;
-  date: string;
-  subject: string;
-  beforeHistory?: boolean;
-}
-export interface RepoInfo {
-  isRepo: boolean;
-  commitCount?: number;
-  branch?: string | null;
-}
-
-export interface SessionData {
-  session: Session;
-  project: ProjectInfo;
+// The GET /api/sessions/:id/messages payload is `SessionMessagesResult`
+// (shared/results.ts, #307) — the same declaration the route answers with.
+// Playback widens its `messages` to PlaybackMessage, which also carries the
+// rows arriving over live SSE (they are parser events, not stored rows).
+export interface SessionData extends Omit<SessionMessagesResult, 'messages'> {
   messages: PlaybackMessage[];
-  commits: CommitInfo[];
-  git: RepoInfo | null;
-  liveCandidate: boolean;
 }
 
 export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
@@ -148,7 +99,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   // bypassing the kind chips (see `visible` below). Independent of `chips`
   // because it's a row-identity filter (tool_use_id pairing), not a kind filter.
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [commit, setCommit] = useState<CommitInfo | null>(null);
+  const [commit, setCommit] = useState<Commit | null>(null);
   const [noRepo, setNoRepo] = useState(false);
   const [commitLoading, setCommitLoading] = useState(false);
   const [mode, setMode] = useState<SessionMode>('overview');
@@ -312,7 +263,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     if (!data || !selected?.ts) return;
     let stale = false;
     setCommitLoading(true);
-    api.gitAt(data.project.id, selected.ts).then((r: { noRepo?: boolean; commit?: CommitInfo | null }) => {
+    api.gitAt(data.project.id, selected.ts).then((r: { noRepo?: boolean; commit?: Commit | null }) => {
       if (stale) return;
       if (r.noRepo) { setNoRepo(true); setCommit(null); }
       else { setNoRepo(false); setCommit(r.commit ?? null); }
@@ -552,18 +503,18 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
 
 interface SessionSwitcherProps {
   projectId: number;
-  current: Session & { message_count: number; first_prompt: string | null };
+  current: SessionRow & { message_count: number; first_prompt: string | null };
   onSwitch?: (sessionId: string) => void;
 }
 
 // Breadcrumb session dropdown: lazily loads the project's session list.
 function SessionSwitcher({ projectId, current, onSwitch }: SessionSwitcherProps): JSX.Element {
   // GET /api/projects/:id returns the ProjectSessionSummary shape (per-session
-  // summary rows), not full Session rows — use api.ts's canonical type instead
-  // of forcing the local `Session` shape.
+  // summary rows), not full session rows — use the shared row type
+  // (shared/rows.ts) instead of forcing the full `SessionRow` shape.
   const [sessions, setSessions] = useState<ProjectSessionSummary[] | null>(null);
   useEffect(() => {
-    api.project(projectId).then((d: ProjectDetail) => setSessions(d.sessions)).catch(() => setSessions([]));
+    api.project(projectId).then((d: ProjectDetailResult) => setSessions(d.sessions)).catch(() => setSessions([]));
   }, [projectId]);
   return (
     <SessionPicker sessions={sessions || []} loading={sessions === null} current={current}
