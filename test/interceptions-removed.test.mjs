@@ -146,3 +146,68 @@ test('server/db.ts names the feature only where it drops it', () => {
     .map(([i]) => i + 1);
   assert.deepEqual(stray, [], `server/db.ts names the feature outside its drop, at line(s) ${stray.join(', ')}`);
 });
+
+// ---- The half that survives -------------------------------------------------
+// Redaction is what `server/security.ts` is for now, and the removal above is
+// only correct if it still works. These run against the same temp data folder,
+// so the rules CRUD is exercised through the real `security_rules` table that
+// server/db.ts now declares. Each test cleans up the rules it adds, because
+// they are global to the scan that follows.
+
+test('scanText redacts the built-in secrets and reports where they were', () => {
+  const text = 'export AWS_KEY=AKIAIOSFODNN7EXAMPLE and mail dev@example.com';
+  const { findings, redacted } = security.scanText(text);
+  assert.equal(redacted, 'export AWS_KEY=AKI**** and mail ***@***.com');
+  assert.deepEqual(findings.map((f) => [f.rule, f.match]), [
+    ['api_key', 'AKIAIOSFODNN7EXAMPLE'],
+    ['email', 'dev@example.com'],
+  ]);
+  // Spans are what the Security Check tab highlights, so they are part of the
+  // answer, not an internal.
+  assert.deepEqual(findings.map((f) => text.slice(f.start, f.end)), findings.map((f) => f.match));
+});
+
+test('scanText leaves clean text and empty input alone', () => {
+  assert.deepEqual(security.scanText('nothing to see here'),
+    { findings: [], redacted: 'nothing to see here' });
+  assert.deepEqual(security.scanText(null), { findings: [], redacted: null });
+});
+
+test('a custom rule round-trips through the rules table and redacts', () => {
+  security.addRule({ name: 'Internal host', pattern: 'acme-*.internal', replacement: '<host>' });
+  const added = security.listRules().find((r) => r.name === 'Internal host');
+  assert.ok(added, 'the rule was not stored');
+  assert.equal(added.kind, 'redact');
+  assert.equal(security.scanText('ping acme-db7.internal now').redacted, 'ping <host> now');
+
+  security.toggleRule(added.id, false);
+  assert.equal(security.scanText('ping acme-db7.internal now').redacted, 'ping acme-db7.internal now');
+
+  security.deleteRule(added.id);
+  assert.equal(security.listRules().some((r) => r.id === added.id), false, 'the rule outlived its delete');
+});
+
+test('an allow rule protects a span a built-in would have redacted', () => {
+  security.addRule({ name: 'Docs address', pattern: 'docs@example.com', kind: 'allow' });
+  const { findings, redacted } = security.scanText('write to docs@example.com or dev@example.com');
+  assert.equal(redacted, 'write to docs@example.com or ***@***.com');
+  assert.deepEqual(findings.map((f) => f.match), ['dev@example.com']);
+  security.deleteRule(security.listRules().find((r) => r.name === 'Docs address').id);
+});
+
+test('scanSession totals per rule and keeps the originals beside the redaction', () => {
+  const scan = security.scanSession([
+    { seq: 1, kind: 'user', text: 'my key is sk-abcdefgh12345678', tool_input: null },
+    { seq: 2, kind: 'assistant', text: 'nothing secret here', tool_input: null },
+    { seq: 3, kind: 'tool_use', tool_name: 'Bash', text: null, tool_input: '{"cmd":"psql postgres://u:p@h/db"}' },
+  ]);
+  assert.equal(scan.findingCount, 2);
+  assert.deepEqual(scan.totals, { 'API keys': 1, 'DB connection strings': 1 });
+  // The clean message is not carried at all, and the two dirty ones keep what
+  // they said as well as what would be shown.
+  assert.deepEqual(scan.messages.map((m) => m.seq), [1, 3]);
+  assert.equal(scan.messages[0].redactedText, 'my key is sk-****');
+  assert.equal(scan.messages[0].originalText, 'my key is sk-abcdefgh12345678');
+  assert.equal(scan.messages[1].redactedInput, '{"cmd":"psql ****"}');
+  assert.deepEqual(scan.messages[1].findings.map((f) => f.field), ['tool_input']);
+});
