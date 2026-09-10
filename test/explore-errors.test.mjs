@@ -15,6 +15,13 @@ import { rangeOf } from '../server/scope.ts';
 
 let dbModule, teardown, explore, projectName;
 
+// One more in-range erroring session than the default topN below, so every
+// session-level query in this file runs with topN folding ACTIVE.
+const FOLD_SESSIONS = 11;
+// The three dated fixtures (sePaired, seUnpaired, seStale) plus the fold set: the
+// whole corpus's error count, since every session here errors exactly once.
+const ALL_ERRORS = 3 + FOLD_SESSIONS;
+
 // 12 alternating user/assistant messages over 22 minutes, so each session clears both
 // noise-gate thresholds and is not excluded by minorGate. Same shape as the other
 // explore suites' rhythm fixtures.
@@ -73,8 +80,37 @@ before(async () => {
       { kind: 'tool_result', tool_use_id: 'es1', text: 'Error: boom', ts: new Date(staleNow - 30 * DAY + 3600001).toISOString() },
     ]),
   );
+
+  // FOLD_SESSIONS erroring sessions INSIDE a 7-day range, one more than the default
+  // topN, so group=session's ranked rows fold a real session into 'Other' and the
+  // rollup below has to reconcile against the pre-fold group values (#330). Their
+  // errors are UNPAIRED tool_results (no tool_use carries the id) so they add nothing
+  // to the per-tool attribution above, and they run on `cursor` so the per-source
+  // counts above stay about the two sessions that named those sources.
+  for (let i = 0; i < FOLD_SESSIONS; i++) {
+    const startedAt = new Date(staleNow - (1 + (i % 5)) * DAY).toISOString();
+    const id = `seFold${String(i).padStart(2, '0')}`;
+    replaceSession(
+      { id, project_id: proj.id, source: 'cursor', file_path: `/tmp/${id}.jsonl`,
+        started_at: startedAt, ended_at: new Date(new Date(startedAt).getTime() + 30 * 60000).toISOString() },
+      rhythmEvents(startedAt, [
+        { kind: 'tool_result', tool_use_id: `orphan-fold-${i}`, text: 'Error: boom',
+          ts: new Date(new Date(startedAt).getTime() + 24 * 60000).toISOString() },
+      ]),
+    );
+  }
 });
 after(() => teardown());
+
+// The two numbers every reconciliation assertion below compares: the Detail table's
+// total bar, and the stacked chart beside it.
+function errorTotals(r) {
+  return {
+    rowTotal: r.rows.reduce((n, row) => n + row.errors, 0),
+    bucketTotal: (r.buckets ?? []).reduce(
+      (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0),
+  };
+}
 
 const q = { scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', topN: 10 };
 
@@ -87,11 +123,13 @@ test('group=source counts every erroring tool_result in the session, paired or n
 
 test('group=project sums the precomputed error count of every session in scope', () => {
   const r = explore.computeExplore({ ...q, group: 'project', rollup: 'total' });
-  assert.equal(r.rows.find((x) => x.key === projectName)?.errors, 3); // sePaired, seUnpaired, seStale
+  assert.equal(r.rows.find((x) => x.key === projectName)?.errors, ALL_ERRORS);
 });
 
 test('group=session reports each session own error count', () => {
-  const r = explore.computeExplore({ ...q, group: 'session', rollup: 'total' });
+  // topN above the corpus, so the two sessions this asserts on keep their own lines
+  // instead of landing in 'Other' (the fold set is larger than the default cap).
+  const r = explore.computeExplore({ ...q, group: 'session', rollup: 'total', topN: 50 });
   assert.equal(r.rows.find((x) => x.key === 'sePaired')?.errors, 1);
   assert.equal(r.rows.find((x) => x.key === 'seUnpaired')?.errors, 1);
 });
@@ -110,10 +148,8 @@ test('errors rollup: the buckets of a session-level group sum to its total', () 
   for (const group of ['project', 'source', 'session']) {
     for (const rollup of ['daily', 'weekly', 'monthly']) {
       const r = explore.computeExplore({ ...q, group, rollup });
-      const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
-      const bucketTotal = (r.buckets ?? []).reduce(
-        (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
-      assert.equal(rowTotal, 3, `group=${group} rollup=${rollup}: total bar`);
+      const { rowTotal, bucketTotal } = errorTotals(r);
+      assert.equal(rowTotal, ALL_ERRORS, `group=${group} rollup=${rollup}: total bar`);
       assert.equal(bucketTotal, rowTotal, `group=${group} rollup=${rollup}: stacked chart`);
     }
   }
@@ -127,17 +163,38 @@ test('errors rollup under a range: bars stay inside the range and reconcile with
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
+  // seStale errored too, but only project (the group it shares with the in-range
+  // sessions) carries it: under source and session it names a value the ranked rows
+  // dropped, so neither the table nor the chart may show it.
+  const expected = { project: FOLD_SESSIONS + 1, source: FOLD_SESSIONS, session: FOLD_SESSIONS };
   for (const group of ['project', 'source', 'session']) {
     const r = explore.computeExplore({
       scope: { type: 'all' }, range: rangeOf(7), metric: 'errors', group, rollup: 'daily', topN: 10,
     });
-    const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
-    const bucketTotal = (r.buckets ?? []).reduce(
-      (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
+    const { rowTotal, bucketTotal } = errorTotals(r);
+    assert.ok(r.rows.length > 0, `group=${group}: the range holds messages, so the rows cannot be empty`);
+    assert.ok((r.buckets ?? []).length > 0, `group=${group}: the range holds errors, so the chart cannot be empty`);
+    assert.equal(rowTotal, expected[group], `group=${group}: total bar`);
     assert.equal(bucketTotal, rowTotal, `group=${group}: stacked chart must equal the total bar`);
     for (const b of r.buckets ?? []) {
       assert.ok(b.bucket >= firstInRange,
         `group=${group}: bucket ${b.bucket} falls outside the 7-day range (first in-range day ${firstInRange})`);
     }
   }
+});
+
+// The fold is what #330 turns on: with more in-range sessions than topN, a session the
+// rows dropped for having no in-range messages used to slip into the 'Other' bar,
+// because 'Other' IS a series key the rows carry. Pinned separately so a fixture that
+// stopped folding could not quietly retire the case above.
+test('errors rollup under a range: a dropped session cannot ride into the folded Other bar', () => {
+  const r = explore.computeExplore({
+    scope: { type: 'all' }, range: rangeOf(7), metric: 'errors', group: 'session', rollup: 'daily', topN: 10,
+  });
+  const other = r.rows.find((row) => row.key === 'Other');
+  assert.ok(other, 'the fixture must exceed topN, or this pins nothing');
+  assert.equal(other.otherCount, FOLD_SESSIONS - 10);
+  const otherBucketed = (r.buckets ?? []).reduce((n, b) => n + (b.series.Other?.errors ?? 0), 0);
+  assert.equal(otherBucketed, other.errors,
+    "the Other bar must hold exactly the folded rows' errors, not every session the rows dropped");
 });
