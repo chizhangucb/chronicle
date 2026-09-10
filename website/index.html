@@ -402,13 +402,23 @@
 
   // ---------- theme ----------
   var root = document.documentElement;
-  try{ var saved = localStorage.getItem("chronicle_theme"); if(saved) root.setAttribute("data-theme", saved); }catch(e){}
+  // Key convention is `chronicle.<name>` (issue #202); the old `chronicle_theme`
+  // name is read once here and retired, so a returning visitor keeps their theme.
+  try{
+    var saved = localStorage.getItem("chronicle.theme");
+    var legacy = localStorage.getItem("chronicle_theme");
+    if(legacy !== null){
+      if(saved === null){ saved = legacy; localStorage.setItem("chronicle.theme", legacy); }
+      localStorage.removeItem("chronicle_theme");
+    }
+    if(saved) root.setAttribute("data-theme", saved);
+  }catch(e){}
   document.getElementById("themeToggle").addEventListener("click", function(){
     var isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     var current = root.getAttribute("data-theme") || (isDark ? "dark" : "light");
     var next = current === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
-    try{ localStorage.setItem("chronicle_theme", next); }catch(e){}
+    try{ localStorage.setItem("chronicle.theme", next); }catch(e){}
   });
 
   // ---------- live GitHub star count in the nav ----------

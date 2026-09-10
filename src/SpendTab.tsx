@@ -13,6 +13,7 @@ import type { RangeKey } from './RangeBar.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import { rowSpend } from './ExploreTab.tsx';
 import { CATEGORICAL_COLORS } from './colors.ts';
+import { STORAGE_KEYS } from './storage.ts';
 import type { CostedDay } from '../shared/spend/anomaly.ts';
 import { computeBudgetPosture } from '../shared/spend/budget.ts';
 import { DEFAULT_SPEND_THRESHOLDS, gradeCacheHit, gradeShareLowerBetter, type StateWord } from '../shared/spend/thresholds.ts';
@@ -25,7 +26,7 @@ const RANGE_LABEL: Record<RangeKey, string> = { today: 'Today', '7d': '7d', '30d
 // Legacy home: the monthly budget used to live ONLY here (moved it
 // server-side so every surface reads one number). Read once on mount to migrate
 // an existing value up to /settings, then cleared.
-const LEGACY_BUDGET_KEY = 'chronicle.monthlyBudget';
+const LEGACY_BUDGET_KEY = STORAGE_KEYS.monthlyBudget;
 // Synthetic pseudo-model rows carry 0 real tokens — excluded from spend views.
 const PSEUDO_MODELS = new Set(['<synthetic>']);
 

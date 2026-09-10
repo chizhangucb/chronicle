@@ -74,8 +74,9 @@ plain JS (`dist-server/`) so the published npm package doesn't require Node to s
 - **Long-lived state lives on `globalThis`** (e.g. auto-sync's watchers/timers) so Vite's SSR
   module reloads don't orphan watchers or child processes.
 - **Single source of truth for shared vocabulary.** Chat-type labels live only in
-  `src/kinds.ts`; per-model context windows and prices live only in `src/models.ts`. Add new
-  wording or numbers there, never inline.
+  `src/kinds.ts`; per-model context windows and prices live only in `src/models.ts`;
+  localStorage keys live only in `src/storage.ts` (all `chronicle.<name>`). Add new
+  wording, numbers or keys there, never inline.
 - **Destructive or user-visible operations back up first** (under `~/.chronicle/backups/`).
   Deleting a session or project tombstones it rather than silently dropping it, so a later sync
   can't resurrect it by accident; redaction is one-way.

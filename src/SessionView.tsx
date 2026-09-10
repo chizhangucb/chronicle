@@ -12,6 +12,7 @@ import OverviewMode from './session/OverviewMode.tsx';
 import { errorDrillIn, subagentRunList, fmtTokNum, fmtDur } from './session/stats.ts';
 import ContentTab from './ContentTab.tsx';
 import { useResizable } from './useResizable.ts';
+import { STORAGE_KEYS } from './storage.ts';
 import type { ProjectDetailResult, SessionMessagesResult } from '../shared/results.ts';
 import type { Commit, ProjectSessionSummary, SessionRow } from '../shared/rows.ts';
 import type { DeletedEntry } from './SessionSelect.tsx';
@@ -50,7 +51,7 @@ export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'con
 // group's own floor (200px file-tree + 320px code-view, from
 // `.pb-grid .code-body`'s `minmax()`s below) — the chat column may never
 // eat into that reserve, at any width, dragged or not.
-const PLAYBACK_SPLIT_KEY = 'chronicle-playback-split';
+const PLAYBACK_SPLIT_KEY = STORAGE_KEYS.playbackSplit;
 const PLAYBACK_SPLIT_MIN = 280;
 const PLAYBACK_SPLIT_RESERVED = 544;
 

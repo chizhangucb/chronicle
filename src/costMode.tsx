@@ -10,8 +10,9 @@
 import React, { createContext, useContext, useMemo, useState, type JSX, type ReactNode } from 'react';
 import type { CostMode } from './models.ts';
 import InfoTip from './InfoTip.tsx';
+import { STORAGE_KEYS } from './storage.ts';
 
-const STORAGE_KEY = 'chronicle.costMode';
+const STORAGE_KEY = STORAGE_KEYS.costMode;
 
 interface CostModeState {
   mode: CostMode;

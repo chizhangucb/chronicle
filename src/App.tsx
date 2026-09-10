@@ -14,6 +14,7 @@ import ReferencePage from './ReferencePage.tsx';
 import { useAskStatus } from './useAskStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
+import { STORAGE_KEYS } from './storage.ts';
 import { useSyncStatus } from './useSyncStatus.js';
 import { CostModeProvider, CostModeToggle } from './costMode.tsx';
 import type { Project } from '../shared/types.ts';
@@ -63,11 +64,11 @@ export default function App() {
   // An Overview single-session delete (SessionView's onBack) carries the undo
   // payload here so ProjectDetail can surface the shared undo toast on landing.
   const [pendingUndo, setPendingUndo] = useState<DeletedEntry | null>(null);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('chronicle-sidebar') === 'collapsed');
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(STORAGE_KEYS.sidebarCollapsed) === 'collapsed');
   // Drag-to-resize width for the expanded sidebar (persisted, mirrors the
   // collapse pattern above). Ignored while collapsed — the fixed 56px width
   // wins there, so a persisted width never fights the collapse state.
-  const sidebar = useResizable({ storageKey: 'chronicle.sidebarW', fallback: 192, min: 160, max: 320, edge: 'right' });
+  const sidebar = useResizable({ storageKey: STORAGE_KEYS.sidebarWidth, fallback: 192, min: 160, max: 320, edge: 'right' });
   // Passive sync indicator + click-to-sync-now, rendered in the topbar so it's
   // visible on EVERY page — previously only shown on /projects.
   const sync = useSyncStatus();
@@ -125,7 +126,7 @@ export default function App() {
 
   function toggleCollapsed() {
     setCollapsed((c) => {
-      localStorage.setItem('chronicle-sidebar', c ? 'expanded' : 'collapsed');
+      localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, c ? 'expanded' : 'collapsed');
       return !c;
     });
   }

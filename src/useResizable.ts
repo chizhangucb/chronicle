@@ -3,7 +3,7 @@ import type React from 'react';
 
 // Shared drag-to-resize primitive for the two app rails (left sidebar in
 // App.tsx, right Home project rail in HomePage.tsx). Mirrors the sidebar
-// collapse's localStorage-persistence pattern (App.tsx `chronicle-sidebar`):
+// collapse's localStorage-persistence pattern (App.tsx `chronicle.sidebar`):
 // read once on mount, write on change. All storage access is guarded so the
 // module stays clean under `tsc` and any SSR/server import path.
 //

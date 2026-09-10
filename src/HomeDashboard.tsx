@@ -12,6 +12,7 @@ import { formatRelativeTime } from './relativeTime.js';
 import InfoTip from './InfoTip.tsx';
 import { ProvenanceStrip } from './home/ProvenanceStrip.tsx';
 import { useSyncStatus } from './useSyncStatus.ts';
+import { STORAGE_KEYS } from './storage.ts';
 import WorkingRhythm from './insights/WorkingRhythm.tsx';
 import SpendOverTime from './insights/SpendOverTime.tsx';
 import SpendTab from './SpendTab.tsx';
@@ -93,7 +94,7 @@ export interface HomeDashboardProps {
 // `?since=` so the Activity block can show "since you left". Written on tab
 // hide / pagehide; read ONCE at mount BEFORE the writer fires, so `since`
 // reflects the PREVIOUS visit, not this one.
-const LAST_VISIT_KEY = 'chronicle.lastVisit';
+const LAST_VISIT_KEY = STORAGE_KEYS.lastVisit;
 
 export default function HomeDashboard({ projects, onOpenSession, onImport, onRefresh }: HomeDashboardProps): JSX.Element {
   const [, navigate] = useLocation();

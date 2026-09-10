@@ -63,11 +63,14 @@ The parser is the only place that knows a tool's native format.
 `.tsx` files; the folders (`cards/`, `charts/`, `components/`, `explore/`, `home/`,
 `insights/`, `reference/`, `session/`) hold their pieces.
 
-Three files are single sources of truth and are the reason a shared meaning cannot drift:
+Four files are single sources of truth and are the reason a shared meaning cannot drift:
 
 - **`kinds.ts`**: `KIND_LABEL` and `KIND_ICON`, imported by every surface that renders an
   event kind.
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
+- **`storage.ts`**: `STORAGE_KEYS`, every localStorage key the client owns, all
+  `chronicle.<name>`, plus the one-time migration off the names that predate that
+  convention. A component reads its key from here, never as a literal.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 
 `api.ts` is the client fetch layer and only that: every read and write goes through it, it

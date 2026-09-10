@@ -389,7 +389,7 @@ test('dragging the chat/right-group divider resizes the chat pane and the split 
 // is an internal implementation detail; this is the one place a test needs
 // the literal key, to assert directly on what `useResizable`'s `reset()`
 // does to storage rather than inferring it from pixel widths alone).
-const PLAYBACK_SPLIT_STORAGE_KEY = 'chronicle-playback-split';
+const PLAYBACK_SPLIT_STORAGE_KEY = 'chronicle.playbackSplit';
 
 test('double-clicking the divider resets the split to its default and clears the persisted override', async ({ page }) => {
   await gotoFixturePlayback(page);
