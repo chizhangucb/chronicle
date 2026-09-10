@@ -178,6 +178,19 @@ export interface ScannedSession {
   messageEstimate?: number;
 }
 
+// What a parser is pointed at to produce sessions and messages: a log dir, an
+// explicit file subset, a store directory, a session-id subset, or the physical
+// project path a shared store groups by. Which fields a source reads is that
+// source's business; a `ScannedProject` satisfies this shape, so scan output
+// feeds parse directly (`Source.parse`, server/parsers/source.ts).
+export interface ParseTarget {
+  logDir?: string | null;
+  files?: string[];
+  directory?: string;
+  sessionIds?: string[];
+  physicalPath?: string | null;
+}
+
 // One importable project group returned by scan<Tool>Projects().
 export interface ScannedProject {
   source: SourceId;
