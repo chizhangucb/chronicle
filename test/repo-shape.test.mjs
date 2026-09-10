@@ -32,16 +32,14 @@ const topLevel = new Set(tracked.map((p) => p.split('/')[0]));
 // repo-managed harness hooks are gone; none may be tracked again.
 const RETIRED_ROOT = ['records', 'plans', 'governance', 'hooks'];
 
-// Every doc surface this repo owns, litellm/ included (issue #189). The runtime
-// pins in test/litellm-runtime.test.mjs still guard litellm/README.md alongside
-// the runtime it documents, but they check a different string set, so the folder
-// is inside this pin too rather than exempt from it. CHANGELOG.md stays out
-// because history is allowed to name what was.
+// Every doc surface this repo owns (issue #189). litellm/*.md was in this list
+// until the proxy spine went (issue #296); there is no runbook left to sweep.
+// CHANGELOG.md stays out because history is allowed to name what was.
 //
 // `*` in a git pathspec matches `/` too, so `docs/*.md` is the recursive form.
 // `docs/**/*.md` is not -- it requires a directory in between, and silently
 // skipped the two top-level docs/*.md files until #189 widened this list.
-const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md', 'litellm/*.md'];
+const DOC_GLOBS = ['AGENTS.md', 'README.md', 'docs/*.md', 'spec/*.md'];
 const PRIVATE_STRINGS = new RegExp(`${PRIVATE_PATHS.source}|${PRIVATE_FOLDERS.source}`, 'i');
 
 test('no retired folder is tracked at the repo root', () => {
@@ -87,7 +85,7 @@ test('the doc glob list reaches a top-level doc, not just a nested one', () => {
   // narrow again and every assertion above it keeps passing.
   const docs = git('ls-files', '--', ...DOC_GLOBS).split('\n').filter(Boolean);
   const nesting = (rel) => rel.split('/').length;
-  for (const dir of ['docs', 'spec', 'litellm']) {
+  for (const dir of ['docs', 'spec']) {
     const under = docs.filter((rel) => rel.startsWith(`${dir}/`));
     assert.ok(under.length, `the doc set reaches nothing under ${dir}/`);
     assert.ok(
@@ -168,6 +166,34 @@ test('the published package ships no job template', () => {
     (rel) => /\.(plist|plist\.template)$|crontab/.test(rel) && !rel.startsWith('launchd/'),
   );
   assert.deepEqual(strays, [], `a job template is tracked outside launchd/: ${strays}`);
+});
+
+// --- The proxy spine (issue #296, part of spec #294) ----------------------
+//
+// Chronicle stopped reading the LiteLLM proxy's spend log in #217, so the
+// Python spine, its launchd template, the installer script that filled its
+// templates and the two suites that pinned all three are gone: `npx
+// chronicle-cli` and this repo's CI need Node and nothing else.
+//
+// Pinned by path rather than by word, because the folder is the thing: a
+// stranger who re-adds `litellm/` has re-grown the spine whatever it is called.
+//
+// scripts/refresh_roster.py is deliberately NOT in here. It is Python, but it
+// maintains an operator document and never configured the proxy (issue #192),
+// so it and its suite stay.
+const RETIRED_PROXY_PATHS = [
+  'litellm/',
+  'launchd/',
+  'scripts/install-jobs.mjs',
+  'test/litellm-runtime.test.mjs',
+  'test/litellm-guards.test.mjs',
+];
+
+test('no file of the retired proxy spine is tracked', () => {
+  const back = RETIRED_PROXY_PATHS.filter((prefix) =>
+    tracked.some((rel) => rel === prefix || rel.startsWith(prefix)),
+  );
+  assert.deepEqual(back, [], `a proxy-spine path is tracked again: ${back}`);
 });
 
 test('CI declares a gitleaks job, pinned by version and checksum', () => {
