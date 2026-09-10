@@ -99,6 +99,19 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   deleted_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (source, session_id)
 );
+-- The operator's own redaction and allow rules, read and written by
+-- server/security.ts. Declared here, not there, because this module is the one
+-- place a table is declared: schema that ran on some other module's import
+-- appeared and disappeared with that module's import graph (issue #264).
+CREATE TABLE IF NOT EXISTS security_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  pattern TEXT NOT NULL,          -- glob: * = any length, ? = single char
+  replacement TEXT DEFAULT '****',
+  kind TEXT NOT NULL DEFAULT 'redact',  -- 'redact' | 'allow'
+  enabled INTEGER NOT NULL DEFAULT 1,
+  builtin_override TEXT           -- if set, disables that builtin rule id
+);
 `);
 
 // Idempotent migrations

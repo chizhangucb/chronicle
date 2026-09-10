@@ -1,20 +1,12 @@
+// Redaction, and only redaction: the rules the operator keeps, the scan over a
+// string and the scan over a session. The `security_rules` table itself is
+// declared in server/db.ts (issue #264), which is the one place schema lives.
 import { db } from './db.ts';
 // The rule row, the finding, the scanned message and the scan result are the
 // four shapes this engine answers the redaction preview with. They are declared
 // in shared/ (#307) so the preview renders what the route sends.
 import type { SecurityRuleRow } from '../shared/rows.ts';
 import type { SecurityCheckMessage, SecurityFinding, SecurityScanResult } from '../shared/results.ts';
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS security_rules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  pattern TEXT NOT NULL,          -- glob: * = any length, ? = single char
-  replacement TEXT DEFAULT '****',
-  kind TEXT NOT NULL DEFAULT 'redact',  -- 'redact' | 'allow'
-  enabled INTEGER NOT NULL DEFAULT 1,
-  builtin_override TEXT           -- if set, disables that builtin rule id
-);`);
 
 /** A finding before it is attributed to one of a message's two scanned fields
  * — `SecurityFinding` (shared/results.ts) with `field` still to come. */

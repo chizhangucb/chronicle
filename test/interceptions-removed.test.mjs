@@ -25,6 +25,7 @@ const read = (rel) => readSource(path.join(REPO, rel));
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-intercept-'));
 let security;
 let dbModule;
+let namesAfterDbAlone;
 
 before(async () => {
   // A data folder written by a Chronicle that still had the feature: the table
@@ -44,6 +45,10 @@ before(async () => {
   // Dynamic, and after CHRONICLE_DATA_DIR is set: server/db.ts opens
   // <dir>/chronicle.db at import time and runs the drops as it does.
   dbModule = await import('../server/db.ts');
+  // Snapshotted BETWEEN the two imports: `server/db.ts` is meant to be the one
+  // place a table is declared, and only a read taken before `server/security.ts`
+  // has been touched can tell that apart from security.ts declaring its own.
+  namesAfterDbAlone = objectNames();
   security = await import('../server/security.ts');
 });
 
@@ -78,4 +83,17 @@ test('the drop takes nothing else with it', () => {
   for (const t of ['projects', 'sessions', 'messages', 'security_rules']) {
     assert.ok(names.includes(t), `the migration removed ${t}`);
   }
+});
+
+test('server/db.ts is what creates the security_rules table', () => {
+  assert.ok(
+    namesAfterDbAlone.includes('security_rules'),
+    'security_rules is missing until server/security.ts is imported',
+  );
+});
+
+test('the security module executes no table DDL of its own', () => {
+  const src = read('server/security.ts');
+  const ddl = [...src.matchAll(/CREATE TABLE[^(]*/gi)].map((m) => m[0].trim());
+  assert.deepEqual(ddl, [], `server/security.ts still declares schema: ${ddl.join(', ')}`);
 });
