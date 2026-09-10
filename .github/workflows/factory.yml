@@ -93,7 +93,7 @@ jobs:
     with:
       factory_ref: main
       node_version: "24"
-      # The strongest model verified on the subscription (README, Audit).
+      # The strongest model the subscription serves (see docs/pipeline.md#audit).
       audit_model: claude-fable-5-1
   update-branch:
     if: >-
