@@ -13,7 +13,7 @@
 import { db } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { overlapGate, bucketedUsage } from './rangeUsage.ts';
-import { isSyntheticUserText } from '../shared/synthetic.ts';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 
 const DAY = 86400000;
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -98,21 +98,6 @@ interface SessionRowLite {
   ended_at: string | null;
   usage: string | null;
   error_count: number | null;
-}
-
-// Exported so other engines can align their own session-name fallback with
-// this one instead of re-deriving it (explore.ts's group=session label uses
-// this exact precedence — see server/explore.ts). Typed against the minimal
-// field set rather than SessionRowLite so callers with a narrower row shape
-// (e.g. an id/name/summary/first_prompt-only query) can pass it directly.
-export interface NamedSessionRow { id: string; name: string | null; summary: string | null; first_prompt: string | null; }
-export function displayName(r: NamedSessionRow): string {
-  // Read-path guard: a first_prompt that is a synthetic wrapper (command
-  // echo / cross-session IPC) is treated as absent, so a session imported BEFORE
-  // the parser fix still never shows a raw `<…>` wrapper — it falls through to the
-  // summary or the id. Fresh imports already store a clean first_prompt.
-  const fp = r.first_prompt && !isSyntheticUserText(r.first_prompt) ? r.first_prompt : null;
-  return r.name || r.summary || fp || r.id;
 }
 
 // Parse a `sessions.usage` blob into normalized cells (legacy `cacheWrite`
@@ -242,7 +227,7 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
 
   const toLite = (r: SessionRowLite, live: boolean): ActivitySessionLite => ({
     id: r.id,
-    name: displayName(r),
+    name: sessionDisplayName(r, 'id'),
     projectName: r.project_name,
     source: r.source,
     live,
@@ -350,7 +335,7 @@ export function computeActivity(sinceIso: string | null, days: number | null, no
       rangeSpendTokensByModelByDay,
       baselineTokensByModel,
       topSessionId: top?.row.id ?? null,
-      topSessionName: top ? displayName(top.row) : null,
+      topSessionName: top ? sessionDisplayName(top.row, 'id') : null,
       topSessionTokensByModel: top?.cells ?? {},
       anomalyDays,
       today,

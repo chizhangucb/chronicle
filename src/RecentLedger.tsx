@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { useSessionSelect, type UseSessionSelect } from './SessionSelect.js';
-import { sessionDisplayName } from './ProjectDetail.js';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import InfoTip from './InfoTip.js';
 import { projectColorMap } from './colors.js';
 import { costOf, type ModelUsageInput, type CostMode } from './models.js';
@@ -334,7 +334,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
                       onChange={() => recentSelect.toggle(s.id)} aria-label="Select session" />
                   </div>
                 )}
-                <div className="title"><div className="t" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
+                <div className="title"><div className="t" title={sessionDisplayName(s, 'label')}>{sessionDisplayName(s, 'label')}</div>
                   <div className="sub"><span className="pill src-pill">{s.source}</span></div></div>
                 <div className="m"><span className="pill proj" style={{ '--project-color': projectColors.get(s.project_id) } as React.CSSProperties}>{s.project_name}</span></div>
                 <div className="m num-col"><b>{costLabel(s, mode)}</b></div>
@@ -451,7 +451,7 @@ function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
         <div className="session-list" style={{ marginTop: 8 }}>
           {items.map((s) => (
             <div key={s.id} className="card session-row">
-              <div className="session-prompt">{sessionDisplayName(s)}</div>
+              <div className="session-prompt">{sessionDisplayName(s, 'label')}</div>
               <div className="session-meta muted small">
                 <span className="pill src-pill">{s.source}</span>
                 <span>{s.project_name}</span>

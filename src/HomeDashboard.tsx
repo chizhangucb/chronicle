@@ -4,7 +4,7 @@ import {
   api, insightsUrl, activityUrl,
   type InsightsResult, type ActivityResult, type ActivityTokensByModel, type ActivitySessionLite,
 } from './api.js';
-import { sessionDisplayName } from './ProjectDetail.jsx';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import { WelcomeEmpty } from './ProjectsPage.js';
 import type { ProjectSummary } from './ProjectsPage.js';
 import { useCachedFetch } from './useCachedFetch.ts';
@@ -459,7 +459,7 @@ function AnomalyTile({ activity, insights, range, days, onOpenSession }: { activ
         <div className="burn-top" onClick={openTop} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') openTop(); }}>
           <span className="eyebrow">Top session</span>
-          <span className="bt-name" title={sessionDisplayName(topSession.row)}>{sessionDisplayName(topSession.row)}</span>
+          <span className="bt-name" title={sessionDisplayName(topSession.row, 'label')}>{sessionDisplayName(topSession.row, 'label')}</span>
           <span className="bt-cost num-col">{fmtMoney(topSession.cost, 2)}</span>
         </div>
       )}
