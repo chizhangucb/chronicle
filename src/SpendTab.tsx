@@ -5,7 +5,7 @@ import { api, insightsUrl, exploreUrl, detectorsUrl, wasteUrl, planWindowsUrl } 
 import { useCachedFetch } from './useCachedFetch.ts';
 import { useCostMode } from './costMode.tsx';
 import { costOf, pricingFor } from './models.js';
-import { costOfBucketedCells, groupByBucket, groupByKey, type BucketedCell } from './rangedUsage.ts';
+import { costOfBucketedCells, groupByBucket, groupByKey } from './rangedUsage.ts';
 import { fmtMoney, fmtInt } from './format.js';
 import InfoTip from './InfoTip.tsx';
 import SortCaret from './SortCaret.tsx';
@@ -102,7 +102,7 @@ function BudgetBand({ monthInsights, today }: { monthInsights: InsightsResult | 
   const monthPrefix = today ? today.slice(0, 8) : '';
   const monthDays: CostedDay[] = useMemo(() => {
     if (!monthInsights) return [];
-    const byBucket = groupByBucket(monthInsights.dailySpend as BucketedCell[]);
+    const byBucket = groupByBucket(monthInsights.dailySpend);
     return [...byBucket]
       .map(([bucket, cells]) => ({ day: bucket.slice(0, 10), cost: costOfBucketedCells(cells, mode) }))
       .filter((d) => d.day.startsWith(monthPrefix));
