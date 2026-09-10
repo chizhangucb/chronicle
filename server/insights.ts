@@ -1,8 +1,9 @@
 // Global cross-project aggregation for the Insights home (Task 5d-4). Mirrors
 // the per-project analytics shapes in server/routes/projects.ts, but scoped
-// across ALL projects instead of one — same query patterns (COALESCE(minor,0)
-// = 0 gate, overlapGate session-inclusion — see server/rangeUsage.ts). Error
-// counts read the per-session result_count/error_count columns precomputed at
+// across ALL projects instead of one — same query patterns, all of them taken
+// from the one query context (scope clause, minor gate, session/message/token
+// ranges — see server/scope.ts). Error counts read the per-session
+// result_count/error_count columns precomputed at
 // import with the shared server/errors.ts heuristic (client twin:
 // src/SessionView.tsx's isErrorResult).
 //
@@ -12,7 +13,8 @@
 // hour-of-day heatmap, independent of the page's range control.
 import { db } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
-import { overlapGate, bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
+import { bucketedUsage, type BucketedUsageCell } from './rangeUsage.ts';
+import { queryContext, whereOf, type Range, type Scope } from './scope.ts';
 
 export interface InsightsSessionRow {
   id: string;
@@ -104,28 +106,25 @@ async function cachedCommitCountSince(path: string, cutoff: string | null): Prom
 const FIXED_CACHE_TTL_MS = 20_000;
 let fixedCache: { key: string; value: Pick<InsightsResult, 'dailyActivity' | 'hourlyActivity' | 'modelDistFixed'>; expiresAt: number } | null = null;
 
-export async function computeInsights(days: number | null): Promise<InsightsResult> {
-  const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  // null (not '') for the windowed-usage primitives — cutoffIso===null is their explicit
-  // "All window, no scaling" signal (server/rangeUsage.ts), distinct from the SQL '' sentinel
-  // the raw queries below use for "no days= filter" (COALESCE(...) >= '' is always true).
-  const cutoffIso = days ? cutoff : null;
-  const nowMinute = Math.floor(Date.now() / 60000) * 60000;
+export async function computeInsights(scope: Scope, range: Range): Promise<InsightsResult> {
+  const q = queryContext(scope, range);
+  const days = range.days;
+  const nowMinute = Math.floor(range.now / 60000) * 60000;
   const calendarCutoff = new Date(nowMinute - CALENDAR_WINDOW_DAYS * 86400000).toISOString();
   const hourlyCutoff = new Date(nowMinute - HOURLY_WINDOW_DAYS * 86400000).toISOString();
 
-  // overlapGate replaces the old `COALESCE(s.started_at,'9') >= ?` gate: a session whose
-  // activity ran INTO the window now counts, not just one that STARTED in it (the P0 fix —
-  // see server/rangeUsage.ts). `m.ts >= ?` on the message-level aggregates below
-  // additionally restricts to messages that actually fall in-range (not every message of a
-  // session that merely overlaps it).
+  // The session range is OVERLAP (a session whose activity ran INTO the range
+  // counts, not just one that STARTED in it); the message range is TIMESTAMP,
+  // so message-level aggregates below only count messages that actually fall
+  // in-range. Both come from the query context — see server/scope.ts.
+  const sessionWhere = whereOf(q.sessions(), q.where);
   const sessions = db.prepare(`
     SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
            s.started_at, s.ended_at, s.message_count, s.agent_active_ms, s.engaged_ms, s.context_tokens, s.usage
     FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0
+    WHERE ${sessionWhere.sql}
     ORDER BY s.started_at DESC
-  `).all(cutoff) as unknown as InsightsSessionRow[];
+  `).all(...sessionWhere.params) as unknown as InsightsSessionRow[];
 
   // Every message-level aggregate below is written as `sessions CROSS JOIN
   // messages` ON PURPOSE: CROSS JOIN pins sessions (a few hundred slim rows)
@@ -133,28 +132,29 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // idx_messages_agg index (see db.ts) instead of a full scan of the fat
   // messages table. That scan was the 0.1-3.6s-per-query (multi-second cold)
   // cost behind every Insights range click.
+  const toolWhere = whereOf(q.sessions(), q.where, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL", q.messages());
   const toolDist = db.prepare(`
     SELECT m.tool_name AS name, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-    WHERE ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0
-      AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL AND m.ts >= ?
+    WHERE ${toolWhere.sql}
     GROUP BY m.tool_name ORDER BY count DESC LIMIT 24
-  `).all(cutoff, cutoff) as unknown as { name: string; count: number }[];
+  `).all(...toolWhere.params) as unknown as { name: string; count: number }[];
 
+  const kindWhere = whereOf(q.sessions(), q.where, q.messages());
   const kindDist = db.prepare(`
     SELECT m.kind AS kind, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-    WHERE ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0 AND m.ts >= ?
+    WHERE ${kindWhere.sql}
     GROUP BY m.kind
-  `).all(cutoff, cutoff) as unknown as { kind: string; count: number }[];
+  `).all(...kindWhere.params) as unknown as { kind: string; count: number }[];
 
+  const modelWhere = whereOf(q.sessions(), q.where, "AND m.kind = 'assistant' AND m.model IS NOT NULL", q.messages());
   const modelDist = db.prepare(`
     SELECT m.model AS model, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-    WHERE ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0
-      AND m.kind = 'assistant' AND m.model IS NOT NULL AND m.ts >= ?
+    WHERE ${modelWhere.sql}
     GROUP BY m.model ORDER BY count DESC
-  `).all(cutoff, cutoff) as unknown as { model: string; count: number }[];
+  `).all(...modelWhere.params) as unknown as { model: string; count: number }[];
 
   // Error stats come from the per-session result_count/error_count columns
   // precomputed at import (db.ts replaceSession + one-time backfill). The old
@@ -179,52 +179,55 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
            SUM(COALESCE(s.result_count, 0)) AS head_count,
            SUM(COALESCE(s.error_count, 0)) AS error_count
     FROM sessions s
-    WHERE ${overlapGate('s')} AND COALESCE(s.minor, 0) = 0
+    WHERE ${sessionWhere.sql}
     GROUP BY s.project_id
-  `).all(cutoff) as unknown as { project_id: number; head_count: number; error_count: number }[];
+  `).all(...sessionWhere.params) as unknown as { project_id: number; head_count: number; error_count: number }[];
   const errors = errorsByProject.reduce((n, r) => n + r.error_count, 0);
 
-  // Ranged billed cells (Task 2) — see the InsightsResult field comments.
-  // scopeWhere mirrors the same `COALESCE(s.minor,0)=0` gate every aggregate
-  // above uses; rangedUsage/bucketedUsage apply overlapGate internally.
-  // Day-bucketed (not the plain rangedUsage()) so the client can
+  // Ranged billed cells (Task 2) — see the InsightsResult field comments. The
+  // token range is the in-range SHARE: bucketedUsage takes the context's
+  // scope+minor fragment and its own cutoff, and applies the session overlap
+  // internally. Day-bucketed (not the plain rangedUsage()) so the client can
   // price each day's share at that day's rate — see InsightsResult's comment.
-  const rangedTokensByModel = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
-  const dailySpend = bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'day');
+  const rangedTokensByModel = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+  const dailySpend = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
   const hourlySpend = days != null && days <= 2
-    ? bucketedUsage(db, 'AND COALESCE(s.minor,0)=0', [], cutoffIso, 'hour')
+    ? bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'hour')
     : null;
 
   // Fixed trailing windows — NOT filtered by `days=` (see file header).
   // Cached briefly (see fixedCache above) since they're identical across
   // range clicks; a fresh import becomes visible once the short TTL expires.
-  const fixedKey = `${calendarCutoff}::${hourlyCutoff}`;
+  const fixedKey = `${scope.type}:${scope.id ?? ''}::${calendarCutoff}::${hourlyCutoff}`;
   let fixed = fixedCache && fixedCache.key === fixedKey && fixedCache.expiresAt > Date.now() ? fixedCache.value : null;
   if (!fixed) {
     // LOCAL-time bucket keys (Task 2 / plan's timezone convention): a
     // 'localtime' modifier on strftime, not the old UTC substr(m.ts,1,10) —
     // so "today" on the calendar heatmap actually means the viewer's today.
+    const calendarWhere = whereOf({ sql: 'AND m.ts >= ?', params: [calendarCutoff] }, q.where);
     const dailyActivity = db.prepare(`
       SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
       FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+      WHERE ${calendarWhere.sql}
       GROUP BY day ORDER BY day
-    `).all(calendarCutoff) as unknown as { day: string; count: number }[];
+    `).all(...calendarWhere.params) as unknown as { day: string; count: number }[];
 
+    const hourlyWhere = whereOf({ sql: 'AND m.ts >= ?', params: [hourlyCutoff] }, q.where);
     const hourlyActivity = db.prepare(`
       SELECT CAST(strftime('%w', m.ts, 'localtime') AS INTEGER) AS dow, CAST(strftime('%H', m.ts, 'localtime') AS INTEGER) AS hour, COUNT(*) AS count
       FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
+      WHERE ${hourlyWhere.sql}
       GROUP BY dow, hour
-    `).all(hourlyCutoff) as unknown as { dow: number; hour: number; count: number }[];
+    `).all(...hourlyWhere.params) as unknown as { dow: number; hour: number; count: number }[];
 
+    const modelFixedWhere = whereOf({ sql: 'AND m.ts >= ?', params: [hourlyCutoff] }, q.where,
+      "AND m.kind = 'assistant' AND m.model IS NOT NULL");
     const modelDistFixed = db.prepare(`
       SELECT m.model AS model, COUNT(*) AS count
       FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
-      WHERE m.ts >= ? AND COALESCE(s.minor, 0) = 0
-        AND m.kind = 'assistant' AND m.model IS NOT NULL
+      WHERE ${modelFixedWhere.sql}
       GROUP BY m.model ORDER BY count DESC
-    `).all(hourlyCutoff) as unknown as { model: string; count: number }[];
+    `).all(...modelFixedWhere.params) as unknown as { model: string; count: number }[];
     fixed = { dailyActivity, hourlyActivity, modelDistFixed };
     fixedCache = { key: fixedKey, value: fixed, expiresAt: Date.now() + FIXED_CACHE_TTL_MS };
   }
@@ -240,7 +243,7 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // 5 minutes makes the key stable across the matching 5-min TTL, so revisiting
   // a range during a browsing session is a pure cache hit; the git window
   // boundary moves by at most 5min — irrelevant for a day-granular KPI.
-  const commitCutoff = days ? new Date(Math.floor(Date.now() / COMMIT_CACHE_TTL_MS) * COMMIT_CACHE_TTL_MS - days * 86400000).toISOString() : null;
+  const commitCutoff = days ? new Date(Math.floor(range.now / COMMIT_CACHE_TTL_MS) * COMMIT_CACHE_TTL_MS - days * 86400000).toISOString() : null;
   const projectPaths = db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[];
   const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, commitCutoff)));
   const commits = commitCounts.reduce((a, b) => a + b, 0);

@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { computeActivity } from '../activity.ts';
+import { rangeOf } from '../scope.ts';
 import { cached } from '../cache.ts';
 
 // `opts.now` pins the wall clock the burn/window math reads; omitted in
@@ -15,7 +16,7 @@ export function mountActivity(app: Express, opts: { now?: number } = {}): void {
     const since = typeof req.query.since === 'string' ? req.query.since : null;
     const days = Number(req.query.days) || null;
     try {
-      res.json(cached(req.originalUrl, () => computeActivity(since, days, opts.now)));
+      res.json(cached(req.originalUrl, () => computeActivity({ type: 'all' }, rangeOf(days, opts.now ?? Date.now()), since)));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

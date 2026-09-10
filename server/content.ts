@@ -7,9 +7,9 @@
 // 6 absolute session facts at session scope (see the ContentResult/
 // Characteristic doc comments below). All local, scope-parameterized.
 import { db } from './db.ts';
-import { scopeClause, minorGate, type Scope } from './scope.ts';
+import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
-import { overlapGate, rangedUsage } from './rangeUsage.ts';
+import { rangedUsage } from './rangeUsage.ts';
 // Context-window table is a model CONSTANT (max tokens), not a price, so it's
 // shared between server and client via `shared/contextWindows.ts` (the price
 // table stays client-only in src/models.ts — see that file's comment). This
@@ -100,18 +100,16 @@ export interface ContentResult {
   calibrated: boolean;
 }
 
-export function computeContent(scope: Scope, days: number | null): ContentResult {
-  const cutoff = days ? new Date(Date.now() - days * 86400000).toISOString() : '';
-  // null (not '') for the windowed-usage primitives — see server/insights.ts's comment on
-  // the same pattern for why (cutoffIso===null is rangedUsage's "All window" signal).
-  const cutoffIso = days ? cutoff : null;
-  const sc = scopeClause(scope);
-  // overlapGate (Task 2, the P0 fix — see server/rangeUsage.ts): a session whose activity
-  // ran INTO the window now counts, not just one that STARTED in it. `m.ts >= ?` additionally
-  // restricts message-joined queries below to messages that actually fall in-range.
+export function computeContent(scope: Scope, range: Range): ContentResult {
+  const q = queryContext(scope, range);
+  // Session range = OVERLAP (a session whose activity ran INTO the range
+  // counts, not just one that STARTED in it); message range = TIMESTAMP, so
+  // message-joined queries below only count in-range messages. Both, plus the
+  // scope clause and the minor gate, come from the query context.
+  const messageWhere = whereOf(q.sessions(), q.where, q.messages());
   const base = `JOIN sessions s ON s.id = m.session_id
-    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
-  const bind = () => [cutoff, ...sc.params, cutoff];
+    WHERE ${messageWhere.sql}`;
+  const bind = () => messageWhere.params;
 
   // Calibration base = Σ in-scope sessions.usage (input+output), windowed: each
   // session's billed cell scaled to its in-range share of per-message tokens, via
@@ -120,7 +118,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   // undercounts vs Overview) and NOT a raw unscaled sessions.usage sum (which would
   // over-count a session spanning the window boundary). calibratedTotalTokens is this same
   // value, so the composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
-  const rangedCells = rangedUsage(db, `${minorGate(scope)} ${sc.sql}`, sc.params, cutoffIso);
+  const rangedCells = rangedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso);
   let billed = 0;
   for (const c of rangedCells) billed += c.cells.input + c.cells.output;
 
@@ -142,6 +140,7 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
   const shareTokens = (chars: number) => (allContentChars > 0 ? Math.round((chars / allContentChars) * billed) : 0);
 
   // Tool results by tool (join result→use on tool_use_id).
+  const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));
   const toolChars = db.prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
     FROM messages r JOIN messages u ON u.id = (
@@ -149,8 +148,8 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
       WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
     )
     JOIN sessions s ON s.id = r.session_id
-    WHERE r.kind='tool_result' AND ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND u.tool_name IS NOT NULL AND r.ts >= ?
-    GROUP BY u.tool_name`).all(...bind()) as unknown as { k: string; chars: number }[];
+    WHERE ${toolWhere.sql}
+    GROUP BY u.tool_name`).all(...toolWhere.params) as unknown as { k: string; chars: number }[];
   const toolResultsByTool = toolChars.map((t) => ({ key: t.k, tokens: shareTokens(t.chars) }))
     .filter((t) => t.tokens > 0).sort((a, b) => b.tokens - a.tokens);
 
@@ -165,8 +164,8 @@ export function computeContent(scope: Scope, days: number | null): ContentResult
      FROM messages m ${base} AND m.is_sidechain=1 AND m.agent_type IS NOT NULL GROUP BY m.agent_type`).all(...bind()) as unknown as { k: string; runs: number; tokens: number }[];
   const subagents = subRows.map((r) => ({ key: r.k, runs: r.runs, tokens: r.tokens })).sort((a, b) => b.tokens - a.tokens);
 
-  const stats = computeSessionCharStats(scope, cutoff, sc);
-  const characteristics = computeCharacteristics(scope, cutoff, sc, stats);
+  const stats = computeSessionCharStats(q);
+  const characteristics = computeCharacteristics(q, stats);
 
   return {
     composition, toolResultsByTool, skills, subagents,
@@ -226,15 +225,14 @@ interface SessionCharStats {
   cacheSessionCount: number;
   single: SingleSessionFacts | null;
 }
-function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }): SessionCharStats {
-  const bind = () => [cutoff, ...sc.params];
-  // Session-level (no messages join) — overlapGate is the whole fix here: a
+function computeSessionCharStats(q: QueryContext): SessionCharStats {
+  // Session-level (no messages join), so only the SESSION range applies: a
   // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
-  // session, not an in-range fraction, so there's no per-message `m.ts >= cutoff` to add —
-  // just the same overlap-vs-drop inclusion fix every other gate in this file gets.
+  // session, not an in-range fraction, so there's no per-message message range to add.
+  const w = whereOf(q.sessions(), q.where);
   const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
        s.agent_active_ms AS active, s.engaged_ms AS engaged
-     FROM sessions s WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql}`).all(...bind()) as unknown as
+     FROM sessions s WHERE ${w.sql}`).all(...w.params) as unknown as
      { ctx: number|null; usage: string|null; active: number|null; engaged: number|null }[];
   const stats: SessionCharStats = {
     totalTokens: 0,
@@ -318,12 +316,14 @@ function computeSessionCharStats(scope: Scope, cutoff: string, sc: { sql: string
 // from the TURN COUNT (an unfiltered count would inflate "turns" into a raw
 // message-row count, since one API turn's tool_result confirmation is a
 // separate row that never carries its own tokens).
-function computeCharacteristics(scope: Scope, cutoff: string, sc: { sql: string; params: (string|number)[] }, stats: SessionCharStats): Characteristic[] {
-  // overlapGate + trailing `m.ts >= ?` — same fix as computeContent's own `base` (these
+function computeCharacteristics(q: QueryContext, stats: SessionCharStats): Characteristic[] {
+  const scope = q.scope;
+  // Session + message ranges, same as computeContent's own `base` (these
   // workflowRuns/subagentTurns queries are message-level, unlike computeSessionCharStats).
-  const bind = () => [cutoff, ...sc.params, cutoff];
+  const messageWhere = whereOf(q.sessions(), q.where, q.messages());
+  const bind = () => messageWhere.params;
   const base = `JOIN sessions s ON s.id = m.session_id
-    WHERE ${overlapGate('s')} ${minorGate(scope)} ${sc.sql} AND m.ts >= ?`;
+    WHERE ${messageWhere.sql}`;
 
   const wf = db.prepare(`SELECT COUNT(DISTINCT m.workflow_id) AS runs,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
