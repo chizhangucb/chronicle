@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
+import { emptyCell, type UsageByModel } from '../../shared/usage.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 import { newestMtimeMs } from './source.ts';
@@ -153,6 +154,12 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
   let cwd: string | null = null;
   let firstPrompt: string | null = null;
   let model: string | null = null;
+  // Per-model billed totals, summed from the SAME numbers the per-message
+  // columns get, so SUM(messages) == sessions.usage for a Codex session too.
+  // Only a turn whose model Codex recorded can be aggregated: a cell keyed by
+  // a made-up model name would price a guess, so those tokens stay on the
+  // message rows alone (#198).
+  const usageByModel: UsageByModel = {};
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -183,6 +190,13 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
           e.output_tokens = u.output_tokens || 0;
           e.cache_read_tokens = u.cached_input_tokens || 0;
           e.cache_w5m_tokens = u.cache_write_input_tokens || 0;
+          if (e.model) {
+            const cell = (usageByModel[e.model] ??= emptyCell());
+            cell.input += e.input_tokens;
+            cell.output += e.output_tokens;
+            cell.cacheRead += e.cache_read_tokens;
+            cell.cacheWrite5m += e.cache_w5m_tokens;
+          }
           break;
         }
       }
@@ -199,6 +213,7 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
       started_at: timestamps[0] ?? null,
       ended_at: timestamps[timestamps.length - 1] ?? null,
       first_prompt: firstPrompt,
+      usage: Object.keys(usageByModel).length ? JSON.stringify(usageByModel) : null,
       skipped: 0,
     },
     events,

@@ -142,3 +142,51 @@ test('parseCodexSession: the turn context model lands on every model output of t
   // A user turn is the operator's, not the model's — it carries no model.
   assert.equal(modelOf('user'), undefined);
 });
+
+test('parseCodexSession: switching model mid-session re-stamps the turns after the switch', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+    TURN_CONTEXT('gpt-5.6-terra', '2026-07-02T09:00:04.000Z'),
+    USER('now the docs', '2026-07-02T09:00:05.000Z'),
+    ASSISTANT('documented', '2026-07-02T09:00:06.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.deepEqual(
+    events.filter((e) => e.kind === 'assistant').map((e) => e.model),
+    ['gpt-5-codex', 'gpt-5.6-terra'],
+  );
+});
+
+test('parseCodexSession: the session usage aggregate is keyed by the model that spent the tokens', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+    { timestamp: '2026-07-02T09:00:04.000Z', type: 'token_count', payload: { info: { last_token_usage: { input_tokens: 900, output_tokens: 40, cached_input_tokens: 800, cache_write_input_tokens: 50 } } } },
+    TURN_CONTEXT('gpt-5.6-terra', '2026-07-02T09:00:05.000Z'),
+    USER('now the docs', '2026-07-02T09:00:06.000Z'),
+    ASSISTANT('documented', '2026-07-02T09:00:07.000Z'),
+    { timestamp: '2026-07-02T09:00:08.000Z', type: 'token_count', payload: { info: { last_token_usage: { input_tokens: 300, output_tokens: 20, cached_input_tokens: 100 } } } },
+  ]);
+
+  const { session } = await parseCodexSession(file);
+
+  assert.deepEqual(JSON.parse(session.usage), {
+    'gpt-5-codex': { input: 100, output: 40, cacheRead: 800, cacheWrite5m: 50, cacheWrite1h: 0 },
+    'gpt-5.6-terra': { input: 200, output: 20, cacheRead: 100, cacheWrite5m: 0, cacheWrite1h: 0 },
+  });
+});
+
+test('parseCodexSession: a transcript that records no tokens carries no usage aggregate', async () => {
+  const file = writeRollout([META, USER('hi', '2026-07-02T09:00:02.000Z'), ASSISTANT('hello', '2026-07-02T09:00:03.000Z')]);
+
+  const { session } = await parseCodexSession(file);
+
+  assert.equal(session.usage, null);
+});
