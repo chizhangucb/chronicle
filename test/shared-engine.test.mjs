@@ -4,7 +4,7 @@
 // scoped to one project and that project's page report the SAME aggregates for
 // the SAME sessions, because they run the same engine. So the assertions
 // compare the project route's JSON against the Insights engine called with a
-// project scope — not against a hand-written expectation of either.
+// project scope, not against a hand-written expectation of either.
 //
 // Same deterministic corpus as test/query-context-golden.test.mjs (see
 // test/helpers/golden-corpus.mjs for why the anchor is local noon on the most
@@ -107,7 +107,7 @@ test('Insights computes bucketed usage once per bucket, not twice', async () => 
   const { sql, value } = await preparedDuring(() => insights.computeInsights({ type: 'all' }, rangeOf(1, now)));
   assert.equal(count(sql, DAY_BUCKETED_USAGE), 1, 'the day-bucketed usage query ran more than once');
   assert.equal(count(sql, HOUR_BUCKETED_USAGE), 1, 'the hour-bucketed usage query ran more than once');
-  // dailySpend is the ranged cells under the contract's second name — the same
+  // dailySpend is the ranged cells under the contract's second name: the same
   // cells, not a second computation of them.
   assert.deepEqual(value.dailySpend, value.rangedTokensByModel);
   assert.ok(value.rangedTokensByModel.length > 0, 'the corpus should bill something inside Today');

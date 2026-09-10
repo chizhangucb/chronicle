@@ -1,9 +1,9 @@
 // The analytics engine behind the Insights home AND the project page (#305).
 //
-// The four scoped aggregates — tool distribution, kind distribution, activity
-// and errors — plus the ranged billed cells are computed HERE, once, from the
-// one query context (scope clause, minor gate, session/message/token ranges —
-// see server/scope.ts). `computeInsights` runs them at whatever scope the home
+// The four scoped aggregates (tool distribution, kind distribution, activity
+// and errors) plus the ranged billed cells are computed HERE, once, from the
+// one query context: scope clause, minor gate, session/message/token ranges,
+// see server/scope.ts. `computeInsights` runs them at whatever scope the home
 // is looking at; `computeScopedAggregates` is the same aggregates for one
 // project, which is all server/routes/projects.ts keeps beyond its session list
 // and its Git data. Scoping Insights to a project and opening that project
@@ -40,8 +40,8 @@ export interface InsightsSessionRow {
 
 export interface InsightsResult {
   sessions: InsightsSessionRow[];
-  toolDist: { name: string; count: number }[];
-  kindDist: { kind: string; count: number }[];
+  toolDist: ToolCount[];
+  kindDist: KindCount[];
   modelDist: { model: string; count: number }[];
   // Fixed 30-day-trailing model distribution — same window as
   // hourlyActivity (see HOURLY_WINDOW_DAYS below), NOT the `days=` cutoff.
@@ -51,9 +51,9 @@ export interface InsightsResult {
   // range control changes.
   modelDistFixed: { model: string; count: number }[];
   errors: number;
-  errorsByProject: { project_id: number; head_count: number; error_count: number }[];
+  errorsByProject: ProjectErrorCount[];
   commits: number;
-  dailyActivity: { day: string; count: number }[];
+  dailyActivity: DayCount[];
   hourlyActivity: { dow: number; hour: number; count: number }[];
   projects: { id: number; name: string }[];
   // Ranged billed cells (Task 2, feedback-round P0 fix): per-session,
@@ -77,92 +77,94 @@ export interface InsightsResult {
 
 // ---- The scoped aggregates (#305) ----
 //
-// Tool distribution, kind distribution, activity and errors, each written
-// ONCE here and read by both surfaces: `computeInsights` below for the home,
-// `computeScopedAggregates` for the project page. They take the query context
-// (server/scope.ts), so "scoped" is the same word on both call sites — all
-// projects, one project, or one session.
+// Tool distribution, kind distribution, activity and errors, each written ONCE
+// here and read by both surfaces: `computeInsights` below for the Insights
+// home, `computeScopedAggregates` for the project page. Both take the query
+// context (server/scope.ts), so "scoped" means the same thing on either call
+// site: all projects, one project, or one session.
 //
 // Every message-level aggregate is written as `sessions CROSS JOIN messages`
-// ON PURPOSE: CROSS JOIN pins sessions (a few hundred slim rows) as the outer
+// ON PURPOSE. CROSS JOIN pins sessions (a few hundred slim rows) as the outer
 // loop, so messages are reached through the COVERING idx_messages_agg index
 // (see db.ts) instead of a full scan of the fat messages table. That scan was
 // the 0.1-3.6s-per-query (multi-second cold) cost behind every Insights range
 // click.
-//
-// The session range is OVERLAP (a session whose activity ran INTO the range
-// counts, not just one that STARTED in it); the message range is TIMESTAMP, so
-// message-level aggregates only count messages that actually fall in-range.
+
+export interface ToolCount { name: string; count: number }
+export interface KindCount { kind: string; count: number }
+export interface DayCount { day: string; count: number }
+export interface ProjectErrorCount { project_id: number; head_count: number; error_count: number }
 
 /** The four scoped aggregates plus the ranged billed cells: the whole of what
  * the project page reports beyond its session list and its Git data. */
 export interface ScopedAggregates {
-  toolDist: { name: string; count: number }[];
-  kindDist: { kind: string; count: number }[];
+  toolDist: ToolCount[];
+  kindDist: KindCount[];
   /** Message count per LOCAL calendar day, over the range. */
-  activity: { day: string; count: number }[];
+  activity: DayCount[];
   errors: number;
-  errorsByProject: { project_id: number; head_count: number; error_count: number }[];
   rangedTokensByModel: BucketedUsageCell[];
 }
 
 const TOOL_DIST_LIMIT = 24;
 
-function toolDistribution(q: QueryContext): { name: string; count: number }[] {
+function toolDistribution(q: QueryContext): ToolCount[] {
   const where = whereOf(q.messageRows, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL");
   return db.prepare(`
     SELECT m.tool_name AS name, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${where.sql}
     GROUP BY m.tool_name ORDER BY count DESC LIMIT ${TOOL_DIST_LIMIT}
-  `).all(...where.params) as unknown as { name: string; count: number }[];
+  `).all(...where.params) as unknown as ToolCount[];
 }
 
-function kindDistribution(q: QueryContext): { kind: string; count: number }[] {
+function kindDistribution(q: QueryContext): KindCount[] {
   const where = q.messageRows;
   return db.prepare(`
     SELECT m.kind AS kind, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${where.sql}
     GROUP BY m.kind
-  `).all(...where.params) as unknown as { kind: string; count: number }[];
+  `).all(...where.params) as unknown as KindCount[];
 }
 
-// Message count per LOCAL calendar day ('localtime' on strftime, not a UTC
-// substr of the ISO string — Task 2 / the plan's timezone convention), so
-// "today" on a chart means the viewer's today. The caller composes the WHERE:
-// the project page passes the range-scoped message rows, Insights' Working
-// Rhythm its fixed trailing calendar window (deliberately exempt from the
-// range — see the file header). A day-keyed query drops a NULL `ts` outright:
-// it has no day to be counted on.
-function dailyMessageCounts(where: SqlFragment): { day: string; count: number }[] {
+// Message count per LOCAL calendar day: a 'localtime' modifier on strftime,
+// not a UTC substr of the ISO string, so "today" on a chart means the viewer's
+// today. The caller composes the WHERE, because the two callers count over
+// different spans: the project page passes the range-scoped message rows,
+// Insights' Working Rhythm passes its fixed trailing calendar span (exempt
+// from the range by design, see the file header). A day-keyed query drops a
+// NULL `ts` outright: it has no day to be counted on.
+function dailyMessageCounts(where: SqlFragment): DayCount[] {
   const w = whereOf(where, 'AND m.ts IS NOT NULL');
   return db.prepare(`
     SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${w.sql}
     GROUP BY day ORDER BY day
-  `).all(...w.params) as unknown as { day: string; count: number }[];
+  `).all(...w.params) as unknown as DayCount[];
 }
 
 // Error stats come from the per-session result_count/error_count columns
-// precomputed at import (db.ts replaceSession + one-time backfill). The old
-// shape pulled EVERY tool_result head (35k+ rows on the maintainer's real DB)
-// into JS and regexed each one on every request — 0.8-17s per click.
-// Session-level (no messages join), so only the overlap gate applies here —
-// there's no per-message ts to additionally restrict by.
-// KNOWN WINDOWING TRADEOFF (unlike the token magnitudes, which bucketedUsage
-// scales to an in-range share): error_count/result_count are WHOLE-SESSION
-// precomputed totals (shared/errors.ts heuristic, backfilled once at import).
-// The overlap gate makes a spanning session correctly VISIBLE for "Today", but
-// its error count here is its FULL historical count, not just today's errors —
-// there's no per-message error timestamp to re-slice by on this fast path (that
-// would mean joining messages and re-running the tool_result/tool_use MIN(id)
-// pairing query per request, the exact per-request regex cost this precomputed
-// column path was built to avoid — see shared/errors.ts's header). Net effect: a
-// long-running spanning session can OVER-count errors into a short window (old
-// behavior: it was excluded and UNDER-counted, i.e. zero).
-function errorTotals(q: QueryContext): Pick<ScopedAggregates, 'errors' | 'errorsByProject'> {
+// precomputed at import (db.ts replaceSession plus a one-time backfill). The
+// old shape pulled EVERY tool_result head (35k+ rows on the maintainer's real
+// DB) into JS and regexed each one on every request: 0.8-17s per click.
+// Session-level (no messages join), so only the session range applies here.
+// There is no per-message ts to additionally restrict by.
+//
+// KNOWN RANGE TRADEOFF, unlike the token magnitudes, which bucketedUsage scales
+// to an in-range share: error_count/result_count are WHOLE-SESSION precomputed
+// totals (shared/errors.ts heuristic, backfilled once at import). The session
+// range counts a session that ran INTO the range, correctly making it visible
+// for "Today", but its error count here is its FULL historical count, not just
+// today's errors. There is no per-message error timestamp to re-slice by on
+// this fast path; that would mean joining messages and re-running the
+// tool_result/tool_use MIN(id) pairing query per request, the exact
+// per-request regex cost this precomputed-column path was built to avoid (see
+// shared/errors.ts's header). Net effect: a long-running spanning session can
+// OVER-count errors into a short range. The old behavior was worse: it was
+// excluded and UNDER-counted, i.e. zero.
+function errorTotals(q: QueryContext): { errors: number; errorsByProject: ProjectErrorCount[] } {
   const where = q.sessionRows;
   const errorsByProject = db.prepare(`
     SELECT s.project_id AS project_id,
@@ -171,21 +173,21 @@ function errorTotals(q: QueryContext): Pick<ScopedAggregates, 'errors' | 'errors
     FROM sessions s
     WHERE ${where.sql}
     GROUP BY s.project_id
-  `).all(...where.params) as unknown as ScopedAggregates['errorsByProject'];
+  `).all(...where.params) as unknown as ProjectErrorCount[];
   return { errorsByProject, errors: errorsByProject.reduce((n, r) => n + r.error_count, 0) };
 }
 
 // Ranged billed cells: per-session, per-model, per-LOCAL-day, scaled to the
-// in-range SHARE. bucketedUsage takes the context's scope+minor fragment and
-// its own token cutoff, and applies the session overlap internally. Day-
+// in-range SHARE. bucketedUsage takes the context's scope plus minor fragment
+// and its own token cutoff, and applies the session overlap internally. Day-
 // bucketed (not the plain rangedUsage()) so the client can price each day's
-// share at that day's rate — see InsightsResult's field comment.
+// share at that day's rate, see InsightsResult's field comment.
 function rangedTokens(q: QueryContext): BucketedUsageCell[] {
   return bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
 }
 
 /**
- * The aggregates for one scope and range — what server/routes/projects.ts
+ * The aggregates for one scope and range: what server/routes/projects.ts
  * serves as a project's analytics, and the same numbers Insights reports when
  * it is scoped to that project (#305).
  */
@@ -195,7 +197,7 @@ export function computeScopedAggregates(scope: Scope, range: Range): ScopedAggre
     toolDist: toolDistribution(q),
     kindDist: kindDistribution(q),
     activity: dailyMessageCounts(q.messageRows),
-    ...errorTotals(q),
+    errors: errorTotals(q).errors,
     rangedTokensByModel: rangedTokens(q),
   };
 }
@@ -244,7 +246,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   const hourlyCutoff = new Date(nowMinute - HOURLY_WINDOW_DAYS * 86400000).toISOString();
 
   // The session range is OVERLAP (a session whose activity ran INTO the range
-  // counts, not just one that STARTED in it) — see the query context,
+  // counts, not just one that STARTED in it), from the query context:
   // server/scope.ts.
   const sessionWhere = q.sessionRows;
   const sessions = db.prepare(`
@@ -270,10 +272,10 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   `).all(...modelWhere.params) as unknown as { model: string; count: number }[];
 
   // Errors, from the same shared aggregate (see errorTotals above for the
-  // precomputed-column fast path and its windowing tradeoff).
+  // precomputed-column fast path and its range tradeoff).
   const { errors, errorsByProject } = errorTotals(q);
 
-  // Ranged billed cells (Task 2) — see the InsightsResult field comments and
+  // Ranged billed cells (Task 2), see the InsightsResult field comments and
   // rangedTokens above. Bucketed usage is computed ONCE per request here:
   // dailySpend is the SAME day-bucketed cells under a second name (two fields
   // of the contract, one query) — recomputing it would scan `messages` twice
@@ -292,9 +294,10 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   let fixed = fixedCache && fixedCache.key === fixedKey && fixedCache.expiresAt > Date.now() ? fixedCache.value : null;
   if (!fixed) {
     // The same day-bucketed message count the project page's `activity` is,
-    // over the fixed trailing calendar window instead of the range (see the
-    // file header) — one query, two windows.
-    const dailyActivity = dailyMessageCounts(whereOf({ sql: 'AND m.ts >= ?', params: [calendarCutoff] }, q.where));
+    // counted over the fixed trailing calendar span instead of the range (see
+    // the file header): one query, two callers.
+    const calendarWhere = whereOf({ sql: 'AND m.ts >= ?', params: [calendarCutoff] }, q.where);
+    const dailyActivity = dailyMessageCounts(calendarWhere);
 
     const hourlyWhere = whereOf({ sql: 'AND m.ts >= ?', params: [hourlyCutoff] }, q.where);
     const hourlyActivity = db.prepare(`

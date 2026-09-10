@@ -17,7 +17,7 @@ import { readSource } from './helpers/read-source.mjs';
 const read = (rel) => readSource(path.join(REPO, rel));
 const SERVER_TS = tracked.filter((rel) => rel.startsWith('server/') && rel.endsWith('.ts'));
 
-// The engine, and the windowed-usage primitive it composes.
+// The engine, and the ranged-usage primitive it composes.
 const ENGINE = 'server/insights.ts';
 const USAGE_PRIMITIVE = 'server/rangeUsage.ts';
 const PROJECT_ROUTE = 'server/routes/projects.ts';
@@ -49,11 +49,11 @@ test('the project route runs no aggregate query of its own', () => {
   assert.doesNotMatch(src, /bucketedUsage\(/, 'the project route calls the usage primitive directly again');
 });
 
-test('the project route takes its analytics from the engine, with a project scope', () => {
-  const src = read(PROJECT_ROUTE);
-  assert.match(src, /import \{ computeScopedAggregates \} from '\.\.\/insights\.ts'/);
-  assert.match(src, /computeScopedAggregates\(scope, range\)/);
-  assert.match(src, /const scope: Scope = \{ type: 'project', id: project\.id \}/);
+// The route's numbers are pinned behaviourally in test/shared-engine.test.mjs;
+// what this adds is the import itself, so "the project page runs the engine"
+// cannot be quietly undone by pasting the queries back.
+test('the project route takes its analytics from the engine', () => {
+  assert.match(read(PROJECT_ROUTE), /from '\.\.\/insights\.ts'/, 'the project route no longer reaches the Insights engine');
 });
 
 test('bucketed usage is reached through the engine, not from a route', () => {

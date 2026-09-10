@@ -88,8 +88,8 @@ export function mountProjects(app: Express): void {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     // The DB-derived half (the session list plus the engine's scoped
-    // aggregates) is cached keyed by the full request URL — it only changes
-    // on a DB write.
+    // aggregates) is cached keyed by the full request URL: it only changes on
+    // a DB write.
     // git.repoInfo/commitCountSince are deliberately computed FRESH on every
     // request, outside the cache: the project-card git pill must show the
     // local checkout's live branch with no caching (see CLAUDE.md gotcha) —
@@ -103,7 +103,7 @@ export function mountProjects(app: Express): void {
       // One query context for the session list: the project scope clause, the
       // minor gate (noise-gated sessions live in the global "minor sessions"
       // bucket, GET /api/sessions/minor, until promoted or ignored) and the
-      // session range — see server/scope.ts. The analytics take the same scope
+      // session range, see server/scope.ts. The analytics take the same scope
       // and range through the engine below.
       const q = queryContext(scope, range);
       const cutoff = q.range.cutoffIso ?? '';
@@ -123,10 +123,9 @@ export function mountProjects(app: Express): void {
         return { ...s, liveCandidate: liveIds.has(s.id), ongoing };
       });
       // The four aggregates and the ranged billed cells are the Insights
-      // engine's, called with this project's scope (#305) — not a second copy
+      // engine's, called with this project's scope (#305), not a second copy
       // of the same queries. Insights scoped to this project reports the same
-      // numbers because it runs the same code. `errorsByProject` is dropped:
-      // at project scope it is this page's own `errors`, restated.
+      // numbers because it runs the same code.
       const { toolDist, kindDist, activity, errors, rangedTokensByModel } = computeScopedAggregates(scope, range);
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, rangedTokensByModel }, cutoff };
     });

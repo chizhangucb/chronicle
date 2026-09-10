@@ -103,8 +103,8 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
     // silently dropped those rows from All as well (`NULL >= ''` is NULL) —
     // an accident of the sentinel, not a rule. Pinned in both directions by
     // test/message-range-null-ts.test.mjs. A query whose output is keyed BY
-    // the timestamp (a day bucket) still needs its own `AND m.ts IS NOT NULL`
-    // — see server/routes/projects.ts's activity query.
+    // the timestamp (a day bucket) still needs its own `AND m.ts IS NOT NULL`,
+    // see server/insights.ts's dailyMessageCounts.
     messages(alias = 'm'): SqlFragment {
       if (cutoff == null) return { sql: '', params: [] };
       return { sql: `AND ${alias}.ts >= ?`, params: [cutoff] };

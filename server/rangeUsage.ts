@@ -4,8 +4,8 @@
 // [started_at, COALESCE(ended_at, started_at)] overlaps the window — NOT the old
 // `COALESCE(s.started_at,'9') >= cutoff` gate every engine route used, which drops a
 // session that started before the range but ran INTO it (root defect this task fixes;
-// Task 2 wires this module into insights.ts/explore.ts/content.ts/routes/projects.ts/
-// routes/activity.ts).
+// Task 2 wires this module into insights.ts/explore.ts/content.ts/
+// routes/activity.ts; the project page reaches it through the Insights engine, #305).
 //
 // Billed magnitudes (`sessions.usage`) are attributed to a window via per-session,
 // per-model calibration: scale each billed cell by
@@ -18,7 +18,7 @@
 // (overlapGate already filtered it in).
 //
 // Framework-free by design: callers (server/insights.ts, explore.ts, content.ts,
-// routes/projects.ts, routes/activity.ts) supply the `db` handle, a scope WHERE
+// routes/activity.ts) supply the `db` handle, a scope WHERE
 // fragment (typically `server/scope.ts`'s scopeClause + minorGate output, ANDed onto
 // the query) and its binds. This module never imports scope.ts, so it stays testable
 // standalone with a bare in-memory-style temp DB.

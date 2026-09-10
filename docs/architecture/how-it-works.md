@@ -516,12 +516,12 @@ its timestamp (`messages()`), billed tokens by their in-range share (`tokens.cut
 its binds in order. Every engine — including the detectors and waste ones — takes
 `(scope, range)`.
 
-- **`server/insights.ts`** (`GET /api/insights`) — aggregation at whatever scope it is given:
-  spend/token/session totals, tool and model distributions, error rate, commit counts (via
-  `commitCountSinceAsync`, run concurrently across projects rather than serially), and a
-  fixed-range activity calendar for the Working Rhythm panel. Its `computeScopedAggregates`
-  is also the whole analytics half of `GET /api/projects/:id` — tool distribution, kind
-  distribution, activity, errors and the ranged billed cells — so scoping Insights to one
+- **`server/insights.ts`** (`GET /api/insights`): aggregation at whatever scope it is given,
+  covering spend/token/session totals, tool and model distributions, error rate, commit counts
+  (via `commitCountSinceAsync`, run concurrently across projects rather than serially), and a
+  fixed-range activity calendar for the Working Rhythm panel. Its `computeScopedAggregates` is
+  also the whole analytics half of `GET /api/projects/:id` (tool distribution, kind
+  distribution, activity, errors and the ranged billed cells), so scoping Insights to one
   project and opening that project report the same numbers. The project route keeps only its
   session list and its Git data.
 - **`server/explore.ts`** (`GET /api/explore`) — the pivot table: group/subgroup by model,
