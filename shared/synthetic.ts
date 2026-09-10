@@ -1,6 +1,6 @@
 // shared/synthetic.ts
 // The ONE definition of "this role=user message is not a human prompt". Ported
-// from the two former copies (server/durations.ts + src/session/stats.ts) so the
+// from the two former copies (the duration math + the client stats) so the
 // active-time metric and the display-name fallback can never drift apart.
 // Relative-import value module (never @shared), B3 — imported by both server
 // parsers/duration math and client session stats.

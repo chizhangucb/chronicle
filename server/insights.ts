@@ -3,8 +3,8 @@
 // across ALL projects instead of one — same query patterns (COALESCE(minor,0)
 // = 0 gate, overlapGate session-inclusion — see server/rangeUsage.ts). Error
 // counts read the per-session result_count/error_count columns precomputed at
-// import with the shared server/errors.ts heuristic (client twin:
-// src/SessionView.tsx's isErrorResult).
+// import with the shared/errors.ts heuristic, the same one the client runs
+// over a live session.
 //
 // `dailyActivity`/`hourlyActivity` are DELIBERATELY exempt from the `days=`
 // filter — Working Rhythm (src/insights/WorkingRhythm.tsx) always shows a
@@ -164,13 +164,13 @@ export async function computeInsights(days: number | null): Promise<InsightsResu
   // there's no per-message ts to additionally restrict by.
   // KNOWN WINDOWING TRADEOFF (unlike the token magnitudes above, which rangedUsage
   // scales to an in-range share): error_count/result_count are WHOLE-SESSION
-  // precomputed totals (server/errors.ts heuristic, backfilled once at import — see the
+  // precomputed totals (shared/errors.ts heuristic, backfilled once at import — see the
   // comment above). overlapGate makes a spanning session correctly VISIBLE for "Today",
   // but its error count here is its FULL historical count, not just today's errors —
   // there's no per-message error timestamp to re-slice by on this fast path (that would
   // mean joining messages and re-running the tool_result/tool_use MIN(id) pairing query
   // per request, the exact per-request regex cost this precomputed-column path was built
-  // to avoid — see server/errors.ts's "ONE server copy" gotcha in CLAUDE.md). Net effect:
+  // to avoid — see shared/errors.ts's header). Net effect:
   // a long-running spanning session can OVER-count errors into a short window (old
   // behavior: it was excluded and UNDER-counted, i.e. zero). Same tradeoff at the
   // equivalent per-project query in server/routes/projects.ts.

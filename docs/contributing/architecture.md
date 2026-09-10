@@ -49,7 +49,7 @@ decision records:
   drop.
 - **One source of truth per shared meaning.** Kind labels in `src/kinds.ts`, prices and
   context windows in `src/models.ts`, the cross-boundary types in `shared/types.ts`, the
-  tool-result error heuristic in `server/errors.ts`. New wording and new numbers go in those
+  tool-result error heuristic in `shared/errors.ts`. New wording and new numbers go in those
   files, never inline at a call site.
 
 ## The seams

@@ -57,15 +57,6 @@ Chronicle attaches a call's tokens to exactly one row, which is why summing the 
 token columns is correct. `message_id` and `request_id` are the per-call identity if you need
 to regroup or verify.
 
-## The tool-result error heuristic has a client twin
-
-`server/errors.ts` is the one server-side copy, imported by everything that needs it. But
-`isErrorResult` in `src/SessionView.tsx` is a separate implementation of the same rule. Change
-one and change the other, or the error counts on a session diverge from the error counts in
-Insights.
-
-The convention both follow: test only the first 200 characters of the result.
-
 ## Live messages use `seq` from 1,000,000
 
 Streamed messages exist only in client state until the session is re-imported, and they use a
