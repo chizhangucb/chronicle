@@ -160,3 +160,39 @@ test('shared/ is imported by relative path everywhere, and the alias is gone', (
     assert.ok(!text.includes('@shared'), `${rel} still documents the @shared alias`);
   }
 });
+
+// ---- The surfaces that render a shared shape ----
+
+// #307 moved the shapes to shared/ but left five hand-typed copies standing in
+// the surfaces that render them (issue #345). Each was a LOSSY copy: it kept
+// the fields its own JSX happened to read and dropped the rest, so the surface
+// could not reach a field the route had been answering with all along
+// (SearchResult dropped `seq`, `message_count`, `usage` and `agent_active_ms`;
+// MinorSession dropped `started_at`). A surface reads the shared home now.
+const SURFACES = [
+  { rel: 'src/SearchModal.tsx', reads: [['SearchResponse', 'shared/results.ts'], ['ProjectListItem', 'shared/results.ts']] },
+  { rel: 'src/RecentLedger.tsx', reads: [['MinorSessionRow', 'shared/rows.ts']] },
+  { rel: 'server/routes/ask.ts', reads: [['AskTurn', 'shared/results.ts']] },
+];
+
+test('each surface imports the shape it renders from the shared home', () => {
+  for (const { rel, reads } of SURFACES) {
+    const text = SOURCES.find((s) => s.rel === rel).text;
+    for (const [name, home] of reads) {
+      const pattern = new RegExp(`import type \\{[^}]*\\b${name}\\b[^}]*\\} from '[^']*${path.basename(home)}'`, 's');
+      assert.match(text, pattern, `${rel} should import ${name} from ${home}`);
+    }
+  }
+});
+
+// The mirrors' own names, which is what a reinstated copy would be called.
+// `MinorSessionRow`/`SearchResultItem` are the shared shapes and keep their
+// names: the word boundary is what tells the copy from the home.
+const MIRROR_NAMES = ['SearchResult', 'SearchData', 'SearchProject', 'MinorSession'];
+
+test('the hand-typed mirrors of the shared shapes are gone', () => {
+  for (const name of MIRROR_NAMES) {
+    const hits = SOURCES.filter(({ text }) => new RegExp(`\\b${name}\\b`).test(text)).map(({ rel }) => rel);
+    assert.deepEqual(hits, [], `${name} was a hand-typed mirror and should not come back`);
+  }
+});

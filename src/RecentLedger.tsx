@@ -11,7 +11,7 @@ import { useCostMode } from './costMode.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
 import { fmtDur } from './session/stats.js';
 import { fmtMoney, pluralize } from './format.js';
-import type { SearchResultItem } from '../shared/rows.ts';
+import type { MinorSessionRow, SearchResultItem } from '../shared/rows.ts';
 import type { ProjectListItem } from '../shared/results.ts';
 
 // The recent-sessions ledger, extracted from the old HomePage so it
@@ -209,7 +209,7 @@ export default function RecentLedger({ projects, onOpenSession, onRefresh, query
   // count lives up here too: it drives BOTH the "Select minor sessions"
   // quick-select chip (now IN the command bar, sessions-only — see PR-2c
   // below) and the top-of-ledger notice (below), off one shared fetch/refresh.
-  const [minorItems, setMinorItems] = useState<MinorSession[] | null>(null);
+  const [minorItems, setMinorItems] = useState<MinorSessionRow[] | null>(null);
   const loadMinor = () => api.minorSessions().then(setMinorItems).catch(() => setMinorItems([]));
   useEffect(() => { loadMinor(); }, []);
 
@@ -392,18 +392,6 @@ function SessionCommandBarControls({ api, minorCount, onSelectMinor }: { api: Us
 // list in place — no long scroll to a bottom section, nothing hanging below.
 // Promote (bring it back) / ignore (=tombstone, same as delete) per row.
 
-interface MinorSession {
-  id: string;
-  project_id: number;
-  source: string;
-  name: string | null;
-  summary: string | null;
-  first_prompt: string | null;
-  message_count: number;
-  agent_active_ms: number | null;
-  project_name: string;
-}
-
 // The exact gate definition, surfaced via an InfoTip so users understand WHY a
 // session is classed minor (mirrors the AND semantics in server/noiseGate.ts).
 
@@ -411,7 +399,7 @@ interface MinorSession {
 // minor sessions" quick-select in the command bar, which needs the same
 // list/count). This component is the notice + inline expand/promote/ignore.
 function MinorSessionsNotice({ items, open, setOpen, onRefresh }: {
-  items: MinorSession[] | null;
+  items: MinorSessionRow[] | null;
   open: boolean;
   setOpen: (fn: (o: boolean) => boolean) => void;
   onRefresh: () => void;

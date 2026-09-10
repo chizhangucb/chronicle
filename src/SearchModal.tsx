@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import Modal from './Modal.tsx';
+import type { ProjectListItem, SearchResponse } from '../shared/results.ts';
+import type { SearchResultItem } from '../shared/rows.ts';
 
 // Global search palette (⌘K): All/Code/Chat scope, time + project
 // filters, "Recent Access" when empty. Server does a LIKE scan grouped per session.
@@ -31,32 +33,6 @@ const SEARCH_RANGES: SearchRange[] = [
   { key: '30', label: '30 Days' },
   { key: '365', label: '1 Year' },
 ];
-
-// A project as listed by GET /api/projects, for the project filter select.
-interface SearchProject {
-  id: number;
-  name: string;
-}
-
-// One result row (server/routes/search.ts SessionResult, plus the "Recent
-// Access" shape when the query is empty — same fields, matchCount forced 0).
-interface SearchResult {
-  id: string;
-  project_id: number;
-  source: string;
-  name: string | null;
-  summary: string | null;
-  first_prompt: string | null;
-  project_name: string;
-  matchCount: number;
-  snippet: string;
-  ts: string | null;
-}
-
-interface SearchData {
-  recent: boolean;
-  results: SearchResult[];
-}
 
 function relTime(ts: string | null | undefined): string {
   if (!ts) return '';
@@ -95,8 +71,10 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
   const [scope, setScope] = useState<SearchScope['key']>('all');
   const [days, setDays] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [projects, setProjects] = useState<SearchProject[]>([]);
-  const [data, setData] = useState<SearchData>({ recent: true, results: [] });
+  // The project filter select lists GET /api/projects; the results are the
+  // whole of GET /api/search's answer, both shapes read from shared/.
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [data, setData] = useState<SearchResponse>({ recent: true, results: [] });
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,14 +89,14 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
     const params: Record<string, string> = { q: debounced, scope };
     if (days) params.days = days;
     if (projectId) params.project = projectId;
-    api.search(params).then((d: SearchData) => { if (!stale) { setData(d); setActive(0); } })
+    api.search(params).then((d) => { if (!stale) { setData(d); setActive(0); } })
       .catch(() => { if (!stale) setData({ recent: !debounced, results: [] }); })
       .finally(() => { if (!stale) setLoading(false); });
     return () => { stale = true; };
   }, [debounced, scope, days, projectId]);
 
   const results = data.results || [];
-  function open(r: SearchResult | undefined) { if (r) onOpen(r.id, r.project_id); }
+  function open(r: SearchResultItem | undefined) { if (r) onOpen(r.id, r.project_id); }
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(results.length - 1, a + 1)); }
