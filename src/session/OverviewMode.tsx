@@ -8,7 +8,7 @@ import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js'
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
 import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
-import { sessionDisplayName } from '../ProjectDetail.jsx';
+import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {
   FRIENDLY_CALL, isErrorResult, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
@@ -305,7 +305,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           <>
             <span className="ov-title-icon">▤</span>
             <input className="ov-name-input" autoFocus value={draft} disabled={savingName}
-              placeholder={sessionDisplayName(session)}
+              placeholder={sessionDisplayName(session, 'label')}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditing(false); }} />
             <button className="btn tiny primary" disabled={savingName} onMouseDown={(e) => e.preventDefault()} onClick={saveRename}>✓</button>
@@ -315,7 +315,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
           </>
         ) : (
           <>
-            <h3 className="ov-title">▤ {sessionDisplayName(session)}</h3>
+            <h3 className="ov-title">▤ {sessionDisplayName(session, 'label')}</h3>
             {live && <span className="live-dot on" title="This session is live" aria-hidden="true" />}
             <button className="btn tiny ghost" onClick={startRename}>✎ Rename</button>
             <InfoTip def="session.rename" />

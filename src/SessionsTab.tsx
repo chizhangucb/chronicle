@@ -7,7 +7,7 @@ import { fmtMoney, fmtInt } from './format.js';
 import InfoTip from './InfoTip.tsx';
 import SortCaret from './SortCaret.tsx';
 import type { RangeKey } from './RangeBar.tsx';
-import { sessionDisplayName } from './ProjectDetail.jsx';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import { formatRelativeTime } from './relativeTime.js';
 import { fmtDayLabel, dayKeyOf } from './charts/timeBuckets.ts';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.ts';
@@ -143,7 +143,7 @@ export default function SessionsTab({ insights }: { insights: InsightsResult | n
             </tr></thead>
             <tbody>{visible.map(({ s, cost, active }) => (
               <tr key={s.id} className="rowlink" onClick={() => navigate(`/session/${encodeURIComponent(s.id)}`)}>
-                <td title={sessionDisplayName(s)}>{sessionDisplayName(s)}</td>
+                <td title={sessionDisplayName(s, 'label')}>{sessionDisplayName(s, 'label')}</td>
                 <td style={{ textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.project_name}><span className="dot" style={{ background: projectColors.get(s.project_id) ?? 'var(--ink-3)' }} />{s.project_name}</td>
                 <td style={{ textAlign: 'left' }}><span className="src-pill">{s.source}</span></td>
                 <td>{s.context_tokens ? fmtTok(s.context_tokens) : '—'}</td>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
-import { sessionDisplayName } from './ProjectDetail.jsx';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import Modal from './Modal.tsx';
 
 // Global search palette (⌘K): All/Code/Chat scope, time + project
@@ -166,7 +166,7 @@ export default function SearchModal({ onClose, onOpen }: SearchModalProps) {
                 <span className="search-row-title">
                   <span className="search-row-project">{r.project_name}</span>
                   <span className="search-row-sep">/</span>
-                  <span className="search-row-name" title={sessionDisplayName(r)}>{sessionDisplayName(r)}</span>
+                  <span className="search-row-name" title={sessionDisplayName(r, 'label')}>{sessionDisplayName(r, 'label')}</span>
                 </span>
                 {r.snippet && <span className="search-row-snippet muted small" title={r.snippet}>{searchHighlight(r.snippet, debounced)}</span>}
               </span>
