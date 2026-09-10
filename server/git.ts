@@ -49,34 +49,16 @@ export function repoInfo(dir: string | null | undefined): RepoInfo {
   }
 }
 
-// Total commits on HEAD, optionally only those on/after sinceIso (ISO string).
-// Used by Project (5d-3) and Insights (5d-4) for a "Commits" KPI — one cheap
-// shell-out per repo, not per-session.
-export function commitCountSince(dir: string, sinceIso: string | null): number {
-  if (!isGitRepo(dir)) return 0;
-  try {
-    const args = sinceIso
-      ? ['rev-list', '--count', `--since=${sinceIso}`, 'HEAD']
-      : ['rev-list', '--count', 'HEAD'];
-    return parseInt(git(dir, args).trim(), 10) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-// ---- Async twins (non-blocking shell-outs) ----
+// ---- The async shell-out (non-blocking) ----
 //
-// `git()`/`isGitRepo()`/`commitCountSince()` above use `execFileSync`, which
-// blocks the Node event loop for the full subprocess duration. Fine for the
-// single-repo lookups Project analytics does per request, but Insights
-// (server/insights.ts) needs a COUNT PER PROJECT on every request — doing
-// that serially+synchronously would block the whole server for N spawns in a
-// row. These async twins run the subprocess via libuv's thread pool instead,
-// so `Promise.all`-ing them across projects lets the spawns run concurrently.
-//
-// ADDITIVE ONLY: the sync exports above are UNCHANGED and still used
-// synchronously elsewhere (ProjectDetail.tsx / Task 5d-3, outside this
-// worktree) — do not remove or repurpose them.
+// `git()`/`isGitRepo()` above use `execFileSync`, which blocks the Node event
+// loop for the full subprocess duration. Fine for the single-repo lookups a
+// request does once (the project card's git pill, a snapshot's file tree), but
+// counting commits is a COUNT PER PROJECT on every Insights request — doing
+// that serially and synchronously would block the whole server for N spawns in
+// a row. The async pair below runs the subprocess via libuv's thread pool
+// instead, so `Promise.all`-ing the counter across projects lets the spawns
+// run concurrently.
 
 async function gitAsync(repo: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync('git', ['-C', repo, ...args], {
@@ -93,7 +75,10 @@ async function isGitRepoAsync(dir: string | null | undefined): Promise<boolean> 
   } catch { return false; }
 }
 
-// Async twin of commitCountSince — same semantics, non-blocking.
+// Total commits on HEAD, optionally only those on/after sinceIso (ISO string).
+// The one commit counter (#265): Insights counts per project and the project
+// page counts for one, both through here — one cheap non-blocking shell-out
+// per repo, never per session.
 export async function commitCountSinceAsync(dir: string, sinceIso: string | null): Promise<number> {
   if (!(await isGitRepoAsync(dir))) return 0;
   try {

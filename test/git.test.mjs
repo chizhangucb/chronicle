@@ -4,15 +4,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { commitCountSince } from '../server/git.ts';
+import { commitCountSinceAsync } from '../server/git.ts';
 
-test('commitCountSince: non-git dir returns 0, does not throw', () => {
+test('commitCountSinceAsync: non-git dir returns 0, does not throw', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-notgit-'));
-  assert.equal(commitCountSince(dir, null), 0);
+  assert.equal(await commitCountSinceAsync(dir, null), 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('commitCountSince: counts all commits with sinceIso=null, filters with a cutoff', () => {
+test('commitCountSinceAsync: counts all commits with sinceIso=null, filters with a cutoff', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-git-'));
   const run = (args, env = {}) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } });
   run(['init', '-q']);
@@ -25,8 +25,8 @@ test('commitCountSince: counts all commits with sinceIso=null, filters with a cu
   run(['add', '.']);
   run(['commit', '-q', '-m', 'second', '--date=2026-08-01T00:00:00'], { GIT_COMMITTER_DATE: '2026-08-01T00:00:00' });
 
-  assert.equal(commitCountSince(dir, null), 2);
-  assert.equal(commitCountSince(dir, '2026-06-01T00:00:00.000Z'), 1);
-  assert.equal(commitCountSince(dir, '2026-12-01T00:00:00.000Z'), 0);
+  assert.equal(await commitCountSinceAsync(dir, null), 2);
+  assert.equal(await commitCountSinceAsync(dir, '2026-06-01T00:00:00.000Z'), 1);
+  assert.equal(await commitCountSinceAsync(dir, '2026-12-01T00:00:00.000Z'), 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });

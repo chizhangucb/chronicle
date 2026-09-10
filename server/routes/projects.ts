@@ -77,13 +77,13 @@ export function mountProjects(app: Express): void {
     res.json(list);
   });
 
-  app.get('/projects/:id', (req: Request, res: Response) => {
+  app.get('/projects/:id', async (req: Request, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     // The DB-derived half (the session list plus the engine's scoped
     // aggregates) is cached keyed by the full request URL: it only changes on
     // a DB write.
-    // git.repoInfo/commitCountSince are deliberately computed FRESH on every
+    // git.repoInfo/commitCountSinceAsync are deliberately computed FRESH on every
     // request, outside the cache: the project-card git pill must show the
     // local checkout's live branch with no caching (see CLAUDE.md gotcha) —
     // a `git checkout` alone doesn't invalidate the result cache, so caching
@@ -122,7 +122,7 @@ export function mountProjects(app: Express): void {
       const { toolDist, kindDist, activity, errors, rangedTokensByModel } = computeScopedAggregates(scope, range);
       return { sessions, analyticsBase: { toolDist, kindDist, activity, errors, rangedTokensByModel }, cutoff };
     });
-    const commits = gitEngine.commitCountSince(project.path, body.cutoff || null);
+    const commits = await gitEngine.commitCountSinceAsync(project.path, body.cutoff || null);
     const payload: ProjectDetailResult = { project, sessions: body.sessions, git: gitEngine.repoInfo(project.path),
       analytics: { ...body.analyticsBase, commits } };
     res.json(payload);
