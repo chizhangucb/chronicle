@@ -101,6 +101,16 @@ before(async () => {
 });
 after(() => teardown());
 
+// The two numbers every reconciliation assertion below compares: the Detail table's
+// total bar, and the stacked chart beside it.
+function errorTotals(r) {
+  return {
+    rowTotal: r.rows.reduce((n, row) => n + row.errors, 0),
+    bucketTotal: (r.buckets ?? []).reduce(
+      (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0),
+  };
+}
+
 const q = { scope: { type: 'all' }, days: null, metric: 'errors', topN: 10 };
 
 test('group=source counts every erroring tool_result in the session, paired or not', () => {
@@ -137,9 +147,7 @@ test('errors rollup: the buckets of a session-level group sum to its total', () 
   for (const group of ['project', 'source', 'session']) {
     for (const rollup of ['daily', 'weekly', 'monthly']) {
       const r = explore.computeExplore({ ...q, group, rollup });
-      const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
-      const bucketTotal = (r.buckets ?? []).reduce(
-        (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
+      const { rowTotal, bucketTotal } = errorTotals(r);
       assert.equal(rowTotal, ALL_ERRORS, `group=${group} rollup=${rollup}: total bar`);
       assert.equal(bucketTotal, rowTotal, `group=${group} rollup=${rollup}: stacked chart`);
     }
@@ -154,17 +162,15 @@ test('errors rollup under a range: bars stay inside the range and reconcile with
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
-  // seStale errored too, but only project — the group it shares with the in-range
-  // sessions — carries it: under source and session it names a value the ranked rows
+  // seStale errored too, but only project (the group it shares with the in-range
+  // sessions) carries it: under source and session it names a value the ranked rows
   // dropped, so neither the table nor the chart may show it.
   const expected = { project: FOLD_SESSIONS + 1, source: FOLD_SESSIONS, session: FOLD_SESSIONS };
   for (const group of ['project', 'source', 'session']) {
     const r = explore.computeExplore({
       scope: { type: 'all' }, days: 7, metric: 'errors', group, rollup: 'daily', topN: 10,
     });
-    const rowTotal = r.rows.reduce((n, row) => n + row.errors, 0);
-    const bucketTotal = (r.buckets ?? []).reduce(
-      (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
+    const { rowTotal, bucketTotal } = errorTotals(r);
     assert.ok(r.rows.length > 0, `group=${group}: the range holds messages, so the rows cannot be empty`);
     assert.ok((r.buckets ?? []).length > 0, `group=${group}: the range holds errors, so the chart cannot be empty`);
     assert.equal(rowTotal, expected[group], `group=${group}: total bar`);
