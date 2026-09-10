@@ -36,7 +36,7 @@ export type SourceId =
 // ─────────────────────────────────────────────────────────────────────────────
 // Events (normalized message rows)
 
-// A normalized event as produced by the parsers, consumed by server/durations.js
+// A normalized event as produced by the parsers, consumed by shared/durations.ts
 // and server/db.js (replaceSession), and carried in live SSE / client state.
 // Optionality mirrors the parsers: only `kind` is always present; the DB coerces
 // every missing field to NULL on insert. `tool_input` is a JSON string (already

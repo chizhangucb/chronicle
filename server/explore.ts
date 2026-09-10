@@ -12,10 +12,10 @@ import { rangedUsage, bucketedUsage, type UsageCells } from './rangeUsage.ts';
 // Per-tool/-group error attribution needs per-MESSAGE heads (a session-level
 // count can't say WHICH tool errored), so this engine keeps its head queries —
 // but the heuristic itself is the shared server-side copy.
-import { ERROR_RE } from './errors.ts';
+import { ERROR_RE } from '../shared/errors.ts';
 // group=session's label uses the SAME name → summary → first_prompt → id
 // precedence as the Task 13 Activity route, instead of re-deriving it here.
-import { displayName } from './activity.ts';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 // Bucket-key → axis-label formatting is shared with the client (feedback-round
 // Task 18/D12: the client needs the identical format for zero-filled dense
 // buckets) — see shared/bucketLabel.ts. Re-exported below so existing callers/
@@ -462,7 +462,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // /session/:id on row click), but the raw id is a bad label — resolve the
   // display label with the same name → summary → first_prompt → id
   // precedence as the Task 13 Activity route (server/activity.ts
-  // displayName), reusing the `usageRows` scan above (session ∈
+  // sessionDisplayName), reusing the `usageRows` scan above (session ∈
   // EXACT_USAGE_GROUPS, so it's already populated whenever this runs) rather
   // than a second sessions×projects query with the same filters. Covers
   // usage-only rows materialized above too, since usageRows enumerates every
@@ -470,7 +470,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   if (query.group === 'session') {
     for (const u of usageRows) {
       const r = rowMap.get(u.id);
-      if (r) r.label = displayName({ id: u.id, name: u.name, summary: u.summary, first_prompt: u.first_prompt });
+      if (r) r.label = sessionDisplayName({ id: u.id, name: u.name, summary: u.summary, first_prompt: u.first_prompt }, 'id');
     }
   }
 

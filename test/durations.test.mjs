@@ -1,9 +1,14 @@
-// Characterization tests for server/durations.js (pure module, no DB import).
-// Pin the exact current arithmetic so a mutation (wrong cap, dropped
-// human-prompt exclusion, etc.) fails the suite.
+// Characterization tests for shared/durations.ts (pure module, no DB import) —
+// the ONE agent-active / engaged computation, run by the server at import and
+// by the client over a live session's messages. Pin the exact current
+// arithmetic so a mutation (wrong cap, dropped human-prompt exclusion, etc.)
+// fails the suite.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SYNTHETIC_USER_RE, isHumanPrompt, agentActiveMs, engagedMs } from '../server/durations.ts';
+import {
+  isHumanPrompt, agentActiveMs, engagedMs, ACTIVE_GAP_CAP_MS, ENGAGED_GAP_CAP_MS,
+} from '../shared/durations.ts';
+import { SYNTHETIC_USER_RE } from '../shared/synthetic.ts';
 
 const MIN = 60 * 1000;
 const T0 = '2026-01-01T00:00:00.000Z';
@@ -170,4 +175,39 @@ test('engagedMs: unlike agentActiveMs, a gap into a genuine human prompt is stil
     { kind: 'user', text: 'do the next thing', ts: plus(30 * MIN) },
   ];
   assert.equal(engagedMs(events), 30 * MIN);
+});
+
+// ---------------------------------------------------------------------------
+// The two caps are one named constant each, so neither side can drift
+// ---------------------------------------------------------------------------
+
+test('agentActiveMs: a generic gap is clamped to ACTIVE_GAP_CAP_MS, ten minutes', () => {
+  assert.equal(ACTIVE_GAP_CAP_MS, 10 * MIN);
+  const events = [
+    { kind: 'assistant', ts: plus(0) },
+    { kind: 'assistant', ts: plus(4 * 60 * MIN) },
+  ];
+  assert.equal(agentActiveMs(events), 10 * MIN);
+});
+
+test('engagedMs: every gap is clamped to ENGAGED_GAP_CAP_MS, ninety minutes', () => {
+  assert.equal(ENGAGED_GAP_CAP_MS, 90 * MIN);
+  const events = [
+    { kind: 'assistant', ts: plus(0) },
+    { kind: 'assistant', ts: plus(4 * 60 * MIN) },
+    { kind: 'user', text: 'and now this', ts: plus(8 * 60 * MIN) },
+  ];
+  assert.equal(engagedMs(events), 90 * MIN + 90 * MIN);
+});
+
+// The client used to run its own copy of both over the wider stored-row shape
+// (`kind: string`, extra columns); one function now serves both, so a live
+// session and a stored session report the same numbers.
+test('agentActiveMs / engagedMs: run over a stored message row, not just a parsed event', () => {
+  const rows = [
+    { kind: 'tool_use', ts: plus(0), tool_use_id: 't1', seq: 1, is_sidechain: 0, model: null },
+    { kind: 'tool_result', ts: plus(40 * MIN), tool_use_id: 't1', seq: 2, is_sidechain: 0, model: null },
+  ];
+  assert.equal(agentActiveMs(rows), 40 * MIN);   // matched tool_result: full, uncapped
+  assert.equal(engagedMs(rows), 40 * MIN);
 });

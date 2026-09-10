@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
-import { readConfig, writeConfig, startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync, type ConfigPatch } from '../autosync.ts';
+import { startAutoSync, stopAutoSync, autoSyncStatus, runIncrementalSync } from '../autosync.ts';
+import { readConfig, writeConfig, type ConfigPatch } from '../config.ts';
 import { DEFAULT_MINOR_ACTIVE_MS, DEFAULT_MINOR_MESSAGE_COUNT } from '../noiseGate.ts';
 
 // A stored budget is only meaningful as a positive number; anything else reads
@@ -17,8 +18,8 @@ export function mountSettings(app: Express): void {
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
       ask: cfg.ask === true,
-      minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
-      minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
     });
@@ -44,8 +45,8 @@ export function mountSettings(app: Express): void {
       autoSync: cfg.autoSync !== false,
       autoSyncPaused: cfg.autoSyncPaused === true,
       ask: cfg.ask === true,
-      minorActiveMsThreshold: (cfg.minorActiveMsThreshold as number | undefined) ?? DEFAULT_MINOR_ACTIVE_MS,
-      minorMessageCountThreshold: (cfg.minorMessageCountThreshold as number | undefined) ?? DEFAULT_MINOR_MESSAGE_COUNT,
+      minorActiveMsThreshold: cfg.minorActiveMsThreshold ?? DEFAULT_MINOR_ACTIVE_MS,
+      minorMessageCountThreshold: cfg.minorMessageCountThreshold ?? DEFAULT_MINOR_MESSAGE_COUNT,
       planWindows: cfg.planWindows !== false,
       monthlyBudget: normalizeBudget(cfg.monthlyBudget),
     });

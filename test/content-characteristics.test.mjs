@@ -1,7 +1,7 @@
 // RED→GREEN unit tests for the Content tab's 7 usage characteristics (spec
 // §2.5, task C3-T15). Each characteristic is exercised on a hand-built
 // session whose `agent_active_ms`/`engaged_ms` (computed by replaceSession
-// from the event timestamps via server/durations.ts) and `sessions.usage`
+// from the event timestamps via shared/durations.ts) and `sessions.usage`
 // (set directly, independent of per-message token fields — the authoritative
 // billed total, same convention test/content.test.mjs already uses) are
 // engineered so the qualifying/non-qualifying math can be verified by hand.
@@ -65,7 +65,7 @@ before(async () => {
 
   // ── s8h: a 9-hour marathon session, built from ONE long-running tool call.
   // agentActiveMs's rule "gap ending in a tool_result matched to a prior
-  // tool_use counted in FULL, no cap" (server/durations.ts) means a single
+  // tool_use counted in FULL, no cap" (shared/durations.ts) means a single
   // 9h gap between a tool_use and its tool_result adds the FULL 9h to
   // agent_active_ms, uncapped — hand-computed:
   //   row1 (assistant, gap 10s from row0's user)      -> active += 10s

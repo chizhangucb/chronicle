@@ -139,7 +139,7 @@ export function mountProjects(app: Express): void {
         FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
         WHERE ${activityWhere.sql}
         GROUP BY day ORDER BY day`).all(...activityWhere.params);
-      // Precomputed at import (db.ts replaceSession, shared server/errors.ts
+      // Precomputed at import (db.ts replaceSession, shared/errors.ts
       // heuristic) — no per-request regex over tool_result heads. Session-level
       // (no messages join), so only the overlap gate applies.
       // KNOWN WINDOWING TRADEOFF (same as server/insights.ts's errorsByProject, see

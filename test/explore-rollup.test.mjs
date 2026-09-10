@@ -246,7 +246,7 @@ test('computeExplore: group=session, metric=spend ranks fixture sessions by toke
   assert.ok(rankIdx('sSessB') < rankIdx('sSessC'), 'sSessB (300 tokens) should rank above sSessC (100)');
 
   // Names resolve through the full name → summary → first_prompt fallback
-  // chain (server/activity.ts displayName), not the raw session id.
+  // chain (shared/sessionName.ts sessionDisplayName), not the raw session id.
   assert.equal(a.label, 'Renamed Session A');       // name wins over summary/first_prompt
   assert.equal(b.label, 'Auto Summary B');           // no name -> summary wins over first_prompt
   assert.equal(c.label, 'first prompt C (no name, no summary)'); // no name/summary -> first_prompt

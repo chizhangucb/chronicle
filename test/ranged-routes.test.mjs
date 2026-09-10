@@ -27,7 +27,7 @@ const WINDOW_DAYS = 1; // trailing 24h — exercises the same overlapGate cutoff
 const MODEL = 'claude-sonnet-5';
 
 // Assistant-only events (no human 'user' turns, so every inter-message gap counts
-// toward agent_active_ms — see server/durations.ts) spaced hours apart, comfortably
+// toward agent_active_ms — see shared/durations.ts) spaced hours apart, comfortably
 // clearing the noise gate's 5-min-active / 10-message thresholds (server/noiseGate.ts)
 // regardless of the exact spacing. `tsOffsetsFromNowMs` are NEGATIVE offsets from `now`
 // (e.g. -HOUR = one hour ago).

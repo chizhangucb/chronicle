@@ -131,7 +131,7 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
 // contract shape (ids + sessions arrays), not specific values.
 // Perf fix: error stats are no longer regexed out of every tool_result head
 // per request — replaceSession precomputes result_count/error_count on the
-// session row (shared server/errors.ts heuristic) and computeInsights just
+// session row (the shared/errors.ts heuristic) and computeInsights just
 // SUMs them. s1's fixture appends exactly one tool_result ('Error: boom').
 // This REPLACES the old "errorsByProject sums to the global errors count"
 // test: `errors` is now derived by summing errorsByProject, so that

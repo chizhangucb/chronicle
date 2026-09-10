@@ -477,10 +477,10 @@ priority: allow-list wins first, then custom rules before built-ins, then earlie
 overlap. `scanSession(messages)` is the batch path used by the Security Check panel and the
 redacted Markdown export.
 
-> **Contributor gotcha.** The "is this tool result an error?" check has one server-side copy,
-> `server/errors.ts`, which every server consumer imports. `isErrorResult` in
-> `src/SessionView.tsx` is a separate client twin of the same rule: change one, change the
-> other, or the Errors counts diverge. See [Gotchas](../contributing/gotchas.md).
+> **One rule, both sides.** The "is this tool result an error?" check is `shared/errors.ts`,
+> imported by the server (stored `error_count`, Explore's per-tool attribution) and by the
+> client (the Errors card on a live session). It tests only the first 200 characters of the
+> result, the same cut the SQL side makes.
 
 ### Live streaming (`server/live.ts`)
 
