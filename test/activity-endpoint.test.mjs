@@ -56,7 +56,7 @@ function rhythmEvents(baseMs, model, extra = []) {
 }
 
 // Assistant-only events (no human 'user' turns, so every inter-message gap counts toward
-// agent_active_ms — see server/durations.ts) at explicit absolute timestamps, spaced days
+// agent_active_ms — see shared/durations.ts) at explicit absolute timestamps, spaced days
 // apart. Used for the spanning-session fixture below, whose messages straddle a window
 // cutoff many days out — rhythmEvents' fixed 2-min spacing can't reach that far.
 function spanEvents(timestampsMs, model, tokensPerMsg) {

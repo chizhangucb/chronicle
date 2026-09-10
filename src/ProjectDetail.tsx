@@ -17,6 +17,9 @@ import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './rangedUsage.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
+// The one display name, the same one the server resolves for a stored row;
+// the client asks for the 'label' presentation (`Session 3f2a1b9c`).
+import { sessionDisplayName, type NamedSession } from '../shared/sessionName.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
 import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
@@ -49,16 +52,6 @@ export interface ProjectSession {
   char_count: number | null;
   liveCandidate: boolean;
   ongoing: boolean;
-}
-
-// Anything with the name/summary/first_prompt/id fields sessionDisplayName reads —
-// deliberately loose so callers with slightly different session-like shapes
-// (e.g. SearchModal's search-result rows) can pass it directly.
-export interface NamedSession {
-  id?: string | number | null;
-  name?: string | null;
-  summary?: string | null;
-  first_prompt?: string | null;
 }
 
 interface ToolDistRow { name: string | null; count: number; }
@@ -114,16 +107,6 @@ const FRIENDLY_CALL: Record<string, string> = {
   Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
-
-// Display name for a session: user-set name → tool summary → first prompt → id.
-// A synthetic first_prompt (command echo / cross-session IPC wrapper) is treated
-// as absent so it never surfaces as the name on the Sessions tab/table
-// — this read-path guard also covers rows imported before the parser fix.
-export function sessionDisplayName(s: NamedSession): string {
-  const fp = s.first_prompt && !isSyntheticUserText(s.first_prompt) ? s.first_prompt : null;
-  return (s.name && s.name.trim()) || (s.summary && s.summary.trim())
-    || fp || (s.id ? `Session ${String(s.id).slice(0, 8)}` : 'Session');
-}
 
 export interface ProjectDetailProps {
   id: number | string;
@@ -613,7 +596,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       <div className="session-list">
         {recent5.map((s) => (
           <div key={s.id} className="card session-row" onClick={() => onOpenSession(s.id)}>
-            <div className="session-prompt" title={sessionDisplayName(s)}>{sessionDisplayName(s)}</div>
+            <div className="session-prompt" title={sessionDisplayName(s, 'label')}>{sessionDisplayName(s, 'label')}</div>
             <div className="session-meta muted small">
               {s.liveCandidate && <span className="pill live-pill live">● LIVE</span>}
               <span className="pill src-pill">{s.source}</span>
@@ -652,11 +635,11 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
           return (
             <div key={s.id} className={`card session-row ${sessionSelect.selectMode ? 'selectable' : ''} ${isSel ? 'selected' : ''}`}
               onClick={() => (sessionSelect.selectMode ? sessionSelect.toggle(s.id) : onOpenSession(s.id))}>
-              <div className="session-prompt" title={sessionDisplayName(s)}>
+              <div className="session-prompt" title={sessionDisplayName(s, 'label')}>
                 {sessionSelect.selectMode && <span className={`sel-check ${isSel ? 'on' : ''}`}>{isSel ? '☑' : '☐'}</span>}
-                {sessionDisplayName(s)}
+                {sessionDisplayName(s, 'label')}
               </div>
-              {s.first_prompt && !isSyntheticUserText(s.first_prompt) && sessionDisplayName(s) !== s.first_prompt && (
+              {s.first_prompt && !isSyntheticUserText(s.first_prompt) && sessionDisplayName(s, 'label') !== s.first_prompt && (
                 <div className="session-subprompt muted small" title={s.first_prompt}>{s.first_prompt}</div>
               )}
               <div className="session-meta muted small">
@@ -784,13 +767,13 @@ export interface SessionPickerProps {
 export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl }: SessionPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const title = (s: PickableSession) => sessionDisplayName(s).slice(0, 48);
+  const title = (s: PickableSession) => sessionDisplayName(s, 'label').slice(0, 48);
   const list = (sessions || []).filter((s) => !q || title(s).toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current) : undefined}
+        <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current, 'label') : undefined}
           onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
           ▤ {current ? title(current) : 'Select session'} <span className="muted">▾</span>
         </button>
@@ -804,7 +787,7 @@ export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl 
             <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
               <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
               <span className="picker-body">
-                <span className="picker-title" title={sessionDisplayName(s)}>{title(s)}</span>
+                <span className="picker-title" title={sessionDisplayName(s, 'label')}>{title(s)}</span>
                 <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
               </span>
             </button>

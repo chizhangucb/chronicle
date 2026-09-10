@@ -70,7 +70,11 @@ test('no entrypoint or server file reads a hub env var', () => {
 });
 
 test('ChronicleConfig no longer declares the hub config key', () => {
-  const src = fs.readFileSync(path.join(repo, 'server', 'autosync.ts'), 'utf8');
+  // ChronicleConfig lives in server/config.ts since #303; reading autosync.ts
+  // here would grep a file that declares no config key at all and pass whatever
+  // the type says.
+  const src = fs.readFileSync(path.join(repo, 'server', 'config.ts'), 'utf8');
+  assert.match(src, /interface ChronicleConfig/, 'ChronicleConfig moved again');
   assert.doesNotMatch(src, /hubRoot/);
 });
 
@@ -81,7 +85,7 @@ test('a config file that still holds the legacy hubRoot key loads and round-trip
     path.join(dir, 'config.json'),
     JSON.stringify({ hubRoot: '/some/old/hub', autoSync: false }, null, 2),
   );
-  const { readConfig, writeConfig } = await import('../server/autosync.ts');
+  const { readConfig, writeConfig } = await import('../server/config.ts');
   assert.equal(readConfig().autoSync, false);
   writeConfig({ autoSync: true });
   const after = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));

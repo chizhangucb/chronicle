@@ -2,13 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { agentActiveMs, engagedMs } from './durations.ts';
+import { agentActiveMs, engagedMs } from '../shared/durations.ts';
 import { isMinorSession } from './noiseGate.ts';
-import { isErrorHead } from './errors.ts';
+import { isErrorHead } from '../shared/errors.ts';
 import { invalidateCache } from './cache.ts';
 import type { Event, SessionInput, Project } from '../shared/types.ts';
 import { parseUsage, totalTokens, type UsageByModel } from '../shared/usage.ts';
-import { resolveDataDir } from './dataDir.ts';
+import { dataDir } from './config.ts';
 
 export type ProjectRow = Project;
 
@@ -74,7 +74,8 @@ export interface MessageRow {
   cache_w1h_tokens: number | null;
 }
 
-export const dataDir = resolveDataDir();
+// The folder comes from the one config module (server/config.ts); db.ts is
+// what freezes it, because this handle is bound here at import time.
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));

@@ -4,7 +4,8 @@ import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
-import { SessionPicker, sessionDisplayName } from './ProjectDetail.jsx';
+import { SessionPicker } from './ProjectDetail.jsx';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import { type PlaybackMessage } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
 import OverviewMode from './session/OverviewMode.tsx';
@@ -482,7 +483,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             </button>
             <span className="subagent-title">
               <strong className="subagent-name">Subagent runs · {subagentType}</strong>
-              <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session)}`}>Parent session · {sessionDisplayName(data.session)}</span>
+              <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session, 'label')}`}>Parent session · {sessionDisplayName(data.session, 'label')}</span>
             </span>
           </div>
           <div className="card">
@@ -526,7 +527,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
           </button>
           <span className="subagent-title">
             <strong className="subagent-name">Subagent · {subagentType}</strong>
-            <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session)}`}>Parent session · {sessionDisplayName(data.session)}</span>
+            <span className="subagent-parent muted small" title={`Parent session · ${sessionDisplayName(data.session, 'label')}`}>Parent session · {sessionDisplayName(data.session, 'label')}</span>
           </span>
         </div>
         <div className="panes">

@@ -38,6 +38,7 @@ The parser is the only place that knows a tool's native format.
 
 | Module | Owns |
 | --- | --- |
+| `config.ts` | The data folder path, and the read and write of `config.json` |
 | `db.ts` | The schema, `replaceSession()`, tombstones, the FTS5 index |
 | `git.ts` | Every Git query. Read-only, `execFile`, no libgit2 |
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
@@ -47,9 +48,7 @@ The parser is the only place that knows a tool's native format.
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
 | `scope.ts` | `Scope` to SQL, plus `minorGate()` |
 | `cache.ts` | The generation-keyed analytics cache |
-| `errors.ts` | The one server-side tool-result error heuristic |
 | `noiseGate.ts` | The `minor` session flag |
-| `durations.ts` | Agent-active and engaged time, computed at import |
 | `rangeUsage.ts` | The overlap-based range primitive every ranged route uses |
 | `ask.ts`, `askDb.ts` | `/ask`: the pure guard and envelope logic, and the cost surface |
 
@@ -75,8 +74,10 @@ wrapped. The `use*.ts` hooks own polled and streamed server state.
 `Session`). The server imports it relatively; the client imports types via the `@shared` alias
 and values relatively. Alongside it: `usage.ts` (the one token cell, `parseUsage` and `addCell`
 every surface reads a session's usage through), `pricing.ts` (the shared cost arithmetic),
-`contextWindows.ts`, `provider.ts`, `bucketLabel.ts`, `synthetic.ts`, and `spend/` (budget,
-anomaly, thresholds).
+`contextWindows.ts`, `provider.ts`, `bucketLabel.ts`, `synthetic.ts`, `spend/` (budget, anomaly,
+thresholds), and the three the client used to copy by hand — `errors.ts` (the tool-result error
+heuristic), `durations.ts` (agent-active and engaged time, with their two gap caps) and
+`sessionName.ts` (the session display name, whose fallback presentation is a parameter).
 
 Something belongs in `shared/` when both sides must agree on it, and only then.
 

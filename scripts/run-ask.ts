@@ -22,10 +22,10 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findClaudeBin, extractJson } from '../server/ask.ts';
+import { dataDir as DATA_DIR } from '../server/config.ts';
 import {
   askSchemaDoc, validateAskEnvelope, normalizeAskCostMode, toCostMode,
   pickCapture, askClaudeArgs, type AskCapture, type AskCostMode, type AskTurn,
@@ -33,7 +33,6 @@ import {
 
 const RUN_TIMEOUT_MS = 90 * 1000; // short: node:sqlite has no query interrupt, so
                                   // this process timeout is the only DoS bound.
-const DATA_DIR = process.env.CHRONICLE_DATA_DIR || join(homedir(), '.chronicle');
 
 function flag(argv: string[], name: string): string | undefined {
   const i = argv.indexOf(name);

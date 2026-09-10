@@ -409,7 +409,7 @@ function writeFixtures(fixtureDir: string): Omit<SeededData, 'dataDir' | 'fixtur
   // even though ~26h of its own activity ran INTO today. 30 turns (60
   // messages, well over the noise-gate's 10-message floor) spread evenly
   // across the ~26h span keeps every individual inter-message gap well under
-  // durations.ts's 10-min Agent-Active cap, but the capped sum still clears
+  // shared/durations.ts's 10-min Agent-Active cap, but the capped sum still clears
   // the 5-min-active floor by two orders of magnitude, so this is never
   // routed into the minor-sessions bucket regardless of config.
   writeMiniSession(fixtureDir, {
