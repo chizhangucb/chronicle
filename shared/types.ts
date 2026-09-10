@@ -213,4 +213,9 @@ export interface ScannedProject {
   // OpenCode groups by directory (== physicalPath here); autosync/live re-parse
   // by directory directly rather than re-deriving it from physicalPath.
   directory?: string;
+  // The root this project was scanned under, stamped by the scan so the scanned
+  // item is a complete `ParseTarget`: a source whose records reach past the
+  // target itself (Cursor's global store) parses the root it was found under
+  // rather than this machine's default.
+  root?: string;
 }

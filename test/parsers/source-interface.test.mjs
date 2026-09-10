@@ -239,6 +239,35 @@ describe('cursor source', () => {
     assert.equal(composer.events.length, 5);
   });
 
+  test('a scanned project carries its root, so scan feeds parse straight through', async () => {
+    const scanned = cursorSource.scan(CURSOR_FIXTURE_ROOT);
+    assert.equal(scanned[0].root, CURSOR_FIXTURE_ROOT);
+
+    // Machine default points somewhere empty: only the stamped root reaches the
+    // global store the composer bubbles live in.
+    process.env.CHRONICLE_CURSOR_DIR = makeTmpDir();
+    clearCursorGlobalCache();
+
+    const parsed = await cursorSource.parse(scanned[0]);
+    assert.deepEqual(parsed.map((p) => p.session.id).sort(), [
+      'cursor-chat-tab1',
+      'cursor-composer-agent-session-1',
+      'cursor-composer-comp1',
+    ]);
+  });
+
+  test('parse reads a project whose Agent transcripts were never written to disk', async () => {
+    // The transcripts directory a scan names need not exist: those composers are
+    // read out of the global store instead, and must not be dropped.
+    const missingRoot = path.join(makeTmpDir(), 'Users-dev-example-repo', 'agent-transcripts');
+    const parsed = await cursorSource.parse({
+      logDir: missingRoot,
+      physicalPath: '/Users/dev/example-repo',
+      root: CURSOR_FIXTURE_ROOT,
+    });
+    assert.ok(parsed.length, 'expected the global-store composers');
+  });
+
   test('mtime folds in the WAL sidecar a store write can land in, and is null for a path that is not there', () => {
     // A workspace whose main store is old but whose WAL was just written: the
     // sync freshness answer has to be the WAL's.
