@@ -331,6 +331,12 @@ export interface Characteristic {
   countOne?: string;
   countMany?: string;
   exact: boolean;
+  /** Set when this row's population is a strict SUBSET of another row's in the
+   * same set (#206): that row's `key`, this row's share OF it (`percent`, a
+   * separately computed ratio, never a restatement of `value`) and the prose
+   * the client renders after it. Omitted when the parent measures zero, since
+   * there is then no share to state. */
+  subsetOf?: { key: string; percent: number; phrase: string };
 }
 
 export interface ContentResult {

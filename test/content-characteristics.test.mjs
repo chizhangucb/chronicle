@@ -507,3 +507,36 @@ describe('missing-data exclusion (scope=project p2): eightHourSessions/highConte
     assert.equal(c.count, 0);
   });
 });
+
+// ── #206 (DEDUP): the Content tab showed two subagent percentages side by
+// side with no cue that one nests inside the other, so a 45% next to a 69%
+// read as one stat disagreeing with itself. workflowRuns' numerator is a
+// STRICT SUBSET of subagentTurns' (both count sidechain turns; workflowRuns
+// only the workflow-tagged ones), so the row now states its share OF that
+// parent — a separately computed ratio, not a restatement of `value`.
+describe('#206: workflowRuns states its share of the subagent usage it nests inside (sWorkflowA)', () => {
+  test('workflowRuns.subsetOf points at subagentTurns and reads 450 workflow / 690 sidechain tokens = 65%', () => {
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null));
+    const c = findChar(r, 'workflowRuns');
+    assert.equal(c.subsetOf?.key, 'subagentTurns');
+    assert.equal(c.subsetOf?.percent, 65); // 450/690 = 65.2%
+    assert.ok(c.subsetOf?.phrase.length > 0, 'subsetOf carries the prose the client renders');
+  });
+
+  test('the parent row it names is really in the same list, so the cue never points at an absent row', () => {
+    const r = content.computeContent({ type: 'session', id: 'sWorkflowA' }, rangeOf(null));
+    const c = findChar(r, 'workflowRuns');
+    assert.ok(r.characteristics.some((p) => p.key === c.subsetOf?.key));
+  });
+
+  test('project scope: 550 workflow / 790 sidechain tokens across sWorkflowA+sWorkflowB = 70%', () => {
+    const r = content.computeContent({ type: 'project', id: p3Id }, rangeOf(null));
+    const c = findChar(r, 'workflowRuns');
+    assert.equal(c.subsetOf?.percent, Math.round((450 + 100) / (690 + 100) * 100)); // 70
+  });
+
+  test('a session with no subagent turns at all makes no subset claim (s8h: nothing to be a share of)', () => {
+    const r = content.computeContent({ type: 'session', id: 's8h' }, rangeOf(null));
+    assert.equal(findChar(r, 'workflowRuns').subsetOf, undefined);
+  });
+});

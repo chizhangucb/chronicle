@@ -298,6 +298,24 @@ function computeCharacteristics(q: QueryContext, stats: SessionCharStats): Chara
     : allProjectShares(stats, wf, sub);
 }
 
+// #206 (DEDUP): workflowRuns' numerator is a STRICT SUBSET of subagentTurns'
+// — both sum the per-message sidechain token columns, workflowRuns only over
+// the workflow-tagged rows — so the two shares sit on the same denominator
+// and land near each other whenever most delegation happens inside workflows,
+// reading as one stat disagreeing with itself. The row states its share OF
+// its parent instead: a real second ratio (workflow tokens ÷ ALL sidechain
+// tokens), not a restatement of `value`. When the parent measures zero there
+// is no share to state (and the subset is zero too), so the claim is omitted
+// rather than shown as 0%.
+function workflowSubsetOfSubagents(wf: { tokens: number }, sub: { tokens: number }): Characteristic['subsetOf'] {
+  if (sub.tokens <= 0) return undefined;
+  return {
+    key: 'subagentTurns',
+    percent: Math.round((wf.tokens / sub.tokens) * 100),
+    phrase: 'of the subagent usage above — workflow runs are counted inside that share, not beside it.',
+  };
+}
+
 // ---- all/project scope: 7 token-share characteristics (spec §2.5) ----
 // D4: highContextRel and subagentTurns lead the list (the old narrative
 // callouts' framing, merged into their `why` text below) instead of the
@@ -342,6 +360,7 @@ function allProjectShares(stats: SessionCharStats, wf: { runs: number; tokens: n
     },
     {
       key: 'workflowRuns', format: 'percent', value: share(wf.tokens), count: wf.runs, exact: true,
+      subsetOf: workflowSubsetOfSubagents(wf, sub),
       label: 'of usage ran inside a multi-agent workflow',
       why: 'Tokens spent on groups of subagents launched together to divide one task.',
       info: "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
@@ -428,6 +447,7 @@ function sessionFacts(stats: SessionCharStats, wf: { runs: number; tokens: numbe
 
   facts.push({
     key: 'workflowRuns', format: 'percent', value: share(wf.tokens), count: wf.runs, exact: true,
+    subsetOf: workflowSubsetOfSubagents(wf, sub),
     label: 'of usage ran inside a multi-agent workflow',
     why: 'Tokens spent on groups of subagents launched together to divide one task.',
     info: "A workflow run is a group of subagents nested under one shared workflow folder — this is their exact share of billed tokens, not a text-length estimate.",
