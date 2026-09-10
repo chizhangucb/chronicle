@@ -170,8 +170,9 @@ before(async () => {
     rhythmEvents('2026-08-05T11:00:00.000Z'),
   );
 
-  // Non-claude-source sessions (code review finding): only claudeCode.ts
-  // writes `sessions.usage` at import — codex/cursor/opencode never do — so
+  // Non-claude-source sessions (code review finding): cursor/opencode never
+  // write `sessions.usage` at import, and neither does a codex transcript that
+  // records no model to key the cells by (#198) — so
   // group=session's EXACT_USAGE_GROUPS override must not silently zero their
   // Tokens/Spend next to a real nonzero Requests count (reads as a bug).
   //
