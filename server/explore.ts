@@ -438,8 +438,9 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
       // No sessions.usage for this group value. For model/project/source this
       // means genuinely zero billed usage in scope — blank to {} as before.
       // For session it more often means the session's SOURCE never populates
-      // sessions.usage at all (codex/cursor/opencode — only claudeCode writes
-      // it at import): blanking to {} would show Tokens=0/$0.00 next to a
+      // sessions.usage at all (cursor/opencode never do; codex only does for a
+      // transcript that records the model it ran on, #198): blanking to {}
+      // would show Tokens=0/$0.00 next to a
       // real nonzero Requests count on the SAME row, reading as a bug. Keep
       // the per-message tokensByModel cellRows already built above instead —
       // the same non-exact-but-unmarked path hour/subagent already use (see
