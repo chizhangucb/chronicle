@@ -110,7 +110,7 @@ interface AgentSessionOptions {
   lastUpdatedAt?: number;
 }
 
-export function cursorUserDir(): string {
+function cursorUserDir(): string {
   if (process.env.CHRONICLE_CURSOR_DIR) return process.env.CHRONICLE_CURSOR_DIR;
   const home = os.homedir();
   if (process.platform === 'darwin') return path.join(home, 'Library', 'Application Support', 'Cursor', 'User');
@@ -118,12 +118,14 @@ export function cursorUserDir(): string {
   return path.join(home, '.config', 'Cursor', 'User');
 }
 
-export function cursorProjectsDir(): string {
+function cursorProjectsDir(): string {
   if (process.env.CHRONICLE_CURSOR_PROJECTS_DIR) return process.env.CHRONICLE_CURSOR_PROJECTS_DIR;
   return path.join(os.homedir(), '.cursor', 'projects');
 }
 
 // Cursor slug: strip leading slash, then map both path separators and underscores to dashes.
+// Exported for test/parsers/cursor.test.mjs: cursorProjectSlug is asserted path
+// by path.
 export function cursorProjectSlug(fsPath: string): string {
   return fsPath.replace(/^\//, '').replace(/[_/]/g, '-');
 }
@@ -176,6 +178,9 @@ function getGlobalSnapshot(userDir: string): Snapshot | null {
   return snap;
 }
 
+// Exported for test/parsers/cursor.test.mjs and
+// test/parsers/source-interface.test.mjs: clearCursorGlobalCache isolates one
+// fixture from the next; production keeps the cache for a process's lifetime.
 export function clearCursorGlobalCache(): void {
   globalThis.__chronicleCursorGlobal?.snap?.cleanup();
   globalThis.__chronicleCursorGlobal = null;

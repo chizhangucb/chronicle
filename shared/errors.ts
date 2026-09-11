@@ -15,6 +15,8 @@ export const ERROR_RE = /^\s*(error|fatal|traceback)|tool_use_error|exit code [1
 // reads substr(text, 1, 200), so JS and SQL must cut at the same character or
 // a long result would count as an error on one side only. The heuristic is
 // anchored at the head anyway.
+// Exported for test/error-head.test.mjs: ERROR_HEAD_CHARS is the window the
+// heuristic's cases are written against, so the test states the same number.
 export const ERROR_HEAD_CHARS = 200;
 
 export function isErrorHead(text: string | null | undefined): boolean {

@@ -40,7 +40,7 @@ import type { InsightsResult, ScopedAggregates } from '../shared/results.ts';
 // Every message-level aggregate is written as `sessions CROSS JOIN messages`
 // ON PURPOSE. CROSS JOIN pins sessions (a few hundred slim rows) as the outer
 // loop, so messages are reached through the COVERING idx_messages_agg index
-// (see db.ts) instead of a full scan of the fat messages table. That scan was
+// (see schema.ts) instead of a full scan of the fat messages table. That scan was
 // the 0.1-3.6s-per-query (multi-second cold) cost behind every Insights range
 // click.
 

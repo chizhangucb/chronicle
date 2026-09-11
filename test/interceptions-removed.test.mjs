@@ -176,7 +176,7 @@ test('server/schema.ts names the feature only where it drops it', () => {
 // Redaction is what `server/security.ts` is for now, and the removal above is
 // only correct if it still works. These run against the same temp data folder,
 // so the rules CRUD is exercised through the real `security_rules` table that
-// server/db.ts now declares. Each test cleans up the rules it adds, because
+// server/schema.ts now declares. Each test cleans up the rules it adds, because
 // they are global to the scan that follows.
 
 // Sample secrets are shaped to trip Chronicle's own rules and nothing else: no

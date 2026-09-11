@@ -18,7 +18,7 @@
 import { costOf, type RawUsageCell, type CostMode } from '../models.ts';
 import { isErrorHead } from '../../shared/errors.ts';
 import type { TimedMessage } from '../../shared/durations.ts';
-export interface StatMessage extends TimedMessage {
+interface StatMessage extends TimedMessage {
   tool_name?: string | null;
   tool_input?: string | null;
   model?: string | null;
@@ -161,7 +161,7 @@ function fmtDur(ms: number | null | undefined): string {
   return `${Math.floor(ms / 3600000)}h ${Math.round((ms % 3600000) / 60000)}m`;
 }
 
-export interface SubagentTypeGroup {
+interface SubagentTypeGroup {
   agentType: string;
   // Distinct RUNS (agent_id) of this type — what the D3 drill-in row shows
   // ("<type> · N runs · tokens"), NOT the same number as `turns`. Falls back
@@ -211,7 +211,7 @@ function subagentRuns(messages: StatMessage[]): SubagentTypeGroup[] {
     .sort((a, b) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens));
 }
 
-export interface SubagentRunInfo {
+interface SubagentRunInfo {
   id: string;
   agentType: string;
   startTs: string | null;

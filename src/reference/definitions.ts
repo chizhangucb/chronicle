@@ -23,9 +23,9 @@ export type DefPage =
   | 'retired';
 
 export interface DefVars { [key: string]: string | number | undefined }
-export interface DefContext { vars?: DefVars }
+interface DefContext { vars?: DefVars }
 
-export interface Definition {
+interface Definition {
   id: string;
   page: DefPage;
   title: string;
@@ -203,6 +203,13 @@ export const DEFINITIONS: Definition[] = [
   },
 
   // ---- Explore / Content ----
+  {
+    id: 'explore.partial-tokens',
+    page: 'explore',
+    title: 'Partial tokens (≈)',
+    plain: () => 'Hour and Subagent sum tokens from the per-message columns, which hold only part of what was billed, about three quarters of it: the rest is never written per message. There is no hourly or per-subagent split of the billed totals to scale them against, so Chronicle shows the real per-message figures and marks them ≈, the same marker a calibrated figure carries. Group by Model, Project or Source for exact token totals.',
+    tech: () => 'server/explore.ts per-message sums; EXACT_USAGE_GROUPS is the exact set',
+  },
   {
     id: 'explore.rollup',
     page: 'explore',
@@ -441,6 +448,8 @@ export const DEFINITIONS: Definition[] = [
 
 /** id -> Definition. Built once; a missing id is a programming error the
  *  anti-drift test catches rather than something to fail soft at runtime. */
+// Exported for test/reference-registry.test.mjs and test/view-log-removed.test.mjs:
+// DEF_BY_ID is how they pin the registry id by id.
 export const DEF_BY_ID: Map<string, Definition> = new Map(DEFINITIONS.map((d) => [d.id, d]));
 
 export function getDefinition(id: string): Definition | undefined {

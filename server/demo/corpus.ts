@@ -79,6 +79,8 @@ function mulberry32(seed: number): () => number {
 
 /** How far back the corpus runs. 120 days so the 90d window is genuinely full
  *  and the month-to-date budget projection has a previous month behind it. */
+// Exported for test/demo-mode.test.mjs: DEMO_DAYS is the corpus span the seeded
+// assertions range over, so the test cannot drift from the corpus it checks.
 export const DEMO_DAYS = 120;
 
 /**

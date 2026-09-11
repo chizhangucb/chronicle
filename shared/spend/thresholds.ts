@@ -23,7 +23,7 @@ export interface AnomalyThresholds {
 }
 
 // ---- Detectors (config.ts detectors + spend-detectors.ts) ----
-export interface DetectorThresholds {
+interface DetectorThresholds {
   jumboOutputTokens: number;
   longContextTokens: number;
   /** Cap on non-human gaps when summing agent-active time, minutes. */
@@ -49,7 +49,7 @@ export interface BudgetThresholds {
 }
 
 // ---- Graded state-words (src/lib/thresholds.ts) ----
-export interface StateWordThresholds {
+interface StateWordThresholds {
   cacheHitHealthy: number; // >= healthy; below is at least "check"
   cacheHitLow: number;     // < is "low"
   jumboHealthyMax: number; // share of messages
@@ -90,7 +90,7 @@ export const DEFAULT_SPEND_THRESHOLDS: SpendThresholds = {
 // A graded state word + its severity, so page copy and tip copy grade a reading
 // the same way (never color alone — the word travels with the reading, per the
 // design-QA rubric's status-color rule).
-export type StateSeverity = 'ok' | 'warn' | 'danger';
+type StateSeverity = 'ok' | 'warn' | 'danger';
 export interface StateWord {
   word: string;
   severity: StateSeverity;
@@ -118,33 +118,3 @@ export function gradeBudget(share: number, t: BudgetThresholds = DEFAULT_SPEND_T
   return { word: 'on track', severity: 'ok' };
 }
 
-// ---- Honesty definitions (spend-detectors.ts *_DEFINITION, verbatim) ----
-// Rendered verbatim as the in-UI info icon for each derived metric (the rule:
-// every derived metric shows its definition).
-export const ACTIVE_TIME_DEFINITION =
-  'Sum of gaps between consecutive session events, excluding each gap that precedes a genuine human prompt ' +
-  '(synthetic rows: system reminders, task notifications, command echoes do not count as human; interrupts and ' +
-  'permission responses do), capping every other gap at the configured limit, except gaps ending in a tool_result ' +
-  'whose matching tool_use is the immediately prior event (long builds and test suites count fully). ' +
-  'Agent run span is the same sessions’ uncapped wall-clock, first event to last.';
-
-export const CACHE_CHURN_DEFINITION =
-  'Dollars paid in cache-write premium inside sessions that wrote more cache tokens than they read back: ' +
-  'context was being rebuilt faster than it was reused. Write premium = 1h writes at 2x input rate minus the ' +
-  '1x base, 5m writes at 1.25x minus base.';
-
-export const RIGHT_SIZING_DEFINITION =
-  'ESTIMATE. Messages on a premium model (input rate >= $5/MTok) whose output and context both sit under the ' +
-  'configured thresholds look small enough for Sonnet; the figure is what those exact token counts would have ' +
-  'saved at current Sonnet rates. It cannot know whether the small reply needed frontier reasoning.';
-
-export const REREADS_DEFINITION =
-  'Read tool calls that fetched a file already read earlier in the same session. Wasted tokens are ESTIMATED ' +
-  'from the repeated results’ content length at ~4 characters per token.';
-
-// The MCP double-count caveat: a single call can fan out to several
-// MCP servers, so per-server spend double-counts and does not sum to the day total.
-export const MCP_DOUBLE_COUNT_DEFINITION =
-  'One agent turn can call several MCP servers, so a turn’s spend is attributed to each server it used. ' +
-  'Per-server totals therefore double-count and do not sum to the day total — read them as per-server ' +
-  'exposure, not a partition of spend.';

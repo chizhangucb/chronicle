@@ -7,7 +7,7 @@ import MessageRow, { type PlaybackMessage } from './MessageRow.tsx';
 // list with the same windowing math).
 const WINDOW = 400;
 
-export interface WindowedConvPaneProps {
+interface WindowedConvPaneProps {
   messages: PlaybackMessage[];
   selectedSeq: number | null;
   keyword?: string;

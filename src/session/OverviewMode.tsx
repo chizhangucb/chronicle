@@ -28,7 +28,7 @@ import type { DeletedEntry } from '../SessionSelect.tsx';
 interface CostBreakdown { input: number; output: number; cacheWrite: number; cacheRead: number; }
 interface CacheWriteByTtl { cw5m: number; cw1h: number; }
 
-export interface OverviewModeProps {
+interface OverviewModeProps {
   data: SessionData;
   messages: PlaybackMessage[];
   liveStatus: LiveStatus;

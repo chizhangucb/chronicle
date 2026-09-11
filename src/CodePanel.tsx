@@ -20,7 +20,7 @@ interface GitFile {
   changedInCommit: boolean;
 }
 
-export interface CodePanelProps {
+interface CodePanelProps {
   projectId: number;
   commit: Commit | null;
   noRepo?: boolean;

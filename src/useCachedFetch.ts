@@ -82,7 +82,7 @@ export function invalidateClientCache(): void {
   for (const notify of listeners) notify();
 }
 
-export interface CachedFetchResult<T> {
+interface CachedFetchResult<T> {
   data: T | null;
   stale: boolean;
   // Set when the most recent (re)fetch for this URL failed. Only meaningful

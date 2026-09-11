@@ -48,6 +48,8 @@ function parseClaudeCreds(raw: string | null): string | null {
 // reset, and — for the top-tier — the model's display_name (e.g. "Fable"), so
 // the top-tier label follows the API verbatim, never hardcoded.
 interface ClaudeLimit { kind?: unknown; percent?: unknown; resets_at?: unknown; scope?: { model?: { display_name?: unknown } } }
+// Exported for test/plan-windows.test.mjs: parseClaudePayload is the parse half
+// of the one outbound call, asserted offline against captured payloads.
 export function parseClaudePayload(raw: unknown): PlanAccount | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const d = raw as { limits?: unknown; subscription_type?: unknown };

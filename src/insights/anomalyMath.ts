@@ -18,7 +18,7 @@ export const MOVER_GLYPH: Record<AnomalyDimension, string> = {
 };
 
 // Price a bag of per-model token cells at a SPECIFIC day's rate.
-export function priceCellsAtDay(byModel: UsageByModel, day: string, mode: CostMode): number {
+function priceCellsAtDay(byModel: UsageByModel, day: string, mode: CostMode): number {
   let total = 0;
   for (const [model, cell] of Object.entries(byModel)) total += costOf(model, cell, day, mode) ?? 0;
   return total;
@@ -27,7 +27,7 @@ export function priceCellsAtDay(byModel: UsageByModel, day: string, mode: CostMo
 // Build the costed day series the shared spend math runs over: each server day
 // cell priced at the toggled mode AND at its own day's rate, per-dimension
 // (model/project/source).
-export function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): CostedDay[] {
+function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): CostedDay[] {
   return burn.anomalyDays.map((d) => {
     const byDimension: Partial<Record<AnomalyDimension, Record<string, number>>> = {
       model: Object.fromEntries(Object.entries(d.byModel).map(([m, cell]) => [m, priceCellsAtDay({ [m]: cell }, d.day, mode)])),
@@ -40,7 +40,7 @@ export function buildCostedDays(burn: ActivityResult['burn'], mode: CostMode): C
 
 // The range's inclusive start day (YYYY-MM-DD, local) — `today` minus (days-1).
 // Null for the All range (no bound).
-export function rangeStartDay(today: string, days: number | null): string | null {
+function rangeStartDay(today: string, days: number | null): string | null {
   if (days == null) return null;
   const [y, m, d] = today.split('-').map(Number);
   const start = new Date(y, m - 1, d - (Math.max(Math.round(days), 1) - 1));
@@ -55,7 +55,7 @@ export function rangeStartDay(today: string, days: number | null): string | null
 // every window. `current` = window sum; `ratio` = current / server prior-period
 // baseline; movers = top project + top model by range spend; flaggedDays =
 // per-day spikes in the window.
-export interface RangeAnomaly {
+interface RangeAnomaly {
   current: number;
   baseline: number;
   hasBaseline: boolean;
@@ -90,7 +90,7 @@ export function rangeAnomaly(burn: ActivityResult['burn'], mode: CostMode, days:
 // The top value of one dimension by absolute spend within [start, today]
 // (start === null → the whole series, the All window). Window-scoped, so the
 // movers move as the range changes.
-export function topDimInRange(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
+function topDimInRange(days: CostedDay[], today: string, start: string | null, dim: AnomalyDimension): { value: string; cost: number } | null {
   const totals = new Map<string, number>();
   for (const d of days) {
     if (d.day > today || (start && d.day < start)) continue;

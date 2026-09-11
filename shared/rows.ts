@@ -13,7 +13,7 @@
 import type { Kind, Project } from './types.ts';
 
 // Full `sessions` row, as read back out of the DB (every column, including the
-// ones added by db.ts's idempotent ALTER TABLE migrations).
+// ones added by schema.ts's idempotent ALTER TABLE migrations).
 export interface SessionRow {
   id: string;
   project_id: number;

@@ -19,6 +19,11 @@ The rules that follow from that:
 - **`shared/` is the cross-boundary contract.** `types.ts` for the event model, `rows.ts` /
   `results.ts` / `explore.ts` for what the routes answer with. Both sides import it by relative
   path — there is no alias.
+- **Export only what something imports.** An exported name with no production caller reads as
+  an interface, so the next session widens the module instead of deepening it. Un-export it, or
+  delete it; where the export IS the seam a module is tested at, keep it with a one-line note
+  naming the test it is the seam for. `test/exports-have-callers.test.mjs` holds that list, and
+  reads the code with comments stripped, so a name mentioned in prose is not a caller.
 
 The one real compile is `npm run prepack`, which emits `dist-server/` for publishing. Local
 development never touches that path.

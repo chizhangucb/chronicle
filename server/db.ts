@@ -91,9 +91,13 @@ function setActive(db: DatabaseSync): void {
   invalidateCache();
 }
 
-/** Close a database and forget it: the other half of openDatabase(), so a caller
- *  that opened a folder can open it again and get a live handle. Closing the
- *  current database leaves none open, and getDb() says so. */
+// Close a database and forget it: the other half of openDatabase(), so a caller
+// that opened a folder can open it again and get a live handle. Closing the
+// current database leaves none open, and getDb() says so.
+// closeDatabase is exported for the lifecycle pin in test/app-lifecycle.test.mjs,
+// which reopens a folder to show the handle is live rather than the closed one;
+// no production entry closes its database, because the process exiting is what
+// ends it.
 export function closeDatabase(db: DatabaseSync): void {
   const meta = state.meta.get(db);
   if (meta) state.open.delete(path.join(meta.dir, 'chronicle.db'));
@@ -350,6 +354,9 @@ export function snapshotDb(force = false, handle?: DatabaseSync): string | null 
 
 // ---- Tombstones (Phase 5 PR 5a: delete + undo) ----
 
+// Exported for the tombstone pins in test/sync-hygiene.test.mjs and
+// test/transcript-delete-removed.test.mjs: they read isTombstoned to see that a
+// deleted session stays deleted. Production reads it from replaceSession below.
 export function isTombstoned(source: string, sessionId: string): boolean {
   return !!getDb().prepare('SELECT 1 FROM session_tombstones WHERE source = ? AND session_id = ?').get(source, sessionId);
 }

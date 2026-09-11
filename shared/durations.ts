@@ -33,6 +33,9 @@ export function isHumanPrompt(m: TimedMessage): boolean {
 }
 
 // Generic gaps (anything that is not a matched tool_result) count at most this.
+// Exported for test/durations.test.mjs and test/client-twins-removed.test.mjs:
+// ACTIVE_GAP_CAP_MS and ENGAGED_GAP_CAP_MS are the caps those cases are built
+// around, so the tests state the same numbers the math uses.
 export const ACTIVE_GAP_CAP_MS = 10 * 60 * 1000;
 // Engaged time counts every gap, each at most this.
 export const ENGAGED_GAP_CAP_MS = 90 * 60 * 1000;

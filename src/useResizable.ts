@@ -33,7 +33,7 @@ import type React from 'react';
 //   3. A missed release for any reason: `pointermove` self-heals by ending the
 //      drag as soon as it sees no button pressed (`e.buttons === 0`).
 
-export type ResizeEdge = 'left' | 'right';
+type ResizeEdge = 'left' | 'right';
 
 /**
  * Everything the handle element needs, spread onto it by the call site
@@ -42,7 +42,7 @@ export type ResizeEdge = 'left' | 'right';
  * screen reader reads out can never be wired up on one handle and forgotten on
  * the other, which is exactly how the keyboard path went missing.
  */
-export interface ResizeHandleProps {
+interface ResizeHandleProps {
   role: 'separator';
   'aria-orientation': 'vertical';
   'aria-valuenow': number;
@@ -54,7 +54,7 @@ export interface ResizeHandleProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void;
 }
 
-export interface Resizable {
+interface Resizable {
   width: number;
   handleProps: ResizeHandleProps;
   // Restores `fallback` and clears the persisted override (so a later
@@ -64,7 +64,7 @@ export interface Resizable {
   reset: () => void;
 }
 
-export interface ResizableOptions {
+interface ResizableOptions {
   storageKey: string;
   fallback: number;
   min: number;
@@ -90,6 +90,8 @@ const RESIZE_STEP = 16;
  * handle (panel on the LEFT) grows on ArrowRight, a `'left'` handle grows on
  * ArrowLeft.
  */
+// Exported for test/resize-handle.test.mjs: nextWidthForKey is the arrow-key
+// geometry, tested without a DOM; useResizable is its only production caller.
 export function nextWidthForKey(
   key: string,
   width: number,

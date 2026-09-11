@@ -273,6 +273,7 @@ manual re-import are safe to run repeatedly:
 // server/db.ts — abridged
 export function replaceSession(session: SessionInput, events: Event[]): void {
   if (isTombstoned(session.source, session.id)) return; // deliberately deleted — never resurrect
+  const db = getDb();                                    // the handle openDatabase() opened
   db.exec('BEGIN');
   try {
     const prev = db.prepare('SELECT name, minor FROM sessions WHERE id = ?').get(session.id);
@@ -558,6 +559,14 @@ sum to the same magnitude as the session's actual token spend rather than a sepa
 (and often wildly different) estimate. Results built this way carry a `calibrated: true` flag,
 and the UI marks them with a `≈` and an explanatory tooltip — an honest signal that the
 per-bucket split is an estimate even though the total it's scaled to is exact.
+
+Calibration is not the only way a figure can fall short of billed. Explore's `hour` and
+`subagent` dimensions are **partial**: they sum the **per-message token columns**, which hold
+only about three quarters of billed usage (the rest is never written per message), and
+`sessions.usage` has no hourly or per-agent-type split to scale them against, so they show the
+real per-message count. They carry the same `≈`, with their own tooltip. Across every
+dimension the marker means "not a billed total", and `model`, `project` and `source` are the
+dimensions whose tokens are one.
 
 ## HTTP API
 
