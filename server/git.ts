@@ -53,7 +53,7 @@ export function repoInfo(dir: string | null | undefined): RepoInfo {
 // `git()`/`isGitRepo()` above use `execFileSync`, which blocks the Node event
 // loop for the full subprocess duration. Fine for the single-repo lookups a
 // request does once (the project card's git pill, a snapshot's file tree), but
-// counting commits is a COUNT PER PROJECT on every Insights request — doing
+// counting commits is a COUNT PER PROJECT on every Insights request, and doing
 // that serially and synchronously would block the whole server for N spawns in
 // a row. The async pair below runs the subprocess via libuv's thread pool
 // instead, so `Promise.all`-ing the counter across projects lets the spawns
@@ -76,8 +76,8 @@ async function isGitRepoAsync(dir: string | null | undefined): Promise<boolean> 
 
 // Total commits on HEAD, optionally only those on/after sinceIso (ISO string).
 // The one commit counter (#265): Insights counts per project and the project
-// page counts for one, both through here — one cheap non-blocking shell-out
-// per repo, never per session.
+// page counts for one, both through here. One cheap non-blocking shell-out per
+// repo, never per session.
 export async function commitCountSinceAsync(dir: string, sinceIso: string | null): Promise<number> {
   if (!(await isGitRepoAsync(dir))) return 0;
   try {

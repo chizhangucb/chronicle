@@ -77,8 +77,8 @@ export function invalidateCache(): void {
 }
 
 // How many entries the cache is holding, live and stale alike. cacheSize is
-// exported for the boundedness pin in test/server-cache.test.mjs, which has no other way to
-// see that the sweep runs; nothing in production reads it.
+// exported for the boundedness pin in test/server-cache.test.mjs, which has no
+// other way to see that the sweep runs; nothing in production reads it.
 export function cacheSize(): number {
   return state.map.size;
 }

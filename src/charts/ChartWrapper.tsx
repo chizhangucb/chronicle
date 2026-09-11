@@ -21,7 +21,7 @@ export const GRID_PROPS = { stroke: 'var(--border)', vertical: false };
 // series (color tick · name · value, sorted desc, zero-series omitted), a
 // Total row separated by a rule when more than one series is present.
 // Pass as Recharts' <Tooltip content={<ChartTooltip formatValue={...} />} />.
-export interface ChartTooltipProps<V extends number = number> extends TooltipContentProps<V, string> {
+interface ChartTooltipProps<V extends number = number> extends TooltipContentProps<V, string> {
   formatValue?: (v: V) => string;
   // Opt out of the summed "Total" row — for charts whose series don't share a
   // unit (e.g. a $ bar + a count line on the same composed chart), where a

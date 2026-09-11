@@ -646,7 +646,7 @@ interface ProjectPickerProps {
 
 // Project dropdown: switch projects from the breadcrumb, mirroring the session
 // picker. Lazily loads the project list on first open.
-export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
+function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   // Task 5: SWR-cached list, keyed on the same '/api/projects' URL the hover

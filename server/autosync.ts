@@ -63,6 +63,9 @@ const BACKSTOP_MS = 30 * 60 * 1000;  // catches missed fs events (macOS drops th
 // what's left of MAXWAIT_MS (measured from the START of the burst, which
 // doesn't move) guarantees the first pending event still gets synced within
 // MAXWAIT_MS regardless of how many more events arrive after it.
+// Exported for test/autosync-maxwait.test.mjs: nextDelay is the clamp,
+// asserted without waiting on wall-clock timers; scheduleDebounced below is
+// its production caller.
 export function nextDelay(nowMs: number, firstPendingAtMs: number | null): number {
   const first = firstPendingAtMs === null ? nowMs : firstPendingAtMs;
   return Math.min(DEBOUNCE_MS, Math.max(0, first + MAXWAIT_MS - nowMs));
@@ -175,6 +178,9 @@ export function autoSyncStatus(): AutosyncStatus {
   return { enabled: autoSyncEnabled(), running: st.running, lastRun: st.lastRun, lastResult: st.lastResult, firstPendingAt: st.firstPendingAt };
 }
 
+// Exported for test/autosync-maxwait.test.mjs: scheduleDebounced is the
+// debounce state machine, driven event by event instead of through a real
+// fs watcher.
 export function scheduleDebounced(): void {
   const st = state();
   const now = Date.now();

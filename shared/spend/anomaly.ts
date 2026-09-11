@@ -96,6 +96,8 @@ export function computeFlaggedDays(
   return out.reverse(); // newest first
 }
 
+// Exported for test/spend-anomaly-budget.test.mjs: computeAnomaly is the
+// headline rule, asserted over hand-built costed-day series.
 export function computeAnomaly(
   days: CostedDay[],
   today: string,

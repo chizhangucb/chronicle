@@ -74,7 +74,7 @@ interface ExploreResult extends Omit<ExploreWireResult, 'rows' | 'buckets'> {
 // Chart legibility cap: at ~90 bars in a ~1000px plot each bar is ≈11px, still
 // hoverable; beyond that bars become unreadable hairlines. When a range+bucket
 // would exceed this, the effective rollup steps coarser until it fits.
-export const ROLLUP_BUCKET_CAP = 90;
+const ROLLUP_BUCKET_CAP = 90;
 const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'weekly', 'monthly'];
 
 // Each time rollup's granularity in server/rangeUsage.ts's vocabulary. Explore's wire
@@ -118,7 +118,7 @@ export function pickRollup(
 // tool_name shape) is calibrated exactly like
 // tool/skill: an MCP call is a tool_use row, so its token magnitude is
 // estimated from its text share of the bucket's billed total. A turn can hit
-// several MCP servers, so per-server figures double-count (MCP_DOUBLE_COUNT
+// several MCP servers, so per-server figures double-count (the `spend.mcp-exposure`
 // caveat). `provider` (model VENDOR — anthropic/openai/google, NOT `source`'s
 // tool vendor) rides assistant rows that carry real tokens, so it stays a plain
 // per-message group (not calibrated, not exact-override).

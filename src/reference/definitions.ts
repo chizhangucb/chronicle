@@ -23,7 +23,7 @@ export type DefPage =
   | 'retired';
 
 export interface DefVars { [key: string]: string | number | undefined }
-export interface DefContext { vars?: DefVars }
+interface DefContext { vars?: DefVars }
 
 interface Definition {
   id: string;
