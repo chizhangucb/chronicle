@@ -33,3 +33,39 @@ test('js-yaml is declared as a dev dependency, next to its own types', () => {
     '@types/js-yaml moved away from the package it types',
   );
 });
+
+// `1.10.0` is newer than `1.9.0`, so a floor check compares release numbers,
+// never strings. Prerelease tags never reach the lockfile here, so the numeric
+// triple is the whole comparison.
+const atLeast = (version, floor) => {
+  const [a, b] = [version, floor].map((v) => v.split('.').map(Number));
+  return a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] >= b[2];
+};
+
+// Every entry the lockfile resolves for one package name, including the nested
+// copies npm installs when two dependents disagree about a range.
+const resolved = (name) =>
+  Object.entries(lock.packages)
+    .filter(([where]) => where.endsWith(`node_modules/${name}`))
+    .map(([where, entry]) => ({ where, version: entry.version }));
+
+// Dependabot alerts 34 and 35 (qs, medium x2) and 36 (js-yaml, high). qs
+// arrives through express and body-parser, so it ships to every user and a
+// single un-bumped nested copy would keep both alerts open.
+const PATCHED = [
+  { name: 'qs', floor: '6.16.0' },
+  { name: 'js-yaml', floor: '4.3.2' },
+];
+
+for (const { name, floor } of PATCHED) {
+  test(`the lockfile resolves ${name} to >= ${floor} everywhere it appears`, () => {
+    const copies = resolved(name);
+    assert.ok(copies.length > 0, `the lockfile resolves no ${name} at all`);
+    const behind = copies.filter(({ version }) => !atLeast(version, floor));
+    assert.deepEqual(
+      behind,
+      [],
+      `${name} is below ${floor}: ${behind.map((c) => `${c.where}@${c.version}`).join(', ')}`,
+    );
+  });
+}
