@@ -66,7 +66,7 @@ const totalMessages = (dailyActivity) => dailyActivity.reduce((sum, d) => sum + 
 test('the fixed windows are cached: a write nothing invalidated is not picked up', async () => {
   const range = rangeOf(7);
   const first = await insightsModule.computeInsights({ type: 'all' }, range);
-  dbModule.db.prepare(
+  dbModule.getDb().prepare(
     'INSERT INTO messages (session_id, seq, ts, kind, text) VALUES (?, ?, ?, ?, ?)',
   ).run('f1', 999, new Date(BASE.getTime()).toISOString(), 'user', 'uninvalidated');
   const second = await insightsModule.computeInsights({ type: 'all' }, range);
@@ -75,7 +75,7 @@ test('the fixed windows are cached: a write nothing invalidated is not picked up
   assert.deepEqual(second.hourlyActivity, first.hourlyActivity);
   // Taken back out the same way it went in, so the next test starts from the
   // row count the fixtures set up.
-  dbModule.db.prepare('DELETE FROM messages WHERE seq = 999').run();
+  dbModule.getDb().prepare('DELETE FROM messages WHERE seq = 999').run();
 });
 
 test('an import makes the fixed windows stale at once, not when a TTL runs out', async () => {

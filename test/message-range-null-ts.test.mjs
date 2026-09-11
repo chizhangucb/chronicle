@@ -30,7 +30,8 @@ before(async () => {
   insights = await import('../server/insights.ts');
   content = await import('../server/content.ts');
   explore = await import('../server/explore.ts');
-  const { upsertProject, replaceSession, db } = temp.dbModule;
+  const { upsertProject, replaceSession } = temp.dbModule;
+  const db = temp.db;
   const p = upsertProject('/tmp/null-ts');
 
   // 12 timestamped assistant turns, 2 minutes apart, so the session clears

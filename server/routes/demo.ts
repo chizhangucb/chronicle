@@ -2,10 +2,12 @@ import type { Express, Request, Response } from 'express';
 
 // Demo-mode control.
 //
-// Entering and leaving demo cannot be done in-process: server/db.ts binds its
-// handle to CHRONICLE_DATA_DIR at import time, so switching databases means
-// switching processes. The CLI publishes a relaunch capability on globalThis
-// (the __chronicleGate / __chronicleCache idiom) and these routes call it.
+// Entering and leaving demo cannot be done in-process: server/config.ts freezes
+// the data folder at import, and the noise gate and the snapshot writer read it,
+// so switching databases means switching processes (issue #275 made the handle
+// itself switchable; the folder around it still is not). The CLI publishes a
+// relaunch capability on globalThis (the __chronicleGate / __chronicleCache
+// idiom) and these routes call it.
 //
 // Under `npm run dev` there is no CLI to relaunch, so `available` is false and
 // the UI offers the command to copy instead of a button. That is why the status

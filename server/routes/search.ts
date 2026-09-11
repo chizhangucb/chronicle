@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { db, ftsAvailable } from '../db.ts';
+import { getDb, ftsAvailable } from '../db.ts';
 import { queryContext, rangeOf, whereOf } from '../scope.ts';
 // One search hit, and the envelope around it: shared/rows.ts and
 // shared/results.ts own both shapes (#307), so the Home ledger reads what this
@@ -80,7 +80,7 @@ export function mountSearch(app: Express): void {
       // is stable by COALESCE(ended_at, started_at) DESC, so paging never
       // overlaps or reorders. A missing/garbage offset degrades to 0.
       const offset = Number(req.query.offset) || 0;
-      const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
+      const rows = getDb().prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
           s.started_at, s.ended_at, s.message_count, s.usage, s.agent_active_ms, p.name AS project_name
         FROM sessions s JOIN projects p ON p.id = s.project_id
         WHERE ${where.join(' AND ')}
@@ -101,10 +101,10 @@ export function mountSearch(app: Express): void {
         s.project_id, s.source, s.name, s.summary, s.first_prompt, p.name AS project_name
       FROM messages m JOIN sessions s ON s.id = m.session_id JOIN projects p ON p.id = s.project_id`;
     let rows: MatchRow[] | null = null;
-    if (ftsAvailable) {
+    if (ftsAvailable()) {
       try {
         const ftsQuery = `"${q.replace(/"/g, '""')}"*`;
-        rows = db.prepare(`${select}
+        rows = getDb().prepare(`${select}
           JOIN messages_fts f ON f.rowid = m.id
           WHERE f MATCH ?${tail}
           ORDER BY m.ts DESC LIMIT 400`).all(ftsQuery, ...params) as unknown as MatchRow[];
@@ -112,7 +112,7 @@ export function mountSearch(app: Express): void {
     }
     if (rows === null) {
       const like = `%${q}%`;
-      rows = db.prepare(`${select}
+      rows = getDb().prepare(`${select}
         WHERE (m.text LIKE ? OR m.tool_input LIKE ?)${tail}
         ORDER BY m.ts DESC LIMIT 400`).all(like, like, ...params) as unknown as MatchRow[];
     }

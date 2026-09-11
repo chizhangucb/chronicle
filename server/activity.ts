@@ -11,7 +11,7 @@
 // the client prices them via src/models.ts `costOf`. The server never computes
 // dollars — including "top session", which it picks by total tokens (a
 // price-free proxy) and returns with its cells so the client can price it.
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { liveWatcherSessionIds } from './live.ts';
 import { bucketedUsage } from './rangeUsage.ts';
 import { queryContext, rangeOf, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
@@ -66,7 +66,7 @@ function sumRange(q: QueryContext, from: string | null, to: string | null): Usag
     from != null ? { sql: 'AND s.started_at >= ?', params: [from] } : '',
     to != null ? { sql: 'AND s.started_at < ?', params: [to] } : '',
   );
-  const rows = db.prepare(
+  const rows = getDb().prepare(
     `SELECT s.usage FROM sessions s WHERE ${w.sql}`,
   ).all(...w.params) as unknown as { usage: string | null }[];
   const acc: UsageByModel = {};
@@ -105,7 +105,7 @@ function medianBaseline(q: QueryContext): UsageByModel {
   const to = todayMidnight.toISOString();                 // exclusive: today's local midnight
 
   const w = whereOf(q.where, { sql: 'AND s.started_at >= ? AND s.started_at < ?', params: [from, to] });
-  const rows = db.prepare(
+  const rows = getDb().prepare(
     `SELECT strftime('%Y-%m-%d', s.started_at, 'localtime') AS day, s.usage
      FROM sessions s
      WHERE ${w.sql}`,
@@ -146,7 +146,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   const watchers = liveWatcherSessionIds();
 
   const listWhere = whereOf(q.where);
-  const rows = db.prepare(
+  const rows = getDb().prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count
      FROM sessions s JOIN projects p ON p.id = s.project_id
@@ -193,7 +193,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   // can price a window straddling a rate change (e.g. Sonnet 5's intro window) correctly.
   // The token range is already null for "All" (extends-to-now semantics match
   // bucketedUsage's cutoffIso===null "All range" signal exactly).
-  const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+  const bucketedCells = bucketedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
   const rangeSpendTokensByModel: UsageByModel = {};
   const rangeSpendTokensByModelByDay: Record<string, UsageByModel> = {};
   for (const c of bucketedCells) {
@@ -220,7 +220,7 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   // scaled to its in-range share), matching this block's pre-existing "price-free proxy"
   // approximation.
   const winWhere = q.sessionRows;
-  const winRows = db.prepare(
+  const winRows = getDb().prepare(
     `SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
             s.started_at, s.ended_at, s.usage, s.error_count
      FROM sessions s JOIN projects p ON p.id = s.project_id
@@ -243,9 +243,9 @@ export function computeActivity(scope: Scope, range: Range, sinceIso: string | n
   // (days == null) has no cutoff so it spans every day of history.
   const anomalyRange = rangeOf(days != null ? days + MEDIAN_DAYS : null, now);
   const projName = new Map<number, string>();
-  for (const r of db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]) projName.set(r.id, r.name);
+  for (const r of getDb().prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]) projName.set(r.id, r.name);
   const anomDayMap = new Map<string, AnomalyDayCells>();
-  for (const c of bucketedUsage(db, q.where.sql, q.where.params, anomalyRange.cutoffIso, 'day')) {
+  for (const c of bucketedUsage(getDb(), q.where.sql, q.where.params, anomalyRange.cutoffIso, 'day')) {
     let d = anomDayMap.get(c.bucket);
     if (!d) { d = { day: c.bucket, byModel: {}, byProject: {}, bySource: {} }; anomDayMap.set(c.bucket, d); }
     addCellInto(d.byModel, c.model, c.cells);

@@ -152,14 +152,20 @@ normalized event shape so the UI never has to care where a session came from.
 
 ```ts
 // server/db.ts
-import { DatabaseSync } from 'node:sqlite';
-export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
+export function openDatabase(dir = dataDir): DatabaseSync {
+  const db = new DatabaseSync(path.join(dir, 'chronicle.db'));
+  applySchema(db);   // server/schema.ts
+  runBackfills(db);
+  return db;
+}
 ```
 
-The schema is created idempotently at module load (`CREATE TABLE IF NOT EXISTS …`), and
-changes since are applied as best-effort migrations — `try { db.exec('ALTER TABLE …') } catch
-{}` lines. There is no migration framework and no version table: the first boot after an
-upgrade adds a column, every later boot no-ops in the `catch`.
+Nothing opens on import: an entry point calls `openDatabase()` and every other module reads
+that handle through `getDb()`. The schema is applied idempotently on each open
+(`CREATE TABLE IF NOT EXISTS …`) from `server/schema.ts`, the one module that declares a
+table, and changes since are applied as best-effort migrations: `try { db.exec('ALTER TABLE
+…') } catch {}` lines. There is no migration framework and no version table: the first boot
+after an upgrade adds a column, every later boot no-ops in the `catch`.
 
 ```sql
 CREATE TABLE projects (
@@ -267,6 +273,7 @@ manual re-import are safe to run repeatedly:
 // server/db.ts — abridged
 export function replaceSession(session: SessionInput, events: Event[]): void {
   if (isTombstoned(session.source, session.id)) return; // deliberately deleted — never resurrect
+  const db = getDb();                                    // the handle openDatabase() opened
   db.exec('BEGIN');
   try {
     const prev = db.prepare('SELECT name, minor FROM sessions WHERE id = ?').get(session.id);

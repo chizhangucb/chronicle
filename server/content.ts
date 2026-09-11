@@ -6,7 +6,7 @@
 // (D4, feedback-round Task 12) — 7 token-share stats at all/project scope,
 // 6 absolute session facts at session scope (see the ContentResult/
 // Characteristic doc comments below). All local, scope-parameterized.
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage } from './rangeUsage.ts';
@@ -77,12 +77,12 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
   // undercounts vs Overview) and NOT a raw unscaled sessions.usage sum (which would
   // over-count a session spanning the window boundary). calibratedTotalTokens is this same
   // value, so the composition + Shakespeare footnote reconcile with the Insights Tokens KPI.
-  const rangedCells = rangedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso);
+  const rangedCells = rangedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso);
   let billed = 0;
   for (const c of rangedCells) billed += c.cells.input + c.cells.output;
 
   // Composition by kind (calibrated).
-  const kindChars = db.prepare(`SELECT m.kind AS k, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
+  const kindChars = getDb().prepare(`SELECT m.kind AS k, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
      FROM messages m ${base} GROUP BY m.kind`).all(...bind()) as unknown as { k: string; chars: number }[];
   const KINDS = ['tool_result', 'tool_use', 'user', 'assistant', 'thinking'];
   const kindBuckets = KINDS.map((k) => ({ key: k, chars: kindChars.find((c) => c.k === k)?.chars ?? 0 }));
@@ -100,7 +100,7 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
 
   // Tool results by tool (join result→use on tool_use_id).
   const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));  // alias r, not m
-  const toolChars = db.prepare(`
+  const toolChars = getDb().prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
     FROM messages r JOIN messages u ON u.id = (
       SELECT MIN(u2.id) FROM messages u2
@@ -113,12 +113,12 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
     .filter((t) => t.tokens > 0).sort((a, b) => b.tokens - a.tokens);
 
   // Skills: count exact, tokens = true fraction of billed (share of ALL content).
-  const skillRows = db.prepare(`SELECT m.skill AS k, COUNT(*) AS count, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
+  const skillRows = getDb().prepare(`SELECT m.skill AS k, COUNT(*) AS count, COALESCE(SUM(LENGTH(COALESCE(m.text,''))),0) AS chars
      FROM messages m ${base} AND m.skill IS NOT NULL GROUP BY m.skill`).all(...bind()) as unknown as { k: string; count: number; chars: number }[];
   const skills = skillRows.map((r) => ({ key: r.k, count: r.count, tokens: shareTokens(r.chars) })).sort((a, b) => b.count - a.count);
 
   // Subagents: runs (distinct session×agent_type) + EXACT tokens from sidechain per-message columns.
-  const subRows = db.prepare(`SELECT m.agent_type AS k, COUNT(DISTINCT m.session_id) AS runs,
+  const subRows = getDb().prepare(`SELECT m.agent_type AS k, COUNT(DISTINCT m.session_id) AS runs,
      COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
      FROM messages m ${base} AND m.is_sidechain=1 AND m.agent_type IS NOT NULL GROUP BY m.agent_type`).all(...bind()) as unknown as { k: string; runs: number; tokens: number }[];
   const subagents = subRows.map((r) => ({ key: r.k, runs: r.runs, tokens: r.tokens })).sort((a, b) => b.tokens - a.tokens);
@@ -189,7 +189,7 @@ function computeSessionCharStats(q: QueryContext): SessionCharStats {
   // session's characteristics (8h-active, high-context, autonomous, …) describe the WHOLE
   // session, not an in-range fraction, so there's no per-message message range to add.
   const w = q.sessionRows;
-  const sessions = db.prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
+  const sessions = getDb().prepare(`SELECT s.context_tokens AS ctx, s.usage AS usage,
        s.agent_active_ms AS active, s.engaged_ms AS engaged
      FROM sessions s WHERE ${w.sql}`).all(...w.params) as unknown as
      { ctx: number|null; usage: string|null; active: number|null; engaged: number|null }[];
@@ -283,12 +283,12 @@ function computeCharacteristics(q: QueryContext, stats: SessionCharStats): Chara
   const base = `JOIN sessions s ON s.id = m.session_id
     WHERE ${messageWhere.sql}`;
 
-  const wf = db.prepare(`SELECT COUNT(DISTINCT m.workflow_id) AS runs,
+  const wf = getDb().prepare(`SELECT COUNT(DISTINCT m.workflow_id) AS runs,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
      FROM messages m ${base} AND m.is_sidechain=1 AND m.kind IN ('assistant','tool_use') AND m.workflow_id IS NOT NULL`)
     .get(...bind()) as unknown as { runs: number; tokens: number };
 
-  const sub = db.prepare(`SELECT COUNT(*) AS turns,
+  const sub = getDb().prepare(`SELECT COUNT(*) AS turns,
        COALESCE(SUM(COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)),0) AS tokens
      FROM messages m ${base} AND m.is_sidechain=1 AND m.kind IN ('assistant','tool_use')`)
     .get(...bind()) as unknown as { turns: number; tokens: number };

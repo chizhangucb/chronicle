@@ -4,7 +4,7 @@
 // shared price table (never server dollar math). Scope, minor gate and the
 // message range (timestamp) all come from the one query context
 // (server/scope.ts), matching server/detectors.ts.
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
@@ -25,7 +25,7 @@ function assistantWhere(q: QueryContext) {
 // ---- Cache churn: sessions that wrote more cache than they read back ----
 function cacheChurn(q: QueryContext): WasteResult['cacheChurn'] {
   const w = assistantWhere(q);
-  const churn = db.prepare(
+  const churn = getDb().prepare(
     `SELECT m.session_id, p.name AS project,
             SUM(COALESCE(m.cache_w5m_tokens,0) + COALESCE(m.cache_w1h_tokens,0)) AS writeTok,
             SUM(COALESCE(m.cache_read_tokens,0)) AS readTok
@@ -35,7 +35,7 @@ function cacheChurn(q: QueryContext): WasteResult['cacheChurn'] {
      HAVING writeTok > readTok AND writeTok > 0
      ORDER BY writeTok DESC LIMIT 20`,
   ).all(...w.params) as unknown as ChurnRow[];
-  const sessionsFlagged = (db.prepare(
+  const sessionsFlagged = (getDb().prepare(
     `SELECT COUNT(*) AS n FROM (
        SELECT m.session_id,
               SUM(COALESCE(m.cache_w5m_tokens,0)+COALESCE(m.cache_w1h_tokens,0)) AS w,
@@ -46,7 +46,7 @@ function cacheChurn(q: QueryContext): WasteResult['cacheChurn'] {
   ).get(...w.params) as unknown as { n: number }).n;
 
   const top: ChurnSession[] = churn.map((c) => {
-    const cells = db.prepare(
+    const cells = getDb().prepare(
       `SELECT m.model, SUM(COALESCE(m.cache_w5m_tokens,0)) AS cw5m, SUM(COALESCE(m.cache_w1h_tokens,0)) AS cw1h
        FROM messages m WHERE m.session_id = ? AND m.kind='assistant' AND m.model IS NOT NULL
        GROUP BY m.model`,
@@ -66,7 +66,7 @@ function cacheChurn(q: QueryContext): WasteResult['cacheChurn'] {
 function rightSizing(q: QueryContext): WasteResult['rightSizing'] {
   const { rightsizingMaxOutputTokens: maxOut, rightsizingMaxContextTokens: maxCtx } = DEFAULT_SPEND_THRESHOLDS.detectors;
   const w = assistantWhere(q);
-  const rows = db.prepare(
+  const rows = getDb().prepare(
     `SELECT m.model, COUNT(*) AS messages,
             SUM(COALESCE(m.input_tokens,0)) AS input, SUM(COALESCE(m.output_tokens,0)) AS output,
             SUM(COALESCE(m.cache_read_tokens,0)) AS cacheRead,
@@ -84,7 +84,7 @@ function rightSizing(q: QueryContext): WasteResult['rightSizing'] {
 function rereads(q: QueryContext): WasteResult['rereads'] {
   const w = whereOf("AND m.kind='tool_use' AND m.tool_name='Read'", q.where, q.messages());
   // Read tool_use rows + their matching tool_result char count, in session/seq order.
-  const rows = db.prepare(
+  const rows = getDb().prepare(
     `SELECT m.session_id, m.seq, m.tool_input, LENGTH(r.text) AS result_chars
      FROM messages m JOIN sessions s ON s.id = m.session_id
      LEFT JOIN messages r ON r.session_id = m.session_id AND r.tool_use_id = m.tool_use_id AND r.kind = 'tool_result'

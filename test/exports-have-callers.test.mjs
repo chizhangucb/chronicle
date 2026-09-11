@@ -109,6 +109,7 @@ const TESTED_THROUGH_THE_EXPORT = {
   'server/autosync.ts scheduleDebounced': 'the debounce state machine, driven directly',
   'server/security.ts scanText': 'the redaction core, exercised directly by the removal pin',
   'server/cache.ts cacheSize': 'cache eviction observed without a route',
+  'server/db.ts closeDatabase': 'the lifecycle reopen path, driven directly by the seam pin',
   'server/db.ts isTombstoned': 'tombstone hygiene asserted against the DB directly',
   'server/demo/corpus.ts DEMO_DAYS': 'the demo corpus span the seeded assertions range over',
   'server/explore.ts ExploreQuery': 'the query shape the query-context pin reads',

@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { db, tombstoneSession, removeTombstone } from '../db.ts';
+import { getDb, tombstoneSession, removeTombstone } from '../db.ts';
 import type { MessageRow, MinorSessionRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { attachLiveStream, isLiveCandidate, liveStatus } from '../live.ts';
@@ -16,7 +16,7 @@ export function mountSessions(app: Express): void {
   // ---- Noise gate: the global "minor sessions" bucket (Phase 5 PR 5a) ----
 
   app.get('/sessions/minor', (_req: Request, res: Response) => {
-    const rows = db.prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
+    const rows = getDb().prepare(`SELECT s.id, s.project_id, s.source, s.name, s.summary, s.first_prompt,
         s.message_count, s.agent_active_ms, s.started_at, p.name AS project_name
       FROM sessions s JOIN projects p ON p.id = s.project_id
       WHERE s.minor = 1
@@ -26,9 +26,9 @@ export function mountSessions(app: Express): void {
 
   // Promote a minor session back into the main lists (sticky across re-import — see db.ts replaceSession).
   app.post('/sessions/:id/promote', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
+    const session = getDb().prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
     if (!session) return res.status(404).json({ error: 'Not found' });
-    db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run((req.params.id as string));
+    getDb().prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run((req.params.id as string));
     invalidateCache();
     res.json({ ok: true });
   });
@@ -44,33 +44,33 @@ export function mountSessions(app: Express): void {
 
   // Tiny resolver for chronicle://session/<id> deep links.
   app.get('/sessions/:id/resolve', (req: Request, res: Response) => {
-    const s = db.prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string)) as unknown as ResolveSessionResult | undefined;
+    const s = getDb().prepare('SELECT id, project_id FROM sessions WHERE id = ?').get((req.params.id as string)) as unknown as ResolveSessionResult | undefined;
     if (!s) return res.status(404).json({ error: 'Not found' });
     res.json(s);
   });
 
   // Rename a session (user-set display name; survives re-import — see db.replaceSession).
   app.patch('/sessions/:id', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
+    const session = getDb().prepare('SELECT id FROM sessions WHERE id = ?').get((req.params.id as string));
     if (!session) return res.status(404).json({ error: 'Not found' });
     if (req.body.name !== undefined) {
       const name = (req.body.name || '').trim() || null; // empty clears back to the default
-      db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, (req.params.id as string));
+      getDb().prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, (req.params.id as string));
       invalidateCache();
     }
-    const renamed = db.prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?')
+    const renamed = getDb().prepare('SELECT id, name, summary, first_prompt FROM sessions WHERE id = ?')
       .get((req.params.id as string)) as unknown as RenameSessionResult;
     res.json(renamed);
   });
 
   app.get('/sessions/:id/messages', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
+    const session = getDb().prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as unknown as ProjectRow;
-    const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id) as unknown as MessageRow[];
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as unknown as ProjectRow;
+    const messages = getDb().prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id) as unknown as MessageRow[];
     const commits = session.started_at && session.ended_at
       ? gitEngine.commitsBetween(project.path, session.started_at, session.ended_at) : [];
-    const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
+    const peers = getDb().prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
     const payload: SessionMessagesResult = { session, project, messages, commits, git: gitEngine.repoInfo(project.path),
       liveCandidate: isLiveCandidate(session.file_path, session, peers) };
     res.json(payload);
@@ -79,15 +79,15 @@ export function mountSessions(app: Express): void {
   // Delete a session's imported copy from Chronicle. The source transcript is
   // never touched: nothing in Chronicle removes one (ADR 0008, issue #299).
   app.delete('/sessions/:id', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
+    const session = getDb().prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
-    const peers = db.prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
+    const peers = getDb().prepare('SELECT id, file_path, ended_at FROM sessions WHERE project_id = ?').all(session.project_id) as unknown as PeerRow[];
     if (isLiveCandidate(session.file_path, session, peers)) {
       return res.status(400).json({ error: 'This session is live right now — wait for it to finish before deleting' });
     }
     backupDbBeforeDelete();
-    db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
-    db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
+    getDb().prepare('DELETE FROM messages WHERE session_id = ?').run(session.id);
+    getDb().prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
     // A deliberate delete tombstones the (source, id) pair so a subsequent
     // import/sync/auto-sync of the same source log never resurrects it —
     // "Undo" (POST /sessions/undo-delete) just forgets the tombstone.

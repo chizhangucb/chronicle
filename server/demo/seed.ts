@@ -45,17 +45,25 @@ export function demoIsSeeded(dir = demoDataDir()): boolean {
 /**
  * Build the demo database if today's is not already built.
  *
- * MUST be called with CHRONICLE_DATA_DIR already pointing at `dir`, because
- * server/db.ts binds its handle at import time: the dynamic imports below are
- * what make that ordering enforceable rather than merely documented.
+ * Opens the demo database itself (issue #275): it is a production entry like
+ * the standalone server, and the import below writes through the real import
+ * path, which reads whichever database is open.
+ *
+ * MUST still be called with CHRONICLE_DATA_DIR already pointing at `dir`:
+ * server/config.ts freezes the data folder at import, and the config it reads
+ * (the noise gate's thresholds) has to be the demo folder's, not ~/.chronicle's.
  */
 export async function seedDemo(dir = demoDataDir(), log: (msg: string) => void = () => {}): Promise<{ seeded: number; cached: boolean }> {
   if (demoIsSeeded(dir)) return { seeded: 0, cached: true };
   fs.mkdirSync(dir, { recursive: true });
 
   if (process.env.CHRONICLE_DATA_DIR !== dir) {
-    throw new Error(`seedDemo: CHRONICLE_DATA_DIR must be ${dir} before seeding (db.ts binds at import time)`);
+    throw new Error(`seedDemo: CHRONICLE_DATA_DIR must be ${dir} before seeding (server/config.ts freezes the folder at import)`);
   }
+
+  // The demo's own database, opened explicitly: ~/.chronicle is never touched.
+  const { openDatabase } = await import('../db.ts');
+  openDatabase(dir);
 
   const specs = demoSessions();
   const fixtureDir = path.join(dir, 'transcripts');

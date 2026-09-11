@@ -153,7 +153,7 @@ test('overlapGate: SQL fragment compares COALESCE(ended_at, started_at, "9") aga
 
 test('rangedUsage: a session spanning the cutoff is included; one fully before it is excluded', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-01-02T00:00:00.000Z';
   const cells = rangedUsage(db, 'AND s.id IN (?, ?)', ['sp1', 'past1'], cutoff);
   const sessionIds = new Set(cells.map((c) => c.sessionId));
@@ -173,7 +173,7 @@ test('rangedUsage: a session spanning the cutoff is included; one fully before i
 
 test('rangedUsage: half the message tokens in-range scales the billed cell by half', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   // Cutoff sits between the two "before" messages (Feb 1) and the two "in-range"
   // messages (Feb 2): whole-session sum = 40, in-range sum = 20 → ratio 0.5.
   const cutoff = '2026-02-02T00:00:00.000Z';
@@ -186,7 +186,7 @@ test('rangedUsage: half the message tokens in-range scales the billed cell by ha
 
 test('rangedUsage: a cutoff after all messages scales the cell down to (near) zero', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-02-03T00:00:00.000Z'; // after every fixture message, still inside the session span
   const cells = rangedUsage(db, 'AND s.id = ?', ['scale1'], cutoff);
   assert.equal(cells.length, 1);
@@ -199,7 +199,7 @@ test('rangedUsage: a cutoff after all messages scales the cell down to (near) ze
 
 test('rangedUsage: a model with zero per-message rows falls back to its full billed cell', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-03-02T00:00:00.000Z'; // inside fb1's span
   const cells = rangedUsage(db, 'AND s.id = ?', ['fb1'], cutoff);
   // fb1's only messages are tagged 'model-other', not the billed 'model-a' — so
@@ -217,7 +217,7 @@ test('rangedUsage: a model with zero per-message rows falls back to its full bil
 
 test('rangedUsage: cutoff===null (All) returns the raw billed cell, ignoring message distribution', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cells = rangedUsage(db, 'AND s.id = ?', ['all1'], null);
   assert.equal(cells.length, 1);
   assert.deepEqual(cells[0].cells, { input: 123, output: 45, cacheRead: 6, cacheWrite5m: 7, cacheWrite1h: 8 });
@@ -225,7 +225,7 @@ test('rangedUsage: cutoff===null (All) returns the raw billed cell, ignoring mes
 
 test('rangedUsage: All-window also includes sessions with no messages at all (past1)', () => {
   const { rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cells = rangedUsage(db, 'AND s.id = ?', ['past1'], null);
   assert.equal(cells.length, 1);
   assert.deepEqual(cells[0].cells, { input: 999, output: 999, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
@@ -237,7 +237,7 @@ test('rangedUsage: All-window also includes sessions with no messages at all (pa
 
 test('bucketedUsage: day buckets use LOCAL calendar dates derived from message ts', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-05-01T00:00:00.000Z'; // before both messages, inside the session span
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'day');
   const modelA = cells.filter((c) => c.model === 'model-a');
@@ -260,7 +260,7 @@ test('bucketedUsage: day buckets use LOCAL calendar dates derived from message t
 
 test('bucketedUsage: hour buckets use LOCAL hour-of-day format YYYY-MM-DDTHH', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-05-01T00:00:00.000Z';
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'hour');
   const modelA = cells.filter((c) => c.model === 'model-a');
@@ -270,7 +270,7 @@ test('bucketedUsage: hour buckets use LOCAL hour-of-day format YYYY-MM-DDTHH', (
 
 test('bucketedUsage: a zero-message-row model lands its full billed cell on the started_at-derived local bucket', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-05-01T00:00:00.000Z';
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt1'], cutoff, 'day');
   const fallback = cells.filter((c) => c.model === 'model-fallback');
@@ -294,7 +294,7 @@ const localDay = (iso) => {
 
 test('bucketedUsage: week buckets are the LOCAL Monday that opens each message\'s week', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-06-01T00:00:00.000Z'; // before both messages, inside the session span
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'week');
   const buckets = cells.map((c) => c.bucket).sort();
@@ -316,7 +316,7 @@ test('bucketedUsage: week buckets are the LOCAL Monday that opens each message\'
 
 test('bucketedUsage: month buckets are the LOCAL year-month of each message', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-06-01T00:00:00.000Z';
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], cutoff, 'month');
   const buckets = cells.map((c) => c.bucket).sort();
@@ -325,7 +325,7 @@ test('bucketedUsage: month buckets are the LOCAL year-month of each message', ()
 
 test('bucketedUsage: a coarse bucket carries the summed in-range share of the days inside it', () => {
   const { bucketedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   // Cutoff before both messages: whole-session per-message tokens = 40, so the
   // June message holds 30/40 of the billed cell and the July message 10/40.
   const cells = bucketedUsage(db, 'AND s.id = ?', ['bkt2'], '2026-06-01T00:00:00.000Z', 'month');
@@ -352,7 +352,7 @@ const sumCells = (cells) => cells.reduce((acc, c) => ({
 
 test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage cell, at every granularity', () => {
   const { bucketedUsage, rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const cutoff = '2026-08-01T00:30:00.000Z'; // inside drift1's span, before every message
   const ranged = rangedUsage(db, 'AND s.id = ?', ['drift1'], cutoff);
   assert.equal(ranged.length, 1);
@@ -369,7 +369,7 @@ test('bucketedUsage: a session\'s buckets sum back to exactly its rangedUsage ce
 
 test('bucketedUsage: buckets sum to the ranged cell when the cutoff splits the session', () => {
   const { bucketedUsage, rangedUsage } = rangeUsageModule;
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   // drift1 has three hourly messages of one token each; this cutoff leaves two of the
   // three in-range, so the share is 2/3 and NOTHING divides evenly: the ranged cell
   // rounds to 67 while two independently-rounded buckets would come out 33+33 = 66.

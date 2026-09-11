@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Response } from 'express';
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import type { SessionRow } from '../shared/rows.ts';
 import type { LiveWatcher } from '../shared/results.ts';
 import { sourceById } from './parsers/registry.ts';
@@ -288,7 +288,7 @@ class SqlitePollWatcher {
 }
 
 function countStored(sessionId: string): number {
-  return (db.prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sessionId) as { n: number } | undefined)?.n ?? 0;
+  return (getDb().prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sessionId) as { n: number } | undefined)?.n ?? 0;
 }
 
 // Where a stored session can be re-read from, in the order worth trying: the
@@ -302,14 +302,14 @@ function countStored(sessionId: string): number {
 // Resolved once per watcher — a scan walks the source's root, which is too
 // much to redo every poll.
 function storeTargets(source: Source, session: SessionRow): ParseTarget[] {
-  const projectPath = (db.prepare('SELECT path FROM projects WHERE id = ?').get(session.project_id) as { path: string } | undefined)?.path;
+  const projectPath = (getDb().prepare('SELECT path FROM projects WHERE id = ?').get(session.project_id) as { path: string } | undefined)?.path;
   const scanned = projectPath ? source.scan().filter((item) => item.physicalPath === projectPath) : [];
   const own = { directory: projectPath, physicalPath: projectPath ?? null };
   return [...scanned, { ...own, logDir: session.file_path }, { ...own, logDir: path.dirname(session.file_path) }];
 }
 
 export function attachLiveStream(sessionId: string, res: Response): boolean {
-  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
+  const session = getDb().prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
   if (!session || !fs.existsSync(session.file_path)) return false;
   // No parser, no stream: a source Chronicle cannot read has nothing to tail
   // and nothing to re-parse.

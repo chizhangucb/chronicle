@@ -55,12 +55,13 @@ before(async () => {
   seed.close();
   process.env.CHRONICLE_DATA_DIR = dir;
   dbModule = await import('../server/db.ts');
+  dbModule.openDatabase(dir); // the drop runs here (#275), not on import
 });
 
 after(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
 const objectNames = () =>
-  dbModule.db.prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
+  dbModule.getDb().prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
 
 test('booting on an upgraded data folder drops the table and its index', () => {
   const left = objectNames().filter(namesTheFeature);
@@ -88,7 +89,7 @@ test("Ask's read-only handle sees no such table", () => {
 });
 
 test('WAL stays on', () => {
-  const row = dbModule.db.prepare('PRAGMA journal_mode').get();
+  const row = dbModule.getDb().prepare('PRAGMA journal_mode').get();
   assert.equal(String(Object.values(row)[0]).toLowerCase(), 'wal');
 });
 
@@ -109,14 +110,17 @@ test('the WAL comment stands on the SQLite-backed parsers, not on the view log',
 test('the boot mounts no such route and runs no retention pass', () => {
   const src = read('server/api.ts');
   assert.equal(namesTheFeature(src), false, 'server/api.ts still reaches for the view log');
-  // Everything server/api.ts calls at module scope. Mounting a router and
-  // starting auto-sync is the whole of the boot; a rolling 180-day DELETE over
-  // the recorded rows used to sit between them.
+  // Everything createApp() calls. Mounting a router is the whole of it: a
+  // rolling 180-day DELETE over the recorded rows used to sit between the
+  // mounts. Auto-sync moved out to the entry points with #275, so a boot call
+  // of any kind in here is new.
   const boot = src.split('\n')
-    .filter((l) => /^[a-z][\w.]*\(.*\);$/.test(l))
+    .filter((l) => /^\s*[a-z][\w.]*\(.*\);$/.test(l))
     .map((l) => l.trim())
-    .filter((l) => !l.startsWith('mount') && !l.startsWith('api.use'));
-  assert.deepEqual(boot, ['startAutoSync();'], `the boot does more than mount and sync: ${boot.join(' ')}`);
+    .filter((l) => !l.startsWith('mount') && !l.startsWith('api.use') && !l.startsWith('useDatabase('));
+  assert.deepEqual(boot, [], `createApp does more than mount: ${boot.join(' ')}`);
+  // And the entry that does start auto-sync runs no retention pass either.
+  assert.equal(namesTheFeature(read('server/standalone.ts')), false, 'the standalone entry reaches for the view log');
 });
 
 test('the cache carries no invalidation exception', () => {

@@ -56,7 +56,7 @@ decision records:
 ## The seams
 
 A seam is where you can add or replace something without touching the rest. Chronicle has
-four that matter.
+five that matter.
 
 **The parser seam.** A parser takes a tool-native log and returns `{ session, events }` in the
 flat model. Everything downstream is written once. Adding a source touches the parser plus
@@ -64,7 +64,16 @@ three wiring points, and nothing else. The walkthrough is in
 [How it works](../architecture/how-it-works.md#howto-add-a-new-source).
 
 **The route seam.** Route groups live in `server/routes/` as `mount*` functions called from
-`server/api.ts`. Register once and the endpoint works in dev and standalone identically.
+`createApp()` in `server/api.ts`. Register once and the endpoint works in dev and standalone
+identically.
+
+**The lifecycle seam.** Importing a server module does nothing. `openDatabase(dir)` opens the
+database, applies the schema (`server/schema.ts`, the one place a table is declared) and runs
+the backfills; `createApp(db)` builds the Express app over the handle it is given; the entry
+points (`server/standalone.ts`, the Vite dev plugin, the demo seed) call both and start
+auto-sync themselves. Everything else reads the open handle through `getDb()`. That is what
+lets a test build the whole API over a temp database in one line:
+`createApp(openDatabase(dir))`.
 
 **The scope seam.** `server/scope.ts` is the query context: `queryContext(scope, range)` hands
 an engine its scope clause, its minor gate and its range fragments together, so one analytics

@@ -23,12 +23,14 @@ every gate. When this page disagrees with either, they win and this page is the 
 
 ## `server/`
 
-**The entry points.** `api.ts` builds the one Express app and mounts every route group.
-`standalone.ts` wraps it for production and serves the built `dist/`. Both serve the same app
-object, which is the reason an endpoint works in dev and standalone with no per-mode wiring.
+**The entry points.** `api.ts`'s `createApp(db)` builds the Express app and mounts every route
+group; `db.ts`'s `openDatabase(dir)` opens the database it serves. Importing either does
+nothing. `standalone.ts` calls both, starts auto-sync and serves the built `dist/`; the Vite
+dev plugin does the same. Both modes build the app the same way, which is the reason an
+endpoint works in dev and standalone with no per-mode wiring.
 
-**`routes/`** is one file per route group, each exporting a `mount*` function that `api.ts`
-calls. `_shared.ts` holds the helpers they have in common. This is where a new endpoint goes.
+**`routes/`** is one file per route group, each exporting a `mount*` function that
+`createApp()` calls. `_shared.ts` holds the helpers they have in common. This is where a new endpoint goes.
 
 **`parsers/`** is `claudeCode.ts`, `codex.ts`, `cursor.ts`, `opencode.ts`. Each exports one
 thing: the `Source` it implements (`source.ts`) — `scan` for the import wizard's cheap
@@ -44,7 +46,8 @@ The parser is the only place that knows a tool's native format.
 | Module | Owns |
 | --- | --- |
 | `config.ts` | The data folder path, and the read and write of `config.json` |
-| `db.ts` | The schema, `replaceSession()`, tombstones, the FTS5 index |
+| `schema.ts` | Every table, index and migration. The one place a table is declared |
+| `db.ts` | `openDatabase()`, `getDb()`, `replaceSession()`, tombstones, snapshots |
 | `git.ts` | Every Git query. Read-only, `execFile`, no libgit2 |
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
 | `live.ts` | JSONL tail and SQLite poll, pushed over SSE |

@@ -142,9 +142,10 @@ const pkgRoot = new URL('../', import.meta.url);
 const distDir = fileURLToPath(new URL('dist/', pkgRoot));
 
 // --- Demo mode: point the data dir at a throwaway demo DB and
-// --- seed it, BEFORE importing the server (server/db.ts binds its handle to
+// --- seed it, BEFORE importing the server (server/config.ts freezes
 // --- CHRONICLE_DATA_DIR at import time, so the order is load-bearing).
-// --- ~/.chronicle is never opened, migrated, or written in demo.
+// --- seedDemo opens that demo database itself; ~/.chronicle is never opened,
+// --- migrated, or written in demo.
 if (demo) {
   process.env.CHRONICLE_DEMO = '1';
   const { demoDataDir, seedDemo, demoIsSeeded } = await import(new URL('../dist-server/server/demo/seed.js', import.meta.url));
@@ -163,10 +164,10 @@ let port, server;
 try {
   port = await firstFreePort(requestedPort);
   const { startServer } = await import(new URL('../dist-server/server/standalone.js', import.meta.url));
-  // Relaunch capability. Published on globalThis rather than
-  // passed into startServer, because `api` is a module-level singleton whose
-  // routes are mounted at import time: by the time startServer runs there is
-  // nothing left to inject into. Same idiom as __chronicleGate/__chronicleCache.
+  // Relaunch capability. Published on globalThis rather than passed into
+  // startServer, because the routes that offer it (server/routes/demo.ts) are
+  // mounted inside createApp(), which takes a database and nothing else. Same
+  // idiom as __chronicleGate/__chronicleCache.
   globalThis.__chronicleRelaunch = (mode) => relaunch(mode, port);
   server = await startServer(port, distDir);
 } catch (err) {

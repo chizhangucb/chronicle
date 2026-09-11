@@ -329,7 +329,7 @@ test('computeExplore: group=session stays honestly 0 tokens when a source has no
 // scope={type:'project', id} still filters group=session to that project's
 // own sessions (the same scope+minorGate every other group honors).
 test('computeExplore: group=session respects scope=project', () => {
-  const proj3Id = dbModule.db.prepare("SELECT project_id FROM sessions WHERE id = 'sSessA'").get().project_id;
+  const proj3Id = dbModule.getDb().prepare("SELECT project_id FROM sessions WHERE id = 'sSessA'").get().project_id;
   const r = explore.computeExplore({
     scope: { type: 'project', id: proj3Id }, range: rangeOf(null), metric: 'spend', group: 'session', rollup: 'total', topN: 10,
   });
