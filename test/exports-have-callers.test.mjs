@@ -70,6 +70,7 @@ const TESTED_THROUGH_THE_EXPORT = {
   'server/ask.ts stripSqlComments': 'the SQL guard read through its comment stripper',
   'server/autosync.ts nextDelay': 'the debounce clamp, tested without wall-clock waits',
   'server/autosync.ts scheduleDebounced': 'the debounce state machine, driven directly',
+  'server/security.ts scanText': 'the redaction core, exercised directly by the removal pin',
   'server/cache.ts cacheSize': 'cache eviction observed without a route',
   'server/db.ts isTombstoned': 'tombstone hygiene asserted against the DB directly',
   'server/demo/corpus.ts DEMO_DAYS': 'the demo corpus span the seeded assertions range over',

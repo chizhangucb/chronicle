@@ -101,7 +101,9 @@ function activeCustomRules(): (SecurityRuleRow & { re: RegExp })[] {
 // Scan text → findings + redacted text. Priority (FR-SEC-3):
 // allow rules protect spans; custom redact rules run before built-ins;
 // earlier matches win on overlap.
-function scanText(text: string | null | undefined): ScanTextResult {
+// Exported for test/interceptions-removed.test.mjs: scanText is the redaction core
+// that pin exercises directly; scanSession is its production caller.
+export function scanText(text: string | null | undefined): ScanTextResult {
   if (!text) return { findings: [], redacted: text };
   const custom = activeCustomRules();
   const allowSpans: [number, number][] = [];
