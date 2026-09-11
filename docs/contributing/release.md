@@ -76,9 +76,13 @@ GitHub Actions, with organization `chizhangucb`, repository `chronicle`, workflo
 
 ## The CI gate
 
-`.github/workflows/ci.yml` runs on every push to `main` and every PR targeting it:
+`.github/workflows/ci.yml` runs on every PR targeting `main`, and on a manual run
+(Actions → CI Gate → Run workflow). It does not run on a push to `main`: branch protection
+requires a PR's branch to be up to date before it merges, so what lands on `main` is what
+the PR just checked. The manual run is how `main` gets checked after a merge that bypassed
+the gate, and it runs the same jobs a PR does.
 
-- **`gitleaks`** scans full history on a push and the PR's own commits on a pull request.
+- **`gitleaks`** scans the PR's own commits on a pull request and full history on a manual run.
   The job id is required by branch protection **by name**, so keep it stable. The binary is
   pinned by version and by SHA-256, so a retagged release cannot change what runs; bump both
   values together.
@@ -87,7 +91,7 @@ GitHub Actions, with organization `chizhangucb`, repository `chronicle`, workflo
   `test/repo-shape.test.mjs` pins that.
 - **`changes`** classifies the PR's diff through `scripts/ci/e2e-applies.sh`. A change confined
   to `docs/`, `website/` or root-level markdown cannot reach the running app, so it skips the
-  e2e gate. Anything else runs it, and a push to `main` or a manual dispatch always runs it.
+  e2e gate. Anything else runs it, and a manual dispatch always runs it.
   The gate is skipped only on an explicit `false`: if this job itself fails, the e2e jobs still
   run, because a skipped required check reads as passing and would let a red PR through.
 - **`e2e-shard`** runs the Playwright smoke suite against a seeded large fixture in real

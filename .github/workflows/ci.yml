@@ -3,8 +3,8 @@
 # This workflow runs the TypeScript type gate (tsc -b), the full unit test
 # suite (via node --test), the Vite production build, and the Playwright E2E
 # smoke suite (a seeded big fixture — 120 subagents, 5000 messages — driven
-# through a real Chromium) on every push to `main` and every pull request
-# targeting `main`. It enforces that:
+# through a real Chromium) on every pull request targeting `main`, and on a
+# manual run. It enforces that:
 # - All TypeScript compiles without errors (the type gate)
 # - All unit tests pass (test suite)
 # - The Vite client bundle builds without errors
@@ -15,11 +15,16 @@
 # type-stripping, which requires Node 24+.
 #
 # Lint (eslint/prettier) is a later phase; do not add it here.
+#
+# It does NOT run on a push to `main` (#365). Branch protection's
+# `required_status_checks.strict` means a pull request may only merge when its
+# branch is up to date, so what lands on `main` is what the pull request just
+# checked and the re-run only repeats it. `workflow_dispatch` is how `main`
+# gets checked after a merge that bypassed the gate, and it runs the same jobs
+# a pull request does. `test/ci-triggers.test.mjs` pins both halves.
 name: CI Gate
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch: {}
@@ -30,8 +35,8 @@ concurrency:
 
 jobs:
   # Secret scan (issue #175). Replaces the hand-rolled confidentiality guard:
-  # gitleaks scans the full history on a push to main and the PR's own commits
-  # on a pull request, so a leaked credential fails the merge. GitHub's secret
+  # gitleaks scans the PR's own commits on a pull request and the full history
+  # on a manual run, so a leaked credential fails the merge. GitHub's secret
   # scanning push protection is the first line and this is the backstop that
   # catches the shapes GitHub's providers do not know.
   #
@@ -109,9 +114,9 @@ jobs:
   # pay for it. `scripts/ci/e2e-applies.sh` holds the classification, and
   # test/e2e-parallel-config.test.mjs drives that script directly.
   #
-  # Only a pull request is filtered. A push to `main` and a manual dispatch
-  # both run the full gate: those are the runs whose green is the record of
-  # what shipped, and neither is in anyone's merge path.
+  # Only a pull request is filtered. A manual dispatch runs the full gate:
+  # it is the run that checks `main` itself, its green is the record of what
+  # shipped, and it is not in anyone's merge path.
   changes:
     runs-on: ubuntu-latest
     outputs:
