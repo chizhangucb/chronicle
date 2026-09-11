@@ -9,8 +9,9 @@
 // gate used to carry a private reader.
 //
 // Two ways to ask for the folder, and the difference matters. `dataDir` is
-// frozen at import, because server/db.ts binds its database handle then: a later
-// change to $CHRONICLE_DATA_DIR would move the config without moving the
+// frozen at import, because it is what an entry point opens the database against
+// (server/db.ts's openDatabase() defaults to it): a later change to
+// $CHRONICLE_DATA_DIR would move the config without moving the already-open
 // database. `resolveDataDir(env)` is the same rule as a pure function, for the
 // callers that are handed an environment rather than reading the process's own:
 // the Ask history path, which takes one so a test can point it somewhere else.

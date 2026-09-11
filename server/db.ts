@@ -56,7 +56,7 @@ const state: DbState = (globalThis.__chronicleDb ??= { active: null, open: new M
 export function openDatabase(dir: string = dataDir): DatabaseSync {
   const file = path.join(dir, 'chronicle.db');
   const already = state.open.get(file);
-  if (already) { state.active = already; return already; }
+  if (already) { setActive(already); return already; }
   fs.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(file);
   // WAL, and it stays on. The SQLite-backed parsers are what makes a write long:
@@ -75,9 +75,20 @@ export function openDatabase(dir: string = dataDir): DatabaseSync {
   const fts = applySchema(db);
   state.open.set(file, db);
   state.meta.set(db, { dir, fts });
-  state.active = db;
+  setActive(db);
   runBackfills(db);
   return db;
+}
+
+/** The one place `state.active` moves. server/cache.ts memoizes database-derived
+ *  answers under a request URL and a generation counter only a DB WRITE bumps,
+ *  so pointing the readers at a different database has to bump it too: without
+ *  this, a `GET /projects/1` cached off the first database is served verbatim
+ *  from the second one. */
+function setActive(db: DatabaseSync): void {
+  if (state.active === db) return;
+  state.active = db;
+  invalidateCache();
 }
 
 /** Close a database and forget it: the other half of openDatabase(), so a caller
@@ -87,14 +98,20 @@ export function closeDatabase(db: DatabaseSync): void {
   const meta = state.meta.get(db);
   if (meta) state.open.delete(path.join(meta.dir, 'chronicle.db'));
   state.meta.delete(db);
-  if (state.active === db) state.active = null;
+  if (state.active === db) { state.active = null; invalidateCache(); }
   db.close();
 }
 
 /** Read and write `db` from here on. What createApp(db) calls, so the routes it
  *  mounts serve the database they were handed. */
 export function useDatabase(db: DatabaseSync): void {
-  state.active = db;
+  // Only a database this module opened: a foreign handle would read as FTS-less
+  // (search silently on LIKE, messages_fts left unmaintained) and would have no
+  // folder to snapshot into before a delete.
+  if (!state.meta.has(db)) {
+    throw new Error('Chronicle: this database was not opened by openDatabase(), so the server cannot serve it.');
+  }
+  setActive(db);
 }
 
 /** The open database. Throws rather than opening one: an implicit open is the
@@ -305,7 +322,8 @@ export function snapshotDb(force = false, handle?: DatabaseSync): string | null 
     // `handle` is for the one caller that snapshots a database mid-open (the
     // usage backfill); everything else snapshots the open one.
     const db = handle ?? getDb();
-    const dir = path.join(dirOf(db), 'backups', 'db');
+    const dataFolder = dirOf(db);
+    const dir = path.join(dataFolder, 'backups', 'db');
     fs.mkdirSync(dir, { recursive: true });
     const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();
     const newest = existing[existing.length - 1];
@@ -319,7 +337,7 @@ export function snapshotDb(force = false, handle?: DatabaseSync): string | null 
     // auto-checkpoint. Best-effort: a busy checkpoint leaves the copy exactly as
     // stale as it would have been, which beats losing the snapshot entirely.
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* copy what is on disk */ }
-    fs.copyFileSync(path.join(dirOf(db), 'chronicle.db'), dest);
+    fs.copyFileSync(path.join(dataFolder, 'chronicle.db'), dest);
     // Keep the newest two snapshots total (the one just written + one prior).
     for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {
       try { fs.unlinkSync(path.join(dir, f)); } catch {}

@@ -122,3 +122,16 @@ test('the demo entry opens its own database and imports through it', async () =>
     process.env.CHRONICLE_DATA_DIR = homeDir;
   }
 });
+
+test('createApp refuses a database the lifecycle never opened', async () => {
+  // A foreign handle would read as FTS-less and would have no folder to snapshot
+  // into before a delete, so the app says no rather than serving it half-blind.
+  const { DatabaseSync } = await import('node:sqlite');
+  const { createApp } = await import('../server/api.ts');
+  const stray = new DatabaseSync(path.join(tempDir(), 'stray.db'));
+  try {
+    assert.throws(() => createApp(stray), /openDatabase/);
+  } finally {
+    stray.close();
+  }
+});
