@@ -124,3 +124,39 @@ test('no js-yaml reaches a user who installs without dev dependencies', () => {
   const shipped = [...productionTree()].filter((where) => where.endsWith('node_modules/js-yaml'));
   assert.deepEqual(shipped, [], `js-yaml still ships to users: ${shipped}`);
 });
+
+// NOTICE section 2 is the legal statement of what the published package
+// bundles, and no sweep reaches it: test/repo-shape.test.mjs sweeps AGENTS.md,
+// README.md, docs/*.md and spec/*.md only, so section 2 kept naming js-yaml,
+// three and react-force-graph-3d long after the Memory graph was retired and
+// the last two stopped being dependencies at all. This pin ties it to the
+// manifest so it can only drift again by way of a failing test.
+const NOTICE_RUNTIME = read('NOTICE')
+  .split(/^\s*\d+\.\s+/m)
+  .find((section) => section.startsWith('Bundled runtime dependencies'));
+
+const noticed = (NOTICE_RUNTIME ?? '')
+  .split('\n')
+  .map((line) => line.match(/^\s+-\s+(\S+)/)?.[1])
+  .filter(Boolean);
+
+test('NOTICE names a bundled-runtime-dependencies section', () => {
+  assert.ok(NOTICE_RUNTIME, 'NOTICE has no numbered "Bundled runtime dependencies" section');
+});
+
+test('NOTICE lists exactly the runtime dependencies the package declares', () => {
+  const declared = Object.keys(pkg.dependencies ?? {});
+  assert.deepEqual(
+    noticed.map((name) => name.toLowerCase()),
+    declared,
+    `NOTICE section 2 lists ${noticed} but the package depends on ${declared}`,
+  );
+});
+
+test('NOTICE keeps no trace of the retired Memory graph', () => {
+  assert.doesNotMatch(
+    NOTICE_RUNTIME ?? '',
+    /\bthree\b|react-force-graph|memory graph|3D canvas/i,
+    'NOTICE section 2 still describes the retired Memory graph',
+  );
+});
