@@ -147,3 +147,42 @@ test('the table names every label a triager applies that the factory reads', () 
       `omitting one leaves no way to say that thing\n  ${missing.join('\n  ')}`,
   );
 });
+
+// --- The claims software-factory #210 retired ------------------------------
+
+// Prose wraps and markdown bolds half a sentence, so a claim is matched against
+// the flattened page, the same way test/local-first-promise.test.mjs matches
+// its overclaims.
+const flat = source.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
+
+// Each of these was true before software-factory #210 and is false now: the
+// hold set is `hold` alone, so a ticket carrying `needs-triage` +
+// `ready-for-agent` is dispatched, not held. A triager following any of them
+// picks the label that no longer stops anything and the factory starts work.
+const RETIRED = [
+  {
+    claim: 'needs-triage or ready-for-human is a brake',
+    re: /(needs-triage|ready-for-human)[^.]{0,80}\b(are|is) (a )?(holds?|brakes?)\b/i,
+  },
+  {
+    claim: 'the factory refuses a ticket for its triage role',
+    re: /factory refuses[^.]{0,80}\b(needs-triage|ready-for-human|carrying one)\b/i,
+  },
+  {
+    claim: 'needs-triage + ready-for-agent is a legitimate pair',
+    re: /needs-triage \+ ready-for-agent|ready-for-agent \+ needs-triage/i,
+  },
+  { claim: 'a ticket can be agent-ready but held by its triage role', re: /agent-ready but held/i },
+];
+
+for (const { claim, re } of RETIRED) {
+  test(`the page no longer claims "${claim}"`, () => {
+    const hit = flat.match(re);
+    assert.equal(
+      hit,
+      null,
+      `${PAGE} still says it: "${hit?.[0]}". Since software-factory #210 the hold set is \`hold\` ` +
+        'alone, so this sends a triager to a label that holds nothing',
+    );
+  });
+}
