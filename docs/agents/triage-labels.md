@@ -1,6 +1,15 @@
 # Triage labels
 
-Our label strings are the five canonical triage roles, spelled identically: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. When a skill names a role, use the same string.
+When a skill names a triage role ("apply the AFK-ready triage label"), apply that role's label from this table. Our label strings are the five canonical triage roles, spelled identically.
+
+| Role              | Label             | Meaning                                                                                                       |
+| ----------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| `needs-triage`    | `needs-triage`    | Maintainer needs to evaluate this issue                                                                       |
+| `needs-info`      | `needs-info`      | Waiting on reporter for more information                                                                      |
+| `ready-for-agent` | `ready-for-agent` | Fully specified, ready for an AFK agent                                                                       |
+| `ready-for-human` | `ready-for-human` | Requires human implementation                                                                                 |
+| `wontfix`         | `wontfix`         | Will not be actioned                                                                                          |
+| none              | `hold`            | Ready, but not now; never dispatched, retried or requeued. It does not stop an open PR: close the PR for that |
 
 ## Two of them are brakes
 
