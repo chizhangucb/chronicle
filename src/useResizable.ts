@@ -90,6 +90,8 @@ const RESIZE_STEP = 16;
  * handle (panel on the LEFT) grows on ArrowRight, a `'left'` handle grows on
  * ArrowLeft.
  */
+// Exported for test/resize-handle.test.mjs: nextWidthForKey is the arrow-key
+// geometry, tested without a DOM; useResizable is its only production caller.
 export function nextWidthForKey(
   key: string,
   width: number,

@@ -87,6 +87,7 @@ const TESTED_THROUGH_THE_EXPORT = {
   'src/charts/timeBuckets.ts hourKeyOf': 'bucket keys, tested across DST and month ends',
   'src/charts/timeBuckets.ts monthKeyOf': 'bucket keys, tested across DST and month ends',
   'src/reference/definitions.ts DEF_BY_ID': 'the definition registry, pinned id by id',
+  'src/useResizable.ts nextWidthForKey': 'the arrow-key resize geometry, tested without a DOM',
   'src/writeToken.ts resetWriteToken': 'write-token reset between fetch-module tests',
 };
 
