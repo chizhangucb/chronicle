@@ -5,7 +5,7 @@ import Modal from './Modal.tsx';
 import type { ProjectListItem, SearchResponse } from '../shared/results.ts';
 import type { SearchResultItem } from '../shared/rows.ts';
 
-// Global search palette (⌘K): All/Code/Chat scope, time + project
+// Global search palette (Cmd/Ctrl+K): All/Code/Chat scope, time + project
 // filters, "Recent Access" when empty. Server does a LIKE scan grouped per session.
 
 interface SearchScope {

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { KIND_LABEL } from './kinds.ts';
+import { shortcutHint } from './shortcuts.ts';
 import type { DisplayKind, Event } from '../shared/types.ts';
 
 // Refine Mode (FR-MODE-3): distill a session into clean documentation or a prompt.
 // Original messages left, compressed preview right, token stats +
 // undo/redo/reset in a bottom status bar.
-// Keep `K` / Delete `D` / Edit `E` / Insert `I`, ⌘Z undo, ⇧⌘Z redo, ⌘S export.
+// Keep `K` / Delete `D` / Edit `E` / Insert `I`, Cmd/Ctrl+Z undo,
+// Shift+Cmd/Ctrl+Z redo, Cmd/Ctrl+S export.
 
 // Words come from the shared canonical map (src/kinds.ts) so Refine and Playback
 // never diverge; Refine renders them as uppercase tags. Colors are Refine-specific.
@@ -297,8 +299,8 @@ export default function RefineMode({ messages, session, project }: RefineModePro
 
       <div className="refine-statusbar">
         <span className="refine-history">
-          <button className="btn tiny ghost" title="Undo (⌘Z)" disabled={!undoStack.current.length} onClick={undo}>↶</button>
-          <button className="btn tiny ghost" title="Redo (⇧⌘Z)" disabled={!redoStack.current.length} onClick={redo}>↷</button>
+          <button className="btn tiny ghost" title={`Undo (${shortcutHint('Z')})`} disabled={!undoStack.current.length} onClick={undo}>↶</button>
+          <button className="btn tiny ghost" title={`Redo (${shortcutHint('Z', { shift: true })})`} disabled={!redoStack.current.length} onClick={redo}>↷</button>
           <button className="btn tiny ghost" title="Reset all changes" disabled={!undoStack.current.length && !redoStack.current.length} onClick={reset}>⟲</button>
         </span>
         <span className="refine-totals"

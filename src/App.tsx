@@ -16,6 +16,7 @@ import { ROUTES, isRoutedPath } from './routes.ts';
 import { useAskStatus } from './useAskStatus.ts';
 import Modal from './Modal.tsx';
 import { useResizable } from './useResizable.ts';
+import { shortcutHint } from './shortcuts.ts';
 import { useSyncStatus } from './useSyncStatus.js';
 import { CostModeProvider, CostModeToggle } from './costMode.tsx';
 import type { Project } from '../shared/types.ts';
@@ -105,7 +106,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, [navigate]);
 
-  // ⌘K / Ctrl+K opens the global search palette from anywhere.
+  // Cmd/Ctrl+K opens the global search palette from anywhere.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
@@ -183,7 +184,7 @@ export default function App() {
           {askEnabled && (
             <>
               <div className="sb-sep" />
-              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title="Ask  ⌘J"
+              <button className={`sb-item ask-item ${atAsk && !rail ? 'on' : ''}`} title={`Ask  ${shortcutHint('J')}`}
                 onClick={() => { navigate('/ask'); window.dispatchEvent(new Event('ask:focus')); }}>
                 <span className="sb-icon">∴</span><span className="sb-label">Ask</span>
               </button>
@@ -226,7 +227,7 @@ export default function App() {
                 {liveInfo.status === 'live' ? '● LIVE' : liveInfo.status === 'reconnecting' ? '◌ Reconnecting…' : '○ Stopped'}
               </span>
             )}
-            <button className="btn icon-btn" title="Search  ⌘K" onClick={() => setSearchOpen(true)}>⌕</button>
+            <button className="btn icon-btn" title={`Search  ${shortcutHint('K')}`} onClick={() => setSearchOpen(true)}>⌕</button>
             <button className="btn primary" onClick={() => setWizardOpen(true)}>+ Import Sessions</button>
           </div>
         </header>
