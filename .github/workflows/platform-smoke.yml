@@ -151,15 +151,19 @@ jobs:
         run: node scripts/ci/platform-smoke.mjs --package-dir smoke-install/node_modules/chronicle-cli
 
       - name: Screenshot the sidebar, a Playback session and the glyph sheet
+        id: shots
         run: node scripts/ci/platform-screenshots.mjs --package-dir smoke-install/node_modules/chronicle-cli --out screenshots
 
       # One artifact per OS. upload-artifact@v4 SEALS an artifact when it
       # closes, so two legs uploading under one name is a 409, not a merge
       # (that was v3's behaviour). The file names carry the platform too, so
       # the two download into one folder without colliding. `always()`
-      # because a red run is exactly when the pictures are worth having.
+      # because a red run is exactly when the pictures are worth having, but
+      # only once the shot step has actually run: an earlier failure skips it,
+      # and uploading an empty folder then would add a second red step (and an
+      # `if-no-files-found: error` that is not the failure anyone needs to read).
       - name: Upload the screenshots
-        if: always()
+        if: always() && steps.shots.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: platform-screenshots-${{ matrix.os }}

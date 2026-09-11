@@ -29,6 +29,14 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// Exported for test/platform-smoke.test.mjs, which drives each of these
+// directly: DEFAULT_PORT and APP_DATA_DIRS are the constants the run holds the
+// launcher to, parseLaunchUrl reads the port out of the banner,
+// expectedDataDir / strayHomeEntries / appDataEntries are the ADR 0008 sweep,
+// and writeClaudeTranscript plants the transcript the discovery check goes
+// looking for. The end-to-end run needs an installed tarball and a CI runner,
+// so these exports ARE the seam `npm test` can reach.
+
 // The port bin/chronicle.mjs starts its upward probe at. Held here rather than
 // read from the launcher, because a silent change to it should fail the smoke
 // rather than be followed by it: `checkLaunch` asserts the launcher's own

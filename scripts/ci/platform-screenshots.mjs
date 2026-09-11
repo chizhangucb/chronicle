@@ -23,6 +23,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch, waitFor, freePort, tempHome, homeEnv } from './platform-smoke.mjs';
 
+// Exported for test/platform-screenshots.test.mjs, which asserts each of these
+// without a browser: monoStack and canonicalGlyphs are what the glyph sheet is
+// rendered from, pickPlaybackSession is which session gets the Playback shot,
+// and screenshotName is what keeps two OSes from overwriting each other. The
+// run itself needs a Chromium and an installed tarball, so these exports ARE
+// the seam `npm test` can reach.
+
 /**
  * The value of the `--mono` design token in a stylesheet.
  *

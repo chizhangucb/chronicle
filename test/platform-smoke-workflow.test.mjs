@@ -85,6 +85,12 @@ test('the screenshots are uploaded as an artifact from both OSes', () => {
   // `if: always()`, because a red assertion is exactly when the pictures are wanted.
   assert.match(String(upload.if ?? ''), /always\(\)|!cancelled\(\)/);
   assert.notEqual(upload.with['if-no-files-found'], 'ignore', 'an empty artifact must not pass silently');
+  // …but not when the shot step never ran: an empty folder then is the earlier
+  // failure showing up twice, once as itself and once as a missing artifact.
+  const shots = (smoke.jobs.smoke.steps ?? []).find((s) => /platform-screenshots\.mjs/.test(s.run ?? ''));
+  assert.ok(shots?.id, 'the screenshot step has no id for the upload to read');
+  assert.match(String(upload.if), new RegExp(`steps\\.${shots.id}\\.outcome != 'skipped'`),
+    'the upload does not skip itself when the screenshot step never ran');
 });
 
 test('it runs on dispatch, on a PR that touches what it guards, and on call', () => {
