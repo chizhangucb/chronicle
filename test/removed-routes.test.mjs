@@ -5,15 +5,16 @@
 // stubbed. A 404 here is the observable an API client sees; asserting module
 // shape would pin the implementation instead of the product.
 //
-// The surviving routers are mounted directly rather than importing
-// server/api.ts, which starts auto-sync watchers and would never let the test
-// process exit.
+// The whole API is built in one line over a temp database
+// (`createApp(openDatabase(dir))`, #275). It used to mount the surviving routers
+// one at a time, because importing server/api.ts started auto-sync watchers that
+// would never let the test process exit; nothing runs on import now, so this
+// pin asks the real app the question instead of a hand-assembled subset of it.
 //
 // The surviving neighbours are asserted in the same run so a wholesale
 // mis-mount (an app that answers 404 for everything) cannot pass this file.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import express from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,20 +31,16 @@ let server, baseUrl;
 const SEEDED_SESSION = 'removed-routes-session-1';
 
 before(async () => {
-  // Dynamic, and after CHRONICLE_DATA_DIR is set above: the sessions router
-  // pulls server/db.ts, which opens <dir>/chronicle.db at import time.
-  const { mountSettings } = await import('../server/routes/settings.ts');
-  const { mountSessions } = await import('../server/routes/sessions.ts');
-  const { db, upsertProject } = await import('../server/db.ts');
+  // Dynamic, and after CHRONICLE_DATA_DIR is set above: server/config.ts freezes
+  // the data folder at import.
+  const { openDatabase, getDb, upsertProject } = await import('../server/db.ts');
+  const { createApp } = await import('../server/api.ts');
+  const app = createApp(openDatabase(data));
   const project = upsertProject('/proj');
-  db.prepare(
+  getDb().prepare(
     `INSERT INTO sessions (id, project_id, source, file_path, message_count)
      VALUES (?, ?, 'claude-code', '/proj/session.jsonl', 0)`,
   ).run(SEEDED_SESSION, project.id);
-  const app = express();
-  app.use(express.json());
-  mountSettings(app);
-  mountSessions(app);
   await new Promise((resolve) => {
     server = app.listen(0, () => { baseUrl = `http://127.0.0.1:${server.address().port}`; resolve(); });
   });
@@ -92,10 +89,13 @@ const GONE = [
 ];
 
 test('every removed route is unmounted (404)', async () => {
+  // The real app guards every mutating route with the per-boot write token, so
+  // carry it: a 403 would prove nothing about whether the route exists.
+  const { token } = await (await fetch(`${baseUrl}/write-token`)).json();
   for (const [method, route] of GONE) {
     const res = await fetch(`${baseUrl}${route}`, {
       method,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-chronicle-write-token': token },
       ...(method === 'POST' ? { body: '{}' } : {}),
     });
     assert.equal(res.status, 404, `${method} ${route} answered ${res.status}, not 404`);

@@ -403,7 +403,7 @@ Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude
 | Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
 | The local record of which surface was looked at is gone: no table on an upgraded data folder, no route, no client call, no Settings block; WAL stays on for the SQLite-backed parsers | `test/view-log-removed.test.mjs` |
-| `server/security.ts` holds redaction only: nothing scans a tool call before the model sees it and nothing records a blocked one, the record's table is dropped on an upgraded data folder, and the rules table is declared in `server/db.ts` | `test/interceptions-removed.test.mjs` |
+| `server/security.ts` holds redaction only: nothing scans a tool call before the model sees it and nothing records a blocked one, the record's table is dropped on an upgraded data folder, and the rules table is declared in `server/schema.ts` | `test/interceptions-removed.test.mjs` |
 | The CLI has no retired subcommand and reads no external-checkout path input | `test/cli-removed-inputs.test.mjs` |
 | Mutating routes carry the per-boot write token (the gate's one surviving guard) | `test/write-token.test.mjs` |
 | No route removes a source transcript (`DELETE /sessions/:id/source-file` unmounted, no `?source=1` branch) and no client file offers the control; removing Chronicle's copy still tombstones | `test/transcript-delete-removed.test.mjs` |

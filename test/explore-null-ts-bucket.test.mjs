@@ -26,7 +26,8 @@ before(async () => {
   const temp = await withTempDb();
   teardown = temp.teardown;
   explore = await import('../server/explore.ts');
-  const { upsertProject, replaceSession, db } = temp.dbModule;
+  const { upsertProject, replaceSession } = temp.dbModule;
+  const db = temp.db;
   const p = upsertProject('/tmp/null-ts-rollup');
 
   // 12 timestamped events over 22 minutes, the rhythm the rest of the Explore

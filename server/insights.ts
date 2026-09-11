@@ -17,7 +17,7 @@
 // fixed trailing 182-day calendar heatmap and a fixed trailing 30-day
 // hour-of-day heatmap, independent of the page's range control.
 import { cached } from './cache.ts';
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { commitCountSinceAsync } from './git.ts';
 import { bucketedUsage } from './rangeUsage.ts';
 import type { BucketedUsageCell } from '../shared/usage.ts';
@@ -48,7 +48,7 @@ const TOOL_DIST_LIMIT = 24;
 
 function toolDistribution(q: QueryContext): ToolCount[] {
   const where = whereOf(q.messageRows, "AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL");
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT m.tool_name AS name, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${where.sql}
@@ -58,7 +58,7 @@ function toolDistribution(q: QueryContext): ToolCount[] {
 
 function kindDistribution(q: QueryContext): KindCount[] {
   const where = q.messageRows;
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT m.kind AS kind, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${where.sql}
@@ -75,7 +75,7 @@ function kindDistribution(q: QueryContext): KindCount[] {
 // NULL `ts` outright: it has no day to be counted on.
 function dailyMessageCounts(where: SqlFragment): DayCount[] {
   const w = whereOf(where, tsNotNull('m'));
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT strftime('%Y-%m-%d', m.ts, 'localtime') AS day, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${w.sql}
@@ -104,7 +104,7 @@ function dailyMessageCounts(where: SqlFragment): DayCount[] {
 // excluded and UNDER-counted, i.e. zero.
 function errorTotals(q: QueryContext): { errors: number; errorsByProject: ProjectErrorCount[] } {
   const where = q.sessionRows;
-  const errorsByProject = db.prepare(`
+  const errorsByProject = getDb().prepare(`
     SELECT s.project_id AS project_id,
            SUM(COALESCE(s.result_count, 0)) AS head_count,
            SUM(COALESCE(s.error_count, 0)) AS error_count
@@ -121,7 +121,7 @@ function errorTotals(q: QueryContext): { errors: number; errorsByProject: Projec
 // bucketed (not the plain rangedUsage()) so the client can price each day's
 // share at that day's rate, see InsightsResult's field comment.
 function rangedTokens(q: QueryContext): BucketedUsageCell[] {
-  return bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+  return bucketedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
 }
 
 /**
@@ -192,7 +192,7 @@ function computeFixedWindows(q: QueryContext, calendarCutoff: string, hourlyCuto
   const dailyActivity = dailyMessageCounts(calendarWhere);
 
   const hourlyWhere = whereOf({ sql: 'AND m.ts >= ?', params: [hourlyCutoff] }, q.where);
-  const hourlyActivity = db.prepare(`
+  const hourlyActivity = getDb().prepare(`
     SELECT CAST(strftime('%w', m.ts, 'localtime') AS INTEGER) AS dow, CAST(strftime('%H', m.ts, 'localtime') AS INTEGER) AS hour, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${hourlyWhere.sql}
@@ -201,7 +201,7 @@ function computeFixedWindows(q: QueryContext, calendarCutoff: string, hourlyCuto
 
   const modelFixedWhere = whereOf({ sql: 'AND m.ts >= ?', params: [hourlyCutoff] }, q.where,
     "AND m.kind = 'assistant' AND m.model IS NOT NULL");
-  const modelDistFixed = db.prepare(`
+  const modelDistFixed = getDb().prepare(`
     SELECT m.model AS model, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${modelFixedWhere.sql}
@@ -221,7 +221,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // counts, not just one that STARTED in it), from the query context:
   // server/scope.ts.
   const sessionWhere = q.sessionRows;
-  const sessions = db.prepare(`
+  const sessions = getDb().prepare(`
     SELECT s.id, s.project_id, p.name AS project_name, s.source, s.name, s.summary, s.first_prompt,
            s.started_at, s.ended_at, s.message_count, s.agent_active_ms, s.engaged_ms, s.context_tokens, s.usage
     FROM sessions s JOIN projects p ON p.id = s.project_id
@@ -236,7 +236,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   const kindDist = kindDistribution(q);
 
   const modelWhere = whereOf(q.messageRows, "AND m.kind = 'assistant' AND m.model IS NOT NULL");
-  const modelDist = db.prepare(`
+  const modelDist = getDb().prepare(`
     SELECT m.model AS model, COUNT(*) AS count
     FROM sessions s CROSS JOIN messages m ON m.session_id = s.id
     WHERE ${modelWhere.sql}
@@ -256,7 +256,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   const rangedTokensByModel = rangedTokens(q);
   const dailySpend = rangedTokensByModel;
   const hourlySpend = days != null && days <= 2
-    ? bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'hour')
+    ? bucketedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso, 'hour')
     : null;
 
   // Fixed trailing windows, NOT filtered by `days=` (see file header). Cached
@@ -266,7 +266,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   const { dailyActivity, hourlyActivity, modelDistFixed } =
     cachedFixedWindows(q, calendarCutoff, hourlyCutoff);
 
-  const projects = db.prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
+  const projects = getDb().prepare('SELECT id, name FROM projects ORDER BY id').all() as unknown as { id: number; name: string }[];
 
   // Concurrent (not serial) + cached — see the cache comment above. The
   // cache key is `path::cutoff`, and `cutoff` is derived from Date.now() with
@@ -277,7 +277,7 @@ export async function computeInsights(scope: Scope, range: Range): Promise<Insig
   // a range during a browsing session is a pure cache hit; the git window
   // boundary moves by at most 5min — irrelevant for a day-granular KPI.
   const commitCutoff = days ? new Date(Math.floor(range.now / COMMIT_CACHE_TTL_MS) * COMMIT_CACHE_TTL_MS - days * 86400000).toISOString() : null;
-  const projectPaths = db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[];
+  const projectPaths = getDb().prepare('SELECT path FROM projects').all() as unknown as { path: string }[];
   const commitCounts = await Promise.all(projectPaths.map((p) => cachedCommitCountSince(p.path, commitCutoff)));
   const commits = commitCounts.reduce((a, b) => a + b, 0);
 

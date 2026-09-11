@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { db } from '../db.ts';
+import { getDb } from '../db.ts';
 import type { MessageRow, ProjectRow, SessionRow } from '../../shared/rows.ts';
 import { scanSession, listRules, addRule, deleteRule, toggleRule } from '../security.ts';
 
@@ -9,17 +9,17 @@ export function mountSecurity(app: Express): void {
   // ---- Security: scan, rules, redacted export ----
 
   app.get('/sessions/:id/security-check', (req: Request, res: Response) => {
-    const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all((req.params.id as string)) as unknown as MessageRow[];
+    const messages = getDb().prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all((req.params.id as string)) as unknown as MessageRow[];
     if (!messages.length) return res.status(404).json({ error: 'Session not found or empty' });
     res.json(scanSession(messages));
   });
 
   // One-way redacted export (FR-SEC-7/8): original DB rows are never modified.
   app.get('/sessions/:id/export-redacted', (req: Request, res: Response) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
+    const session = getDb().prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as unknown as ProjectRow;
-    const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id) as unknown as MessageRow[];
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as unknown as ProjectRow;
+    const messages = getDb().prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY seq').all(session.id) as unknown as MessageRow[];
     const scan = scanSession(messages);
     const redactedBySeq = new Map(scan.messages.map((m) => [m.seq, m]));
     const lines = [`# ${project.name} — session export (redacted)`, '',

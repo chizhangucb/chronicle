@@ -113,7 +113,7 @@ test('computeInsights: toolDist counts tool_use messages globally', async () => 
 });
 
 test('computeInsights: excludes minor(=1) sessions from every aggregate', async () => {
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   db.prepare('UPDATE sessions SET minor = 1 WHERE id = ?').run('s2');
   const r = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));
   assert.equal(r.sessions.length, 1);
@@ -138,7 +138,7 @@ test('computeInsights: commits is 0 for projects with no real git repo (graceful
 // assertion became a tautology that could never fail — this one pins the
 // values against independent fixture expectations instead.
 test('error counts are precomputed on sessions at import and drive computeInsights', async () => {
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   const s1 = db.prepare('SELECT result_count, error_count FROM sessions WHERE id = ?').get('s1');
   assert.equal(s1.result_count, 1);
   assert.equal(s1.error_count, 1);
@@ -158,7 +158,7 @@ test('error counts are precomputed on sessions at import and drive computeInsigh
 // already covered above). This mirrors that same "fixed window, ignores
 // days=" contract for the model distribution.
 test('computeInsights: modelDistFixed uses the fixed 30d window (matches hourlyActivity), unaffected by days=', async () => {
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('s2'); // in case an earlier test left it minor
   const r7 = await insightsModule.computeInsights({ type: 'all' }, rangeOf(7));     // days=7 cutoff excludes s1 (14d old) from the days-scoped aggregates
   const rAll = await insightsModule.computeInsights({ type: 'all' }, rangeOf(null));

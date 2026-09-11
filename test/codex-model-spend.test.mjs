@@ -63,7 +63,7 @@ after(() => {
 test('an imported Codex session has a real model on its assistant rows, not NULL', () => {
   // The acceptance query from the ticket, verbatim in shape: what a reader of
   // chronicle.db sees after a re-import.
-  const rows = dbModule.db.prepare(`
+  const rows = dbModule.getDb().prepare(`
     SELECT model, COUNT(*) AS n FROM messages m JOIN sessions s ON s.id = m.session_id
     WHERE s.source = 'codex' AND m.kind = 'assistant' GROUP BY model
   `).all().map((r) => ({ model: r.model, n: r.n }));

@@ -7,7 +7,7 @@
 // module reloads don't orphan watchers/timers.
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, upsertProject, replaceSession } from './db.ts';
+import { getDb, upsertProject, replaceSession } from './db.ts';
 import { SOURCES } from './parsers/registry.ts';
 import { importableFiles } from './parsers/source.ts';
 import type { Source } from './parsers/source.ts';
@@ -113,8 +113,8 @@ export async function runIncrementalSync(): Promise<SyncResult> {
   const started = Date.now();
   let imported = 0, checked = 0;
   try {
-    const projectPaths = new Set((db.prepare('SELECT path FROM projects').all() as unknown as { path: string }[]).map((p) => p.path));
-    const byFile = new Map((db.prepare('SELECT file_path, MAX(imported_at) AS at FROM sessions GROUP BY file_path').all() as unknown as { file_path: string; at: string | null }[]).map((r) => [r.file_path, r.at]));
+    const projectPaths = new Set((getDb().prepare('SELECT path FROM projects').all() as unknown as { path: string }[]).map((p) => p.path));
+    const byFile = new Map((getDb().prepare('SELECT file_path, MAX(imported_at) AS at FROM sessions GROUP BY file_path').all() as unknown as { file_path: string; at: string | null }[]).map((r) => [r.file_path, r.at]));
     const importedAtMs = (iso: string | null | undefined): number => (iso ? new Date(iso + (iso.endsWith('Z') || iso.includes('+') ? '' : 'Z')).getTime() : 0);
 
     const importParsedList = (parsed: ParseResult[]): void => {

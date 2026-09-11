@@ -53,8 +53,8 @@ function tinyEvents() {
 }
 
 function simulateDelete(sessionId) {
-  dbModule.db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
-  dbModule.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+  dbModule.getDb().prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
+  dbModule.getDb().prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ test('tombstones: a deleted (tombstoned) session is not resurrected by a subsequ
 
   // First import: the session lands normally.
   replaceSession(session, events);
-  assert.ok(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), 'session should exist after first import');
+  assert.ok(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), 'session should exist after first import');
 
   // Simulate the delete route: remove the row, write the tombstone.
   simulateDelete(session.id);
@@ -79,7 +79,7 @@ test('tombstones: a deleted (tombstoned) session is not resurrected by a subsequ
   // A later scan of the SAME source file re-parses the same session — the
   // resulting replaceSession call must be a no-op.
   replaceSession(session, events);
-  assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined,
+  assert.equal(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined,
     'a tombstoned session must not be resurrected by re-import');
 });
 
@@ -96,13 +96,13 @@ test('tombstones: undo (removeTombstone) clears the tombstone so the next import
 
   // Still gone while tombstoned.
   replaceSession(session, events);
-  assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
+  assert.equal(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
 
   // Undo: clear the tombstone, then the next import brings it back.
   removeTombstone(SOURCE, session.id);
   assert.equal(isTombstoned(SOURCE, session.id), false);
   replaceSession(session, events);
-  assert.ok(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), 'session should be re-imported after undo');
+  assert.ok(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), 'session should be re-imported after undo');
 });
 
 test('tombstones: deleting a whole project tombstones every one of its sessions', () => {
@@ -127,7 +127,7 @@ test('noise gate: a sub-threshold session (few messages, short active time) is g
   const project = upsertProject('/proj-noise');
   const session = { id: 's-noise-1', project_id: project.id, source: SOURCE, file_path: '/proj-noise/s1.jsonl' };
   replaceSession(session, tinyEvents());
-  const row = dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id);
+  const row = dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id);
   assert.equal(row.minor, 1);
 });
 
@@ -136,7 +136,7 @@ test('noise gate: an above-threshold session is NOT gated (minor = 0) on import'
   const project = upsertProject('/proj-noise-2');
   const session = { id: 's-noise-2', project_id: project.id, source: SOURCE, file_path: '/proj-noise-2/s1.jsonl' };
   replaceSession(session, baseEvents(20)); // 20 messages, ~19 min of active spread
-  const row = dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id);
+  const row = dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id);
   assert.equal(row.minor, 0);
 });
 
@@ -146,14 +146,14 @@ test('noise gate: promote (minor -> 0) sticks across a subsequent re-import', ()
   const session = { id: 's-promote-1', project_id: project.id, source: SOURCE, file_path: '/proj-promote/s1.jsonl' };
   const events = tinyEvents();
   replaceSession(session, events); // gated: minor = 1
-  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id).minor, 1);
+  assert.equal(dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id).minor, 1);
 
   // Promote (server/routes/sessions.ts POST /sessions/:id/promote does exactly this).
-  dbModule.db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run(session.id);
+  dbModule.getDb().prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run(session.id);
 
   // A later re-import of the SAME (still short) session must not re-gate it.
   replaceSession(session, events);
-  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id).minor, 0,
+  assert.equal(dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(session.id).minor, 0,
     'promote should stick across re-import, not be recomputed back to minor');
 });
 
@@ -168,7 +168,7 @@ test('noise gate: ignore tombstones the session (same mechanism as delete)', () 
   tombstoneSession(SOURCE, session.id);
 
   assert.equal(isTombstoned(SOURCE, session.id), true);
-  assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
+  assert.equal(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -179,9 +179,9 @@ test('pause: runIncrementalSync no-ops (does not scan or import anything) while 
   config.writeConfig({ autoSyncPaused: true });
   assert.equal(autosync.autoSyncPaused(), true);
 
-  const before_ = dbModule.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
+  const before_ = dbModule.getDb().prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
   const result = await autosync.runIncrementalSync();
-  const after_ = dbModule.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
+  const after_ = dbModule.getDb().prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
 
   assert.equal(result.ok, true);
   assert.equal(result.skipped, 'paused');
@@ -216,25 +216,25 @@ test('analytics aggregates: kind/tool/activity/error queries exclude minor sessi
   const minor = { id: 's-agate-minor', project_id: project.id, source: SOURCE, file_path: '/proj-analytics-gate/minor.jsonl' };
   replaceSession(visible, baseEvents(20)); // above threshold -> minor = 0
   replaceSession(minor, tinyEvents());     // below threshold -> minor = 1
-  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(visible.id).minor, 0);
-  assert.equal(dbModule.db.prepare('SELECT minor FROM sessions WHERE id = ?').get(minor.id).minor, 1);
+  assert.equal(dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(visible.id).minor, 0);
+  assert.equal(dbModule.getDb().prepare('SELECT minor FROM sessions WHERE id = ?').get(minor.id).minor, 1);
 
   // Give the minor session a tool_use + tool_result so it WOULD show up in the
   // aggregates if the minor filter were missing.
-  dbModule.db.prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
+  dbModule.getDb().prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
     VALUES (?, 999, 'tool_use', '2026-01-01T00:00:00.000Z', 'Bash', NULL)`).run(minor.id);
-  dbModule.db.prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
+  dbModule.getDb().prepare(`INSERT INTO messages (session_id, seq, kind, ts, tool_name, text)
     VALUES (?, 1000, 'tool_result', '2026-01-01T00:00:01.000Z', NULL, 'Error: boom')`).run(minor.id);
 
   const cutoff = '';
-  const toolDist = dbModule.db.prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
+  const toolDist = dbModule.getDb().prepare(`SELECT m.tool_name AS name, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_use' AND m.tool_name IS NOT NULL
     GROUP BY m.tool_name ORDER BY count DESC LIMIT 24`).all(project.id, cutoff);
-  const kindDist = dbModule.db.prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
+  const kindDist = dbModule.getDb().prepare(`SELECT m.kind AS kind, COUNT(*) AS count FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 GROUP BY m.kind`).all(project.id, cutoff);
-  const errors = dbModule.db.prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
+  const errors = dbModule.getDb().prepare(`SELECT substr(m.text, 1, 200) AS head FROM messages m
     JOIN sessions s ON s.id = m.session_id
     WHERE s.project_id = ? AND COALESCE(s.started_at, '9') >= ? AND COALESCE(s.minor, 0) = 0 AND m.kind = 'tool_result' AND m.text IS NOT NULL`)
     .all(project.id, cutoff);
@@ -253,12 +253,12 @@ test('analytics aggregates: /api/projects list session_count/message_count exclu
   replaceSession(visible, baseEvents(20));
   replaceSession(minor, tinyEvents());
 
-  const row = dbModule.db.prepare(`
+  const row = dbModule.getDb().prepare(`
     SELECT p.id, COUNT(s.id) AS session_count, COALESCE(SUM(s.message_count),0) AS message_count
     FROM projects p LEFT JOIN sessions s ON s.project_id = p.id AND COALESCE(s.minor, 0) = 0
     WHERE p.id = ? GROUP BY p.id`).get(project.id);
 
   assert.equal(row.session_count, 1, 'only the non-minor session should be counted on the project card');
-  assert.equal(row.message_count, dbModule.db.prepare('SELECT message_count FROM sessions WHERE id = ?').get(visible.id).message_count,
+  assert.equal(row.message_count, dbModule.getDb().prepare('SELECT message_count FROM sessions WHERE id = ?').get(visible.id).message_count,
     'message_count should equal the visible session\'s own count, excluding the minor session\'s messages');
 });

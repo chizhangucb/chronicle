@@ -5,7 +5,7 @@
 // Exact for model/project/source/hour/subagent groups (per-message token
 // columns + tags); tool/skill × tokens are CALIBRATED via calibrate.ts and the
 // result carries calibrated:true. rollup='total' only in 5e (ranked bars).
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage, bucketedUsage, bucketKeyExpr } from './rangeUsage.ts';
@@ -171,7 +171,7 @@ function sessionErrorRows(
 ): { gk: string|number|null; bkt: string; errors: number }[] {
   const bkt = bucketExpr ? `${bucketExpr} AS bkt` : `'' AS bkt`;
   const w = q.sessionRows;
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT ${errorGroupCol(group)} AS gk, ${bkt}, SUM(COALESCE(s.error_count, 0)) AS errors
     FROM sessions s JOIN projects p ON p.id = s.project_id
     WHERE ${w.sql}
@@ -196,7 +196,7 @@ interface SessionUsageParsed {
 // a metadata/label-only loader.
 function loadSessionUsage(q: QueryContext): SessionUsageParsed[] {
   const w = q.sessionRows;
-  const rows = db.prepare(`
+  const rows = getDb().prepare(`
     SELECT s.id AS id, p.name AS project, s.source AS source, s.usage AS usage,
            s.name AS name, s.summary AS summary, s.first_prompt AS first_prompt
     FROM sessions s JOIN projects p ON p.id = s.project_id
@@ -301,7 +301,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // is an LLM turn, under tool is a tool call, under project/source/hour it's
   // any logged event) — not a bug to unify.
   const g = groupExpr(query.group);
-  const cellRows = db.prepare(`
+  const cellRows = getDb().prepare(`
     SELECT ${g.col} AS gk, COALESCE(m.model,'') AS model,
            COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
            COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m,
@@ -323,7 +323,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   }
 
   // Exact distinct sessions per group value (the per-model max above is only a floor).
-  const sessRows = db.prepare(`
+  const sessRows = getDb().prepare(`
     SELECT ${g.col} AS gk, COUNT(DISTINCT s.id) AS sessions
     FROM messages m ${base} ${g.where} GROUP BY gk
   `).all(...bind()) as unknown as { gk: string|number; sessions: number }[];
@@ -344,7 +344,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     }
   } else {
     const errWhere = whereOf(q.sessions(), q.where, q.messages('r'));  // alias r, not m
-    const errRows = db.prepare(`
+    const errRows = getDb().prepare(`
       SELECT ${errorGroupCol(query.group)} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (
@@ -367,7 +367,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // value present in the session — an approximation for message-level groups;
   // exact for project/source which are 1:1 with the session).
   if (query.metric === 'active') {
-    const actRows = db.prepare(`
+    const actRows = getDb().prepare(`
       SELECT ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
       FROM messages m ${base} ${g.where} GROUP BY gk, sid
     `).all(...bind()) as unknown as { gk: string|number; sid: string; ms: number }[];
@@ -393,7 +393,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // groupExpr('project') keys cellRows (p.name) — rangedUsage's cells carry projectId,
   // not the name. Only queried when actually needed (group='project').
   const projectNameById = query.group === 'project'
-    ? new Map((db.prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]).map((p) => [p.id, p.name]))
+    ? new Map((getDb().prepare('SELECT id, name FROM projects').all() as unknown as { id: number; name: string }[]).map((p) => [p.id, p.name]))
     : new Map<number, string>();
 
   let usageRows: SessionUsageParsed[] = [];
@@ -410,7 +410,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // the plain rangedUsage) so tokensByModelByDay can be populated alongside the
     // day-collapsed tokensByModel total, letting the client price a range straddling a rate
     // change (e.g. Sonnet 5's intro window) correctly.
-    const bucketedCells = bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
+    const bucketedCells = bucketedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso, 'day');
     dayBucketedCells = bucketedCells;
     const acc = new Map<string, Record<string, UsageCell>>();
     const accByDay = new Map<string, Map<string, Record<string, UsageCell>>>();
@@ -500,7 +500,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // calibrated tool/skill row came out $0/0 tokens regardless of scope or
     // date range (5e-1 code review caught this against real data). Skill
     // rows are also tool_use rows, so this fix covers both CALIBRATED_GROUPS.
-    const charRows = db.prepare(`
+    const charRows = getDb().prepare(`
       SELECT ${g.col} AS gk, COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
       FROM messages m ${base} ${g.where} GROUP BY gk
     `).all(...bind()) as unknown as { gk: string|number; chars: number }[];
@@ -509,7 +509,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     // "narrow Insights Tokens to input+output" decision) SCALED to the in-range share,
     // NOT per-message assistant sums and not the raw unscaled billed cell — so calibrated
     // tool/skill Spend prices off the real in-range billed total at a real blended rate.
-    const rangedCells = rangedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso);
+    const rangedCells = rangedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso);
     const modelSplit = new Map<string, { input: number; output: number }>();
     let billedAll = 0;
     for (const c of rangedCells) {
@@ -582,7 +582,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   // [] — the UI renders a single full-width bar when segments is empty.
   if (query.subgroup && !tokensAreCalibrated) {
     const sg = groupExpr(query.subgroup);
-    const segRows = db.prepare(`
+    const segRows = getDb().prepare(`
       SELECT ${g.col} AS gk, ${sg.col} AS sk,
              COALESCE(SUM(m.input_tokens),0)+COALESCE(SUM(m.output_tokens),0) AS tokens
       FROM messages m ${base} ${g.where} ${sg.where} GROUP BY gk, sk
@@ -612,7 +612,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
   let buckets: ExploreBucket[] | undefined;
   if (query.rollup !== 'total') {
     effectiveRollup = query.rollup === 'hourly' ? 'hourly' : pickRollup(query.rollup, (r) =>
-      (db.prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
+      (getDb().prepare(`SELECT COUNT(DISTINCT ${bucketExpr(r, 'm.ts')}) AS n FROM messages m ${base}`)
         .get(...bind()) as { n: number }).n);
     buckets = computeRollupBuckets(query, effectiveRollup, rows, { q, messageWhere, base, g, projectNameById, dayBucketedCells, preFoldGroupValues });
   }
@@ -704,7 +704,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
   const usageCells = (): BucketedUsageCell[] =>
     (grain === 'day' && dayBucketedCells)
       ? dayBucketedCells
-      : bucketedUsage(db, q.where.sql, q.where.params, q.tokens.cutoffIso, grain);
+      : bucketedUsage(getDb(), q.where.sql, q.where.params, q.tokens.cutoffIso, grain);
 
   // series identity: topN group values are their own series; everything else
   // (present iff `rows` was folded) collapses to 'Other'.
@@ -741,7 +741,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     } else if (CALIBRATED_GROUPS.includes(query.group)) {
       // tool/skill: calibrate PER BUCKET (char share × that bucket's billed total),
       // then split across the bucket's real models — the range-total path, partitioned.
-      const charRows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
+      const charRows = getDb().prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk,
         COALESCE(SUM(LENGTH(COALESCE(m.text,'')) + LENGTH(COALESCE(m.tool_input,''))),0) AS chars
         FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; chars: number }[];
       // The per-bucket billed base is the same in-range-scaled cell set the exact
@@ -779,7 +779,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       }
     } else {
       // hour/subagent: per-message token columns are exact, bucketed by m.ts.
-      const mrows = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
+      const mrows = getDb().prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COALESCE(m.model,'') AS model,
         COALESCE(SUM(m.input_tokens),0) AS input, COALESCE(SUM(m.output_tokens),0) AS output,
         COALESCE(SUM(m.cache_read_tokens),0) AS cacheRead, COALESCE(SUM(m.cache_w5m_tokens),0) AS cacheWrite5m, COALESCE(SUM(m.cache_w1h_tokens),0) AS cacheWrite1h
         FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk, model`).all(...bind()) as unknown as (UsageCell & { bkt: string|null; gk: string|number; model: string })[];
@@ -789,10 +789,10 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       }
     }
   } else if (query.metric === 'requests') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
+    const rr = getDb().prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(*) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
     for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).requests += r.c;
   } else if (query.metric === 'sessions') {
-    const rr = db.prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
+    const rr = getDb().prepare(`SELECT ${bm} AS bkt, ${g.col} AS gk, COUNT(DISTINCT s.id) AS c FROM messages m ${datedBase} ${g.where} GROUP BY bkt, gk`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; c: number }[];
     for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).sessions += r.c;
   } else if (query.metric === 'errors' && SESSION_ERROR_GROUPS.includes(query.group)) {
     // Precomputed per-session counts (see SESSION_ERROR_GROUPS), bucketed by session
@@ -830,7 +830,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     // guard `datedBase` carries above (#334), on `r` rather than `m`.
     const rollupErrWhere = whereOf(q.sessions(), q.where, q.messages('r'), tsNotNull('r'));
     const br = bucketExpr(effective, 'r.ts');
-    const er = db.prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
+    const er = getDb().prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
       FROM messages r
       JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
       JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
@@ -848,7 +848,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
       cell(e.bkt, seriesKeyFor(gv)).errors++;
     }
   } else if (query.metric === 'active') {
-    const rr = db.prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
+    const rr = getDb().prepare(`SELECT ${bs} AS bkt, ${g.col} AS gk, s.id AS sid, COALESCE(s.agent_active_ms,0) AS ms
       FROM messages m ${base} ${g.where} GROUP BY bkt, gk, sid`).all(...bind()) as unknown as { bkt: string|null; gk: string|number; sid: string; ms: number }[];
     for (const r of rr) cell(r.bkt, seriesKeyFor(String(r.gk))).activeMs += r.ms;
   }

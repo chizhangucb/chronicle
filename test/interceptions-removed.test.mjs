@@ -42,18 +42,20 @@ before(async () => {
   `);
   seed.close();
   process.env.CHRONICLE_DATA_DIR = dir;
-  // Dynamic, and after CHRONICLE_DATA_DIR is set: server/db.ts opens
-  // <dir>/chronicle.db at import time and runs the drops as it does.
+  // Dynamic, and after CHRONICLE_DATA_DIR is set: server/config.ts freezes the
+  // data folder at import, and openDatabase() below is what touches it.
   dbModule = await import('../server/db.ts');
-  // Snapshotted BETWEEN the two imports: `server/db.ts` is meant to be the one
-  // place a table is declared, and only a read taken before `server/security.ts`
-  // has been touched can tell that apart from security.ts declaring its own.
+  dbModule.openDatabase(dir); // the schema, the migrations and the drops run here (#275)
+  // Snapshotted BETWEEN the two imports: `server/schema.ts` is meant to be the
+  // one place a table is declared, and only a read taken before
+  // `server/security.ts` has been touched can tell that apart from security.ts
+  // declaring its own.
   namesAfterDbAlone = objectNames();
   security = await import('../server/security.ts');
 });
 
 const objectNames = () =>
-  dbModule.db.prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
+  dbModule.getDb().prepare('SELECT name FROM sqlite_master').all().map((r) => r.name);
 
 after(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
@@ -85,7 +87,7 @@ test('the drop takes nothing else with it', () => {
   }
 });
 
-test('server/db.ts is what creates the security_rules table', () => {
+test('opening the database is what creates the security_rules table', () => {
   assert.ok(
     namesAfterDbAlone.includes('security_rules'),
     'security_rules is missing until server/security.ts is imported',
@@ -125,7 +127,7 @@ const PIN_EXEMPT = new Set([
   'CHANGELOG.md',
   'docs/agents/design-audit-2026-09-04.md',
   PIN,
-  'server/db.ts',
+  'server/schema.ts',
 ]);
 
 // This pin's own path is a spelling of the feature, and the surface contract's
@@ -147,10 +149,12 @@ test('no tracked file carries an interception string, key or identifier', () => 
   assert.deepEqual(offenders, [], `these tracked files still name the feature: ${offenders.join(', ')}`);
 });
 
-test('server/db.ts names the feature only where it drops it', () => {
-  const lines = read('server/db.ts').split('\n');
+test('server/schema.ts names the feature only where it drops it', () => {
+  // The drop lives with the rest of the schema (#275): one module declares every
+  // table, and dropping a retired one is the same job.
+  const lines = read('server/schema.ts').split('\n');
   const at = lines.findIndex((l) => l.includes("DROP TABLE IF EXISTS interceptions"));
-  assert.ok(at > 0, 'server/db.ts no longer drops the interceptions table');
+  assert.ok(at > 0, 'server/schema.ts no longer drops the interceptions table');
   // The drop plus the comment block above it: the retirement block, and the only
   // place in this module the word may appear. Blank lines are walked through,
   // so reflowing the comment cannot fail this pin without a real regression;
@@ -165,7 +169,7 @@ test('server/db.ts names the feature only where it drops it', () => {
     .map((line, i) => [i, line])
     .filter(([i, line]) => !block.has(i) && namesTheFeature(line))
     .map(([i]) => i + 1);
-  assert.deepEqual(stray, [], `server/db.ts names the feature outside its drop, at line(s) ${stray.join(', ')}`);
+  assert.deepEqual(stray, [], `server/schema.ts names the feature outside its drop, at line(s) ${stray.join(', ')}`);
 });
 
 // ---- The half that survives -------------------------------------------------

@@ -4,7 +4,7 @@
 // number and the word next to it can never disagree. Cache-hit and error-rate
 // are already derivable client-side from /api/insights; jumbo + long-context
 // need this per-message pass over the messages table.
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 import { queryContext, whereOf, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
@@ -26,7 +26,7 @@ export function computeDetectors(scope: Scope, range: Range): DetectorCounts {
   // Message range (timestamp), scope clause and minor gate all come from the
   // query context — see server/scope.ts.
   const w = whereOf("AND m.kind = 'assistant' AND m.model IS NOT NULL", q.where, q.messages());
-  const r = db.prepare(
+  const r = getDb().prepare(
     `SELECT
        COUNT(*) AS assistantRows,
        SUM(CASE WHEN COALESCE(m.output_tokens,0) > ? THEN 1 ELSE 0 END) AS jumboRows,

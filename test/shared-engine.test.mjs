@@ -83,15 +83,15 @@ test('the scoped aggregates narrow to their project: alpha and beta disagree', (
 // test share one DatabaseSync (see test/helpers.mjs), so shadowing `prepare`
 // on it is what the engine calls.
 async function preparedDuring(fn) {
-  const had = Object.prototype.hasOwnProperty.call(dbModule.db, 'prepare');
-  const original = dbModule.db.prepare;
-  const real = original.bind(dbModule.db);
+  const had = Object.prototype.hasOwnProperty.call(dbModule.getDb(), 'prepare');
+  const original = dbModule.getDb().prepare;
+  const real = original.bind(dbModule.getDb());
   const sql = [];
-  dbModule.db.prepare = (text) => { sql.push(text); return real(text); };
+  dbModule.getDb().prepare = (text) => { sql.push(text); return real(text); };
   try {
     return { sql, value: await fn() };
   } finally {
-    if (had) dbModule.db.prepare = original; else delete dbModule.db.prepare;
+    if (had) dbModule.getDb().prepare = original; else delete dbModule.getDb().prepare;
   }
 }
 

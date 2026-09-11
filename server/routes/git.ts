@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { db } from '../db.ts';
+import { getDb } from '../db.ts';
 import type { ProjectRow } from '../../shared/rows.ts';
 import type { GitAtResult, GitFileResult, GitTreeResult } from '../../shared/results.ts';
 import * as gitEngine from '../git.ts';
@@ -8,7 +8,7 @@ export function mountGit(app: Express): void {
   // ---- Git snapshot engine ----
 
   function projectRepo(req: Request, res: Response): ProjectRow | null {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.query.project as string) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get(req.query.project as string) as ProjectRow | undefined;
     if (!project) { res.status(404).json({ error: 'Project not found' }); return null; }
     if (!gitEngine.isGitRepo(project.path)) { res.json({ noRepo: true }); return null; }
     return project;

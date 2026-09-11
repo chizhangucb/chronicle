@@ -1,7 +1,7 @@
 // Redaction, and only redaction: the rules the operator keeps, the scan over a
 // string and the scan over a session. The `security_rules` table itself is
 // declared in server/db.ts (issue #264), which is the one place schema lives.
-import { db } from './db.ts';
+import { getDb } from './db.ts';
 // The rule row, the finding, the scanned message and the scan result are the
 // four shapes this engine answers the redaction preview with. They are declared
 // in shared/ (#307) so the preview renders what the route sends.
@@ -65,7 +65,7 @@ export const BUILTIN_RULES: RuleSpec[] = [
 ];
 
 export function listRules(): SecurityRuleRow[] {
-  return db.prepare('SELECT * FROM security_rules ORDER BY id').all() as unknown as SecurityRuleRow[];
+  return getDb().prepare('SELECT * FROM security_rules ORDER BY id').all() as unknown as SecurityRuleRow[];
 }
 
 export interface RuleInput {
@@ -76,14 +76,14 @@ export interface RuleInput {
 }
 
 export function addRule({ name, pattern, replacement, kind }: RuleInput): void {
-  db.prepare('INSERT INTO security_rules (name, pattern, replacement, kind) VALUES (?, ?, ?, ?)')
+  getDb().prepare('INSERT INTO security_rules (name, pattern, replacement, kind) VALUES (?, ?, ?, ?)')
     .run(name || pattern, pattern, replacement || '****', kind === 'allow' ? 'allow' : 'redact');
 }
 export function deleteRule(id: number | string): void {
-  db.prepare('DELETE FROM security_rules WHERE id = ?').run(id);
+  getDb().prepare('DELETE FROM security_rules WHERE id = ?').run(id);
 }
 export function toggleRule(id: number | string, enabled: boolean): void {
-  db.prepare('UPDATE security_rules SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+  getDb().prepare('UPDATE security_rules SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
 }
 
 // Glob → regex: * any length, ? single char (FR-SEC-2)

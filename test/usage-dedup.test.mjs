@@ -98,14 +98,15 @@ before(async () => {
   seed.close();
 
   process.env.CHRONICLE_DATA_DIR = dir;
-  dbModule = await import('../server/db.ts'); // migration runs here
+  dbModule = await import('../server/db.ts');
+  dbModule.openDatabase(dir); // the backfill runs here (#275), not on import
 });
 
 after(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const row = (id) => dbModule.db.prepare('SELECT usage, usage_source, imported_at FROM sessions WHERE id = ?').get(id);
+const row = (id) => dbModule.getDb().prepare('SELECT usage, usage_source, imported_at FROM sessions WHERE id = ?').get(id);
 
 describe('backfill', () => {
   test('collapses an adjacent repeated usage row and rebuilds sessions.usage from the survivors', () => {
@@ -118,13 +119,13 @@ describe('backfill', () => {
   });
 
   test('clears the token columns of the dropped row so message sums stop double-counting', () => {
-    const rows = dbModule.db.prepare(
+    const rows = dbModule.getDb().prepare(
       'SELECT seq, input_tokens FROM messages WHERE session_id = ? ORDER BY seq').all('dup');
     // NULL, not 0 — that keeps "dropped as a repeat" distinguishable from
     // "genuinely billed zero" on any later pass. Readers all COALESCE.
     assert.deepEqual(rows.map((x) => x.input_tokens), [10, null, 10]);
     // And the message rows now sum to the same figure as sessions.usage.
-    const summed = dbModule.db.prepare(
+    const summed = dbModule.getDb().prepare(
       `SELECT COALESCE(SUM(input_tokens),0) AS input, COALESCE(SUM(output_tokens),0) AS output
          FROM messages WHERE session_id = ?`).get('dup');
     const usage = JSON.parse(row('dup').usage).m;
@@ -133,7 +134,7 @@ describe('backfill', () => {
   });
 
   test('does NOT collapse adjacent all-zero rows (the one observed false-positive shape)', () => {
-    const rows = dbModule.db.prepare(
+    const rows = dbModule.getDb().prepare(
       'SELECT input_tokens FROM messages WHERE session_id = ? ORDER BY seq').all('zeros');
     assert.deepEqual(rows.map((x) => x.input_tokens), [0, 0]);
   });
@@ -159,7 +160,7 @@ describe('backfill', () => {
   });
 
   test('is gated on an explicit marker, not on a data shape a re-import would reset', () => {
-    const marker = dbModule.db.prepare(
+    const marker = dbModule.getDb().prepare(
       'SELECT name FROM chronicle_migrations WHERE name = ?').get('chi-286-collapse-replayed-usage');
     assert.ok(marker, 'migration marker row must exist');
     // replaceSession rewrites usage_source on every import, so gating on
@@ -171,10 +172,10 @@ describe('backfill', () => {
 // seam, and an older database that still holds the views loses them on open.
 describe('contract views', () => {
   test('opening an existing database leaves no contract_* view behind', () => {
-    const views = dbModule.db.prepare(
+    const views = dbModule.getDb().prepare(
       "SELECT name FROM sqlite_master WHERE type = 'view'").all().map((r) => r.name);
     assert.deepEqual(views.filter((n) => n.startsWith('contract_')), []);
     // And the version gate that fronted them is cleared, not left at 1.
-    assert.equal(dbModule.db.prepare('PRAGMA user_version').get().user_version, 0);
+    assert.equal(dbModule.getDb().prepare('PRAGMA user_version').get().user_version, 0);
   });
 });

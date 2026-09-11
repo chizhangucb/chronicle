@@ -303,7 +303,7 @@ test('burn window spend (10d, P0 regression): a session that started before the 
 });
 
 test('minor sessions are excluded from the window aggregates', async () => {
-  const { db } = dbModule;
+  const db = dbModule.getDb();
   // The route caches by URL and invalidates on DB writes (server/cache.ts) —
   // a raw UPDATE bypasses that, so invalidate explicitly (a real write path,
   // replaceSession, would). Otherwise the prior 7d query's cached result wins.

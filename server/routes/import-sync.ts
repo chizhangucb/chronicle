@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, replaceSession } from '../db.ts';
+import { getDb, upsertProject, replaceSession } from '../db.ts';
 import type { ProjectRow, SessionRow } from '../../shared/rows.ts';
 import { SOURCES, sourceById } from '../parsers/registry.ts';
 import { importableFiles } from '../parsers/source.ts';
@@ -50,7 +50,7 @@ export function importParsed(parsed: ParseResult[]): ImportResult {
   const byProject = new Map<number, ProjectAgg>();
   for (const { session, events } of parsed) {
     if (!events.length || !session.cwd) { skippedSessions++; continue; }
-    const existed = !!db.prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
+    const existed = !!getDb().prepare('SELECT id FROM projects WHERE path = ?').get(session.cwd);
     const project = upsertProject(session.cwd);
     replaceSession({ ...session, project_id: project.id }, events);
     imported++;
@@ -69,9 +69,9 @@ export function mountImportSync(app: Express): void {
   // ---- Import wizard ----
 
   function annotateScan(items: ScannedProject[]) {
-    const importedPaths = new Set((db.prepare('SELECT path FROM projects').all() as unknown as ProjectRow[]).map((p) => p.path));
-    const importedIds = new Set((db.prepare('SELECT id FROM sessions').all() as unknown as { id: string }[]).map((s) => s.id));
-    const importedFiles = new Set((db.prepare('SELECT file_path FROM sessions').all() as unknown as { file_path: string }[]).map((s) => s.file_path));
+    const importedPaths = new Set((getDb().prepare('SELECT path FROM projects').all() as unknown as ProjectRow[]).map((p) => p.path));
+    const importedIds = new Set((getDb().prepare('SELECT id FROM sessions').all() as unknown as { id: string }[]).map((s) => s.id));
+    const importedFiles = new Set((getDb().prepare('SELECT file_path FROM sessions').all() as unknown as { file_path: string }[]).map((s) => s.file_path));
     return items.map((i) => ({
       ...i,
       imported: i.physicalPath ? importedPaths.has(i.physicalPath) : false,
@@ -118,7 +118,7 @@ export function mountImportSync(app: Express): void {
 
   // Re-import every source log location that maps to this project's path (FR: "Sync Update").
   app.post('/projects/:id/sync', async (req: Request, res: Response) => {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     try {
       const matches = SOURCES.flatMap((s) => s.scan()).filter((i) => i.physicalPath === project.path);
@@ -139,9 +139,9 @@ export function mountImportSync(app: Express): void {
 
   // Re-import just this one session from its source (per-session "Sync Update").
   app.post('/sessions/:id/sync', async (req: Request, res: Response) => {
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
+    const session = getDb().prepare('SELECT * FROM sessions WHERE id = ?').get((req.params.id as string)) as SessionRow | undefined;
     if (!session) return res.status(404).json({ error: 'Not found' });
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get(session.project_id) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Project not found' });
     try {
       const source = sourceById(session.source);

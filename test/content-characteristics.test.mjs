@@ -300,7 +300,7 @@ before(async () => {
       },
       fillerEvents,
     );
-    dbModule.db.prepare('UPDATE sessions SET agent_active_ms = NULL, engaged_ms = NULL WHERE id = ?').run('sNoDurA');
+    dbModule.getDb().prepare('UPDATE sessions SET agent_active_ms = NULL, engaged_ms = NULL WHERE id = ?').run('sNoDurA');
   }
 
   {

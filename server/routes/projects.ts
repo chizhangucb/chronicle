@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { Express, Request, Response } from 'express';
-import { db, upsertProject, tombstoneSessionsForProject } from '../db.ts';
+import { getDb, upsertProject, tombstoneSessionsForProject } from '../db.ts';
 import type { ProjectRow, ProjectSessionSummary } from '../../shared/rows.ts';
 import * as gitEngine from '../git.ts';
 import { liveCandidatesForSessions, liveWatcherSessionIds, isLiveCandidate } from '../live.ts';
@@ -32,7 +32,7 @@ export function mountProjects(app: Express): void {
     // Scope 'all' over every range: the list itself is unranged, so only the
     // minor gate comes out of the query context here.
     const listQ = queryContext({ type: 'all' }, rangeOf(null));
-    const projects = db.prepare(`
+    const projects = getDb().prepare(`
       SELECT p.*, COUNT(s.id) AS session_count, COALESCE(SUM(s.message_count),0) AS message_count,
              MAX(s.ended_at) AS last_active,
              GROUP_CONCAT(DISTINCT s.source) AS sources
@@ -44,13 +44,13 @@ export function mountProjects(app: Express): void {
     const cutoff = new Date(Date.now() - LIVE_WINDOW_MS).toISOString();
     const liveWhere = whereOf(listQ.where, { sql: 'AND s.ended_at >= ?', params: [cutoff] });
     const liveProjectIds = new Set(
-      (db.prepare(`SELECT DISTINCT s.project_id FROM sessions s WHERE ${liveWhere.sql}`).all(...liveWhere.params) as unknown as { project_id: number }[])
+      (getDb().prepare(`SELECT DISTINCT s.project_id FROM sessions s WHERE ${liveWhere.sql}`).all(...liveWhere.params) as unknown as { project_id: number }[])
         .map((r) => r.project_id),
     );
     const watcherIds = [...liveWatcherSessionIds()];
     if (watcherIds.length) {
       const placeholders = watcherIds.map(() => '?').join(',');
-      const rows = db.prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
+      const rows = getDb().prepare(`SELECT DISTINCT project_id FROM sessions WHERE id IN (${placeholders})`).all(...watcherIds) as unknown as { project_id: number }[];
       for (const r of rows) liveProjectIds.add(r.project_id);
     }
     // Source-log freshness: an active CLI session that nobody has
@@ -64,7 +64,7 @@ export function mountProjects(app: Express): void {
     // #bare_columns_in_an_aggregate_query), so this is one cheap stat per
     // project, not per session.
     const latestWhere = whereOf(listQ.where);
-    const latestFiles = db.prepare(`
+    const latestFiles = getDb().prepare(`
       SELECT s.project_id, s.file_path, MAX(s.started_at) AS started_at
       FROM sessions s WHERE ${latestWhere.sql}
       GROUP BY s.project_id`).all(...latestWhere.params) as unknown as { project_id: number; file_path: string | null }[];
@@ -78,7 +78,7 @@ export function mountProjects(app: Express): void {
   });
 
   app.get('/projects/:id', (req: Request, res: Response) => {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     // The DB-derived half (the session list plus the engine's scoped
     // aggregates) is cached keyed by the full request URL: it only changes on
@@ -101,7 +101,7 @@ export function mountProjects(app: Express): void {
       const q = queryContext(scope, range);
       const cutoff = q.range.cutoffIso ?? '';
       const sessionWhere = q.sessionRows;
-      const rawSessions = db.prepare(`SELECT s.id, s.source, s.file_path, s.started_at, s.ended_at, s.message_count, s.first_prompt, s.name, s.summary, s.context_tokens, s.usage, s.agent_active_ms,
+      const rawSessions = getDb().prepare(`SELECT s.id, s.source, s.file_path, s.started_at, s.ended_at, s.message_count, s.first_prompt, s.name, s.summary, s.context_tokens, s.usage, s.agent_active_ms,
           (SELECT SUM(LENGTH(COALESCE(m.text, '')) + LENGTH(COALESCE(m.tool_input, '')))
            FROM messages m WHERE m.session_id = s.id) AS char_count
         FROM sessions s WHERE ${sessionWhere.sql} ORDER BY s.started_at DESC`).all(...sessionWhere.params) as unknown as RawSessionRow[];
@@ -132,10 +132,10 @@ export function mountProjects(app: Express): void {
 
   app.patch('/projects/:id', (req: Request, res: Response) => {
     if (req.body.name) {
-      db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(req.body.name, (req.params.id as string));
+      getDb().prepare('UPDATE projects SET name = ? WHERE id = ?').run(req.body.name, (req.params.id as string));
       invalidateCache();
     }
-    res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)));
+    res.json(getDb().prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)));
   });
 
   // Manual association: move all sessions on a virtual/wrong path to a real path.
@@ -143,12 +143,12 @@ export function mountProjects(app: Express): void {
   app.post('/projects/:id/associate', (req: Request, res: Response) => {
     const { path: newPath } = req.body;
     if (!newPath || !fs.existsSync(newPath)) return res.status(400).json({ error: 'Path does not exist on disk' });
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project) return res.status(404).json({ error: 'Not found' });
     const target = upsertProject(newPath);
     if (target.id !== project.id) {
-      db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ?').run(target.id, project.id);
-      db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+      getDb().prepare('UPDATE sessions SET project_id = ? WHERE project_id = ?').run(target.id, project.id);
+      getDb().prepare('DELETE FROM projects WHERE id = ?').run(project.id);
       invalidateCache();
     }
     res.json({ ok: true, projectId: target.id });
@@ -157,12 +157,12 @@ export function mountProjects(app: Express): void {
   // Unlink a source: its sessions move to an independent project (FR-PM-5).
   app.post('/projects/:id/unlink', (req: Request, res: Response) => {
     const { source } = req.body;
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
+    const project = getDb().prepare('SELECT * FROM projects WHERE id = ?').get((req.params.id as string)) as ProjectRow | undefined;
     if (!project || !source) return res.status(400).json({ error: 'project/source required' });
     const virtualPath = `${project.path}#${source}`;
     const target = upsertProject(virtualPath);
-    db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(`${project.name} (${source})`, target.id);
-    db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ? AND source = ?')
+    getDb().prepare('UPDATE projects SET name = ? WHERE id = ?').run(`${project.name} (${source})`, target.id);
+    getDb().prepare('UPDATE sessions SET project_id = ? WHERE project_id = ? AND source = ?')
       .run(target.id, project.id, source);
     invalidateCache();
     res.json({ ok: true, projectId: target.id });
@@ -174,9 +174,9 @@ export function mountProjects(app: Express): void {
     // paused-then-resumed auto-sync can't resurrect them after the project
     // itself is gone.
     tombstoneSessionsForProject((req.params.id as string));
-    db.prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run((req.params.id as string));
-    db.prepare('DELETE FROM sessions WHERE project_id = ?').run((req.params.id as string));
-    db.prepare('DELETE FROM projects WHERE id = ?').run((req.params.id as string));
+    getDb().prepare('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)').run((req.params.id as string));
+    getDb().prepare('DELETE FROM sessions WHERE project_id = ?').run((req.params.id as string));
+    getDb().prepare('DELETE FROM projects WHERE id = ?').run((req.params.id as string));
     invalidateCache();
     res.json({ ok: true });
   });

@@ -16,192 +16,143 @@ import { dataDir } from './config.ts';
 // needs the projects row for its own upsert.
 import type { ProjectRow } from '../shared/rows.ts';
 
-// The folder comes from the one config module (server/config.ts); db.ts is
-// what freezes it, because this handle is bound here at import time.
-fs.mkdirSync(dataDir, { recursive: true });
+import { applySchema } from './schema.ts';
 
-export const db = new DatabaseSync(path.join(dataDir, 'chronicle.db'));
+// Nothing in this module runs on import (issue #275, audit F13): opening the
+// database, applying the schema and running the backfills is what
+// `openDatabase(dir)` is for, and every other module reads the open handle
+// through `getDb()`. That is what lets a test build an app against a temp
+// database in one line — `createApp(openDatabase(dir))` — instead of mounting
+// routers one at a time to dodge an import side effect.
+//
+// The open handles live on globalThis, the same idiom as server/cache.ts and
+// server/live.ts: a Vite SSR module reload re-evaluates this file, and a second
+// DatabaseSync over a file the first one still holds is a lock fight, not a
+// fresh start.
+interface DbState {
+  /** The handle getDb() hands out: the last database opened or selected. */
+  active: DatabaseSync | null;
+  /** Open handles by database file, so opening the same folder twice is one handle. */
+  open: Map<string, DatabaseSync>;
+  /** Per-handle facts the callers need: which folder it lives in, whether FTS5 took. */
+  meta: WeakMap<DatabaseSync, { dir: string; fts: boolean }>;
+}
 
-// WAL, and it stays on. The SQLite-backed parsers are what makes a write long:
-// Cursor and OpenCode keep a whole workspace in ONE database, so a parse is a
-// single pass that hands back every session at once and autosync writes the lot
-// in one run. This handle is synchronous and the server is single-threaded, so
-// that run blocks nothing in-process; the contention WAL exists for is across
-// processes. Ask holds a read-only handle on this same file from a `claude -p`
-// spawn, and a second Chronicle on the same data folder is the SQLITE_BUSY case
-// the result_count backfill below already guards. Under rollback-journal the
-// whole import holds an exclusive lock and those readers fail; WAL lets them
-// read the last committed snapshot while it runs.
-// Fail soft: a filesystem that cannot do WAL (some network mounts) keeps the
-// old journal mode rather than losing the database.
-try { db.exec('PRAGMA journal_mode = WAL'); } catch { /* keep the default journal mode */ }
+declare global {
+  // eslint-disable-next-line no-var
+  var __chronicleDb: DbState | undefined;
+}
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS projects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  path TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS sessions (
-  id TEXT PRIMARY KEY,
-  project_id INTEGER NOT NULL REFERENCES projects(id),
-  source TEXT NOT NULL,
-  file_path TEXT NOT NULL,
-  started_at TEXT,
-  ended_at TEXT,
-  message_count INTEGER DEFAULT 0,
-  first_prompt TEXT
-);
-CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  seq INTEGER NOT NULL,
-  uuid TEXT,
-  ts TEXT,
-  kind TEXT NOT NULL,
-  text TEXT,
-  tool_name TEXT,
-  tool_input TEXT,
-  tool_use_id TEXT,
-  model TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
-CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
--- Supports the tool_result<->tool_use pairing self-join used by explore.ts
--- (errRows) and content.ts (toolChars): ON u.session_id=r.session_id AND
--- u.tool_use_id=r.tool_use_id AND u.kind='tool_use'. Without this, SQLite
--- can only SEARCH the tool_use side by session_id (idx_messages_session),
--- then linear-scan every message in the session to find the matching
--- tool_use_id -- quadratic within large sessions. Measured on the
--- maintainer's ~395MB/101k-row real DB: this index alone cut /api/explore
--- and /api/content from ~24-37s to ~1-1.5s (see task-perf-report.md for the
--- full before/after table).
-CREATE INDEX IF NOT EXISTS idx_messages_tooluse ON messages(session_id, tool_use_id);
--- COVERING index for the Insights/project-analytics aggregates (toolDist,
--- kindDist, modelDist, dailyActivity, hourlyActivity). Those queries group
--- over kind/tool_name/model/ts joined to sessions -- without this, SQLite
--- picks SCAN over the messages table itself, and messages rows are FAT
--- (text/tool_input blobs), so every /api/insights range click re-read the
--- whole ~400MB table: 0.1-3.6s per query warm, multi-second cold. With it,
--- the engines drive from sessions (small) and read ONLY slim index entries:
--- measured 6-65ms per query on the maintainer's 414MB/108k-row real DB.
--- The queries force this shape with CROSS JOIN (sessions outer).
-CREATE INDEX IF NOT EXISTS idx_messages_agg ON messages(session_id, kind, ts, tool_name, model);
--- Tombstones: sessions deliberately removed from Chronicle (single delete or
--- whole-project delete). Keyed on (source, session id) since ids are only
--- unique within a source. Import/autosync paths (replaceSession) consult this
--- BEFORE inserting so a tombstoned session is never resurrected by a
--- subsequent scan of the same source file. Deleting undoes = removing the row.
-CREATE TABLE IF NOT EXISTS session_tombstones (
-  source TEXT NOT NULL,
-  session_id TEXT NOT NULL,
-  deleted_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (source, session_id)
-);
--- The operator's own redaction and allow rules, read and written by
--- server/security.ts. Declared here, not there, because this module is the one
--- place a table is declared: schema that ran on some other module's import
--- appeared and disappeared with that module's import graph (issue #264).
-CREATE TABLE IF NOT EXISTS security_rules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  pattern TEXT NOT NULL,          -- glob: * = any length, ? = single char
-  replacement TEXT DEFAULT '****',
-  kind TEXT NOT NULL DEFAULT 'redact',  -- 'redact' | 'allow'
-  enabled INTEGER NOT NULL DEFAULT 1,
-  builtin_override TEXT           -- if set, disables that builtin rule id
-);
-`);
+const state: DbState = (globalThis.__chronicleDb ??= { active: null, open: new Map(), meta: new WeakMap() });
 
-// Idempotent migrations
-try { db.exec('ALTER TABLE sessions ADD COLUMN context_tokens INTEGER'); } catch {}
-try { db.exec('ALTER TABLE sessions ADD COLUMN name TEXT'); } catch {}       // user-set display name (survives re-import)
-try { db.exec('ALTER TABLE sessions ADD COLUMN summary TEXT'); } catch {}    // tool-provided summary (parsed each import)
-try { db.exec('ALTER TABLE sessions ADD COLUMN usage TEXT'); } catch {}      // per-model token totals as JSON
-// v0.2 substrate (design doc §1.1/§1.3)
-try { db.exec('ALTER TABLE sessions ADD COLUMN sidechain_count INTEGER DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE sessions ADD COLUMN imported_at TEXT'); } catch {} // last import time (incremental auto-sync)
-try { db.exec('ALTER TABLE sessions ADD COLUMN agent_active_ms INTEGER'); } catch {}
-try { db.exec('ALTER TABLE sessions ADD COLUMN engaged_ms INTEGER'); } catch {}
-// Noise gate (Phase 5 PR 5a): sessions under the configured threshold are
-// gated out of the main lists into a global "minor sessions" bucket at
-// import time (see noiseGate.ts + replaceSession below). 0/1, default 0.
-try { db.exec('ALTER TABLE sessions ADD COLUMN minor INTEGER DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN is_sidechain INTEGER DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN agent_type TEXT'); } catch {}
-// `wf_*` folder name for a subagent transcript nested under
-// subagents/workflows/wf_*/ (null for a direct subagent or non-sidechain row).
-try { db.exec('ALTER TABLE messages ADD COLUMN workflow_id TEXT'); } catch {}
-// Per-RUN id (distinct from agent_type, which is per-KIND) — see shared/types.ts Event.agent_id.
-try { db.exec('ALTER TABLE messages ADD COLUMN agent_id TEXT'); } catch {}
-// Per-RUN description, read from the run's agent-<hex>.meta.json sidecar
-// `description` field (was parsed but discarded — see shared/types.ts Event.agent_desc).
-// Existing imports backfill it on their next sync; no forced re-import.
-try { db.exec('ALTER TABLE messages ADD COLUMN agent_desc TEXT'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN skill TEXT'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN input_tokens INTEGER'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN output_tokens INTEGER'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN cache_read_tokens INTEGER'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN cache_w5m_tokens INTEGER'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN cache_w1h_tokens INTEGER'); } catch {}
-// Precomputed error-heuristic aggregates (perf fix): result_count = tool_result
-// messages with text, error_count = the subset whose head matches ERROR_RE.
-// Computed once at import in replaceSession (same pattern as durations), so
-// insights/project analytics read 3-figure session rows instead of regexing
-// tens of thousands of tool_result heads per request (was 0.8-17s per click).
-try { db.exec('ALTER TABLE sessions ADD COLUMN result_count INTEGER'); } catch {}
-try { db.exec('ALTER TABLE sessions ADD COLUMN error_count INTEGER'); } catch {}
-// Call key: Anthropic's per-API-call identity. Claude Code splits ONE API
-// response across several transcript lines (empty thinking / text / tool_use),
-// each repeating the full `message.usage`; summing per line billed a call two
-// or three times. `uuid` is per-LINE, so it can't collapse them — this pair
-// can. Persisted on every assistant row (usage-bearing or not) so any later
-// pass can apply the same dedup.
-try { db.exec('ALTER TABLE messages ADD COLUMN message_id TEXT'); } catch {}
-try { db.exec('ALTER TABLE messages ADD COLUMN request_id TEXT'); } catch {}
-// Provenance of sessions.usage — see SessionRow.usage_source (shared/rows.ts).
-try { db.exec('ALTER TABLE sessions ADD COLUMN usage_source TEXT'); } catch {}
-// Explicit one-shot migration ledger. A data-shaped gate (e.g. "usage_source IS
-// NULL") is NOT safe here: replaceSession enumerates its INSERT columns, so any
-// re-import resets that column and a data-gated migration would re-run on the
-// next boot, forever.
-db.exec(`CREATE TABLE IF NOT EXISTS chronicle_migrations (
-  name TEXT PRIMARY KEY,
-  applied_at TEXT DEFAULT (datetime('now'))
-)`);
+/**
+ * Open the Chronicle database in `dir`, apply the schema, run the backfills,
+ * and make it the handle every other module reads. Idempotent per folder: the
+ * second call for the same folder hands back the first call's handle.
+ *
+ * `dir` defaults to the folder this process was started against
+ * (server/config.ts); a test passes its own temp folder.
+ */
+export function openDatabase(dir: string = dataDir): DatabaseSync {
+  const file = path.join(dir, 'chronicle.db');
+  const already = state.open.get(file);
+  if (already) { state.active = already; return already; }
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync(file);
+  // WAL, and it stays on. The SQLite-backed parsers are what makes a write long:
+  // Cursor and OpenCode keep a whole workspace in ONE database, so a parse is a
+  // single pass that hands back every session at once and autosync writes the lot
+  // in one run. This handle is synchronous and the server is single-threaded, so
+  // that run blocks nothing in-process; the contention WAL exists for is across
+  // processes. Ask holds a read-only handle on this same file from a `claude -p`
+  // spawn, and a second Chronicle on the same data folder is the SQLITE_BUSY case
+  // the result_count backfill below already guards. Under rollback-journal the
+  // whole import holds an exclusive lock and those readers fail; WAL lets them
+  // read the last committed snapshot while it runs.
+  // Fail soft: a filesystem that cannot do WAL (some network mounts) keeps the
+  // old journal mode rather than losing the database.
+  try { db.exec('PRAGMA journal_mode = WAL'); } catch { /* keep the default journal mode */ }
+  const fts = applySchema(db);
+  state.open.set(file, db);
+  state.meta.set(db, { dir, fts });
+  // Active BEFORE the backfills: they read the handle back through getDb()
+  // (snapshotDb does), so the database being filled has to be the current one.
+  state.active = db;
+  runBackfills(db);
+  return db;
+}
 
-// One-time backfill for sessions imported before the columns existed (NULL).
-// ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
-// Failure (e.g. SQLITE_BUSY from a stale second Chronicle process holding a
-// write lock at this exact first-boot-after-upgrade moment) must NOT kill
-// startup: the rows just stay NULL — COALESCE(...,0) in the readers degrades
-// to undercounted errors until the next boot retries the backfill.
-try {
-  const missing = (db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE result_count IS NULL').get() as unknown as { c: number }).c;
-  if (missing > 0) {
-    const heads = db.prepare(`SELECT session_id, substr(text, 1, 200) AS head FROM messages
-                              WHERE kind = 'tool_result' AND text IS NOT NULL`).all() as unknown as { session_id: string; head: string }[];
-    const agg = new Map<string, { rc: number; ec: number }>();
-    for (const r of heads) {
-      let a = agg.get(r.session_id);
-      if (!a) { a = { rc: 0, ec: 0 }; agg.set(r.session_id, a); }
-      a.rc++;
-      if (isErrorHead(r.head)) a.ec++;
-    }
-    db.exec('BEGIN');
-    try {
-      db.exec('UPDATE sessions SET result_count = 0, error_count = 0 WHERE result_count IS NULL');
-      const up = db.prepare('UPDATE sessions SET result_count = ?, error_count = ? WHERE id = ?');
-      for (const [id, a] of agg) up.run(a.rc, a.ec, id);
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
+/** Read and write `db` from here on — what createApp(db) calls so the routes it
+ *  mounts serve the database they were handed. */
+export function useDatabase(db: DatabaseSync): void {
+  state.active = db;
+}
+
+/** The open database. Throws rather than opening one: an implicit open is the
+ *  side effect this module exists to have removed. */
+export function getDb(): DatabaseSync {
+  if (!state.active) {
+    throw new Error('Chronicle: no database is open. Call openDatabase(dir) before using the server modules.');
   }
-} catch (err) {
-  console.warn('[chronicle] error-count backfill deferred (will retry next start):', (err as Error).message);
+  return state.active;
+}
+
+/** Whether the full-text index took on this database; search falls back to LIKE
+ *  when it did not (server/routes/search.ts). */
+export function ftsAvailable(db: DatabaseSync = getDb()): boolean {
+  return state.meta.get(db)?.fts ?? false;
+}
+
+/** The data folder a handle was opened against. */
+function dirOf(db: DatabaseSync): string {
+  return state.meta.get(db)?.dir ?? dataDir;
+}
+
+/** The one-time data repairs an older database needs. Each one fails soft, for
+ *  the reason spelled out above it: a deferred backfill costs accuracy until the
+ *  next boot retries it, a thrown one would cost the operator their app. */
+function runBackfills(db: DatabaseSync): void {
+  // ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
+  // Failure (e.g. SQLITE_BUSY from a stale second Chronicle process holding a
+  // write lock at this exact first-boot-after-upgrade moment) must NOT kill
+  // startup: the rows just stay NULL — COALESCE(...,0) in the readers degrades
+  // to undercounted errors until the next boot retries the backfill.
+  try {
+    const missing = (db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE result_count IS NULL').get() as unknown as { c: number }).c;
+    if (missing > 0) {
+      const heads = db.prepare(`SELECT session_id, substr(text, 1, 200) AS head FROM messages
+                                WHERE kind = 'tool_result' AND text IS NOT NULL`).all() as unknown as { session_id: string; head: string }[];
+      const agg = new Map<string, { rc: number; ec: number }>();
+      for (const r of heads) {
+        let a = agg.get(r.session_id);
+        if (!a) { a = { rc: 0, ec: 0 }; agg.set(r.session_id, a); }
+        a.rc++;
+        if (isErrorHead(r.head)) a.ec++;
+      }
+      db.exec('BEGIN');
+      try {
+        db.exec('UPDATE sessions SET result_count = 0, error_count = 0 WHERE result_count IS NULL');
+        const up = db.prepare('UPDATE sessions SET result_count = ?, error_count = ? WHERE id = ?');
+        for (const [id, a] of agg) up.run(a.rc, a.ec, id);
+        db.exec('COMMIT');
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    }
+  } catch (err) {
+    console.warn('[chronicle] error-count backfill deferred (will retry next start):', (err as Error).message);
+  }
+
+  // Failure must not kill startup — same rule as the error-count backfill above.
+  // A second Chronicle process holding a write lock (SQLITE_BUSY) is the likely
+  // cause; the marker is only written inside the committed transaction, so a
+  // failed run leaves nothing half-applied and retries on the next boot.
+  try {
+    collapseRepeatedUsageBackfill(db);
+  } catch (err) {
+    console.warn('[chronicle] backfill deferred (will retry next start):', (err as Error).message);
+  }
 }
 
 // ---- one-time backfill ------------------------------------------
@@ -245,7 +196,7 @@ interface UsageRow {
   cache_w1h_tokens: number;
 }
 
-function collapseRepeatedUsageBackfill(): void {
+function collapseRepeatedUsageBackfill(db: DatabaseSync): void {
   const done = db.prepare('SELECT 1 AS x FROM chronicle_migrations WHERE name = ?').get(COLLAPSE_REPEATED_USAGE);
   if (done) return;
   const targets = db.prepare(`SELECT id, file_path, usage FROM sessions
@@ -330,61 +281,6 @@ function collapseRepeatedUsageBackfill(): void {
 // Failure must not kill startup — same rule as the error-count backfill above.
 // A second Chronicle process holding a write lock (SQLITE_BUSY) is the likely
 // cause; the marker is only written inside the committed transaction, so a
-// failed run leaves nothing half-applied and retries on the next boot.
-try {
-  collapseRepeatedUsageBackfill();
-} catch (err) {
-  console.warn('[chronicle] backfill deferred (will retry next start):', (err as Error).message);
-}
-
-// Retired: the contract views and the version gate over them are gone. The base
-// tables are the only read seam now; nothing outside this repo consumes the
-// database. A database written by an older Chronicle still carries both, so
-// clear them once — leaving `user_version` at 1 would advertise a contract that
-// no longer exists to anyone who does read the pragma.
-db.exec(`
-DROP VIEW IF EXISTS contract_message_metrics;
-DROP VIEW IF EXISTS contract_sessions;
-PRAGMA user_version = 0;
-`);
-
-// Retired: the write gate (propose -> diff card -> confirm, backup, verify,
-// undo) and its audit trail are gone. A database written by an older Chronicle
-// still carries the table, so drop it once — nothing reads it any more.
-db.exec('DROP TABLE IF EXISTS gate_audit;');
-
-// Retired with it: pre-tool-use interception (issue #264). Chronicle once
-// scanned a tool call before the model saw it and recorded what it blocked.
-// The hook that called it went with the shrink, so the record has had no
-// writer and no reader since; drop the table the same way.
-db.exec('DROP TABLE IF EXISTS interceptions;');
-
-// Retired: Chronicle's record of which of its own surfaces were looked at is
-// gone. A data folder written by an older Chronicle still carries the table, so
-// drop it once (its index goes with it). Nothing reads either, and the app
-// records nothing to put back.
-// Fail soft, same rule as the backfills above: on the one boot that actually
-// drops it this is a real write, so a second Chronicle holding the write lock
-// (SQLITE_BUSY) would otherwise take startup down with it. A skipped drop costs
-// a dead table until the next boot retries.
-try {
-  db.exec('DROP TABLE IF EXISTS view_log;');
-} catch (err) {
-  console.warn('[chronicle] view_log drop deferred (will retry next start):', (err as Error).message);
-}
-
-// FTS5 full-text index over message content (external-content table kept in
-// sync inside replaceSession — delete+reinsert, no triggers). Node's bundled
-// SQLite ships FTS5, but verify at startup and fail soft: search falls back
-// to LIKE when the table is missing.
-export let ftsAvailable = false;
-try {
-  db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
-           USING fts5(text, tool_input, content=messages, content_rowid=id)`);
-  ftsAvailable = true;
-} catch {}
-
-// Snapshot the whole DB. Called before destructive deletes (project/session
 // removal, via routes/_shared.ts's backupDbBeforeDelete) and before the usage
 // backfill rewrites historical usage. Throttled to at most one snapshot per
 // hour so a multi-select Remove loop makes ONE backup, not N; `force` overrides
@@ -393,7 +289,8 @@ try {
 // chronicle.db (delete any -wal/-shm sidecars alongside it first).
 export function snapshotDb(force = false): string | null {
   try {
-    const dir = path.join(dataDir, 'backups', 'db');
+    const db = getDb();
+    const dir = path.join(dirOf(db), 'backups', 'db');
     fs.mkdirSync(dir, { recursive: true });
     const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();
     const newest = existing[existing.length - 1];
@@ -407,7 +304,7 @@ export function snapshotDb(force = false): string | null {
     // auto-checkpoint. Best-effort: a busy checkpoint leaves the copy exactly as
     // stale as it would have been, which beats losing the snapshot entirely.
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* copy what is on disk */ }
-    fs.copyFileSync(path.join(dataDir, 'chronicle.db'), dest);
+    fs.copyFileSync(path.join(dirOf(db), 'chronicle.db'), dest);
     // Keep the newest two snapshots total (the one just written + one prior).
     for (const f of existing.slice(0, Math.max(0, existing.length - 1))) {
       try { fs.unlinkSync(path.join(dir, f)); } catch {}
@@ -421,31 +318,31 @@ export function snapshotDb(force = false): string | null {
 // ---- Tombstones (Phase 5 PR 5a: delete + undo) ----
 
 export function isTombstoned(source: string, sessionId: string): boolean {
-  return !!db.prepare('SELECT 1 FROM session_tombstones WHERE source = ? AND session_id = ?').get(source, sessionId);
+  return !!getDb().prepare('SELECT 1 FROM session_tombstones WHERE source = ? AND session_id = ?').get(source, sessionId);
 }
 
 export function tombstoneSession(source: string, sessionId: string): void {
-  db.prepare(`INSERT INTO session_tombstones (source, session_id, deleted_at) VALUES (?, ?, datetime('now'))
+  getDb().prepare(`INSERT INTO session_tombstones (source, session_id, deleted_at) VALUES (?, ?, datetime('now'))
               ON CONFLICT(source, session_id) DO UPDATE SET deleted_at = excluded.deleted_at`).run(source, sessionId);
 }
 
 // Undo: forget the tombstone. The source log is untouched, so the caller just
 // needs to re-trigger an import/sync afterward to bring the session back.
 export function removeTombstone(source: string, sessionId: string): void {
-  db.prepare('DELETE FROM session_tombstones WHERE source = ? AND session_id = ?').run(source, sessionId);
+  getDb().prepare('DELETE FROM session_tombstones WHERE source = ? AND session_id = ?').run(source, sessionId);
 }
 
 // Whole-project delete: tombstone every session that belonged to it, so a
 // paused-then-resumed auto-sync doesn't resurrect them.
 export function tombstoneSessionsForProject(projectId: number | string): void {
-  const rows = db.prepare('SELECT id, source FROM sessions WHERE project_id = ?').all(projectId) as unknown as { id: string; source: string }[];
+  const rows = getDb().prepare('SELECT id, source FROM sessions WHERE project_id = ?').all(projectId) as unknown as { id: string; source: string }[];
   for (const r of rows) tombstoneSession(r.source, r.id);
 }
 
 export function upsertProject(physicalPath: string): ProjectRow {
   const name = path.basename(physicalPath) || physicalPath;
-  db.prepare('INSERT INTO projects (path, name) VALUES (?, ?) ON CONFLICT(path) DO NOTHING').run(physicalPath, name);
-  return db.prepare('SELECT * FROM projects WHERE path = ?').get(physicalPath) as unknown as ProjectRow;
+  getDb().prepare('INSERT INTO projects (path, name) VALUES (?, ?) ON CONFLICT(path) DO NOTHING').run(physicalPath, name);
+  return getDb().prepare('SELECT * FROM projects WHERE path = ?').get(physicalPath) as unknown as ProjectRow;
 }
 
 export function replaceSession(session: SessionInput, events: Event[]): void {
@@ -453,12 +350,13 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
   // source file — check BEFORE touching the DB, from every import path
   // (manual import, per-project/per-session sync, auto-sync).
   if (isTombstoned(session.source, session.id)) return;
+  const db = getDb();
   db.exec('BEGIN');
   try {
     // Preserve a user-set display name, and a promoted-out-of-minor state,
     // across re-imports (delete + reinsert).
     const prev = db.prepare('SELECT name, minor FROM sessions WHERE id = ?').get(session.id) as { name: string | null; minor: number | null } | undefined;
-    if (ftsAvailable) {
+    if (ftsAvailable(db)) {
       db.prepare(`INSERT INTO messages_fts(messages_fts, rowid, text, tool_input)
                   SELECT 'delete', id, COALESCE(text,''), COALESCE(tool_input,'')
                   FROM messages WHERE session_id = ?`).run(session.id);
@@ -503,7 +401,7 @@ export function replaceSession(session: SessionInput, events: Event[]): void {
       e.message_id ?? null, e.request_id ?? null,
       e.input_tokens ?? null, e.output_tokens ?? null, e.cache_read_tokens ?? null,
       e.cache_w5m_tokens ?? null, e.cache_w1h_tokens ?? null));
-    if (ftsAvailable) {
+    if (ftsAvailable(db)) {
       db.prepare(`INSERT INTO messages_fts(rowid, text, tool_input)
                   SELECT id, COALESCE(text,''), COALESCE(tool_input,'')
                   FROM messages WHERE session_id = ?`).run(session.id);

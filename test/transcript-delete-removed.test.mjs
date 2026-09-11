@@ -83,7 +83,7 @@ test('?source=1 on session delete removes only Chronicle\'s copy', async () => {
   assert.equal(fs.existsSync(filePath), true, 'the source transcript was removed from disk');
   const body = await res.json();
   assert.equal('sourceDeleted' in body, false, 'the response still reports a source deletion');
-  assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
+  assert.equal(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined);
 });
 
 test('session delete tombstones, so a following sync does not resurrect it', async () => {
@@ -96,7 +96,7 @@ test('session delete tombstones, so a following sync does not resurrect it', asy
 
   // A following sync re-parses the same transcript into the same session.
   dbModule.replaceSession(session, events());
-  assert.equal(dbModule.db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined,
+  assert.equal(dbModule.getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(session.id), undefined,
     'a tombstoned session was resurrected by the next sync');
 });
 

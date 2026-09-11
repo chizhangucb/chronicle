@@ -1,4 +1,5 @@
-import express from 'express';
+import express, { type Express } from 'express';
+import type { DatabaseSync } from 'node:sqlite';
 import { mountImportSync } from './routes/import-sync.ts';
 import { mountSettings }   from './routes/settings.ts';
 import { mountProjects }   from './routes/projects.ts';
@@ -16,35 +17,45 @@ import { mountPlanWindows } from './routes/planWindows.ts';
 import { mountAsk }        from './routes/ask.ts';
 import { mountDemo }       from './routes/demo.ts';
 import { writeTokenGuard, mountWriteToken } from './writeToken.ts';
-import { startAutoSync }   from './autosync.ts';
+import { useDatabase } from './db.ts';
 
-export const api = express();
-api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH
+/**
+ * Build the Express app that serves /api, reading and writing `db`.
+ *
+ * Nothing happens when this module is imported (issue #275, audit F13): no app,
+ * no routes, and no auto-sync — the entry points start that (server/standalone.ts,
+ * the Vite dev plugin). A test gets a whole API over its own temp database in
+ * one line: `createApp(openDatabase(dir))`.
+ */
+export function createApp(db: DatabaseSync): Express {
+  // The routes below read the open handle through getDb(), so the database this
+  // app serves is whichever one it was handed.
+  useDatabase(db);
+  const api = express();
+  api.use(express.json());        // MUST stay first — body parsing for all POST/PATCH
 
-// Per-boot write token on EVERY mutating route: import, sync,
-// project/session ops, settings, security rules — one consistent posture, no
-// split. Same-origin guard, not auth; see server/writeToken.ts.
-api.use(writeTokenGuard());
+  // Per-boot write token on EVERY mutating route: import, sync,
+  // project/session ops, settings, security rules — one consistent posture, no
+  // split. Same-origin guard, not auth; see server/writeToken.ts.
+  api.use(writeTokenGuard());
 
-mountWriteToken(api);
-mountImportSync(api);
-mountSettings(api);
-mountProjects(api);
-mountSessions(api);
-mountSearch(api);
-mountSecurity(api);
-mountGit(api);
-mountInsights(api);
-mountExplore(api);
-mountContent(api);
-mountActivity(api);
-mountDetectors(api);
-mountWaste(api);
-mountPlanWindows(api);
-mountAsk(api);
-mountDemo(api);
+  mountWriteToken(api);
+  mountImportSync(api);
+  mountSettings(api);
+  mountProjects(api);
+  mountSessions(api);
+  mountSearch(api);
+  mountSecurity(api);
+  mountGit(api);
+  mountInsights(api);
+  mountExplore(api);
+  mountContent(api);
+  mountActivity(api);
+  mountDetectors(api);
+  mountWaste(api);
+  mountPlanWindows(api);
+  mountAsk(api);
+  mountDemo(api);
 
-// Auto-sync starts with the server in every run mode (dev / standalone);
-// watchers + timer live on globalThis so SSR reloads don't orphan them.
-// No-op when the user disabled auto-sync in settings.
-startAutoSync();
+  return api;
+}

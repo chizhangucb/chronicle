@@ -155,7 +155,8 @@ test('import and sync answer what the pre-slice commit answered', async () => {
   record('POST /projects/:id/sync', await call('POST', `/projects/${projectId}/sync`));
   record('POST /projects/999/sync', await call('POST', '/projects/999/sync'));
 
-  const { db } = await import('../server/db.ts');
+  const { getDb } = await import('../server/db.ts');
+  const db = getDb();
   sessionId = db.prepare("SELECT id FROM sessions WHERE source = 'claude-code' ORDER BY id LIMIT 1").get().id;
   record('POST /sessions/:id/sync', await call('POST', `/sessions/${sessionId}/sync`));
   record('POST /sessions/nope/sync', await call('POST', '/sessions/nope/sync'));

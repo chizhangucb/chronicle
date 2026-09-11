@@ -70,7 +70,7 @@ after(async () => {
 });
 
 test('the database carries no contract_* view', () => {
-  const views = dbModule.db.prepare("SELECT name FROM sqlite_master WHERE type = 'view'").all();
+  const views = dbModule.getDb().prepare("SELECT name FROM sqlite_master WHERE type = 'view'").all();
   assert.deepEqual(views.map((v) => v.name).filter((n) => n.startsWith('contract_')), []);
 });
 
