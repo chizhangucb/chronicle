@@ -86,6 +86,20 @@ function exportsOf(text) {
 // export IS the seam under test. Anything not listed has to have a production
 // caller.
 const TESTED_THROUGH_THE_EXPORT = {
+  // The platform smoke (#200) runs on a CI runner against an installed
+  // tarball, so `npm test` can never run it end to end. What it decides for
+  // itself is exported and driven directly instead.
+  'scripts/ci/platform-screenshots.mjs canonicalGlyphs': 'the glyph vocabulary read out of the design QA rubric',
+  'scripts/ci/platform-screenshots.mjs monoStack': 'the shipped mono stack read out of the bundle, minified or not',
+  'scripts/ci/platform-screenshots.mjs pickPlaybackSession': 'which session gets the Playback shot, chosen without a browser',
+  'scripts/ci/platform-screenshots.mjs screenshotName': 'the per-OS file names two runners upload under',
+  'scripts/ci/platform-smoke.mjs APP_DATA_DIRS': 'the Windows app-data roots the stray-write sweep watches',
+  'scripts/ci/platform-smoke.mjs DEFAULT_PORT': 'the port the scan check holds, pinned against the launcher --help',
+  'scripts/ci/platform-smoke.mjs appDataEntries': 'the %APPDATA% half of the ADR 0008 sweep, driven on a temp home',
+  'scripts/ci/platform-smoke.mjs expectedDataDir': 'where ADR 0008 puts the data folder, asserted per environment',
+  'scripts/ci/platform-smoke.mjs parseLaunchUrl': 'the launcher banner parse, asserted against real output',
+  'scripts/ci/platform-smoke.mjs strayHomeEntries': 'the home sweep, driven over a planted temp home',
+  'scripts/ci/platform-smoke.mjs writeClaudeTranscript': 'the planted transcript, run through the real Claude Code parser',
   'server/ask.ts ASK_HISTORY_MAX': 'ask history caps, asserted without a claude binary',
   'server/ask.ts ASK_HISTORY_ROWS': 'ask history caps, asserted without a claude binary',
   'server/ask.ts costBasisLabel': 'pure label helper, tested directly',

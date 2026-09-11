@@ -17,6 +17,7 @@
     "dist",
     "dist-server",
     "scripts",
+    "!scripts/ci",
     "!scripts/walk-seed.mjs",
     "!scripts/refresh_roster.py"
   ],

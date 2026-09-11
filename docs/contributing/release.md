@@ -27,6 +27,11 @@ There is no manual step in between, and no passkey ceremony.
 `1.3.0` fails the job before anything is published. This is the guard against tagging the wrong
 commit.
 
+**The platform smoke must be green.** The publish job needs
+`.github/workflows/platform-smoke.yml`, which installs the `npm pack` tarball on Linux and
+Windows and drives the launcher on both. A platform that cannot start the package blocks the
+publish (#200).
+
 **The gates run as npm lifecycle scripts**, not as separate workflow steps:
 
 - `prepublishOnly` runs `npm run typecheck` and `npm test`.
