@@ -58,7 +58,7 @@ you just won't get the code-snapshot pane.
    one straight from the recent-sessions stream.
 2. The session opens on **Overview** — stats, cost & usage, agent-active time, and a
    Subagents card if the session used any. Switch to **Playback** from the left rail (or press
-   `⌘2`).
+   `⌘2`, or `Ctrl+2` on Windows and Linux).
 3. **Click any message.** The middle pane rebuilds your file tree and file contents **as they
    were at that moment**, resolved to the nearest preceding commit. Changed files are
    green-dotted and auto-selected. Press `D` for the diff.

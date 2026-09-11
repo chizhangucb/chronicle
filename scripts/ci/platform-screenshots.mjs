@@ -16,17 +16,26 @@
 // sheet rendered in the shipped font stack with each code point labelled, so
 // a tofu box can be named in an issue without guesswork.
 //
+// One thing in the pictures is NOT left to a human: the keyboard hint the
+// Playback frame carries. Issue #366 (every hint said `⌘`, on every OS) was
+// found by reading a Windows shot from this run, so the shot now asserts the
+// hint names a key this OS actually has before the shutter opens.
+//
 // Usage:
 //   node scripts/ci/platform-screenshots.mjs --package-dir <pkg> --out <dir>
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch, waitFor, freePort, tempHome, homeEnv } from './platform-smoke.mjs';
+// The client's own modifier decision, imported rather than retyped: what the
+// shot should show is whatever the app would render on this OS (issue #366).
+import { shortcutHint } from '../../src/shortcuts.ts';
 
 // Exported for test/platform-screenshots.test.mjs, which asserts each of these
 // without a browser: monoStack and canonicalGlyphs are what the glyph sheet is
 // rendered from, pickPlaybackSession is which session gets the Playback shot,
-// and screenshotName is what keeps two OSes from overwriting each other. The
+// screenshotName is what keeps two OSes from overwriting each other, and
+// hintFault is the verdict on the keyboard hint the Playback shot frames. The
 // run itself needs a Chromium and an installed tarball, so these exports ARE
 // the seam `npm test` can reach.
 
@@ -98,6 +107,31 @@ export function pickPlaybackSession(sessions) {
  */
 export function screenshotName(kind, platform) {
   return `${kind}-${platform}.png`;
+}
+
+/**
+ * What is wrong with a rendered keyboard hint on this OS, if anything.
+ *
+ * The Playback shot frames the session search field, whose placeholder names
+ * the Find shortcut. Every OS used to be shown `⌘F` — a key Windows and Linux
+ * keyboards do not have (issue #366) — and it took a human reading the
+ * artifact to notice. The run now reads the hint out of the page, so the wrong
+ * key fails the job instead of shipping a picture of the bug.
+ *
+ * Both halves matter: the modifier this OS HAS must be named, and the one it
+ * does not have must be absent, so a half-fix that prints both still fails.
+ *
+ * @param {string} text - the hint as the page renders it.
+ * @param {string} key - the shortcut's letter, e.g. `F`.
+ * @param {string} platform - a `process.platform` value.
+ * @returns {string | null} null when the hint is right for this OS.
+ */
+export function hintFault(text, key, platform) {
+  const expected = shortcutHint(key, { platform });
+  const foreign = shortcutHint(key, { platform: platform === 'darwin' ? 'win32' : 'darwin' });
+  if (!text.includes(expected)) return `${platform} should read ${expected}, the hint reads ${JSON.stringify(text)}`;
+  if (text.includes(foreign)) return `${platform} still names ${foreign} beside ${expected}: ${JSON.stringify(text)}`;
+  return null;
 }
 
 /** The shipped client CSS bundle inside an installed package. */
@@ -182,6 +216,13 @@ async function main(argv) {
     await page.goto(`${app.url}/session/${encodeURIComponent(session.id)}`, { waitUntil: 'networkidle' });
     await page.locator('button[title^="Playback"]').click();
     await page.locator('.timeline').waitFor({ state: 'visible', timeout: 30_000 });
+    // The toolbar in this frame names the Find shortcut. Read it before the
+    // shutter: a hint naming a key this OS has no room for is the bug #366
+    // fixed, and a picture of it would only ever be caught by a human.
+    const hint = (await page.locator('input.search').getAttribute('placeholder')) ?? '';
+    const fault = hintFault(hint, 'F', process.platform);
+    if (fault) throw new Error(`the Playback shot would show the wrong keyboard hint: ${fault}`);
+    console.log(`  keyboard hint in frame: ${hint.trim()}`);
     await page.screenshot({ path: path.join(out, screenshotName('playback', process.platform)), fullPage: false });
     console.log(`  wrote ${screenshotName('playback', process.platform)} (session ${session.id})`);
 
