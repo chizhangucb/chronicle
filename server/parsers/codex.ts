@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
+import { addCellInto, type UsageByModel } from '../../shared/usage.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
 import type { Source } from './source.ts';
 import { newestMtimeMs } from './source.ts';
@@ -35,6 +36,11 @@ interface CodexPayload {
   call_id?: string;
   output?: unknown;
   info?: { last_token_usage?: CodexTokenUsage };
+  // The model Codex ran the turn on. It is recorded on the rollout's CONTEXT
+  // lines (the `turn_context` item, and the session meta on the versions that
+  // carry it there), never on the response items themselves — so a model
+  // output's model is the last one the transcript recorded before it (#198).
+  model?: string;
 }
 
 interface CodexLine {
@@ -99,9 +105,24 @@ function sniffCodexCwd(file: string): string | null {
   return null;
 }
 
+// The model one rollout line records, if it records one. Codex writes it as the
+// payload's own `model` field, on whichever context line the version in hand
+// carries (a `turn_context` item, or the session meta) — so the field is read
+// off any line rather than off one line type. A blank or non-string value
+// records nothing, and a transcript that records no model anywhere imports the
+// way it did before: unmodeled rows, and no usage aggregate to price.
+function recordedModel(p: CodexPayload): string | null {
+  return typeof p.model === 'string' && p.model.trim() ? p.model.trim() : null;
+}
+
 // One rollout line to its events. Shared by the whole-file parse above and by
-// the source's `tail`, so a streamed line and an imported one map identically.
-function parseCodexLine(o: CodexLine): Event[] {
+// the source's `tail`, so a streamed line and an imported one map to the same
+// kinds, text and ids. `model` is the turn's model as recorded by an EARLIER
+// line (#198): a model output (assistant / thinking / tool_use) is stamped with
+// it, a user message is not, since that one is the operator's. `tail` sees one
+// line with no memory of the ones before it, so a live-streamed row carries no
+// model until the session is synced and re-parsed whole.
+function parseCodexLine(o: CodexLine, model: string | null = null): Event[] {
   const ts = o.timestamp || o.ts || null;
   const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
   const t = p.type || o.type;
@@ -111,14 +132,14 @@ function parseCodexLine(o: CodexLine): Event[] {
   }
   if (t === 'message' && p.role === 'assistant') {
     const text = itemText(p.content);
-    return text ? [{ ts, kind: 'assistant', text }] : [];
+    return text ? [{ ts, kind: 'assistant', text, model }] : [];
   }
   if (t === 'reasoning') {
     const text = (p.summary || []).map((s) => s.text || '').join('\n');
-    return text ? [{ ts, kind: 'thinking', text }] : [];
+    return text ? [{ ts, kind: 'thinking', text, model }] : [];
   }
   if (t === 'function_call' || t === 'local_shell_call') {
-    return [{ ts, kind: 'tool_use', tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id }];
+    return [{ ts, kind: 'tool_use', model, tool_name: p.name || 'shell', tool_input: p.arguments || JSON.stringify(p.action || {}), tool_use_id: p.call_id }];
   }
   if (t === 'function_call_output') {
     return [{ ts, kind: 'tool_result', text: typeof p.output === 'string' ? p.output : JSON.stringify(p.output), tool_use_id: p.call_id }];
@@ -132,6 +153,13 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
   let sessionId = path.basename(file, '.jsonl');
   let cwd: string | null = null;
   let firstPrompt: string | null = null;
+  let model: string | null = null;
+  // Per-model billed totals, summed from the SAME numbers the per-message
+  // columns get, so SUM(messages) == sessions.usage for a Codex session too.
+  // Only a turn whose model Codex recorded can be aggregated: a cell keyed by
+  // a made-up model name would price a guess, so those tokens stay on the
+  // message rows alone (#198).
+  const usageByModel: UsageByModel = {};
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -140,7 +168,10 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
     const p: CodexPayload = o.payload || (o as unknown as CodexPayload);
     if (p.id && p.cwd) { cwd = p.cwd; if (p.id) sessionId = p.id; }
     const t = p.type || o.type;
-    for (const e of parseCodexLine(o)) {
+    // A recorded model holds until the transcript records another one (the
+    // operator switching model mid-session writes a fresh turn context).
+    model = recordedModel(p) ?? model;
+    for (const e of parseCodexLine(o, model)) {
       events.push(e);
       // Push every user row (active-time needs them); only the display-name
       // fallback skips synthetic wrappers.
@@ -159,6 +190,10 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
           e.output_tokens = u.output_tokens || 0;
           e.cache_read_tokens = u.cached_input_tokens || 0;
           e.cache_w5m_tokens = u.cache_write_input_tokens || 0;
+          if (e.model) addCellInto(usageByModel, e.model, {
+            input: e.input_tokens, output: e.output_tokens, cacheRead: e.cache_read_tokens,
+            cacheWrite5m: e.cache_w5m_tokens, cacheWrite1h: 0,
+          });
           break;
         }
       }
@@ -175,6 +210,7 @@ async function parseCodexSession(file: string): Promise<ParseResult> {
       started_at: timestamps[0] ?? null,
       ended_at: timestamps[timestamps.length - 1] ?? null,
       first_prompt: firstPrompt,
+      usage: Object.keys(usageByModel).length ? JSON.stringify(usageByModel) : null,
       skipped: 0,
     },
     events,

@@ -1,5 +1,7 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { codexSource } from '../../server/parsers/codex.ts';
 
@@ -65,6 +67,9 @@ test('parseCodexSession: maps rollout event types to the normalized kind set, in
     'User wants a healthcheck route; check framework first.',
   );
   assert.equal(assistantEvt.text, 'Added GET /api/health returning 200.');
+  // The fixture opens with the turn context a current Codex rollout writes, so
+  // its model outputs carry that model (#198).
+  assert.equal(assistantEvt.model, 'gpt-5-codex');
 
   // function_call -> tool_use: tool_name falls back to payload.name, tool_input
   // is the raw (still-JSON-encoded) `arguments` string as Codex wrote it.
@@ -92,4 +97,123 @@ test('parseCodexSession: per-event token usage fields are absent when the fixtur
     assert.equal(e.input_tokens, undefined);
     assert.equal(e.output_tokens, undefined);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model capture (#198). Codex records the model it ran a turn on in the
+// rollout's own context lines, not on the response items — so these fixtures
+// are written per test rather than added to the committed one.
+
+const tmpDirs = [];
+function makeTmpDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-codex-test-'));
+  tmpDirs.push(dir);
+  return dir;
+}
+after(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+function writeRollout(lines) {
+  const dir = makeTmpDir();
+  const file = path.join(dir, 'rollout-2026-07-02T09-00-00-def.jsonl');
+  fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return file;
+}
+
+const META = { timestamp: '2026-07-02T09:00:00.000Z', type: 'session_meta', payload: { id: '0198-def', cwd: '/Users/dev/example-repo' } };
+const TURN_CONTEXT = (model, at) => ({ timestamp: at, type: 'turn_context', payload: { cwd: '/Users/dev/example-repo', model, effort: 'medium' } });
+const USER = (text, at) => ({ timestamp: at, type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
+const ASSISTANT = (text, at) => ({ timestamp: at, type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] } });
+
+test('parseCodexSession: the turn context model lands on every model output of the turn', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    { timestamp: '2026-07-02T09:00:03.000Z', type: 'response_item', payload: { type: 'reasoning', summary: [{ type: 'summary_text', text: 'think' }] } },
+    { timestamp: '2026-07-02T09:00:04.000Z', type: 'response_item', payload: { type: 'function_call', name: 'shell', arguments: '{"command":["ls"]}', call_id: 'call_1' } },
+    ASSISTANT('shipped', '2026-07-02T09:00:05.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+  const modelOf = (kind) => events.find((e) => e.kind === kind).model;
+
+  assert.equal(modelOf('assistant'), 'gpt-5-codex');
+  assert.equal(modelOf('thinking'), 'gpt-5-codex');
+  assert.equal(modelOf('tool_use'), 'gpt-5-codex');
+  // A user message is the operator's, not the model's — it carries no model.
+  assert.equal(modelOf('user'), undefined);
+});
+
+test('parseCodexSession: switching model mid-session re-stamps the turns after the switch', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+    TURN_CONTEXT('gpt-5.6-terra', '2026-07-02T09:00:04.000Z'),
+    USER('now the docs', '2026-07-02T09:00:05.000Z'),
+    ASSISTANT('documented', '2026-07-02T09:00:06.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.deepEqual(
+    events.filter((e) => e.kind === 'assistant').map((e) => e.model),
+    ['gpt-5-codex', 'gpt-5.6-terra'],
+  );
+});
+
+test('parseCodexSession: the session usage aggregate is keyed by the model that spent the tokens', async () => {
+  const file = writeRollout([
+    META,
+    TURN_CONTEXT('gpt-5-codex', '2026-07-02T09:00:01.000Z'),
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+    { timestamp: '2026-07-02T09:00:04.000Z', type: 'token_count', payload: { info: { last_token_usage: { input_tokens: 900, output_tokens: 40, cached_input_tokens: 800, cache_write_input_tokens: 50 } } } },
+    TURN_CONTEXT('gpt-5.6-terra', '2026-07-02T09:00:05.000Z'),
+    USER('now the docs', '2026-07-02T09:00:06.000Z'),
+    ASSISTANT('documented', '2026-07-02T09:00:07.000Z'),
+    { timestamp: '2026-07-02T09:00:08.000Z', type: 'token_count', payload: { info: { last_token_usage: { input_tokens: 300, output_tokens: 20, cached_input_tokens: 100 } } } },
+  ]);
+
+  const { session } = await parseCodexSession(file);
+
+  assert.deepEqual(JSON.parse(session.usage), {
+    'gpt-5-codex': { input: 100, output: 40, cacheRead: 800, cacheWrite5m: 50, cacheWrite1h: 0 },
+    'gpt-5.6-terra': { input: 200, output: 20, cacheRead: 100, cacheWrite5m: 0, cacheWrite1h: 0 },
+  });
+});
+
+test('parseCodexSession: a transcript that records no tokens carries no usage aggregate', async () => {
+  const file = writeRollout([META, USER('hi', '2026-07-02T09:00:02.000Z'), ASSISTANT('hello', '2026-07-02T09:00:03.000Z')]);
+
+  const { session } = await parseCodexSession(file);
+
+  assert.equal(session.usage, null);
+});
+
+test('parseCodexSession: a model recorded on the session meta counts too, whichever line carries it', async () => {
+  // Codex has carried the field on more than one line type across versions;
+  // the model is the payload's own `model`, wherever the transcript puts it.
+  const file = writeRollout([
+    { timestamp: '2026-07-02T09:00:00.000Z', type: 'session_meta', payload: { id: '0198-def', cwd: '/Users/dev/example-repo', model: 'gpt-5.6-terra' } },
+    USER('ship it', '2026-07-02T09:00:02.000Z'),
+    ASSISTANT('shipped', '2026-07-02T09:00:03.000Z'),
+  ]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.equal(events.find((e) => e.kind === 'assistant').model, 'gpt-5.6-terra');
+});
+
+test('parseCodexSession: a transcript that records no model anywhere leaves its rows unmodeled', async () => {
+  // Older Codex versions record no model at all. Inventing one would price a
+  // guess, so those rows stay honestly unmodeled (and unpriced).
+  const file = writeRollout([META, USER('ship it', '2026-07-02T09:00:02.000Z'), ASSISTANT('shipped', '2026-07-02T09:00:03.000Z')]);
+
+  const { events } = await parseCodexSession(file);
+
+  assert.equal(events.find((e) => e.kind === 'assistant').model, null);
 });
