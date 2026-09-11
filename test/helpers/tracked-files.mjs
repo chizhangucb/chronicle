@@ -20,6 +20,14 @@ export const git = (...args) =>
 
 export const tracked = git('ls-files').split('\n').filter(Boolean);
 
+/**
+ * Prose flattened for matching: emphasis and backticks stripped, whitespace
+ * collapsed. Prose wraps and markdown bolds half a sentence, so a claim only
+ * matches reliably against this form. Shared for the same reason `tracked` is:
+ * two copies of a sweep drifted apart once already (issue #186).
+ */
+export const flatten = (src) => src.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
+
 export const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
 /** Binary files: read as utf8 they are noise, and none of them carries prose. */
