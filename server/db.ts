@@ -99,6 +99,19 @@ CREATE TABLE IF NOT EXISTS session_tombstones (
   deleted_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (source, session_id)
 );
+-- The operator's own redaction and allow rules, read and written by
+-- server/security.ts. Declared here, not there, because this module is the one
+-- place a table is declared: schema that ran on some other module's import
+-- appeared and disappeared with that module's import graph (issue #264).
+CREATE TABLE IF NOT EXISTS security_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  pattern TEXT NOT NULL,          -- glob: * = any length, ? = single char
+  replacement TEXT DEFAULT '****',
+  kind TEXT NOT NULL DEFAULT 'redact',  -- 'redact' | 'allow'
+  enabled INTEGER NOT NULL DEFAULT 1,
+  builtin_override TEXT           -- if set, disables that builtin rule id
+);
 `);
 
 // Idempotent migrations
@@ -339,6 +352,12 @@ PRAGMA user_version = 0;
 // undo) and its audit trail are gone. A database written by an older Chronicle
 // still carries the table, so drop it once — nothing reads it any more.
 db.exec('DROP TABLE IF EXISTS gate_audit;');
+
+// Retired with it: pre-tool-use interception (issue #264). Chronicle once
+// scanned a tool call before the model saw it and recorded what it blocked.
+// The hook that called it went with the shrink, so the record has had no
+// writer and no reader since; drop the table the same way.
+db.exec('DROP TABLE IF EXISTS interceptions;');
 
 // Retired: Chronicle's record of which of its own surfaces were looked at is
 // gone. A data folder written by an older Chronicle still carries the table, so

@@ -1,41 +1,12 @@
+// Redaction, and only redaction: the rules the operator keeps, the scan over a
+// string and the scan over a session. The `security_rules` table itself is
+// declared in server/db.ts (issue #264), which is the one place schema lives.
 import { db } from './db.ts';
 // The rule row, the finding, the scanned message and the scan result are the
 // four shapes this engine answers the redaction preview with. They are declared
 // in shared/ (#307) so the preview renders what the route sends.
 import type { SecurityRuleRow } from '../shared/rows.ts';
 import type { SecurityCheckMessage, SecurityFinding, SecurityScanResult } from '../shared/results.ts';
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS security_rules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  pattern TEXT NOT NULL,          -- glob: * = any length, ? = single char
-  replacement TEXT DEFAULT '****',
-  kind TEXT NOT NULL DEFAULT 'redact',  -- 'redact' | 'allow'
-  enabled INTEGER NOT NULL DEFAULT 1,
-  builtin_override TEXT           -- if set, disables that builtin rule id
-);`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS interceptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ts TEXT DEFAULT (datetime('now')),
-  tool_name TEXT,
-  file_path TEXT,
-  rules TEXT,          -- JSON array of matched rule names
-  sample TEXT,         -- first blocked match (truncated)
-  action TEXT          -- 'blocked' | 'flagged'
-);`);
-
-export interface InterceptionRow {
-  id: number;
-  ts: string;
-  tool_name: string | null;
-  file_path: string | null;
-  rules: string | null;
-  sample: string | null;
-  action: string | null;
-}
 
 /** A finding before it is attributed to one of a message's two scanned fields
  * — `SecurityFinding` (shared/results.ts) with `field` still to come. */
@@ -52,9 +23,6 @@ interface RuleSpec {
   re: RegExp;
   replace: (...args: string[]) => string;
 }
-
-// Rules that justify hard-blocking a tool call (vs. merely flagging).
-const HIGH_SEVERITY = new Set(['api_key', 'password', 'token', 'db_conn']);
 
 // FR-SEC-1: built-in detection rules — meaningful placeholders keep structure readable.
 export const BUILTIN_RULES: RuleSpec[] = [
@@ -174,58 +142,6 @@ export function scanText(text: string | null | undefined): ScanTextResult {
   }
   redacted += text.slice(cursor);
   return { findings, redacted };
-}
-
-export interface PreToolUseInput {
-  tool_name?: string | null;
-  tool_input?: string | Record<string, unknown> | null;
-}
-
-export interface PreToolUseResult {
-  decision: 'allow' | 'block';
-  action?: 'blocked' | 'flagged';
-  findings: { rule: string; match: string }[];
-  reason?: string | null;
-}
-
-// Pre-tool-use detection (FR-SEC-5): scan tool content BEFORE it reaches the
-// model. For Read-like tools we scan the actual file contents; otherwise the
-// tool input itself. Only high-severity findings block; the rest are flagged.
-export function preToolUseCheck(
-  { tool_name, tool_input }: PreToolUseInput,
-  readFileFn?: ((filePath: string) => string | null | undefined) | null,
-): PreToolUseResult {
-  const input: Record<string, unknown> = typeof tool_input === 'string' ? safeParse(tool_input) : (tool_input ?? {});
-  let content = '';
-  let filePath = (input.file_path || input.path || null) as string | null;
-  if (filePath && /^(Read|read_file|View|Grep|NotebookRead)$/i.test(tool_name || '') && readFileFn) {
-    content = readFileFn(filePath) ?? '';
-  } else {
-    content = JSON.stringify(input);
-  }
-  const { findings } = scanText(content);
-  if (!findings.length) return { decision: 'allow', findings: [] };
-  const blocking = findings.filter((f) => HIGH_SEVERITY.has(f.rule) || f.rule.startsWith('custom-'));
-  const action = blocking.length ? 'blocked' : 'flagged';
-  db.prepare('INSERT INTO interceptions (tool_name, file_path, rules, sample, action) VALUES (?, ?, ?, ?, ?)')
-    .run(tool_name ?? null, filePath, JSON.stringify([...new Set(findings.map((f) => f.ruleName))]),
-         (blocking[0] ?? findings[0]).match.slice(0, 80), action);
-  return {
-    decision: blocking.length ? 'block' : 'allow',
-    action,
-    findings: findings.map((f) => ({ rule: f.ruleName, match: f.match.slice(0, 60) })),
-    reason: blocking.length
-      ? `Chronicle blocked this tool call: ${blocking.length} high-risk secret(s) detected (${[...new Set(blocking.map((f) => f.ruleName))].join(', ')})${filePath ? ` in ${filePath}` : ''}. Redact or allowlist via Chronicle → Security before retrying.`
-      : null,
-  };
-}
-
-function safeParse(s: string): Record<string, unknown> {
-  try { return JSON.parse(s); } catch { return {}; }
-}
-
-export function listInterceptions(limit = 200): InterceptionRow[] {
-  return db.prepare('SELECT * FROM interceptions ORDER BY id DESC LIMIT ?').all(limit) as unknown as InterceptionRow[];
 }
 
 export interface ScanMessage {

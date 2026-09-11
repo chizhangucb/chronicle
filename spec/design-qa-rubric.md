@@ -75,7 +75,7 @@ Product shape enumerated in `spec/surface-contract.md` — judge against it (IA-
       and never overflow their container at any reference width.
 - [ ] Subagents card total matches the imported session's real subagent count (Data-scale lens —
       on the big fixture this must equal `FIXTURE_SUBAGENT_COUNT`).
-- [ ] Security Check tab lists interceptions/redactions without leaking raw secret text.
+- [ ] Security Check tab lists what would be redacted without leaking raw secret text.
 
 ### Modals, dropdowns, toasts (Radix primitives)
 - [ ] `.modal` self-centers via a **static** `transform: translate(-50%,-50%)` property on the
