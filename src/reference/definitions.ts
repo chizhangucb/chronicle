@@ -204,6 +204,13 @@ export const DEFINITIONS: Definition[] = [
 
   // ---- Explore / Content ----
   {
+    id: 'explore.partial-tokens',
+    page: 'explore',
+    title: 'Partial tokens (≈)',
+    plain: () => 'Hour and Subagent sum tokens from the per-message columns, which hold only part of what was billed, about three quarters of it: the rest is never written per message. There is no hourly or per-subagent split of the billed totals to scale them against, so Chronicle shows the real per-message figures and marks them ≈, the same marker a calibrated figure carries. Group by Model, Project or Source for exact token totals.',
+    tech: () => 'server/explore.ts per-message sums; EXACT_USAGE_GROUPS is the exact set',
+  },
+  {
     id: 'explore.rollup',
     page: 'explore',
     title: 'Rollup',

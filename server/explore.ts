@@ -441,18 +441,20 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
       if (dayCells) row.tokensByModelByDay = Object.fromEntries(dayCells);
       if (usageCells) { row.tokensByModel = usageCells; continue; }
       // No sessions.usage for this group value. For model/project/source this
-      // means genuinely zero billed usage in scope — blank to {} as before.
+      // means genuinely zero billed usage in scope: blank to {} as before.
       // For session it more often means the session's SOURCE never populates
       // sessions.usage at all (cursor/opencode never do; codex only does for a
       // transcript that records the model it ran on, #198): blanking to {}
       // would show Tokens=0/$0.00 next to a
       // real nonzero Requests count on the SAME row, reading as a bug. Keep
-      // the per-message tokensByModel cellRows already built above instead —
-      // the same non-exact-but-unmarked path hour/subagent already use (see
-      // groupShowsTokenColumn / EXP-02): real numbers for codex (which does
-      // carry per-message input_tokens/output_tokens), and an honest 0 for
-      // cursor/opencode (which carry no token telemetry at all, per-message
-      // or per-session — nothing to fall back to).
+      // the per-message tokensByModel cellRows already built above instead,
+      // the same PARTIAL path hour/subagent take (client tokenColumns.ts):
+      // real numbers for codex (which does carry per-message input_tokens/
+      // output_tokens), and an honest 0 for cursor/opencode (which carry no
+      // token telemetry at all, per-message or per-session, nothing to fall
+      // back to). Unlike hour/subagent this fallback is per-ROW, not per-group:
+      // the wire does not say which rows took it, so the Detail table cannot
+      // mark those cells and shows them bare (#203).
       if (query.group !== 'session') row.tokensByModel = {};
     }
     // Only materialize usage-only rows (a model billed but with no per-message

@@ -122,8 +122,8 @@ _Avoid_: theoretical, real, mode.
 **Usage**:
 A session's token totals per model, split by input, output, cache read, and cache writes at each cache lifetime.
 
-**Exact vs calibrated**:
-A figure is **exact** when it comes straight from billed token counts, and **calibrated** when tokens are attributed by share of text length and scaled to a real billed total. Calibrated figures say so on the surface.
+**Exact, calibrated, partial**:
+A figure is **exact** when it comes straight from billed token counts, **calibrated** when tokens are attributed by share of text length and scaled to a real billed total, and **partial** when it is summed from the per-message token columns, which hold only part of billed usage and have nothing to be scaled against (Explore's hour and subagent dimensions). Calibrated and partial figures both say so on the surface, with the `≈` marker: it means the number is not a billed total, and the ⓘ beside it says which of the two it is.
 _Avoid_: estimated, approximate, derived.
 
 **Plan window**:
