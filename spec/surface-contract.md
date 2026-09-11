@@ -45,7 +45,9 @@
 ## Sidebar (`src/App.tsx`)
 
 Exactly ONE collapsible left sidebar; collapse state persists in `localStorage`; width is
-drag-resizable when expanded. Contents, top to bottom:
+resizable when expanded, by drag, touch or the arrow keys on the focused handle (the handle is
+a focusable `separator` carrying `aria-valuenow`/`min`/`max`; same for playback's chat/code
+divider). Contents, top to bottom:
 
 - **Brand** — `◷` Chronicle (click → `/`).
 - **`sb-top` nav — exactly two items, always on:** Insights (`∑`) and Projects (`◫`). There is
@@ -396,6 +398,7 @@ Toggle rows, in order: **Auto-sync sessions** · **Pause auto-sync** · **Claude
 | Enumerable / shape fact | Guarding test |
 |---|---|
 | Sidebar `sb-top` = exactly Insights + Projects, no Home entry, no `⌂`, on every install and in every mode | `test/e2e/home.spec.ts` — "sidebar top nav has exactly Insights and Projects, no Home entry" |
+| Both resize handles are focusable, arrow-key resizable within the drag's own clamp, aria-valued and touch-draggable | `test/resize-handle.test.mjs`; `test/e2e/playback.spec.ts` — "the divider resizes from the keyboard and announces the width it lands on" |
 | Every route the shrink removed is unmounted (404) — briefing, launcher, scope-suggest, external-checkout, gate, safety, modules, jobs, records, memory, proxy-lane, machine-sessions; `/settings` has no `homeBands` | `test/removed-routes.test.mjs` |
 | The contract database views and their version pragma are gone; the surviving routes still answer | `test/routes-after-contract-views.test.mjs` |
 | The local record of which surface was looked at is gone: no table on an upgraded data folder, no route, no client call, no Settings block; WAL stays on for the SQLite-backed parsers | `test/view-log-removed.test.mjs` |
