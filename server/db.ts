@@ -22,7 +22,7 @@ import { applySchema } from './schema.ts';
 // database, applying the schema and running the backfills is what
 // `openDatabase(dir)` is for, and every other module reads the open handle
 // through `getDb()`. That is what lets a test build an app against a temp
-// database in one line — `createApp(openDatabase(dir))` — instead of mounting
+// database in one line, `createApp(openDatabase(dir))`, instead of mounting
 // routers one at a time to dodge an import side effect.
 //
 // The open handles live on globalThis, the same idiom as server/cache.ts and
@@ -75,14 +75,23 @@ export function openDatabase(dir: string = dataDir): DatabaseSync {
   const fts = applySchema(db);
   state.open.set(file, db);
   state.meta.set(db, { dir, fts });
-  // Active BEFORE the backfills: they read the handle back through getDb()
-  // (snapshotDb does), so the database being filled has to be the current one.
   state.active = db;
   runBackfills(db);
   return db;
 }
 
-/** Read and write `db` from here on — what createApp(db) calls so the routes it
+/** Close a database and forget it: the other half of openDatabase(), so a caller
+ *  that opened a folder can open it again and get a live handle. Closing the
+ *  current database leaves none open, and getDb() says so. */
+export function closeDatabase(db: DatabaseSync): void {
+  const meta = state.meta.get(db);
+  if (meta) state.open.delete(path.join(meta.dir, 'chronicle.db'));
+  state.meta.delete(db);
+  if (state.active === db) state.active = null;
+  db.close();
+}
+
+/** Read and write `db` from here on. What createApp(db) calls, so the routes it
  *  mounts serve the database they were handed. */
 export function useDatabase(db: DatabaseSync): void {
   state.active = db;
@@ -103,16 +112,22 @@ export function ftsAvailable(db: DatabaseSync = getDb()): boolean {
   return state.meta.get(db)?.fts ?? false;
 }
 
-/** The data folder a handle was opened against. */
+/** The data folder a handle was opened against. Throws for a handle this module
+ *  did not open: guessing would write a backup into the operator's real
+ *  ~/.chronicle on behalf of some other database. */
 function dirOf(db: DatabaseSync): string {
-  return state.meta.get(db)?.dir ?? dataDir;
+  const meta = state.meta.get(db);
+  if (!meta) throw new Error('Chronicle: this database was not opened by openDatabase(), so its data folder is unknown.');
+  return meta.dir;
 }
 
 /** The one-time data repairs an older database needs. Each one fails soft, for
  *  the reason spelled out above it: a deferred backfill costs accuracy until the
  *  next boot retries it, a thrown one would cost the operator their app. */
 function runBackfills(db: DatabaseSync): void {
-  // ~0.5s warm on the maintainer's 108k-row DB; runs once per database, ever.
+  // One-time backfill for sessions imported before result_count/error_count
+  // existed (NULL). ~0.5s warm on the maintainer's 108k-row DB; runs once per
+  // database, ever.
   // Failure (e.g. SQLITE_BUSY from a stale second Chronicle process holding a
   // write lock at this exact first-boot-after-upgrade moment) must NOT kill
   // startup: the rows just stay NULL — COALESCE(...,0) in the readers degrades
@@ -203,7 +218,7 @@ function collapseRepeatedUsageBackfill(db: DatabaseSync): void {
                               WHERE source = 'claude-code' AND usage IS NOT NULL`)
     .all() as unknown as { id: string; file_path: string; usage: string }[];
   if (targets.length) {
-    snapshotDb(true); // unconditional: this rewrites history in place
+    snapshotDb(true, db); // unconditional: this rewrites history in place
     // ONE ordered scan of the usage-bearing rows, not a query per session.
     const rows = db.prepare(`SELECT m.id, m.session_id, m.model,
              COALESCE(m.input_tokens,0) AS input_tokens, COALESCE(m.output_tokens,0) AS output_tokens,
@@ -278,18 +293,18 @@ function collapseRepeatedUsageBackfill(db: DatabaseSync): void {
   }
 }
 
-// Failure must not kill startup — same rule as the error-count backfill above.
-// A second Chronicle process holding a write lock (SQLITE_BUSY) is the likely
-// cause; the marker is only written inside the committed transaction, so a
+// Snapshot the whole DB. Called before destructive deletes (project/session
 // removal, via routes/_shared.ts's backupDbBeforeDelete) and before the usage
 // backfill rewrites historical usage. Throttled to at most one snapshot per
 // hour so a multi-select Remove loop makes ONE backup, not N; `force` overrides
 // that for a one-shot migration, which must always be recoverable. Keeps the
 // two newest. Restore = stop the app and copy the snapshot back over
 // chronicle.db (delete any -wal/-shm sidecars alongside it first).
-export function snapshotDb(force = false): string | null {
+export function snapshotDb(force = false, handle?: DatabaseSync): string | null {
   try {
-    const db = getDb();
+    // `handle` is for the one caller that snapshots a database mid-open (the
+    // usage backfill); everything else snapshots the open one.
+    const db = handle ?? getDb();
     const dir = path.join(dirOf(db), 'backups', 'db');
     fs.mkdirSync(dir, { recursive: true });
     const existing = fs.readdirSync(dir).filter((f) => f.startsWith('chronicle-')).sort();

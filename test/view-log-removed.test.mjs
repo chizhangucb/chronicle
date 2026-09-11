@@ -110,7 +110,7 @@ test('the WAL comment stands on the SQLite-backed parsers, not on the view log',
 test('the boot mounts no such route and runs no retention pass', () => {
   const src = read('server/api.ts');
   assert.equal(namesTheFeature(src), false, 'server/api.ts still reaches for the view log');
-  // Everything createApp() calls. Mounting a router is the whole of it — a
+  // Everything createApp() calls. Mounting a router is the whole of it: a
   // rolling 180-day DELETE over the recorded rows used to sit between the
   // mounts. Auto-sync moved out to the entry points with #275, so a boot call
   // of any kind in here is new.

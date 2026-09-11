@@ -4,7 +4,7 @@
 // in server/db.ts and by nothing else. A table declared on some other module's
 // import appeared and disappeared with that module's import graph (issue #264),
 // and a schema that ran on db.ts's own import meant a test could not open a
-// second database at all — both are the same bug, and this module is the fix.
+// second database at all. Both are the same bug, and this module is the fix.
 //
 // The order below is the order it must run in: create, then the idempotent
 // ALTERs that carry an older database forward, then the retired-object drops,
@@ -151,8 +151,9 @@ export function applySchema(db: DatabaseSync): boolean {
     applied_at TEXT DEFAULT (datetime('now'))
   )`);
 
-
-  // database. A database written by an older Chronicle still carries both, so
+  // Retired: the contract views and the version gate over them are gone. The
+  // base tables are the only read seam now; nothing outside this repo consumes
+  // the database. A database written by an older Chronicle still carries both, so
   // clear them once — leaving `user_version` at 1 would advertise a contract that
   // no longer exists to anyone who does read the pragma.
   db.exec(`

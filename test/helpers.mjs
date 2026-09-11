@@ -4,7 +4,7 @@
 // the database, applies the schema and runs the backfills, and the handle it
 // returns is the one every server module reads through getDb(). The env var is
 // still set here because server/config.ts freezes the data folder at import, and
-// that folder is what the config reader and the snapshot writer use — so callers
+// that folder is what the config reader and the snapshot writer use, so callers
 // still reach db.ts through a dynamic `await import()` after calling this.
 import fs from 'node:fs';
 import os from 'node:os';

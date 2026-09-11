@@ -45,7 +45,7 @@ export function demoIsSeeded(dir = demoDataDir()): boolean {
 /**
  * Build the demo database if today's is not already built.
  *
- * Opens the demo database itself (issue #275) — it is a production entry like
+ * Opens the demo database itself (issue #275): it is a production entry like
  * the standalone server, and the import below writes through the real import
  * path, which reads whichever database is open.
  *

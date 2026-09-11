@@ -15,8 +15,7 @@
 // deterministic regardless of what time of day it runs — no local-midnight edge case.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import express from 'express';
-import { withTempDb } from './helpers.mjs';
+import { withTempApp } from './helpers.mjs';
 import { rangeOf } from '../server/scope.ts';
 
 const HOUR = 3600000;
@@ -42,17 +41,19 @@ function spanEvents(tsOffsetsFromNowMs, tokensPerMsg) {
   }));
 }
 
-let dbModule, teardown, insightsModule, exploreModule, contentModule;
+let dbModule, teardown, app, insightsModule, exploreModule, contentModule;
 let projectId, server, baseUrl;
 
 before(async () => {
-  const temp = await withTempDb();
+  // The whole API over a temp database, in one call (#275). This used to mount
+  // the projects router by hand to dodge server/api.ts's import side effects.
+  const temp = await withTempApp();
   dbModule = temp.dbModule;
   teardown = temp.teardown;
+  app = temp.app;
   insightsModule = await import('../server/insights.ts');
   exploreModule = await import('../server/explore.ts');
   contentModule = await import('../server/content.ts');
-  const { mountProjects } = await import('../server/routes/projects.ts');
 
   const { upsertProject, replaceSession } = dbModule;
   const p = upsertProject('/tmp/window-p0-proj');
@@ -107,8 +108,6 @@ before(async () => {
     spanEvents(minorOffsets, 10),
   );
 
-  const app = express();
-  mountProjects(app);
   await new Promise((resolve) => {
     server = app.listen(0, () => { baseUrl = `http://127.0.0.1:${server.address().port}`; resolve(); });
   });

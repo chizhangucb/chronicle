@@ -24,9 +24,9 @@ before(async () => {
   dbModule = temp.dbModule;
   dir = temp.dir;
   teardown = temp.teardown;
-  // autosync.ts imports { db, upsertProject, replaceSession } from './db.ts'
-  // (a bare relative specifier) — same resolved URL as helpers.mjs already
-  // imported, so it binds to the SAME already-temp-dir-backed db instance.
+  // autosync.ts reads the open handle through getDb() (server/db.ts), which is
+  // the temp database withTempDb() just opened: one handle, not a second
+  // connection to the same file.
   autosync = await import('../server/autosync.ts');
   config = await import('../server/config.ts');
 });

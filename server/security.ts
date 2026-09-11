@@ -1,6 +1,6 @@
 // Redaction, and only redaction: the rules the operator keeps, the scan over a
 // string and the scan over a session. The `security_rules` table itself is
-// declared in server/db.ts (issue #264), which is the one place schema lives.
+// declared in server/schema.ts (issues #264, #275), the one place a table lives.
 import { getDb } from './db.ts';
 // The rule row, the finding, the scanned message and the scan result are the
 // four shapes this engine answers the redaction preview with. They are declared

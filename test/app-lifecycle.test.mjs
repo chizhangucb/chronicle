@@ -43,7 +43,7 @@ test('importing server/api.ts starts no autosync', async () => {
 });
 
 test('openDatabase(dir) opens the database in that dir and applies the schema', async () => {
-  const { openDatabase } = await import('../server/db.ts');
+  const { openDatabase, closeDatabase, getDb } = await import('../server/db.ts');
   const dir = tempDir();
   const db = openDatabase(dir);
   assert.ok(fs.existsSync(path.join(dir, 'chronicle.db')), 'openDatabase must open <dir>/chronicle.db');
@@ -59,7 +59,13 @@ test('openDatabase(dir) opens the database in that dir and applies the schema', 
   // Backfills ran: the one-shot ledger is marked on a fresh database.
   const done = db.prepare('SELECT COUNT(*) AS c FROM chronicle_migrations').get().c;
   assert.ok(done > 0, 'openDatabase must run the backfills, which stamp the migration ledger');
-  db.close();
+  // Closing it releases the folder: opening it again is a live handle, not the
+  // closed one.
+  closeDatabase(db);
+  const reopened = openDatabase(dir);
+  assert.notEqual(reopened, db, 'a closed database must not be handed back');
+  assert.equal(reopened.prepare('SELECT COUNT(*) AS c FROM sessions').get().c, 0);
+  assert.equal(getDb(), reopened);
 });
 
 test('createApp(openDatabase(dir)) serves the API against that database', async () => {

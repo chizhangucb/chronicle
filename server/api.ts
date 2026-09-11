@@ -23,9 +23,14 @@ import { useDatabase } from './db.ts';
  * Build the Express app that serves /api, reading and writing `db`.
  *
  * Nothing happens when this module is imported (issue #275, audit F13): no app,
- * no routes, and no auto-sync — the entry points start that (server/standalone.ts,
+ * no routes, and no auto-sync: the entry points start that (server/standalone.ts,
  * the Vite dev plugin). A test gets a whole API over its own temp database in
  * one line: `createApp(openDatabase(dir))`.
+ *
+ * One database per process, by design: the routes read the current handle
+ * (server/db.ts's getDb()), so building a second app makes ITS database the
+ * current one for the first app too. Chronicle serves one data folder per boot;
+ * a test that wants two databases at once wants two processes.
  */
 export function createApp(db: DatabaseSync): Express {
   // The routes below read the open handle through getDb(), so the database this
