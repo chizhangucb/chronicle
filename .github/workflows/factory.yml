@@ -6,13 +6,25 @@
 #
 # node_version is 24 everywhere the target's own tooling runs: chronicle's server and tests read
 # .ts through Node's type stripping, and package.json says engines.node >= 24.
+#
+# Pausing this target: set the repository variable FACTORY_PAUSED to any value
+# (Settings -> Secrets and variables -> Actions -> Variables). While it is set no work starts or
+# advances here — no sweep, no implementer, no reviewer, no audit, no branch update — and clearing
+# it starts everything again on the next heartbeat. The merge gate is deliberately outside the
+# pause: it is a required check, so pausing it would strand every open pull request behind a check
+# that never reports. Disabling the workflow is no longer the only brake.
+#
+# test/factory-caller-wakeups.test.mjs pins the wake-up rules below by evaluating them;
+# test/factory-caller-inputs.test.mjs pins the inputs each job passes.
 name: factory
 
 on:
   issues:
     # unlabeled and unassigned: a ticket held back by ready-for-human or by an
     # assignee reaches the factory the moment the human removes the blocker,
-    # instead of waiting up to ten minutes for the next heartbeat.
+    # instead of waiting up to ten minutes for the next heartbeat. Which of
+    # those removals actually wakes a sweep is decided in the dispatch job's
+    # `if:`, since `on:` cannot filter on a label name or on the ticket's state.
     types: [closed, labeled, unassigned, unlabeled]
   pull_request_target:
     types: [labeled]
@@ -44,13 +56,30 @@ permissions:
 
 jobs:
   dispatch:
+    # Three rules decide whether a ticket event wakes a sweep, and a sweep re-scans every ticket
+    # rather than the one that was touched:
+    #
+    #   The ticket must be open. A label edit or an assignee removal on a closed ticket is
+    #   bookkeeping on finished work, not a request to start any.
+    #
+    #   The removed label must not be the factory's own state (`agent:*`, `factory:*`). A run's
+    #   cleanup takes its own state label off at the end; when that removal woke a sweep, the
+    #   sweep could re-stamp the ticket the run had just finished with.
+    #
+    #   `closed` wakes a sweep whatever the label rules say: that is how a finished run is
+    #   reconciled, and it arrives with the ticket already closed.
     if: >-
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'repository_dispatch' && github.event.action == 'factory-sweep') ||
-      (github.event_name == 'issues' && (github.event.action == 'closed' || github.event.action == 'unlabeled' ||
-        github.event.action == 'unassigned' ||
-        (github.event.action == 'labeled' && github.event.label.name == 'ready-for-agent')))
+      vars.FACTORY_PAUSED == '' &&
+      (github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'repository_dispatch' && github.event.action == 'factory-sweep') ||
+        (github.event_name == 'issues' && github.event.action == 'closed') ||
+        (github.event_name == 'issues' && github.event.issue.state == 'open' &&
+          (github.event.action == 'unassigned' ||
+            (github.event.action == 'labeled' && github.event.label.name == 'ready-for-agent') ||
+            (github.event.action == 'unlabeled' &&
+              !startsWith(github.event.label.name, 'agent:') &&
+              !startsWith(github.event.label.name, 'factory:')))))
     uses: chizhangucb/software-factory/.github/workflows/dispatch.yml@main
     secrets: inherit
     with:
@@ -60,27 +89,36 @@ jobs:
       # ADR 0002, 2026-09-07 amendment).
       trusted_author_associations: OWNER
   implement:
-    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent:implement'
+    if: >-
+      vars.FACTORY_PAUSED == '' &&
+      github.event_name == 'issues' && github.event.action == 'labeled' &&
+      github.event.issue.state == 'open' && github.event.label.name == 'agent:implement'
     uses: chizhangucb/software-factory/.github/workflows/agent-implement.yml@main
     secrets: inherit
     with:
       factory_ref: main
       node_version: "24"
   review:
-    if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:review'
+    if: >-
+      vars.FACTORY_PAUSED == '' &&
+      github.event_name == 'pull_request_target' && github.event.label.name == 'agent:review'
     uses: chizhangucb/software-factory/.github/workflows/agent-review.yml@main
     secrets: inherit
     with:
       factory_ref: main
       node_version: "24"
   implement-pr:
-    if: github.event_name == 'pull_request_target' && github.event.label.name == 'agent:implement'
+    if: >-
+      vars.FACTORY_PAUSED == '' &&
+      github.event_name == 'pull_request_target' && github.event.label.name == 'agent:implement'
     uses: chizhangucb/software-factory/.github/workflows/agent-implement-pr.yml@main
     secrets: inherit
     with:
       factory_ref: main
       node_version: "24"
   merge-gate:
+    # Outside the pause on purpose: this is the required check on a pull request, so a paused
+    # factory still judges what is open rather than stranding it.
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     uses: chizhangucb/software-factory/.github/workflows/merge-gate.yml@main
     secrets: inherit
@@ -99,7 +137,9 @@ jobs:
       # belongs here and not in test_command, which runs once per file.
       install_command: npm ci && npx playwright install --with-deps chromium
   audit:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged
+    if: >-
+      vars.FACTORY_PAUSED == '' &&
+      github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged
     uses: chizhangucb/software-factory/.github/workflows/agent-audit.yml@main
     secrets: inherit
     with:
@@ -107,8 +147,9 @@ jobs:
       node_version: "24"
   update-branch:
     if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'repository_dispatch' && github.event.action == 'factory-update-branch')
+      vars.FACTORY_PAUSED == '' &&
+      (github.event_name == 'push' ||
+        (github.event_name == 'repository_dispatch' && github.event.action == 'factory-update-branch'))
     uses: chizhangucb/software-factory/.github/workflows/update-branch.yml@main
     secrets: inherit
     with:

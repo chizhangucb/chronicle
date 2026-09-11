@@ -191,6 +191,15 @@ const RETIRED_CLAIMS = [
     re: /needs-triage \+ ready-for-agent|ready-for-agent \+ needs-triage/i,
   },
   { claim: 'a ticket can be agent-ready but held by its triage role', re: /agent-ready but held/i },
+  {
+    // Since #365 the caller ignores the factory's own `agent:*` and `factory:*`
+    // removals (a run's cleanup would otherwise wake a sweep that re-stamps the
+    // ticket it just finished) and ignores any label edit on a closed ticket.
+    // "Removing any label triggers a sweep" now sends a reader looking for a
+    // sweep that never comes.
+    claim: 'every label removal triggers a sweep',
+    re: /removing any label[^.]{0,60}\b(triggers|wakes)\b|no quiet label removal/i,
+  },
 ];
 
 for (const { claim, re } of RETIRED_CLAIMS) {
