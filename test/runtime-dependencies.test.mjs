@@ -69,3 +69,58 @@ for (const { name, floor } of PATCHED) {
     );
   });
 }
+
+// What `npm ci --omit=dev` installs: npm marks an entry `dev: true` when every
+// path to it runs through devDependencies, so the unmarked entries are the
+// production tree. The root entry ("") is the package itself, not a download.
+const productionTree = () =>
+  new Set(
+    Object.entries(lock.packages)
+      .filter(([where, entry]) => where !== '' && !entry.dev)
+      .map(([where]) => where),
+  );
+
+// Node's resolution, walked the way `npm ls` walks it: a dependency is the
+// nested copy if one was installed, else the nearest copy up the tree.
+const locate = (from, name) => {
+  const segments = from === '' ? [] : from.split('/');
+  for (let depth = segments.length; depth >= 0; depth -= 2) {
+    const where = [...segments.slice(0, depth), 'node_modules', name].join('/');
+    if (lock.packages[where]) return where;
+  }
+  return null;
+};
+
+// Everything reachable from Express: the tree a user gets for the one runtime
+// dependency. Optional deps count -- npm installs the ones that apply to the
+// platform, so they ship too.
+const expressTree = () => {
+  const seen = new Set();
+  const queue = [locate('', 'express')];
+  while (queue.length > 0) {
+    const where = queue.pop();
+    if (where === null || seen.has(where)) continue;
+    seen.add(where);
+    const entry = lock.packages[where];
+    const names = Object.keys({ ...entry.dependencies, ...entry.optionalDependencies });
+    queue.push(...names.map((name) => locate(where, name)));
+  }
+  return seen;
+};
+
+test('an install without dev dependencies downloads Express and its own tree, nothing else', () => {
+  const production = productionTree();
+  const express = expressTree();
+  const strays = [...production].filter((where) => !express.has(where));
+  assert.deepEqual(strays, [], `a package outside Express's tree ships to users: ${strays}`);
+  assert.deepEqual(
+    [...express].filter((where) => !production.has(where)),
+    [],
+    "Express's tree reaches a package the lockfile marks dev-only",
+  );
+});
+
+test('no js-yaml reaches a user who installs without dev dependencies', () => {
+  const shipped = [...productionTree()].filter((where) => where.endsWith('node_modules/js-yaml'));
+  assert.deepEqual(shipped, [], `js-yaml still ships to users: ${shipped}`);
+});
