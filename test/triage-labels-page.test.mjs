@@ -186,3 +186,22 @@ for (const { claim, re } of RETIRED) {
     );
   });
 }
+
+// --- The maintainer's rule, stated once ------------------------------------
+
+test('the page says needs-triage means a human still has to decide', () => {
+  assert.match(
+    flat,
+    /needs-triage means a human [^.]{0,60}\bdecide\b/i,
+    `${PAGE} must say what \`needs-triage\` asks for. Without it the label reads as a state a ` +
+      'triager clears rather than a decision a human owes, which is how it became a hold in the first place',
+  );
+});
+
+test('the page says hold is how a finished ticket is held', () => {
+  assert.match(
+    flat,
+    /holding a (finished|ready) ticket is hold\b/i,
+    `${PAGE} must name the label that actually holds a ticket back, beside the one that does not`,
+  );
+});

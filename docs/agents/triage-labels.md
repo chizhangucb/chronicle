@@ -13,7 +13,7 @@ When a skill names a triage role ("apply the AFK-ready triage label"), apply tha
 
 ## The one that holds a ticket back
 
-`hold` is the brake, and it is the only one: the factory never dispatches, retries or requeues a ticket carrying it (`factory/dispatch/select.ts`). Removing it releases the ticket on the next sweep, which is within ten minutes. A ticket carrying `needs-triage` and `ready-for-agent` is dispatched, not held.
+`hold` is the brake, and it is the only one: the factory never dispatches, retries or requeues a ticket carrying it (`factory/dispatch/select.ts`). Removing it releases the ticket on the next sweep, which is within ten minutes. A ticket carrying `needs-triage` and `ready-for-agent` is dispatched, not held: `needs-triage` means a human still has to decide something about the ticket, and deciding is not the same as stopping it. Holding a finished ticket is `hold`.
 
 Any label edit on an issue triggers a sweep, removals included, and a sweep re-scans every ticket rather than the one you touched. There is no quiet label edit on a factory repo.
 
