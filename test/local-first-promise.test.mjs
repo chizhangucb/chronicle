@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, tracked, read, BINARY } from './helpers/tracked-files.mjs';
+import { REPO, tracked, read, flatten, BINARY } from './helpers/tracked-files.mjs';
 
 // Exempt, on the same grounds test/repo-shape.test.mjs exempts them:
 //   - CHANGELOG.md: history is allowed to say what a release said.
@@ -31,10 +31,6 @@ const EXEMPT = new Set([
   'docs/agents/design-audit-2026-09-04.md',
 ]);
 const sweepable = tracked.filter((rel) => !EXEMPT.has(rel) && !BINARY.test(rel));
-
-// Prose wraps, and markdown bolds half a sentence, so a claim is matched
-// against the flattened line: emphasis stripped, whitespace collapsed.
-const flatten = (src) => src.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
 
 // Claims that deny the plan-window read exists. Each is false as written:
 // the one outbound call is real, on by default, and named on the privacy page.

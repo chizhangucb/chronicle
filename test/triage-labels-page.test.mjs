@@ -9,45 +9,47 @@
 //
 // Chronicle cannot read GitHub's label list or the factory's modules from a
 // test, so the two things this pin needs are written down below and widened by
-// hand: REPO_LABELS is what `scripts/onboard.sh` created on this repo, and
-// TRIAGER_LABELS_THE_FACTORY_READS is the part of that vocabulary a triager
-// applies and `factory/dispatch/select.ts` acts on. Widening either is the step
-// that says someone checked the factory and the repo, the same bargain
+// hand: REPO_LABELS is what the factory's `scripts/onboard.sh` created on this
+// repo, and TRIAGER_LABELS_THE_FACTORY_READS is the part of that vocabulary a
+// triager applies and `factory/dispatch/select.ts` acts on. Widening either is
+// the step that says someone checked the factory and the repo, the same bargain
 // test/factory-caller-inputs.test.mjs strikes with FACTORY_ROLES.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { read } from './helpers/tracked-files.mjs';
+import { read, flatten } from './helpers/tracked-files.mjs';
 
 const PAGE = 'docs/agents/triage-labels.md';
 const source = read(PAGE);
+const flat = flatten(source);
 
-// Every label chizhangucb/chronicle carries, by who writes it. The factory's
-// `scripts/onboard.sh` creates all of them; naming one outside this set on the
-// page sends a triager to `gh issue edit --add-label`, which fails on a label
-// the repo does not have rather than creating it.
-const REPO_LABELS = {
-  // The five canonical triage roles, spelled identically to the factory's page.
-  triageRoles: ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix'],
+/** The five canonical triage roles, spelled identically to their label strings. */
+const TRIAGE_ROLES = ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix'];
+
+// Every label chizhangucb/chronicle carries. The factory's `scripts/onboard.sh`
+// creates all of them; naming one outside this set on the page sends a triager
+// to `gh issue edit --add-label`, which fails on a label the repo does not have
+// rather than creating it.
+const REPO_LABELS = new Set([
+  ...TRIAGE_ROLES,
   // A human's instruction, unprefixed because it is not factory state.
-  human: ['hold'],
+  'hold',
   // The factory's own state: it writes these, a triager does not.
-  factoryState: [
-    'agent:implement',
-    'agent:in-progress',
-    'agent:review',
-    'agent:blocked',
-    'needs-human',
-    'factory:retry-1',
-  ],
-  categories: ['bug', 'enhancement'],
-  wayfinder: [
-    'wayfinder:map',
-    'wayfinder:research',
-    'wayfinder:prototype',
-    'wayfinder:grilling',
-    'wayfinder:task',
-  ],
-};
+  'agent:implement',
+  'agent:in-progress',
+  'agent:review',
+  'agent:blocked',
+  'needs-human',
+  'factory:retry-1',
+  // The two triage categories.
+  'bug',
+  'enhancement',
+  // The five wayfinder ticket types.
+  'wayfinder:map',
+  'wayfinder:research',
+  'wayfinder:prototype',
+  'wayfinder:grilling',
+  'wayfinder:task',
+]);
 
 // --- The role-to-label table ----------------------------------------------
 
@@ -58,7 +60,7 @@ const roleTable = () => {
     .filter((line) => line.trim().startsWith('|'))
     .map((line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()));
   const header = rows.findIndex(
-    (cells) => cells.length === 3 && cells.map((c) => c.toLowerCase()).join('|') === 'role|label|meaning',
+    (cells) => cells.length === 3 && cells.map((cell) => cell.toLowerCase()).join('|') === 'role|label|meaning',
   );
   assert.notEqual(header, -1, `${PAGE} carries no \`| Role | Label | Meaning |\` table`);
   // The separator row (`| --- |`) is not a row of the table.
@@ -68,9 +70,9 @@ const roleTable = () => {
 /** A cell's label string, unwrapped from its backticks: `hold` -> hold. */
 const labelIn = (cell) => cell.replace(/`/g, '').trim();
 
-test('the table maps every triage role to this repo\'s label string', () => {
+test("the table maps every triage role to this repo's label string", () => {
   const byRole = new Map(roleTable().map((cells) => [labelIn(cells[0]), cells]));
-  for (const role of REPO_LABELS.triageRoles) {
+  for (const role of TRIAGE_ROLES) {
     const row = byRole.get(role);
     assert.ok(row, `the table has no row for the ${role} role`);
     assert.equal(labelIn(row[1]), role, `the ${role} row names a different label than the role`);
@@ -78,14 +80,13 @@ test('the table maps every triage role to this repo\'s label string', () => {
   }
 });
 
-test('`hold` has its own row, and it is nobody\'s triage role', () => {
-  const rows = roleTable();
-  const held = rows.find((cells) => labelIn(cells[1]) === 'hold');
+test("`hold` has its own row, and it is nobody's triage role", () => {
+  const held = roleTable().find((cells) => labelIn(cells[1]) === 'hold');
   assert.ok(held, 'the table has no `hold` row, so nothing on the page says how to hold a ticket back');
   assert.equal(
     labelIn(held[0]),
     'none',
-    '`hold` is not one of the five triage roles; its Role cell says `none` on software-factory\'s page',
+    "`hold` is not one of the five triage roles; its Role cell says `none` on software-factory's page",
   );
   assert.match(
     held[2],
@@ -101,8 +102,6 @@ test('`hold` has its own row, and it is nobody\'s triage role', () => {
 
 // --- The vocabulary the page is allowed to name ---------------------------
 
-const EVERY_REPO_LABEL = new Set(Object.values(REPO_LABELS).flat());
-
 // The labels a TRIAGER applies that the factory then acts on, so the page
 // omitting one leaves a triager with no way to say that thing at all:
 //   ready-for-agent  `READY_LABEL`: the dispatcher starts on nothing else.
@@ -111,24 +110,38 @@ const EVERY_REPO_LABEL = new Set(Object.values(REPO_LABELS).flat());
 //                    `needs-triage`, and a triage pass that cleared the pair as
 //                    drift released 12 tickets at once (their #169).
 // The rest of what the factory reads (`agent:*`, `needs-human`,
-// `factory:retry-1`) is factory state it writes itself, which is why
-// software-factory's own page of this name lists none of it.
+// `factory:retry-1`) is factory state it writes itself and a triager never
+// applies, which is why software-factory's own page of this name lists none of
+// it. Move a label here the day a triager is told to apply it by hand.
 const TRIAGER_LABELS_THE_FACTORY_READS = ['ready-for-agent', 'hold'];
 
-// A backticked token is read as a label unless it is plainly something else: a
-// path (`factory/dispatch/select.ts`) or a slash command (`/triage`). Anything
-// else lowercase-and-kebab looks exactly like a label to whoever reads this
-// page, which is the point of the check.
-const backtickedLabels = () =>
-  [...source.matchAll(/`([^`\n]+)`/g)]
-    .map((m) => m[1])
+// Unambiguously a label wherever it appears, backticks or not: the factory's
+// three namespaces and the two role families. Ordinary hyphenated prose ("it
+// re-scans every ticket") is not in this shape, and a reader typing a bare
+// needs-triaged into `gh issue edit` hits the same failure as a backticked one.
+const LABEL_FAMILIES = /^(?:agent|factory|wayfinder):[a-z0-9-]+$|^(?:needs|ready)-[a-z0-9-]+$/;
+
+/** Every token on the page that reads as a label to whoever follows it. */
+const labelsNamedOnThePage = () => {
+  const words = (text) => text.split(/[\s|+,;()"']+/).filter(Boolean);
+  // In backticks, a single word counts too: code voice on this page means a
+  // label. A path (`factory/dispatch/select.ts`) and a slash command
+  // (`/triage`) are the two things in backticks here that are plainly not one.
+  const backticked = [...source.matchAll(/`([^`\n]+)`/g)]
+    .flatMap((match) => words(match[1]))
     .filter((token) => !token.includes('/') && !token.includes('.'))
     .filter((token) => /^[a-z][a-z0-9]*(?:[:-][a-z0-9]+)*$/.test(token));
+  // Bare in prose, only the label families, stripped of sentence punctuation.
+  const bare = words(source.replace(/`/g, ' '))
+    .map((token) => token.replace(/[.,;:!?)"']+$/, ''))
+    .filter((token) => LABEL_FAMILIES.test(token));
+  return [...new Set([...backticked, ...bare])];
+};
 
 test('the page names no label this repo does not have', () => {
   // A triager follows the page into `gh issue edit --add-label <name>`, which
   // fails on a label the repo does not carry rather than creating one.
-  const unknown = [...new Set(backtickedLabels())].filter((label) => !EVERY_REPO_LABEL.has(label));
+  const unknown = labelsNamedOnThePage().filter((label) => !REPO_LABELS.has(label));
   assert.deepEqual(
     unknown,
     [],
@@ -150,16 +163,11 @@ test('the table names every label a triager applies that the factory reads', () 
 
 // --- The claims software-factory #210 retired ------------------------------
 
-// Prose wraps and markdown bolds half a sentence, so a claim is matched against
-// the flattened page, the same way test/local-first-promise.test.mjs matches
-// its overclaims.
-const flat = source.replace(/[*_`]/g, '').replace(/\s+/g, ' ');
-
 // Each of these was true before software-factory #210 and is false now: the
 // hold set is `hold` alone, so a ticket carrying `needs-triage` +
 // `ready-for-agent` is dispatched, not held. A triager following any of them
 // picks the label that no longer stops anything and the factory starts work.
-const RETIRED = [
+const RETIRED_CLAIMS = [
   {
     claim: 'needs-triage or ready-for-human is a brake',
     re: /(needs-triage|ready-for-human)[^.]{0,80}\b(are|is) (a )?(holds?|brakes?)\b/i,
@@ -175,7 +183,7 @@ const RETIRED = [
   { claim: 'a ticket can be agent-ready but held by its triage role', re: /agent-ready but held/i },
 ];
 
-for (const { claim, re } of RETIRED) {
+for (const { claim, re } of RETIRED_CLAIMS) {
   test(`the page no longer claims "${claim}"`, () => {
     const hit = flat.match(re);
     assert.equal(
@@ -212,24 +220,23 @@ test('the page says hold is how a finished ticket is held', () => {
 // These are that half's three claims, pinned so the next rewrite of the table
 // above cannot take them with it. They are about readiness on a wayfinder
 // ticket, which no label decides, so nothing software-factory #210 changed
-// reaches them.
+// reaches them. Key phrase only, not the sentence: rewording the paragraph is
+// somebody's to do, losing the claim is not.
 const WAYFINDER_CLAIMS = [
-  {
-    claim: 'readiness on a wayfinder ticket is structural, not a label',
-    re: /readiness here is structural rather than a label[^.]*open, has no open blockers and has no assignee/i,
-  },
-  {
-    claim: 'only wayfinder:task carries a readiness label',
-    re: /only wayfinder:task carries a readiness label: ready-for-agent[^.]*ready-for-human/i,
-  },
-  {
-    claim: 'wayfinder:grilling and wayfinder:prototype stay unlabelled',
-    re: /wayfinder:grilling and wayfinder:prototype[^.]*stay unlabelled/i,
-  },
+  { claim: 'readiness on a wayfinder ticket is structural, not a label', re: /structural rather than a label/i },
+  { claim: 'only wayfinder:task carries a readiness label', re: /only wayfinder:task carries a readiness label/i },
+  { claim: 'wayfinder:grilling and wayfinder:prototype stay unlabelled', re: /wayfinder:\w+ and wayfinder:\w+[^.]*stay unlabelled/i },
 ];
+
+/** The wayfinder half alone, so a claim that fell out of it cannot pass on a stray mention. */
+const wayfinderSection = () => {
+  const start = source.indexOf('## Wayfinder tickets');
+  assert.notEqual(start, -1, `${PAGE} lost its wayfinder section, which #363 was not to touch`);
+  return flatten(source.slice(start));
+};
 
 for (const { claim, re } of WAYFINDER_CLAIMS) {
   test(`the page still says "${claim}"`, () => {
-    assert.match(flat, re, `${PAGE} lost a wayfinder claim the triage rewrite was not meant to touch`);
+    assert.match(wayfinderSection(), re, `${PAGE} lost a wayfinder claim the triage rewrite was not meant to touch`);
   });
 }

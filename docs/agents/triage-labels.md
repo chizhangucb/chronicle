@@ -1,6 +1,6 @@
 # Triage labels
 
-When a skill names a triage role ("apply the AFK-ready triage label"), apply that role's label from this table. Our label strings are the five canonical triage roles, spelled identically.
+When a skill names a triage role ("apply the AFK-ready triage label"), apply that role's label from this table: our label string for each of the five roles is the role's own name, spelled identically. `hold` is the sixth row and is nobody's role.
 
 | Role              | Label             | Meaning                                                                                                       |
 | ----------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
