@@ -33,7 +33,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A release that does not launch on Windows or Linux is not a release
+  # (#200). The smoke packs this exact commit, installs the tarball on both
+  # OSes and drives it; publish waits on it, so a broken platform blocks the
+  # publish instead of shipping.
+  platform-smoke:
+    uses: ./.github/workflows/platform-smoke.yml
+
   publish:
+    needs: [platform-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: read
