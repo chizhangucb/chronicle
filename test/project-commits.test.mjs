@@ -7,8 +7,9 @@
 // the twins cannot quietly change the "Commits" KPI (an unawaited Promise
 // included).
 //
-// Mounts the real route on an ephemeral express server (same pattern as
-// test/projects-live.test.mjs) against a real throwaway git repo.
+// Mounts the real route on a real express app listening on an ephemeral port
+// (same pattern as test/projects-live.test.mjs, and an app rather than a
+// Router per the gotchas), against a real throwaway git checkout.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -61,11 +62,10 @@ before(async () => {
   );
 
   const app = express();
-  const api = express.Router();
-  mountProjects(api);
-  app.use('/api', api);
+  app.use(express.json());
+  mountProjects(app);
   await new Promise((resolve) => { server = app.listen(0, resolve); });
-  baseUrl = `http://127.0.0.1:${server.address().port}/api`;
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
 after(() => {

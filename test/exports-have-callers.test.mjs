@@ -9,9 +9,9 @@
 //
 // The rule this file pins: an exported name is reachable from production code
 // (server/, src/, shared/, scripts/, bin/), or it is listed below with the
-// reason it is exported anyway — a module genuinely tested through its export
-// surface (the audit's F21 judgment call), which also has to carry a one-line
-// note beside the export saying so.
+// reason it is exported anyway: a module genuinely tested through its export
+// surface (the audit's F21 judgment call), which also has to carry a note
+// naming the test it is the seam for.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -32,10 +32,33 @@ function sourceFiles(dir, exts = /\.(ts|tsx)$/) {
 
 // bin/ and scripts/ count as production: the launcher and the /ask runner are
 // callers like any route is.
+// Comments are not callers. A name mentioned in prose ("see ProjectPicker's
+// list") would otherwise read as a reference and keep a dead export alive, so
+// every file is scanned twice: `text` for the notes pin below, `code` with the
+// comments taken out for the caller sweep. A `//` inside a string literal
+// (`'http://...'`) is left alone, hence the quote count.
+function stripComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n')
+    .map((line) => {
+      const at = line.search(/\/\//);
+      if (at < 0) return line;
+      const before = line.slice(0, at);
+      const quoted = (ch) => (before.split(ch).length - 1) % 2 === 1;
+      if (quoted("'") || quoted('"') || quoted('`')) return line;
+      return before;
+    })
+    .join('\n');
+}
+
 const SOURCES = [
   ...sourceFiles('server'), ...sourceFiles('src'), ...sourceFiles('shared'),
   ...sourceFiles('scripts', /\.(ts|tsx|mjs)$/), ...sourceFiles('bin', /\.(ts|mjs)$/),
-].map((rel) => ({ rel, text: fs.readFileSync(path.join(REPO, rel), 'utf8') }));
+].map((rel) => {
+  const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
+  return { rel, text, code: stripComments(text) };
+});
 
 // The exported names a file declares: value declarations, type declarations
 // and `export { … }` lists (aliased re-exports count under their public name).
@@ -81,6 +104,8 @@ const TESTED_THROUGH_THE_EXPORT = {
   'server/parsers/cursor.ts clearCursorGlobalCache': 'test isolation between cursor fixtures',
   'server/parsers/cursor.ts cursorProjectSlug': 'the cursor path slug, tested per path',
   'server/planWindows.ts parseClaudePayload': 'the plan-window payload parser, tested offline',
+  'server/scope.ts scopeClause': 'the scope fragment, asserted scope by scope',
+  'shared/spend/anomaly.ts computeAnomaly': 'the headline anomaly rule, asserted over costed days',
   'shared/durations.ts ACTIVE_GAP_CAP_MS': 'the gap caps the duration tests assert against',
   'shared/durations.ts ENGAGED_GAP_CAP_MS': 'the gap caps the duration tests assert against',
   'shared/errors.ts ERROR_HEAD_CHARS': 'the error-head window the heuristic tests assert against',
@@ -95,9 +120,9 @@ const TESTED_THROUGH_THE_EXPORT = {
 
 function unreferenced() {
   const out = [];
-  for (const { rel, text } of SOURCES) {
-    for (const name of exportsOf(text)) {
-      const used = SOURCES.some((s) => s.rel !== rel && new RegExp(`\\b${name}\\b`).test(s.text));
+  for (const { rel, code } of SOURCES) {
+    for (const name of exportsOf(code)) {
+      const used = SOURCES.some((s) => s.rel !== rel && new RegExp(`\\b${name}\\b`).test(s.code));
       if (!used) out.push(`${rel} ${name}`);
     }
   }
@@ -108,11 +133,27 @@ test('no export is reachable only from tests, unless it is listed as a test seam
   assert.deepEqual(unreferenced(), Object.keys(TESTED_THROUGH_THE_EXPORT).sort());
 });
 
+// The `//` comment blocks a file carries, each block joined into one string.
+// A note is a block that names the export AND the test file it is the seam
+// for, which is what separates a deliberate note from prose that happens to
+// mention the name.
+function commentBlocks(text) {
+  const blocks = [];
+  let current = null;
+  for (const line of text.split('\n')) {
+    const comment = line.match(/^\s*\/\/ ?(.*)$/);
+    if (comment) current = current === null ? comment[1] : `${current} ${comment[1]}`;
+    else if (current !== null) { blocks.push(current); current = null; }
+  }
+  if (current !== null) blocks.push(current);
+  return blocks;
+}
+
 test('every test-seam export carries its one-line note', () => {
   for (const entry of Object.keys(TESTED_THROUGH_THE_EXPORT)) {
     const [rel, name] = entry.split(' ');
-    const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
-    assert.match(text, new RegExp(`//[^\\n]*\\b${name}\\b`),
-      `${rel} should say in a comment why ${name} is exported`);
+    const blocks = commentBlocks(fs.readFileSync(path.join(REPO, rel), 'utf8'));
+    const noted = blocks.some((b) => new RegExp(`\\b${name}\\b`).test(b) && b.includes('test/'));
+    assert.ok(noted, `${rel} should say in a comment which test ${name} is the seam for`);
   }
 });
