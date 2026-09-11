@@ -205,3 +205,31 @@ test('the page says hold is how a finished ticket is held', () => {
     `${PAGE} must name the label that actually holds a ticket back, beside the one that does not`,
   );
 });
+
+// --- The wayfinder guidance this rewrite must not eat -----------------------
+
+// #363 rewrote the triage half of this page and left the wayfinder half alone.
+// These are that half's three claims, pinned so the next rewrite of the table
+// above cannot take them with it. They are about readiness on a wayfinder
+// ticket, which no label decides, so nothing software-factory #210 changed
+// reaches them.
+const WAYFINDER_CLAIMS = [
+  {
+    claim: 'readiness on a wayfinder ticket is structural, not a label',
+    re: /readiness here is structural rather than a label[^.]*open, has no open blockers and has no assignee/i,
+  },
+  {
+    claim: 'only wayfinder:task carries a readiness label',
+    re: /only wayfinder:task carries a readiness label: ready-for-agent[^.]*ready-for-human/i,
+  },
+  {
+    claim: 'wayfinder:grilling and wayfinder:prototype stay unlabelled',
+    re: /wayfinder:grilling and wayfinder:prototype[^.]*stay unlabelled/i,
+  },
+];
+
+for (const { claim, re } of WAYFINDER_CLAIMS) {
+  test(`the page still says "${claim}"`, () => {
+    assert.match(flat, re, `${PAGE} lost a wayfinder claim the triage rewrite was not meant to touch`);
+  });
+}
