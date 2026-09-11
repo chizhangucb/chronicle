@@ -1,13 +1,13 @@
 // CHI #200: the default-browser open is the one launch step the platform
-// smoke cannot observe — a headless runner has no default browser and no
+// smoke cannot observe: a headless runner has no default browser and no
 // window to watch. So the command the launcher BUILDS is pinned here instead,
 // for all three platforms, including the two nobody develops on.
 //
 // The launcher itself starts a server on import, so the command builder lives
 // in bin/open-command.mjs as a pure function and is imported directly. What is
-// pinned is the exact argv each platform gets, because that is what a user on
-// that platform executes: `open <url>`, `cmd /c start "" <url>` (the empty
-// string is start's title argument — without it a quoted URL becomes the
+// pinned is the exact argv each platform gets, because that is what an
+// operator on that platform executes: `open <url>`, `cmd /c start "" <url>` (the empty
+// string is start's title argument, and without it a quoted URL becomes the
 // window title and nothing opens), `xdg-open <url>`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,10 +53,10 @@ test('the URL is passed as its own argv entry, never interpolated into a string'
   }
 });
 
-test('the launcher builds its open command from this one function', () => {
-  // The pin is worth nothing if bin/chronicle.mjs keeps its own copy of the
-  // platform switch.
+test('the launcher opens the URL through this one function', () => {
+  // The pin above is worth nothing if bin/chronicle.mjs builds its own argv
+  // somewhere else, so assert the wiring the launcher actually runs on.
   const src = fs.readFileSync(path.join(REPO, 'bin', 'chronicle.mjs'), 'utf8');
   assert.match(src, /from '\.\/open-command\.mjs'/, 'the launcher does not import the shared builder');
-  assert.doesNotMatch(src, /process\.platform === 'darwin'/, 'the launcher still switches on platform itself');
+  assert.match(src, /browserOpenCommand\(process\.platform, url\)/, 'the launcher does not call it with its own platform');
 });

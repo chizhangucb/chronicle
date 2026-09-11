@@ -5,7 +5,7 @@
 //
 // Chronicle is developed on macOS and every CI job before this one ran on
 // ubuntu-latest against the repo checkout. Nothing exercised what an operator
-// actually runs — `npx chronicle-cli` — and nothing ran on Windows at all.
+// actually runs (`npx chronicle-cli`), and nothing ran on Windows at all.
 // This script is the assertion half of .github/workflows/platform-smoke.yml:
 // point it at an INSTALLED package directory (the unpacked `npm pack` tarball)
 // and it drives the real launcher four ways, per ADR 0008 and ADR 0009:
@@ -18,8 +18,8 @@
 //
 // Usage: node scripts/ci/platform-smoke.mjs --package-dir <installed pkg dir>
 //
-// Everything it decides for itself — the banner parse, the expected data dir,
-// the stray-write sweep, the transcript it plants — is exported and pinned by
+// Everything it decides for itself (the banner parse, the expected data dir,
+// the stray-write sweep, the transcript it plants) is exported and pinned by
 // test/platform-smoke.test.mjs. Cross-platform by construction: no shell, no
 // POSIX-only paths, no signals beyond kill().
 import fs from 'node:fs';
@@ -29,14 +29,25 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-// The port bin/chronicle.mjs starts its upward scan at. Duplicated from the
-// launcher on purpose: this is the contract a user reads in `--help`, and a
-// silent change to it should fail the smoke, not follow it.
+// The port bin/chronicle.mjs starts its upward probe at. Held here rather than
+// read from the launcher, because a silent change to it should fail the smoke
+// rather than be followed by it: `checkLaunch` asserts the launcher's own
+// `--help` still documents this number, so the copy cannot drift unnoticed.
 export const DEFAULT_PORT = 41730;
 
 // What a temp home is allowed to contain after a run: Chronicle's own data
 // folder, and the source transcripts it was pointed at (read-only, ADR 0008).
-const ALLOWED_HOME_ENTRIES = new Set(['.chronicle', '.claude']);
+// `AppData` is there because the run CREATES it: Windows programs that write
+// outside the data folder write there, so the sweep points %APPDATA% and
+// %LOCALAPPDATA% inside the temp home and then asserts both stayed empty.
+const ALLOWED_HOME_ENTRIES = new Set(['.chronicle', '.claude', 'AppData']);
+
+// Where homeEnv() sends the two Windows application-data roots, relative to
+// the temp home. Empty after a run, or ADR 0008 is broken on Windows.
+export const APP_DATA_DIRS = [
+  path.join('AppData', 'Roaming'),
+  path.join('AppData', 'Local'),
+];
 
 /**
  * The URL the launcher printed, and the port it carries.
@@ -73,8 +84,27 @@ export function strayHomeEntries(home) {
   return fs.readdirSync(home).filter((name) => !ALLOWED_HOME_ENTRIES.has(name));
 }
 
+/**
+ * Anything written under the run's %APPDATA% / %LOCALAPPDATA%.
+ *
+ * The POSIX sweep above would miss a Windows-only write, since nothing on
+ * Windows puts application data in the home directory itself.
+ *
+ * @param {string} home - the throwaway home the run was pointed at.
+ * @returns {string[]} paths relative to `home`, empty when nothing was written.
+ */
+export function appDataEntries(home) {
+  const found = [];
+  for (const rel of APP_DATA_DIRS) {
+    const dir = path.join(home, rel);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) found.push(path.join(rel, name));
+  }
+  return found;
+}
+
 // A fixed, deterministic Claude Code session: one user prompt, one assistant
-// turn with usage, one tool_use/tool_result pair. Small on purpose — the smoke
+// turn with usage, one tool_use/tool_result pair. Small on purpose: the smoke
 // proves discovery and import work on this OS, not that the parser is right
 // (test/parsers/ owns that).
 const FIXTURE_CWD = '/tmp/chronicle-platform-smoke';
@@ -130,8 +160,8 @@ export function writeClaudeTranscript(home) {
 // ─────────────────────────────────────────────────────────────────────────────
 // The run itself
 
-const ok = [];
-function pass(what) { ok.push(what); console.log(`  ok  ${what}`); }
+const passed = [];
+function pass(what) { passed.push(what); console.log(`  ok  ${what}`); }
 function check(condition, what, detail) {
   if (!condition) throw new Error(`FAILED: ${what}${detail ? `\n       ${detail}` : ''}`);
   pass(what);
@@ -167,7 +197,7 @@ export function freePort() {
  */
 export async function launch(packageDir, args, env) {
   const bin = path.join(packageDir, 'bin', 'chronicle.mjs');
-  if (!fs.existsSync(bin)) throw new Error(`No launcher at ${bin} — is the tarball installed?`);
+  if (!fs.existsSync(bin)) throw new Error(`No launcher at ${bin}: is the tarball installed?`);
   const child = spawn(process.execPath, [bin, ...args], {
     env: { ...env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
@@ -221,24 +251,72 @@ export function tempHome(label) {
 
 /** The environment a launch runs in: a throwaway home on every platform. */
 export function homeEnv(home, extra = {}) {
+  for (const rel of APP_DATA_DIRS) fs.mkdirSync(path.join(home, rel), { recursive: true });
   return {
     ...process.env,
     HOME: home,            // os.homedir() on POSIX
     USERPROFILE: home,     // os.homedir() on Windows
     HOMEDRIVE: undefined,
     HOMEPATH: undefined,
+    // Windows application data, redirected so a write there is visible as one.
+    APPDATA: path.join(home, APP_DATA_DIRS[0]),
+    LOCALAPPDATA: path.join(home, APP_DATA_DIRS[1]),
     CHRONICLE_DATA_DIR: undefined,
     CHRONICLE_DEMO: undefined,
     ...extra,
   };
 }
 
+/**
+ * Run `fn` against a freshly launched app in its own throwaway home.
+ *
+ * Every check needs the same scaffold (a temp home, a port nothing else holds,
+ * a launch, and a stop that runs even when an assertion throws), so it lives
+ * here once.
+ *
+ * @param {string} packageDir - the installed package under test.
+ * @param {string} label - names the temp home, so a failed run is greppable.
+ * @param {object} opts
+ * @param {string[]} [opts.args] - launcher flags beyond `--no-open --port`.
+ * @param {Record<string, string>} [opts.env] - environment on top of the temp home.
+ * @param {number} [opts.port] - a fixed port, or omit to let the launcher probe.
+ * @param {string} [opts.home] - an existing temp home (one already seeded with
+ *   transcripts), or omit for a fresh empty one.
+ */
+async function withApp(packageDir, label, { args = [], env = {}, port, home = tempHome(label) } = {}, fn) {
+  const flags = ['--no-open', ...args];
+  if (port !== undefined) flags.push('--port', String(port));
+  const app = await launch(packageDir, flags, homeEnv(home, env));
+  try {
+    return await fn({ app, home });
+  } finally {
+    await app.stop();
+  }
+}
+
+/** Run the launcher once for its output, with no server left behind. */
+async function launcherOutput(packageDir, args) {
+  const bin = path.join(packageDir, 'bin', 'chronicle.mjs');
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [bin, ...args], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let out = '';
+    child.stdout.on('data', (b) => { out += b; });
+    child.stderr.on('data', (b) => { out += b; });
+    child.once('error', reject);
+    child.once('exit', () => resolve(out));
+  });
+}
+
 // ---- 1. Launch: the preflight passes and the server answers on its port. ----
 async function checkLaunch(packageDir) {
-  const home = tempHome('launch');
+  const help = await launcherOutput(packageDir, ['--help']);
+  check(
+    help.includes(`default ${DEFAULT_PORT}`),
+    `the launcher still documents ${DEFAULT_PORT} as its default port`,
+    `--help said: ${help.trim().split('\n').find((l) => l.includes('--port')) ?? '(nothing about --port)'}`,
+  );
   const port = await freePort();
-  const app = await launch(packageDir, ['--no-open', '--port', String(port)], homeEnv(home));
-  try {
+  return withApp(packageDir, 'launch', { port }, async ({ app }) => {
     check(app.port === port, `the launcher honours --port (${port})`);
     check(!/requires Node\.js 24/.test(app.output()), `the Node ${process.versions.node} preflight passes`);
     const res = await waitFor(`${app.url}/api/write-token`);
@@ -247,45 +325,40 @@ async function checkLaunch(packageDir) {
     const page = await waitFor(app.url);
     const html = await page.text();
     check(/<div id="root">/.test(html), 'the app shell is served, not just the API');
-  } finally {
-    await app.stop();
-  }
+  });
 }
 
 // ---- 2. Port scan: 41730 taken, the launcher moves up and prints the port. --
 async function checkPortScan(packageDir) {
-  const home = tempHome('portscan');
   let blocker;
   try {
     blocker = await occupyPort(DEFAULT_PORT);
   } catch (err) {
     throw new Error(`could not occupy ${DEFAULT_PORT} to test the scan: ${err?.message ?? err}`);
   }
-  const app = await launch(packageDir, ['--no-open'], homeEnv(home));
   try {
-    check(
-      app.port > DEFAULT_PORT,
-      `with ${DEFAULT_PORT} held, the launcher scanned up to ${app.port}`,
-      `printed: ${app.url}`,
-    );
-    check(app.url.endsWith(`:${app.port}`), 'the URL it printed carries the port it moved to');
-    await waitFor(`${app.url}/api/write-token`);
-    pass(`the server answers on ${app.port}, not ${DEFAULT_PORT}`);
+    // No --port, so the launcher runs its own upward probe from the default.
+    await withApp(packageDir, 'portscan', {}, async ({ app }) => {
+      check(
+        app.port > DEFAULT_PORT,
+        `with ${DEFAULT_PORT} held, the launcher scanned up to ${app.port}`,
+        `printed: ${app.url}`,
+      );
+      check(app.url.endsWith(`:${app.port}`), 'the URL it printed carries the port it moved to');
+      await waitFor(`${app.url}/api/write-token`);
+      pass(`the server answers on ${app.port}, not ${DEFAULT_PORT}`);
+    });
   } finally {
-    await app.stop();
     await new Promise((r) => blocker.close(r));
   }
 }
 
 // ---- 3. Data folder: <home>/.chronicle, $CHRONICLE_DATA_DIR, nothing else. --
 async function checkDataFolder(packageDir) {
-  const home = tempHome('datafolder');
-  const port = await freePort();
-  const app = await launch(packageDir, ['--no-open', '--port', String(port)], homeEnv(home));
-  try {
+  await withApp(packageDir, 'datafolder', { port: await freePort() }, async ({ app, home }) => {
     await waitFor(`${app.url}/api/projects`);
     const dataDir = expectedDataDir(home, {});
-    check(fs.existsSync(dataDir), `the data folder is created at <home>/.chronicle`, dataDir);
+    check(fs.existsSync(dataDir), 'the data folder is created at <home>/.chronicle', dataDir);
     check(
       fs.readdirSync(dataDir).some((f) => f.startsWith('chronicle.db')),
       'the database lives in the data folder',
@@ -293,36 +366,34 @@ async function checkDataFolder(packageDir) {
     );
     const strays = strayHomeEntries(home);
     check(strays.length === 0, 'nothing is written outside the data folder (ADR 0008)', `strays: ${strays.join(', ')}`);
-  } finally {
-    await app.stop();
-  }
+    const appData = appDataEntries(home);
+    check(appData.length === 0, 'nothing is written to %APPDATA% or %LOCALAPPDATA% either',
+      `wrote: ${appData.join(', ')}`);
+  });
 
   // The override, on the same rules.
-  const home2 = tempHome('datadir');
   const custom = path.join(tempHome('custom'), 'nested-data');
-  const port2 = await freePort();
-  const app2 = await launch(
-    packageDir, ['--no-open', '--port', String(port2)], homeEnv(home2, { CHRONICLE_DATA_DIR: custom }),
+  await withApp(
+    packageDir, 'datadir', { port: await freePort(), env: { CHRONICLE_DATA_DIR: custom } },
+    async ({ app, home }) => {
+      await waitFor(`${app.url}/api/projects`);
+      check(fs.existsSync(custom), '$CHRONICLE_DATA_DIR is where the data folder goes', custom);
+      check(
+        !fs.existsSync(path.join(home, '.chronicle')),
+        'with $CHRONICLE_DATA_DIR set, <home>/.chronicle is never created',
+      );
+    },
   );
-  try {
-    await waitFor(`${app2.url}/api/projects`);
-    check(fs.existsSync(custom), '$CHRONICLE_DATA_DIR is where the data folder goes', custom);
-    check(
-      !fs.existsSync(path.join(home2, '.chronicle')),
-      'with $CHRONICLE_DATA_DIR set, <home>/.chronicle is never created',
-    );
-  } finally {
-    await app2.stop();
-  }
 }
 
 // ---- 4. Source discovery: scan finds the transcript, import lands it. ------
 async function checkSourceDiscovery(packageDir) {
+  const port = await freePort();
+  // The transcript has to exist before the launch: the scan reads the home
+  // directory the server was started with.
   const home = tempHome('discovery');
   const planted = writeClaudeTranscript(home);
-  const port = await freePort();
-  const app = await launch(packageDir, ['--no-open', '--port', String(port)], homeEnv(home));
-  try {
+  await withApp(packageDir, 'discovery', { port, home }, async ({ app }) => {
     const scan = await (await waitFor(`${app.url}/api/scan`)).json();
     const found = (scan['claude-code'] ?? []).find((p) => p.physicalPath === planted.cwd);
     check(!!found, 'GET /api/scan finds the planted Claude Code transcript', `saw: ${JSON.stringify(scan['claude-code'] ?? [])}`);
@@ -355,9 +426,7 @@ async function checkSourceDiscovery(packageDir) {
     const messages = await (await waitFor(`${app.url}/api/sessions/${planted.sessionId}/messages`)).json();
     check((messages.messages ?? []).length >= 4, 'its messages came with it',
       `saw ${(messages.messages ?? []).length}`);
-  } finally {
-    await app.stop();
-  }
+  });
 }
 
 async function main(argv) {
@@ -378,7 +447,7 @@ async function main(argv) {
     ['source discovery', checkSourceDiscovery],
   ];
   for (const [name, run] of checks) {
-    console.log(`— ${name}`);
+    console.log(`- ${name}`);
     try {
       await run(resolved);
     } catch (err) {
@@ -388,7 +457,7 @@ async function main(argv) {
     }
     console.log('');
   }
-  console.log(`Platform smoke passed on ${process.platform}: ${ok.length} assertions.`);
+  console.log(`Platform smoke passed on ${process.platform}: ${passed.length} assertions.`);
 }
 
 // Only when run as a script: the test imports this module for its helpers.

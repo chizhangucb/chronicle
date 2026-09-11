@@ -105,7 +105,7 @@ history.
 The **platform smoke** covers the half `npm test` can't: it installs the `npm pack` tarball on
 Linux and Windows and asserts the launcher starts, scans past a busy port, keeps to its data
 folder and finds a source transcript, with sidebar/Playback/glyph screenshots per OS as an
-artifact. Not a required check — it runs on demand, on a PR touching `bin/` or `package.json`,
+artifact. It is not a required check: it runs on demand, on a PR touching `bin/` or `package.json`,
 and ahead of every npm publish.
 
 When you add a new source tool, follow the walkthrough in

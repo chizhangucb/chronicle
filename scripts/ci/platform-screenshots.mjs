@@ -82,7 +82,7 @@ export function pickPlaybackSession(sessions) {
  * The artifact file name for one shot on one OS.
  *
  * Both runners upload into ONE artifact, so the platform has to be in the
- * name — otherwise the second upload silently replaces the first and the
+ * name too, so the two download into one folder without colliding and the
  * artifact says nothing about the OS it came from.
  *
  * @param {string} kind - `sidebar`, `playback` or `glyphs`.
@@ -96,7 +96,7 @@ export function screenshotName(kind, platform) {
 function shippedCss(packageDir) {
   const assets = path.join(packageDir, 'dist', 'assets');
   const file = fs.readdirSync(assets).find((f) => f.endsWith('.css'));
-  if (!file) throw new Error(`no stylesheet in ${assets} — is dist/ built?`);
+  if (!file) throw new Error(`no stylesheet in ${assets}: is dist/ built?`);
   return fs.readFileSync(path.join(assets, file), 'utf8');
 }
 
@@ -118,8 +118,8 @@ function glyphSheetHtml(glyphs, stack, platform) {
   .g { font-family: ${stack}; font-size: 42px; line-height: 1.1; display: block; }
   figcaption { font-size: 10px; color: #a39a8c; margin-top: 8px; }
 </style>
-<h1>Chronicle mono glyphs — ${platform}</h1>
-<p>font-family: ${stack} — a box or a question mark here is tofu on this OS.</p>
+<h1>Chronicle mono glyphs, ${platform}</h1>
+<p>font-family: ${stack}. A box or a question mark here is tofu on this OS.</p>
 <div class="sheet">${cells}</div>`;
 }
 

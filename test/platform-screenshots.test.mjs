@@ -45,9 +45,10 @@ test('the glyph sheet renders the canonical set from the design QA rubric', () =
   // mono stack ships on Windows or Linux, so each is a tofu candidate.
   const expected = ['⌕', '⧖', '◫', '▤', '⬚', '◈', '∑', '⚙', '⌫', '✕', '⛓',
     '↶', '↷', '↧', '⇩', '⊙', '✳', '⋯', '⇥', '↩', '＋'];
-  for (const g of expected) {
-    assert.ok(glyphs.includes(g), `the sheet would not show ${g} (${g.codePointAt(0).toString(16)})`);
-  }
+  // Set equality, not inclusion: a glyph added to the rubric without a look at
+  // the next artifact is exactly the drift this guards, and the rubric itself
+  // says to extend its list rather than start a parallel vocabulary.
+  assert.deepEqual(glyphs, expected);
   // The two the ticket calls out as likeliest to land as tofu.
   assert.ok(glyphs.includes('⬚') && glyphs.includes('◫'), 'the two prime tofu suspects must be on the sheet');
 

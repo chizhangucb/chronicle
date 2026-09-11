@@ -2,25 +2,25 @@
 #
 # Chronicle is developed on macOS and every other CI job runs on
 # ubuntu-latest against the REPO CHECKOUT. So the thing an operator actually
-# installs — the npm tarball, launched by bin/chronicle.mjs — was never run on
+# installs (the npm tarball, launched by bin/chronicle.mjs) was never run on
 # Windows at all, and its Windows-only paths (`cmd /c start`, the
 # APP_BROWSERS.win32 list) had never executed.
 #
-# This job packs the package with `npm pack`, installs THAT into a scratch
-# project, and drives it:
+# This workflow packs the package with `npm pack`, installs THAT into a
+# scratch project, and drives it:
 #   scripts/ci/platform-smoke.mjs         launch, port scan, data folder
 #                                         (ADR 0008), source discovery + the
 #                                         write token (ADR 0009)
 #   scripts/ci/platform-screenshots.mjs   sidebar, one Playback session and a
 #                                         glyph sheet, per OS, uploaded as an
-#                                         artifact for a human to look at (the
+#                                         artifact for a human to look at. The
 #                                         --mono stack names no face that
-#                                         ships on Windows or Linux, so tofu
-#                                         is a real risk and a human verdict)
+#                                         ships on Windows or Linux, so tofu is
+#                                         a real risk and a human verdict.
 #
 # NOT a required check. A Windows runner is slow, and this guards the release
 # rather than every PR: it runs on dispatch, on a PR that touches what it
-# guards, and — through workflow_call — ahead of the npm publish, so a broken
+# guards, and (through workflow_call) ahead of the npm publish, so a broken
 # platform blocks the release instead of shipping.
 #
 # test/platform-smoke-workflow.test.mjs pins all of that.
@@ -51,9 +51,43 @@ defaults:
     shell: bash
 
 jobs:
+  # Pack once, on Linux, and hand the same bytes to both legs. Two reasons
+  # over packing per OS: `prepack` is a POSIX shell line (`rm -rf`), which npm
+  # would run through cmd.exe on the Windows runner, and an operator installs
+  # ONE published tarball, so testing one set of bytes is the truer test.
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm pack` runs prepack: the Vite client build + the publish compile
+      # (tsc to dist-server/). That is the tarball npm would publish.
+      - name: Pack the package
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/pack"
+          npm pack --pack-destination "${RUNNER_TEMP}/pack"
+          ls -l "${RUNNER_TEMP}/pack"
+
+      - name: Upload the tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-smoke-tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+
   smoke:
     name: smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: [pack]
     strategy:
       # Let both finish: a Windows failure should not hide whether Linux was
       # green, and vice versa.
@@ -77,14 +111,11 @@ jobs:
       - name: Install Playwright's Chromium (+ OS deps)
         run: npx playwright install chromium --with-deps
 
-      # `npm pack` runs prepack: the Vite client build + the publish compile
-      # (tsc → dist-server/). That is the tarball npm would publish.
-      - name: Pack the package
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/pack"
-          npm pack --pack-destination "${RUNNER_TEMP}/pack"
-          ls -l "${RUNNER_TEMP}/pack"
+      - name: Download the packed tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: platform-smoke-tarball
+          path: ${{ runner.temp }}/pack
 
       # A scratch project outside the checkout, so nothing resolves back into
       # the repo's own node_modules or source.
@@ -113,14 +144,15 @@ jobs:
       - name: Screenshot the sidebar, a Playback session and the glyph sheet
         run: node scripts/ci/platform-screenshots.mjs --package-dir "${RUNNER_TEMP}/install/node_modules/chronicle-cli" --out "${RUNNER_TEMP}/screenshots"
 
-      # One artifact, both OSes: the file names carry the platform
-      # (scripts/ci/platform-screenshots.mjs screenshotName), so the two
-      # uploads merge instead of overwriting. `always()` because a red run is
-      # exactly when the pictures are worth having.
+      # One artifact per OS. upload-artifact@v4 SEALS an artifact when it
+      # closes, so two legs uploading under one name is a 409, not a merge
+      # (that was v3's behaviour). The file names carry the platform too, so
+      # the two download into one folder without collliding. `always()`
+      # because a red run is exactly when the pictures are worth having.
       - name: Upload the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: platform-screenshots
+          name: platform-screenshots-${{ matrix.os }}
           path: ${{ runner.temp }}/screenshots
           if-no-files-found: error

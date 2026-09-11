@@ -46,7 +46,15 @@ test('every step runs in the same shell on both OSes', () => {
 });
 
 test('it tests the packed tarball, not the repo checkout', () => {
-  assert.match(runs, /npm pack/, 'nothing packs the package');
+  const packRuns = (smoke.jobs.pack.steps ?? []).map((s) => s.run ?? '').join('\n');
+  assert.match(packRuns, /npm pack/, 'nothing packs the package');
+  const handoff = (smoke.jobs.pack.steps ?? []).find((s) => (s.uses ?? '').startsWith('actions/upload-artifact'));
+  assert.ok(handoff, 'the tarball is never handed to the smoke legs');
+  const download = (smoke.jobs.smoke.steps ?? []).find((s) => (s.uses ?? '').startsWith('actions/download-artifact'));
+  assert.ok(download, 'the smoke legs never download the tarball');
+  assert.equal(download.with.name, handoff.with.name, 'the download names a different artifact than the upload');
+  assert.ok((smoke.jobs.smoke.needs ?? []).includes('pack'), 'the smoke legs do not wait for the pack');
+
   const install = steps.map((s) => s.run ?? '').find((r) => /npm install/.test(r));
   assert.ok(install, 'nothing installs anything');
   assert.match(install, /\.tgz/, 'the install step does not install the packed tarball');
@@ -65,10 +73,16 @@ test('it runs on Node 24, the version the launcher preflight demands', () => {
 });
 
 test('the screenshots are uploaded as an artifact from both OSes', () => {
-  const upload = steps.find((s) => (s.uses ?? '').startsWith('actions/upload-artifact'));
-  assert.ok(upload, 'no upload-artifact step');
+  const upload = (smoke.jobs.smoke.steps ?? [])
+    .find((s) => (s.uses ?? '').startsWith('actions/upload-artifact'));
+  assert.ok(upload, 'no upload-artifact step in the matrix job');
   assert.match(upload.with.path, /screenshots/, 'the upload does not point at the screenshot dir');
-  // `if: always()` — a red assertion is exactly when the pictures are wanted.
+  // upload-artifact@v4 SEALS an artifact when it closes: two matrix legs
+  // uploading under one name is a 409 on whichever finishes second, not the
+  // v3 merge. So the name has to carry the OS.
+  assert.match(upload.with.name, /\$\{\{ matrix\.os \}\}/,
+    `two OSes would upload under one name (${upload.with.name})`);
+  // `if: always()`, because a red assertion is exactly when the pictures are wanted.
   assert.match(String(upload.if ?? ''), /always\(\)|!cancelled\(\)/);
   assert.notEqual(upload.with['if-no-files-found'], 'ignore', 'an empty artifact must not pass silently');
 });

@@ -14,7 +14,7 @@
 export function browserOpenCommand(platform, url) {
   if (platform === 'darwin') return { command: 'open', args: [url] };
   // `start` is a cmd.exe builtin, so it needs the shell to host it. Its first
-  // quoted argument is the window TITLE — the empty string is what stops the
+  // quoted argument is the window TITLE, and the empty string is what stops the
   // URL being read as one, which is the classic Windows bug here.
   if (platform === 'win32') return { command: 'cmd', args: ['/c', 'start', '', url] };
   // Linux and every other Unix: the freedesktop opener.

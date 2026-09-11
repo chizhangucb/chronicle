@@ -1,11 +1,11 @@
 // CHI #200: the platform smoke's own moving parts.
 //
 // The smoke itself (scripts/ci/platform-smoke.mjs) runs on a CI runner against
-// an INSTALLED tarball, so `npm test` cannot run it end to end — there is no
+// an INSTALLED tarball, so `npm test` cannot run it end to end: there is no
 // dist-server/ in a dev checkout. What is pinned here is everything the smoke
 // decides for itself, driven for real: the banner it reads the port out of,
 // the data folder ADR 0008 promises, the "nothing written anywhere else"
-// sweep, and the Claude Code transcript it plants — that last one against the
+// sweep, and the Claude Code transcript it plants. That last one runs against the
 // REAL parser, so a fixture the source discovery could never find fails here
 // rather than on Windows ten minutes later.
 import test from 'node:test';
@@ -13,15 +13,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   parseLaunchUrl,
   expectedDataDir,
   strayHomeEntries,
   writeClaudeTranscript,
+  appDataEntries,
+  APP_DATA_DIRS,
   DEFAULT_PORT,
 } from '../scripts/ci/platform-smoke.mjs';
 import { sourceById } from '../server/parsers/registry.ts';
 
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-smoke-'));
 
 // The launcher's real banner, as bin/chronicle.mjs prints it.
@@ -46,8 +51,13 @@ test('output with no banner yet reads as not-started', () => {
   assert.equal(parseLaunchUrl(''), null);
 });
 
-test('the default port the launcher starts its scan at is 41730', () => {
-  assert.equal(DEFAULT_PORT, 41730);
+test('the default port the smoke holds is the one the launcher documents', () => {
+  // The smoke occupies DEFAULT_PORT to force the upward probe, so a launcher
+  // that quietly moved its default would leave that check testing nothing.
+  // `--help` is the launcher's own statement of the number.
+  const help = execFileSync(process.execPath, [path.join(REPO, 'bin', 'chronicle.mjs'), '--help'], { encoding: 'utf8' });
+  assert.match(help, new RegExp(`default ${DEFAULT_PORT}`),
+    `bin/chronicle.mjs no longer documents ${DEFAULT_PORT} as its default port`);
 });
 
 test('the data folder is <home>/.chronicle, and CHRONICLE_DATA_DIR wins (ADR 0008)', () => {
@@ -71,6 +81,18 @@ test('a write outside the data folder and the source logs is reported', () => {
   assert.deepEqual(strayHomeEntries(home).sort(), ['.chronicle-backup', '.config']);
 });
 
+test('a Windows-only write to %APPDATA% is reported too', () => {
+  // The POSIX sweep above cannot see this: nothing on Windows puts
+  // application data in the home directory itself.
+  const home = tmp();
+  for (const rel of APP_DATA_DIRS) fs.mkdirSync(path.join(home, rel), { recursive: true });
+  assert.deepEqual(appDataEntries(home), [], 'empty app-data roots are not writes');
+
+  fs.mkdirSync(path.join(home, APP_DATA_DIRS[1], 'chronicle'));
+  assert.deepEqual(appDataEntries(home), [path.join(APP_DATA_DIRS[1], 'chronicle')]);
+  assert.deepEqual(strayHomeEntries(home), [], 'the app-data root itself is created by the harness, not a stray');
+});
+
 test('the planted transcript is one the real Claude Code parser finds', async () => {
   const home = tmp();
   const planted = writeClaudeTranscript(home);
@@ -90,7 +112,7 @@ test('the planted transcript is one the real Claude Code parser finds', async ()
   assert.equal(scanned[0].physicalPath, planted.cwd, 'the scan read a different project path');
   assert.deepEqual(scanned[0].sessions.map((s) => s.id), [planted.sessionId]);
 
-  // And it parses into real messages — a transcript that scans but imports
+  // And it parses into real messages. A transcript that scans but imports
   // nothing would pass the discovery half and fail the import half.
   const parsed = await source.parse(scanned[0]);
   assert.equal(parsed.length, 1);
