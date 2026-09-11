@@ -259,12 +259,16 @@ Applies to every Recharts or hand-rolled SVG/CSS chart, heatmap, or stat tile.
   Insights item, `∑ Insights`; may NOT appear anywhere else in chrome or page content, pinned by
   `test/e2e/home.spec.ts`) `⚙`=settings
   `⌫`=destructive `✕`=close (distinct from `⌫`) `⛓✕`=unlink a source (`src/ProjectDetail.tsx`)
-  `↶`/`↷`=undo/redo (`src/RefineMode.tsx`). This list is canonical but not exhaustive — any
+  `↶`/`↷`=undo/redo (`src/RefineMode.tsx`) `↧`=export to a file (`src/RefineMode.tsx`; distinct
+  from `⇩`=imported, `src/ImportWizard.tsx`). Message kinds (`src/kinds.ts` `KIND_ICON`, the marker
+  on every Playback row): `⊙`=user `✳`=assistant `⋯`=thinking `⇥`=tool call (it hands off; `↩`=tool
+  result is what comes back) `＋`=inserted. This list is canonical but not exhaustive — any
   other MONO glyph used consistently for one meaning is legitimate; a COLORED emoji is not, full
-  stop. **Known tracked gap:** `src/kinds.ts` `KIND_ICON` still maps `user`/`thinking`/`tool_use`
-  to colored emoji (👤/💭/🔧), rendered in every Playback row via `src/session/MessageRow.tsx`.
-  The walk adjudicates whether to mono-ify `KIND_ICON` (a product call, not a rubric call); a judge
-  treats this as the KNOWN gap, not a novel finding.
+  stop, and there is no carve-out. **Pinned by `test/no-colored-emoji.test.mjs`**, which sweeps
+  `src/`, `server/`, `shared/`, `bin/` and this contract for any code point whose DEFAULT
+  presentation is the color emoji glyph. Published prose (`docs/`, `website/`) is out of that
+  scope: it is not app chrome, and its support matrix uses status emoji as table data. `test/kind-icons.test.mjs`
+  pins the kind glyphs themselves, in the map and in the row that draws them.
 - **Design tokens only** — never re-tone `:root` (`--bg0/1/2`, `--border(-strong)`, `--ink/-2/-3`,
   `--brass(-text)`, `--ok/--warn/--danger`, `--c1..--c5`); a genuinely new token (like
   `--heat-axis-offset`) is a documented layout offset, not a color re-tone.
