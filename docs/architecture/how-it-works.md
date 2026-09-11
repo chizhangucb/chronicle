@@ -553,6 +553,14 @@ sum to the same magnitude as the session's actual token spend rather than a sepa
 and the UI marks them with a `≈` and an explanatory tooltip — an honest signal that the
 per-bucket split is an estimate even though the total it's scaled to is exact.
 
+Calibration is not the only way a figure can fall short of billed. Explore's `hour` and
+`subagent` dimensions are **partial**: they sum the **per-message token columns**, which hold
+only about three quarters of billed usage (the rest is never written per message), and
+`sessions.usage` has no hourly or per-agent-type split to scale them against, so they show the
+real per-message count. They carry the same `≈`, with their own tooltip. Across every
+dimension the marker means "not a billed total", and `model`, `project` and `source` are the
+dimensions whose tokens are one.
+
 ## HTTP API
 
 Chronicle exposes one mount on one local port: `/api`. Requests are local only; the standalone
