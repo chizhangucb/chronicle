@@ -9,6 +9,7 @@ import { api, projectUrl, projectsUrl } from './api.js';
 import { costOf, type CostMode } from './models.js';
 import { parseUsage, type BucketedUsageCell, type UsageByModel } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
+import { ROUTES } from './routes.ts';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
@@ -122,8 +123,8 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     [allProjects, id]);
 
   const [, navigate] = useLocation();
-  const [atExploreRoute] = useRoute('/project/:id/explore');
-  const [atContentRoute] = useRoute('/project/:id/content');
+  const [atExploreRoute] = useRoute(ROUTES.projectExplore);
+  const [atContentRoute] = useRoute(ROUTES.projectContent);
   const [localTab, setLocalTab] = useState<'overview' | 'sessions'>('overview');
   const tab: ProjectTab = atExploreRoute ? 'explore' : atContentRoute ? 'content' : localTab;
   function selectTab(next: ProjectTab) {
