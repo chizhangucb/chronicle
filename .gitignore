@@ -13,6 +13,13 @@ audit-shots/
 playwright-report/
 test-results/
 
+# Platform smoke scratch (#200): the packed tarball, the project it is
+# installed into, and the screenshots. The workflow writes these into the
+# workspace, and so does anyone reproducing it locally.
+pack/
+smoke-install/
+screenshots/
+
 # code-graph output from local analysis tooling; regenerated, never committed
 graphify-out
 

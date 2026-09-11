@@ -55,6 +55,10 @@ defaults:
   run:
     shell: bash
 
+# Every path below is RELATIVE to the workspace. `runner.temp` on Windows is a
+# backslash path (`D:\a\_temp`), which the bash these steps run in mangles; a
+# relative path has no drive letter and no separators to get wrong, and bash,
+# npm, node and the artifact actions all resolve it the same way on both OSes.
 jobs:
   # Pack once, on Linux, and hand the same bytes to both legs. Two reasons
   # over packing per OS: `prepack` is a POSIX shell line (`rm -rf`), which npm
@@ -78,15 +82,15 @@ jobs:
       - name: Pack the package
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/pack"
-          npm pack --pack-destination "${RUNNER_TEMP}/pack"
-          ls -l "${RUNNER_TEMP}/pack"
+          mkdir -p pack
+          npm pack --pack-destination pack
+          ls -l pack
 
       - name: Upload the tarball
         uses: actions/upload-artifact@v4
         with:
           name: platform-smoke-tarball
-          path: ${{ runner.temp }}/pack/*.tgz
+          path: pack/*.tgz
           if-no-files-found: error
 
   smoke:
@@ -120,19 +124,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: platform-smoke-tarball
-          path: ${{ runner.temp }}/pack
+          path: pack
 
-      # A scratch project outside the checkout, so nothing resolves back into
-      # the repo's own node_modules or source.
+      # Its own project, with its own package.json and its own node_modules,
+      # so the launcher under test resolves its dependencies from the install
+      # and not from the checkout it happens to sit beside.
       - name: Install the tarball as an operator would
         run: |
           set -euo pipefail
-          tarball="$(ls "${RUNNER_TEMP}"/pack/*.tgz)"
-          install_dir="${RUNNER_TEMP}/install"
-          mkdir -p "${install_dir}"
-          cd "${install_dir}"
+          tarball="$(ls pack/*.tgz)"
+          mkdir -p smoke-install
+          cd smoke-install
           npm init -y > /dev/null
-          npm install --no-audit --no-fund "${tarball}"
+          npm install --no-audit --no-fund "../${tarball}"
           ls node_modules/chronicle-cli
 
       # The bin shim npx itself would run: this is the only step that goes
@@ -140,24 +144,24 @@ jobs:
       - name: The installed bin shim answers
         run: |
           set -euo pipefail
-          cd "${RUNNER_TEMP}/install"
+          cd smoke-install
           npx --no-install chronicle-cli --help
 
       - name: Launch, port scan, data folder, source discovery
-        run: node scripts/ci/platform-smoke.mjs --package-dir "${RUNNER_TEMP}/install/node_modules/chronicle-cli"
+        run: node scripts/ci/platform-smoke.mjs --package-dir smoke-install/node_modules/chronicle-cli
 
       - name: Screenshot the sidebar, a Playback session and the glyph sheet
-        run: node scripts/ci/platform-screenshots.mjs --package-dir "${RUNNER_TEMP}/install/node_modules/chronicle-cli" --out "${RUNNER_TEMP}/screenshots"
+        run: node scripts/ci/platform-screenshots.mjs --package-dir smoke-install/node_modules/chronicle-cli --out screenshots
 
       # One artifact per OS. upload-artifact@v4 SEALS an artifact when it
       # closes, so two legs uploading under one name is a 409, not a merge
       # (that was v3's behaviour). The file names carry the platform too, so
-      # the two download into one folder without collliding. `always()`
+      # the two download into one folder without colliding. `always()`
       # because a red run is exactly when the pictures are worth having.
       - name: Upload the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: platform-screenshots-${{ matrix.os }}
-          path: ${{ runner.temp }}/screenshots
+          path: screenshots
           if-no-files-found: error
