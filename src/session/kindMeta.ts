@@ -1,0 +1,31 @@
+// What a Playback row draws in front of a message: the glyph, the label and the
+// per-view CSS class, resolved from a message's kind.
+//
+// The glyph and the label come from the canonical map (src/kinds.ts), so a kind's
+// wording and marker are chosen in one place; only the row's CSS class is this
+// view's own. It lives here rather than inside MessageRow.tsx so the resolution
+// is reachable without a DOM (test/kind-icons.test.mjs) — a wrong glyph in a row
+// is otherwise visible only to the e2e suite.
+import { KIND_ICON, KIND_LABEL } from '../kinds.ts';
+import type { DisplayKind } from '../../shared/types.ts';
+
+export interface KindMeta { icon: string; label: string; cls: string; }
+
+const KIND_CLS: Record<DisplayKind, string> = {
+  user: 'user', assistant: 'assistant', thinking: 'thinking', tool_use: 'tool', tool_result: 'tool-result', note: 'note',
+};
+
+const KIND_META: Record<string, KindMeta> = Object.fromEntries(
+  (Object.keys(KIND_CLS) as DisplayKind[]).map((k) => [k, { icon: KIND_ICON[k], label: KIND_LABEL[k], cls: KIND_CLS[k] }]),
+);
+
+/**
+ * Row chrome for `kind`. The kinds are closed (CONTEXT.md), so the fallback is
+ * unreachable through the types — but a row's kind crosses the API and the live
+ * SSE stream as a bare JSON string, so a value outside the union can still
+ * arrive at runtime. It falls back to a mono bullet and the raw kind as its own
+ * label, so the row renders and still says what it is instead of going blank.
+ */
+export function metaFor(kind: string): KindMeta {
+  return KIND_META[kind] ?? { icon: '•', label: kind, cls: '' };
+}

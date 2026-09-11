@@ -17,11 +17,15 @@ export const KIND_LABEL: Record<DisplayKind, string> = {
   note: 'Inserted',
 };
 
+// Mono glyph vocabulary only — no colored emoji, per the design rubric's
+// app-wide invariant (pinned by test/kind-icons.test.mjs and the repo-wide
+// test/no-colored-emoji.test.mjs). tool_use/tool_result read as a pair: ⇥
+// hands off to the tool, ↩ is what comes back.
 export const KIND_ICON: Record<DisplayKind, string> = {
-  user: '👤',
+  user: '⊙',
   assistant: '✳',
-  thinking: '💭',
-  tool_use: '🔧',
+  thinking: '⋯',
+  tool_use: '⇥',
   tool_result: '↩',
   note: '＋',
 };

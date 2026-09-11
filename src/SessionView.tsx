@@ -399,9 +399,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             )}
             messages={visible} selectedSeq={selectedSeq} keyword={debounced}
             onSelect={selectMessage} emptyText="No messages match the current filter." />
-          <div className="pane-handle" role="separator" aria-orientation="vertical"
-            aria-label="Resize chat / code panels" tabIndex={0} title="Drag to resize · double-click to reset"
-            onPointerDown={chatSplit.onHandlePointerDown} onDoubleClick={chatSplit.reset} />
+          <div className="pane-handle" aria-label="Resize chat / code panels"
+            title="Drag or use the arrow keys to resize · double-click to reset"
+            {...chatSplit.handleProps} onDoubleClick={chatSplit.reset} />
           <CodePanel projectId={data.project.id} commit={commit} noRepo={noRepo || !data.git?.isRepo} loading={commitLoading} />
         </div>
         <Timeline messages={messages} commits={data.commits}

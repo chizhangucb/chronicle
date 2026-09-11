@@ -208,8 +208,8 @@ export default function App() {
       </aside>
 
       {!collapsed && (
-        <div className="drag-handle" role="separator" aria-orientation="vertical"
-          aria-label="Resize sidebar" onPointerDown={sidebar.onHandlePointerDown} />
+        <div className="drag-handle" aria-label="Resize sidebar"
+          title="Drag or use the arrow keys to resize" {...sidebar.handleProps} />
       )}
 
       <div className="app-main">
