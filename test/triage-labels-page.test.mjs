@@ -98,3 +98,52 @@ test('`hold` has its own row, and it is nobody\'s triage role', () => {
     'the `hold` row must say it does not stop an open PR, and that closing the PR is what does',
   );
 });
+
+// --- The vocabulary the page is allowed to name ---------------------------
+
+const EVERY_REPO_LABEL = new Set(Object.values(REPO_LABELS).flat());
+
+// The labels a TRIAGER applies that the factory then acts on, so the page
+// omitting one leaves a triager with no way to say that thing at all:
+//   ready-for-agent  `READY_LABEL`: the dispatcher starts on nothing else.
+//   hold             `HOLD_LABELS`, which since software-factory #210 is this
+//                    label alone. Before it people held tickets with
+//                    `needs-triage`, and a triage pass that cleared the pair as
+//                    drift released 12 tickets at once (their #169).
+// The rest of what the factory reads (`agent:*`, `needs-human`,
+// `factory:retry-1`) is factory state it writes itself, which is why
+// software-factory's own page of this name lists none of it.
+const TRIAGER_LABELS_THE_FACTORY_READS = ['ready-for-agent', 'hold'];
+
+// A backticked token is read as a label unless it is plainly something else: a
+// path (`factory/dispatch/select.ts`) or a slash command (`/triage`). Anything
+// else lowercase-and-kebab looks exactly like a label to whoever reads this
+// page, which is the point of the check.
+const backtickedLabels = () =>
+  [...source.matchAll(/`([^`\n]+)`/g)]
+    .map((m) => m[1])
+    .filter((token) => !token.includes('/') && !token.includes('.'))
+    .filter((token) => /^[a-z][a-z0-9]*(?:[:-][a-z0-9]+)*$/.test(token));
+
+test('the page names no label this repo does not have', () => {
+  // A triager follows the page into `gh issue edit --add-label <name>`, which
+  // fails on a label the repo does not carry rather than creating one.
+  const unknown = [...new Set(backtickedLabels())].filter((label) => !EVERY_REPO_LABEL.has(label));
+  assert.deepEqual(
+    unknown,
+    [],
+    `${PAGE} names a label chizhangucb/chronicle does not have. Create it via the factory's ` +
+      `scripts/onboard.sh and add it to REPO_LABELS, or fix the spelling:\n  ${unknown.join('\n  ')}`,
+  );
+});
+
+test('the table names every label a triager applies that the factory reads', () => {
+  const listed = roleTable().map((cells) => labelIn(cells[1]));
+  const missing = TRIAGER_LABELS_THE_FACTORY_READS.filter((label) => !listed.includes(label));
+  assert.deepEqual(
+    missing,
+    [],
+    `${PAGE} is a triager's only instruction sheet, and the factory acts on these: ` +
+      `omitting one leaves no way to say that thing\n  ${missing.join('\n  ')}`,
+  );
+});
