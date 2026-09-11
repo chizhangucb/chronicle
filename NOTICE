@@ -20,17 +20,15 @@ Third-party notices
    nominatively, never as a claim of partnership, sponsorship or endorsement.
 
 2. Bundled runtime dependencies
-   The published package depends on these libraries at runtime, all under the MIT
+   The published package depends on one library at runtime, under the MIT
    license:
      - Express            https://expressjs.com/
-     - js-yaml            https://github.com/nodeca/js-yaml
-     - three              https://threejs.org/
-     - react-force-graph-3d  https://github.com/vasturiano/react-force-graph
-   three and react-force-graph-3d back the Memory graph's 3D canvas and are
-   loaded lazily. Everything else in the dependency tree is a build-time or
-   test-time tool and is not distributed with the package. Chronicle bundles no
-   web fonts (it uses the operating system's own UI and monospace faces) and no
-   third-party icon set (its glyphs are original monospace characters).
+   Express brings its own dependency tree, which installs alongside it under the
+   permissive licenses those libraries declare (MIT, ISC, BSD-3-Clause).
+   Everything else in the dependency tree is a build-time or test-time tool and
+   is not distributed with the package. Chronicle bundles no web fonts (it uses
+   the operating system's own UI and monospace faces) and no third-party icon
+   set (its glyphs are original monospace characters).
 
 3. Local-only data
    Chronicle never bundles, transmits, or commits the operator's machine data. It
