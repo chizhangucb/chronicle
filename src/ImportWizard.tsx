@@ -68,7 +68,7 @@ interface ImportJob {
   error?: string;
 }
 
-export interface ImportWizardProps {
+interface ImportWizardProps {
   onClose: () => void;
   onImported: () => void;
 }

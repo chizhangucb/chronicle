@@ -100,7 +100,7 @@ function groupByDay(sessions: SearchResultItem[], mode: CostMode): DayGroup[] {
   });
 }
 
-export interface RecentLedgerProps {
+interface RecentLedgerProps {
   projects: ProjectListItem[] | null;
   onOpenSession?: (id: string, projectId: number) => void;
   onRefresh: () => void;

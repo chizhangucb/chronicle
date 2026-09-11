@@ -28,7 +28,7 @@ const LIVE_WINDOW_MS = 5 * 60 * 1000;
 
 // Minimal shape callers pass in — real callers select subsets of the `sessions`
 // table columns (file_path/ended_at at least, id always).
-export interface LiveSessionLike {
+interface LiveSessionLike {
   id: string;
   file_path?: string | null;
   ended_at?: string | null;

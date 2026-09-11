@@ -117,7 +117,7 @@ export interface Project {
 
 // What a parser's parse<Tool>Session() returns on its `session` field: keyed on
 // `cwd` (used to resolve/insert the project), NOT yet a `project_id`.
-export interface ParsedSession {
+interface ParsedSession {
   id: string;
   source: SourceId;
   // Nullable because Cursor's makeSession() can (in its type signature) produce

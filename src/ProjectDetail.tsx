@@ -61,7 +61,7 @@ const FRIENDLY_CALL: Record<string, string> = {
   Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
 };
 
-export interface ProjectDetailProps {
+interface ProjectDetailProps {
   id: number | string;
   onBack: () => void;
   onOpenSession: (id: string) => void;
@@ -628,7 +628,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
 // Minimal project shape the picker needs (a subset of Project, plus the
 // aggregate columns GET /api/projects adds server-side).
-export interface PickableProject {
+interface PickableProject {
   id: number | string;
   name: string;
   path?: string;
@@ -636,7 +636,7 @@ export interface PickableProject {
   last_active?: string | null;
 }
 
-export interface ProjectPickerProps {
+interface ProjectPickerProps {
   current: PickableProject | null | undefined;
   onPick: (id: number | string) => void;
   // Identity color for the current project (from projectColorMap over all ids),
@@ -646,7 +646,7 @@ export interface ProjectPickerProps {
 
 // Project dropdown: switch projects from the breadcrumb, mirroring the session
 // picker. Lazily loads the project list on first open.
-export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
+function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   // Task 5: SWR-cached list, keyed on the same '/api/projects' URL the hover
@@ -696,13 +696,13 @@ export function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
 }
 
 // Minimal session shape the picker needs.
-export interface PickableSession extends NamedSession {
+interface PickableSession extends NamedSession {
   id: string;
   message_count?: number;
   started_at?: string | null;
 }
 
-export interface SessionPickerProps {
+interface SessionPickerProps {
   sessions: PickableSession[] | null | undefined;
   current: PickableSession | null | undefined;
   onPick: (id: string) => void;

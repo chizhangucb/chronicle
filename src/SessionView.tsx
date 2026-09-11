@@ -27,7 +27,7 @@ export interface SessionData extends Omit<SessionMessagesResult, 'messages'> {
 export type LiveStatus = 'off' | 'live' | 'stopped' | 'reconnecting';
 export interface LiveChangeInfo { status: LiveStatus; sessionId: string; }
 
-export type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'content';
+type SessionMode = 'overview' | 'playback' | 'refine' | 'subagent' | 'content';
 
 // Playback's chat/right-group drag handle (spec §2.3 task-8) — reuses
 // `useResizable` (App.tsx's sidebar / HomePage.tsx's project rail already
@@ -54,7 +54,7 @@ const PLAYBACK_SPLIT_KEY = 'chronicle-playback-split';
 const PLAYBACK_SPLIT_MIN = 280;
 const PLAYBACK_SPLIT_RESERVED = 544;
 
-export interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
+interface RailModeDef { key: SessionMode; icon: string; label: string; title: string; }
 export interface RailState {
   modes: RailModeDef[];
   active: SessionMode;
@@ -62,7 +62,7 @@ export interface RailState {
   select: (k: SessionMode | 'security-check') => void;
 }
 
-export interface SessionViewProps {
+interface SessionViewProps {
   sessionId: string;
   // `undo`: set when navigating back after an Overview single-session delete,
   // so the destination view (project/home) can surface the shared undo toast.

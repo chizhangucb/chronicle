@@ -190,7 +190,7 @@ function DemoOffer() {
   );
 }
 
-export interface ProjectsPageProps {
+interface ProjectsPageProps {
   projects: ProjectListItem[] | null;
   onOpenProject: (id: number | string) => void;
   onOpenSession?: (id: string, projectId: number) => void;

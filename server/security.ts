@@ -10,9 +10,9 @@ import type { SecurityCheckMessage, SecurityFinding, SecurityScanResult } from '
 
 /** A finding before it is attributed to one of a message's two scanned fields
  * — `SecurityFinding` (shared/results.ts) with `field` still to come. */
-export type Finding = Omit<SecurityFinding, 'field'>;
+type Finding = Omit<SecurityFinding, 'field'>;
 
-export interface ScanTextResult {
+interface ScanTextResult {
   findings: Finding[];
   redacted: string | null | undefined;
 }
@@ -25,7 +25,7 @@ interface RuleSpec {
 }
 
 // FR-SEC-1: built-in detection rules — meaningful placeholders keep structure readable.
-export const BUILTIN_RULES: RuleSpec[] = [
+const BUILTIN_RULES: RuleSpec[] = [
   {
     id: 'api_key', name: 'API keys',
     re: /\b(sk-[A-Za-z0-9_-]{8,}|anthropic-[A-Za-z0-9_-]{8,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|xox[bap]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{20,})/g,
@@ -68,7 +68,7 @@ export function listRules(): SecurityRuleRow[] {
   return db.prepare('SELECT * FROM security_rules ORDER BY id').all() as unknown as SecurityRuleRow[];
 }
 
-export interface RuleInput {
+interface RuleInput {
   name?: string | null;
   pattern: string;
   replacement?: string | null;
@@ -101,6 +101,8 @@ function activeCustomRules(): (SecurityRuleRow & { re: RegExp })[] {
 // Scan text → findings + redacted text. Priority (FR-SEC-3):
 // allow rules protect spans; custom redact rules run before built-ins;
 // earlier matches win on overlap.
+// Exported for test/interceptions-removed.test.mjs: scanText is the redaction core
+// that pin exercises directly; scanSession is its production caller.
 export function scanText(text: string | null | undefined): ScanTextResult {
   if (!text) return { findings: [], redacted: text };
   const custom = activeCustomRules();
@@ -144,7 +146,7 @@ export function scanText(text: string | null | undefined): ScanTextResult {
   return { findings, redacted };
 }
 
-export interface ScanMessage {
+interface ScanMessage {
   seq: number;
   kind: string;
   ts?: string | null;

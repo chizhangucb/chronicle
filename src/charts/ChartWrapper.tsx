@@ -1,18 +1,11 @@
 import React, { type JSX } from 'react';
 import type { TooltipContentProps } from 'recharts';
-import { CATEGORICAL_COLORS } from '../colors.ts';
 
 // The one Recharts wrapper module (design spec, "Charts" primitive): every
 // chart in the app should compose Recharts' own <LineChart>/<BarChart>/etc.
 // with these shared pieces so every chart reads as one system — categorical
 // palette order, mono ticks, --border grid, and the OpenRouter-style
 // breakdown tooltip. No call sites yet; 5d wires real per-view charts.
-
-// Categorical series palette — fixed order, never cycled (same source as the
-// --c1..--c5 CSS tokens and src/colors.ts, so pills/dots/charts never drift
-// apart). 6th+ series folds into "Other" (the caller's job to pre-aggregate
-// before charting).
-export const CHART_COLORS = CATEGORICAL_COLORS;
 
 // Shared axis styling — spread onto Recharts' <XAxis>/<YAxis>.
 export const AXIS_PROPS = {
@@ -28,7 +21,7 @@ export const GRID_PROPS = { stroke: 'var(--border)', vertical: false };
 // series (color tick · name · value, sorted desc, zero-series omitted), a
 // Total row separated by a rule when more than one series is present.
 // Pass as Recharts' <Tooltip content={<ChartTooltip formatValue={...} />} />.
-export interface ChartTooltipProps<V extends number = number> extends TooltipContentProps<V, string> {
+interface ChartTooltipProps<V extends number = number> extends TooltipContentProps<V, string> {
   formatValue?: (v: V) => string;
   // Opt out of the summed "Total" row — for charts whose series don't share a
   // unit (e.g. a $ bar + a count line on the same composed chart), where a

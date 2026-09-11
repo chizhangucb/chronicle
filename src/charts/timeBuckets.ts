@@ -56,6 +56,8 @@ export function dayKeyOf(d: Date): string {
 export function hourKeyOf(d: Date): string {
   return `${dayKeyOf(d)}T${pad2(d.getHours())}`;
 }
+// Exported for test/time-buckets.test.mjs: hourKeyOf and monthKeyOf are asserted
+// across DST edges and month ends, which a rendered chart cannot show.
 export function monthKeyOf(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
@@ -129,7 +131,7 @@ export function densifyBuckets(keys: string[], unit: BucketUnit): string[] {
 // sorted (as densifyBuckets always returns) — and reports whether/how much
 // was dropped, so the caller can render an honest "showing last N of M" note
 // instead of silently truncating.
-export interface CappedBuckets { keys: string[]; truncated: boolean; total: number; }
+interface CappedBuckets { keys: string[]; truncated: boolean; total: number; }
 export function capDenseBuckets(keys: string[], max: number): CappedBuckets {
   if (keys.length <= max) return { keys, truncated: false, total: keys.length };
   return { keys: keys.slice(-max), truncated: true, total: keys.length };

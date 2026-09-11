@@ -14,7 +14,7 @@ import { invalidateClientCache } from './useCachedFetch.js';
 // that follows just forgets the tombstone(s) and re-syncs the owning
 // project(s) — the source log was never touched, so undo is a pure re-import.
 
-export interface SelectableSession {
+interface SelectableSession {
   id: string;
   source: string;
   project_id: number;
@@ -55,7 +55,7 @@ export interface UseSessionSelect {
   Toast: React.ReactNode;
 }
 
-export interface UseSessionSelectOptions {
+interface UseSessionSelectOptions {
   // Called before select mode is entered — lets a caller with a SIBLING select
   // flow (the /projects command bar hosts both a session-select and a
   // project-select) force-exit the other one, so at most one is ever active

@@ -35,6 +35,9 @@ export function rangeOf(days: number | null, now: number = Date.now()): Range {
   return { days, now, cutoffIso: days != null ? new Date(now - days * DAY).toISOString() : null };
 }
 
+// Exported for test/scope.test.mjs: scopeClause is asserted scope by scope,
+// which a whole engine query cannot show; queryContext below is its
+// production caller.
 export function scopeClause(scope: Scope): SqlFragment {
   if (scope.type === 'project' && scope.id != null) return { sql: 'AND s.project_id = ?', params: [scope.id] };
   if (scope.type === 'session' && scope.id != null) return { sql: 'AND s.id = ?', params: [scope.id] };
@@ -45,7 +48,7 @@ export function scopeClause(scope: Scope): SqlFragment {
 // even if the noise gate marked it minor — session scope already restricts to
 // the one session, so the minor exclusion (meant for 'all'/'project'
 // aggregates) is wrong here and leaves the pane blank.
-export function minorGate(scope: Scope): string {
+function minorGate(scope: Scope): string {
   return scope.type === 'session' ? '' : 'AND COALESCE(s.minor,0)=0';
 }
 

@@ -34,12 +34,15 @@ import type {
   ExploreWireCell, ExploreWireCellSet, ExploreWireBucket, ExploreWireResult, ExploreWireRow,
 } from '../shared/explore.ts';
 
+// The query one Explore request is: ExploreQuery is also read as source by
+// test/query-context-single-home.test.mjs, which pins that every engine takes
+// its scope and range through it.
 export interface ExploreQuery {
   scope: Scope; range: Range;
   metric: ExploreMetric; group: ExploreGroup; subgroup?: ExploreGroup;
   rollup: ExploreRollup; topN: number;
 }
-export interface ExploreRow extends ExploreRowBase {
+interface ExploreRow extends ExploreRowBase {
   tokensByModel: Record<string, UsageCell>;
   // Day-bucketed (LOCAL calendar day, YYYY-MM-DD) breakdown of tokensByModel —
   // Day bucket: lets the client price Spend per day-bucket at that day's rate
@@ -56,14 +59,14 @@ export interface ExploreRow extends ExploreRowBase {
 // tokens/spend; the matching scalar for requests/sessions/errors/active), the
 // rest stay zero. The client reuses its per-row metricValue/rowSpend/rowTokens
 // on this same shape, so a cell projects to exactly one meaningful number.
-export interface ExploreCell extends ExploreCellBase {
+interface ExploreCell extends ExploreCellBase {
   tokensByModel: Record<string, UsageCell>;
 }
 // One time bucket, in the engine's dialect. `series` is keyed by the SAME group
 // values chosen for the ranked rows (topN group values + 'Other'); a series
 // absent from a bucket is simply omitted (the client fills 0).
-export interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
-export interface ExploreResult extends Omit<ExploreWireResult, 'rows' | 'buckets'> {
+interface ExploreBucket { bucket: string; label: string; series: Record<string, ExploreCell>; }
+interface ExploreResult extends Omit<ExploreWireResult, 'rows' | 'buckets'> {
   rows: ExploreRow[];
   buckets?: ExploreBucket[];
 }
@@ -71,7 +74,7 @@ export interface ExploreResult extends Omit<ExploreWireResult, 'rows' | 'buckets
 // Chart legibility cap: at ~90 bars in a ~1000px plot each bar is ≈11px, still
 // hoverable; beyond that bars become unreadable hairlines. When a range+bucket
 // would exceed this, the effective rollup steps coarser until it fits.
-export const ROLLUP_BUCKET_CAP = 90;
+const ROLLUP_BUCKET_CAP = 90;
 const ROLLUP_ORDER: Exclude<ExploreRollup, 'total'>[] = ['hourly', 'daily', 'weekly', 'monthly'];
 
 // Each time rollup's granularity in server/rangeUsage.ts's vocabulary. Explore's wire
@@ -97,6 +100,8 @@ export function bucketExpr(rollup: Exclude<ExploreRollup, 'total'>, ts: string):
 // Pure cap-coarsening: from the requested rollup, return the finest rollup whose
 // bucket count fits the cap. `countFor` is called at most 3 times (monthly is
 // terminal — never coarsened further). Exported for unit testing without a DB.
+// Exported for test/explore.test.mjs: pickRollup is the rollup-coarsening rule,
+// asserted per bucket count rather than through a whole Explore request.
 export function pickRollup(
   requested: Exclude<ExploreRollup, 'total'>,
   countFor: (r: Exclude<ExploreRollup, 'total'>) => number,
@@ -113,7 +118,7 @@ export function pickRollup(
 // tool_name shape) is calibrated exactly like
 // tool/skill: an MCP call is a tool_use row, so its token magnitude is
 // estimated from its text share of the bucket's billed total. A turn can hit
-// several MCP servers, so per-server figures double-count (MCP_DOUBLE_COUNT
+// several MCP servers, so per-server figures double-count (the `spend.mcp-exposure`
 // caveat). `provider` (model VENDOR — anthropic/openai/google, NOT `source`'s
 // tool vendor) rides assistant rows that carry real tokens, so it stays a plain
 // per-message group (not calibrated, not exact-override).

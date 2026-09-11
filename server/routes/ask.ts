@@ -26,7 +26,7 @@ const runState: AskRunState = (globalThis.__chronicleAskRun ??= { running: false
 // runner can't pin the in-flight guard forever.
 const OUTER_TIMEOUT_MS = 120 * 1000;
 
-export function askToggleOn(env: NodeJS.ProcessEnv = process.env): boolean {
+function askToggleOn(env: NodeJS.ProcessEnv = process.env): boolean {
   return readConfig().ask === true && env.CHRONICLE_ASK !== '0';
 }
 function isDemo(env: NodeJS.ProcessEnv = process.env): boolean {

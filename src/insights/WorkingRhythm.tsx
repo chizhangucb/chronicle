@@ -3,7 +3,7 @@ import { currentStreak, longestStreak, activeDaysCount, peakHour, shakespeareMul
 import type { InsightsResult } from '../../shared/results.ts';
 import { parseUsage } from '../../shared/usage.ts';
 
-export interface WorkingRhythmProps {
+interface WorkingRhythmProps {
   result: InsightsResult;
 }
 

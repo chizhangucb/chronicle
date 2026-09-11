@@ -7,7 +7,7 @@ import type { Kind } from '../shared/types.ts';
 // shared/types.ts Event.ts (`ts?: string | null`) — some events genuinely
 // have no timestamp, and PlaybackMessage (the type actually passed in) leaves
 // the key absent rather than always setting it to `null`.
-export interface TimelineMessage {
+interface TimelineMessage {
   seq: number;
   kind: Kind;
   ts?: string | null;
@@ -15,13 +15,13 @@ export interface TimelineMessage {
 
 // A git commit tick — mirrors server/git.ts `Commit`, trimmed to what the
 // timeline renders (hash/date/subject).
-export interface TimelineCommit {
+interface TimelineCommit {
   hash: string;
   date: string;
   subject: string;
 }
 
-export interface TimelineProps {
+interface TimelineProps {
   messages: TimelineMessage[];
   commits: TimelineCommit[];
   currentTs?: string | null;

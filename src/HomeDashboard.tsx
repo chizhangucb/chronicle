@@ -81,7 +81,7 @@ function priceCellsByDay(byDayModel: Record<string, UsageByModel>, mode: CostMod
   return total;
 }
 
-export interface HomeDashboardProps {
+interface HomeDashboardProps {
   projects: ProjectListItem[] | null;
   onOpenProject: (id: number | string) => void;
   onOpenSession?: (id: string, projectId: number) => void;
@@ -216,7 +216,7 @@ export default function HomeDashboard({ projects, onOpenSession, onImport, onRef
 
 // ---- KPI strip: headline aggregates from an InsightsResult, rendered as the
 // `.kpis` tile row. The single source of the Insights home's headline numbers. ----
-export function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
+function KpiStrip({ result }: { result: InsightsResult }): JSX.Element {
   const { mode } = useCostMode();
   const kpis = useMemo(() => {
     let agentActiveMs = 0, engagedMs = 0;

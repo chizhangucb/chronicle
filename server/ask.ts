@@ -25,8 +25,8 @@ import type { AskCostMode, AskTurn } from '../shared/results.ts';
 
 // ---- caps (result-size, review #5/#8) ------------------------------------
 export const ASK_MAX_ROWS = 500;       // rows returned to the model / stored
-export const ASK_CELL_MAX = 2000;      // chars per cell before truncation
-export const ASK_RESP_MAX_BYTES = 256 * 1024; // hard cap on one tool response
+const ASK_CELL_MAX = 2000;      // chars per cell before truncation
+const ASK_RESP_MAX_BYTES = 256 * 1024; // hard cap on one tool response
 
 // ---- cost basis ----------------------------------------------------------
 // The operator picks "list"/"billed" (`AskCostMode`); the price core speaks
@@ -34,6 +34,10 @@ export const ASK_RESP_MAX_BYTES = 256 * 1024; // hard cap on one tool response
 export function toCostMode(m: AskCostMode): CostMode {
   return m === 'billed' ? 'real' : 'theoretical';
 }
+
+// Exported for test/ask.test.mjs: costBasisLabel, stripSqlComments,
+// parseHistory, ASK_HISTORY_MAX and ASK_HISTORY_ROWS are read straight from the
+// pure core, which is the seam Ask is tested at (no DB, no claude binary in CI).
 export function costBasisLabel(m: AskCostMode): string {
   return m === 'billed' ? 'Billed' : 'List price';
 }
@@ -47,7 +51,7 @@ export function normalizeAskCostMode(v: unknown): AskCostMode {
  * what executes) and `skeleton` (comments removed AND every string literal
  * blanked to `''` — the checks run on this so a `;`, a comment marker, or a
  * banned keyword INSIDE a string literal never trips the guard). */
-export function scanSql(sql: string): { stripped: string; skeleton: string } {
+function scanSql(sql: string): { stripped: string; skeleton: string } {
   let stripped = '', skeleton = '';
   let i = 0; const n = sql.length;
   while (i < n) {
@@ -76,8 +80,8 @@ export function stripSqlComments(sql: string): string {
   return scanSql(sql).stripped;
 }
 
-export interface SanitizeOk { ok: true; sql: string; }
-export interface SanitizeErr { ok: false; error: string; }
+interface SanitizeOk { ok: true; sql: string; }
+interface SanitizeErr { ok: false; error: string; }
 /** Accepts a SINGLE read-only SELECT/WITH statement. Rejects everything else
  * with a clean message. The read-only handle is the real guarantee; this exists
  * so the model gets "only SELECT is allowed" instead of a raw SQLite error, and
@@ -110,7 +114,7 @@ export function wrapLimited(sql: string, max = ASK_MAX_ROWS): string {
 }
 
 // ---- result shaping ------------------------------------------------------
-export interface AskResult {
+interface AskResult {
   columns: string[];
   rows: unknown[][];
   rowCount: number;   // rows returned (post-cap)
@@ -177,7 +181,7 @@ export function askSchemaDoc(costMode: AskCostMode): string {
 }
 
 // ---- the model's answer envelope -----------------------------------------
-export interface AskEnvelope {
+interface AskEnvelope {
   prose: string;
   sql: string;
   costBasis: AskCostMode;
@@ -205,7 +209,7 @@ export function validateAskEnvelope(value: unknown): AskEnvelope {
 /** One captured query result from the MCP server's ask-queries.jsonl. */
 export interface AskCapture { sql: string; columns: string[]; rows: unknown[][]; rowCount: number; truncated: boolean; }
 
-export const normSql = (s: string): string => s.replace(/\s+/g, ' ').replace(/;\s*$/, '').trim().toLowerCase();
+const normSql = (s: string): string => s.replace(/\s+/g, ' ').replace(/;\s*$/, '').trim().toLowerCase();
 
 /** The authoritative table for a turn: the captured entry whose SQL matches the
  * model's declared final SQL, else the LAST captured query (it ran last). An
@@ -280,7 +284,7 @@ export function extractJson(text: string): unknown {
 export const ASK_HISTORY_MAX = 500; // newest N turns kept
 export const ASK_HISTORY_ROWS = 100; // rows persisted PER turn (bounds file size)
 
-export function askHistoryPath(env: NodeJS.ProcessEnv = process.env): string {
+function askHistoryPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(resolveDataDir(env), 'ask-history.jsonl');
 }
 

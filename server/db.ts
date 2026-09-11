@@ -420,6 +420,9 @@ export function snapshotDb(force = false): string | null {
 
 // ---- Tombstones (Phase 5 PR 5a: delete + undo) ----
 
+// Exported for the tombstone pins in test/sync-hygiene.test.mjs and
+// test/transcript-delete-removed.test.mjs: they read isTombstoned to see that a
+// deleted session stays deleted. Production reads it from replaceSession below.
 export function isTombstoned(source: string, sessionId: string): boolean {
   return !!db.prepare('SELECT 1 FROM session_tombstones WHERE source = ? AND session_id = ?').get(source, sessionId);
 }

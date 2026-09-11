@@ -21,6 +21,8 @@ export const ROUTES = {
 } as const;
 
 /** Every pattern above, as the fallback reads them. */
+// Exported for test/not-found-route.test.mjs: KNOWN_ROUTES is what it counts App.tsx's
+// matched patterns against; isRoutedPath is its production reader.
 export const KNOWN_ROUTES: readonly string[] = Object.values(ROUTES);
 
 /**

@@ -3,7 +3,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { Link } from 'wouter';
 import { getDefinition, type DefVars } from './reference/definitions.js';
 
-export interface InfoTipProps {
+interface InfoTipProps {
   /**
    * Registry id. The PREFERRED form: the tip's wording lives in
    * src/reference/definitions.ts, which /reference renders from the same

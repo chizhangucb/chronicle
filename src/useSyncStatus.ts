@@ -4,7 +4,7 @@ import { formatRelativeTime } from './relativeTime.js';
 
 const POLL_MS = 15000;
 
-export interface SyncStatusText {
+interface SyncStatusText {
   text: string;
   running: boolean;
   failed: boolean;

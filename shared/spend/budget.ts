@@ -7,7 +7,7 @@ import type { BudgetThresholds } from './thresholds.ts';
 import { DEFAULT_SPEND_THRESHOLDS, gradeBudget, type StateWord } from './thresholds.ts';
 import type { CostedDay } from './anomaly.ts';
 
-export interface BudgetPosture {
+interface BudgetPosture {
   /** null when no budget is set — the console reports "no cap set", never a
    * share against a number you never chose. */
   monthlyUsd: number | null;

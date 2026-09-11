@@ -22,6 +22,8 @@ export async function writeToken(refetch = false): Promise<string> {
 }
 
 /** Clear the cache (test seam; also lets a caller force a refetch). */
+// Exported for test/client-fetch-module.test.mjs: resetWriteToken clears the
+// cached token between cases; nothing in production resets it.
 export function resetWriteToken(): void {
   cachedToken = null;
 }

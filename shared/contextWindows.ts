@@ -15,7 +15,7 @@
 // common non-Claude models Chronicle can import. Pure lookup — never fetched
 // at runtime, preserving the offline guarantee. Ordered: more specific
 // prefixes must come first.
-export const CONTEXT_WINDOWS: [string, number][] = [
+const CONTEXT_WINDOWS: [string, number][] = [
   // Claude — 1M-context generation
   ['claude-fable-5', 1_000_000],
   ['claude-mythos', 1_000_000],

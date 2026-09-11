@@ -9,7 +9,7 @@ import type { ExploreQueryParams } from '../../shared/explore.ts';
 // 'none' -> undefined before calling api.explore.
 export type PivotMetric = ExploreQueryParams['metric'];
 export type PivotGroup = ExploreQueryParams['group'];
-export type PivotSubgroup = PivotGroup | 'none';
+type PivotSubgroup = PivotGroup | 'none';
 export type PivotRollup = NonNullable<ExploreQueryParams['rollup']>;
 
 export interface PivotState {
@@ -20,7 +20,7 @@ export interface PivotState {
   topN: number;
 }
 
-export interface PivotControlsProps {
+interface PivotControlsProps {
   value: PivotState;
   onChange: (next: PivotState) => void;
 }
