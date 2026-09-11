@@ -37,10 +37,15 @@ test('a Shift chord spells out on Windows and Linux, and stacks symbols on macOS
   assert.equal(shortcutHint('U', { shift: true, platform: 'Win32' }), 'Ctrl+Shift+U');
 });
 
-test('a host with no browser to ask reads as Control, never as a key it cannot name', () => {
-  // Node has a `navigator` but no `platform` on it, which is what running these
-  // pins proves: the fallback is the modifier every keyboard has.
-  assert.equal(shortcutHint('1'), 'Ctrl+1');
+test('a host that names no platform reads as Control, never as a key it cannot name', () => {
+  // The fallback for a host that says nothing about itself is the modifier
+  // every keyboard has.
+  assert.equal(shortcutHint('1', { platform: '' }), 'Ctrl+1');
+  // Node DOES carry a browser-shaped `navigator.platform` ('MacIntel',
+  // 'Win32', 'Linux x86_64'), so the no-argument answer follows the machine
+  // running the pins rather than a fixed string — asserting 'Ctrl+1' flat would
+  // fail `npm test` on every Mac.
+  assert.equal(shortcutHint('1'), process.platform === 'darwin' ? '⌘1' : 'Ctrl+1');
 });
 
 // ---- The sweep: one place owns the symbol.

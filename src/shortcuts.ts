@@ -29,8 +29,10 @@ function usesCommandKey(platform: string): boolean {
  *
  * `userAgentData.platform` is the modern answer ("macOS", "Windows"),
  * `navigator.platform` the one Safari still gives ("MacIntel"), and the user
- * agent string the last resort ("… Macintosh …"). Off a browser — Node running
- * the pins — there is no platform at all, which reads as Control.
+ * agent string the last resort ("… Macintosh …"). A host that answers none of
+ * the three reads as Control, the modifier every keyboard has. (Node answers
+ * the first two with browser-shaped strings of its own — "MacIntel", "Win32",
+ * "Linux x86_64" — so off a browser the hint still follows the machine.)
  */
 function hostPlatform(): string {
   const nav = globalThis.navigator as (Navigator & { userAgentData?: { platform?: string } }) | undefined;

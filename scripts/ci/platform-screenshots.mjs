@@ -219,7 +219,10 @@ async function main(argv) {
     // The toolbar in this frame names the Find shortcut. Read it before the
     // shutter: a hint naming a key this OS has no room for is the bug #366
     // fixed, and a picture of it would only ever be caught by a human.
-    const hint = (await page.locator('input.search').getAttribute('placeholder')) ?? '';
+    // Scoped to the toolbar: CodePanel's file filter is an `input.search` too
+    // (`search small`), so a bare `input.search` is two elements on a project
+    // WITH a Git repo and Playwright's strict mode would throw before the read.
+    const hint = (await page.locator('.session-toolbar input.search').getAttribute('placeholder')) ?? '';
     const fault = hintFault(hint, 'F', process.platform);
     if (fault) throw new Error(`the Playback shot would show the wrong keyboard hint: ${fault}`);
     console.log(`  keyboard hint in frame: ${hint.trim()}`);
