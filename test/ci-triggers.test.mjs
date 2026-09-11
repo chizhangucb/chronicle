@@ -5,7 +5,7 @@
 // protection's `required_status_checks.strict`), so what lands on `main` is
 // exactly what the pull request just checked, and the re-run repeats it. The
 // manual trigger is how `main` gets checked after a merge that bypassed the
-// gate, so it has to run the SAME jobs a pull request does — a manual run that
+// gate, so it has to run the SAME jobs a pull request does. A manual run that
 // quietly skipped e2e would be a green that means nothing.
 //
 // Both halves are one line each in the workflow, and both come back by
@@ -19,23 +19,18 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import yaml from 'js-yaml';
-import { read, REPO } from './helpers/tracked-files.mjs';
-import { evaluate } from './helpers/github-expression.mjs';
+import { REPO } from './helpers/tracked-files.mjs';
+import { workflow } from './helpers/workflow-conditions.mjs';
 
 const WORKFLOW = '.github/workflows/ci.yml';
-const ci = yaml.load(read(WORKFLOW));
-// `on:` parses to YAML 1.1's boolean true, which is why GitHub's docs quote
-// it. Read it either way rather than depending on the spelling.
-const triggers = ci.on ?? ci[true];
+const ci = workflow(WORKFLOW);
+const triggers = ci.triggers;
 
 /** The job ids a run of this workflow starts, for an event and a classifier verdict. */
-const jobsFor = (event, e2e) => {
-  if (!(event in triggers)) return [];
-  return Object.entries(ci.jobs)
-    .filter(([, job]) => evaluate(job.if, { github: { event_name: event }, needs: { changes: { outputs: { e2e } } } }))
-    .map(([id]) => id);
-};
+const jobsFor = (event, e2e) =>
+  event in triggers
+    ? ci.jobsFor({ github: { event_name: event }, needs: { changes: { outputs: { e2e } } } })
+    : [];
 
 test('the gate runs on a pull request and on a manual trigger, and on nothing else', () => {
   assert.deepEqual(
@@ -73,7 +68,7 @@ test('a manual run classifies as the full gate, because there is no pull request
   // The `changes` job's own script, run as the workflow runs it, with no PR in
   // the environment. This is what makes the manual trigger a real check of
   // `main` rather than a skip: the classifier only narrows a pull request.
-  const classify = ci.jobs.changes.steps.find((step) => step.id === 'classify');
+  const classify = ci.doc.jobs.changes.steps.find((step) => step.id === 'classify');
   assert.ok(classify?.run, `${WORKFLOW}'s \`changes\` job has no \`classify\` step to run`);
   const output = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-ci-')), 'github-output');
   fs.writeFileSync(output, '');

@@ -7,12 +7,14 @@
 # node_version is 24 everywhere the target's own tooling runs: chronicle's server and tests read
 # .ts through Node's type stripping, and package.json says engines.node >= 24.
 #
-# Pausing this target: set the repository variable FACTORY_PAUSED to any value
+# Pausing this target: set the repository variable FACTORY_PAUSED to any non-empty value
 # (Settings -> Secrets and variables -> Actions -> Variables). While it is set no work starts or
-# advances here — no sweep, no implementer, no reviewer, no audit, no branch update — and clearing
-# it starts everything again on the next heartbeat. The merge gate is deliberately outside the
-# pause: it is a required check, so pausing it would strand every open pull request behind a check
-# that never reports. Disabling the workflow is no longer the only brake.
+# advances here: no sweep, no implementer, no reviewer, no audit, no branch update. Clearing it
+# lets the next heartbeat pick the open tickets up again, but an event that fired while paused
+# does not fire a second time, so the audit of a PR merged during the pause is simply skipped. The merge gate is
+# deliberately outside the pause: it is a required check, so pausing it would strand every open
+# pull request behind a check that never reports. An empty value reads as unset, GitHub's own rule
+# for a variable that is not there, so clear the variable rather than blanking it.
 #
 # test/factory-caller-wakeups.test.mjs pins the wake-up rules below by evaluating them;
 # test/factory-caller-inputs.test.mjs pins the inputs each job passes.

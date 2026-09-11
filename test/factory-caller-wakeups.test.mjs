@@ -2,8 +2,8 @@
 //
 // `.github/workflows/factory.yml` is a copy of software-factory's caller
 // template, and a copy drifts. Three of its rules are the ones that hurt when
-// they rot, so they are pinned here as behaviour — the event goes in, the jobs
-// that would start come out — rather than as text:
+// they rot, so they are pinned here as behaviour (the event goes in, the jobs
+// that would start come out) rather than as text:
 //
 //   The factory's own label removals wake nothing. A run's cleanup takes its
 //   own `agent:*` state label off the ticket; when that removal woke a sweep,
@@ -13,9 +13,9 @@
 //   ticket is done; touching its labels is bookkeeping, not a request to work.
 //
 //   The repository variable `FACTORY_PAUSED` stops this target. Set it to any
-//   value and no work starts or advances, so an operator can stop the factory
-//   here without disabling the workflow. Pull requests are still judged: the
-//   merge gate is a required check, and pausing it would strand every open PR.
+//   non-empty value and no work starts or advances, so an operator can stop the
+//   factory here without disabling the workflow. Pull requests are still judged:
+//   the merge gate is a required check, and pausing it would strand every open PR.
 //
 // Conditions are evaluated, not matched, so reordering an `if:` reads as the
 // honest refactor it is and deleting a clause reads as the regression it is.
@@ -23,22 +23,17 @@
 // inputs each job passes, which GitHub validates when it parses the caller.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import yaml from 'js-yaml';
-import { read } from './helpers/tracked-files.mjs';
-import { evaluate } from './helpers/github-expression.mjs';
+import { workflow } from './helpers/workflow-conditions.mjs';
 
 const CALLER = '.github/workflows/factory.yml';
-const caller = yaml.load(read(CALLER));
-const triggers = caller.on ?? caller[true];
+const caller = workflow(CALLER);
+const triggers = caller.triggers;
 
 /** The repository variable that stops this target, and the caller's name for it. */
 const PAUSE = 'FACTORY_PAUSED';
 
 /** The job ids this event would start. `paused` is the variable's value, unset by default. */
-const jobsFor = (event, { paused = '' } = {}) =>
-  Object.entries(caller.jobs)
-    .filter(([, job]) => evaluate(job.if, { github: event, vars: { [PAUSE]: paused } }))
-    .map(([id]) => id);
+const jobsFor = (event, { paused = '' } = {}) => caller.jobsFor({ github: event, vars: { [PAUSE]: paused } });
 
 /** An `issues` event: the action, the label it carries, and whether the ticket is open. */
 const ticket = (action, { label, state = 'open' } = {}) => ({
@@ -46,14 +41,21 @@ const ticket = (action, { label, state = 'open' } = {}) => ({
   event: { action, issue: { state }, ...(label ? { label: { name: label } } : {}) },
 });
 
-const labelledPr = (label) => ({ event_name: 'pull_request_target', event: { action: 'labeled', label: { name: label } } });
+const labelledPr = (label) => ({
+  event_name: 'pull_request_target',
+  event: { action: 'labeled', label: { name: label } },
+});
 const openPr = { event_name: 'pull_request', event: { action: 'synchronize', pull_request: { merged: false } } };
-const mergedPr = { event_name: 'pull_request', event: { action: 'closed', pull_request: { merged: true } } };
+const mergedPr = {
+  event_name: 'pull_request',
+  event: { action: 'closed', pull_request: { merged: true } },
+};
 const heartbeat = { event_name: 'repository_dispatch', event: { action: 'factory-sweep' } };
+const updateBranch = { event_name: 'repository_dispatch', event: { action: 'factory-update-branch' } };
 
 // --- The factory's own label removals --------------------------------------
 
-test("a factory state label coming off a ticket wakes nothing", () => {
+test('a factory state label coming off a ticket wakes nothing', () => {
   // These are the labels the factory writes and its own cleanup removes. A
   // sweep woken by one of them re-scans every ticket, including the one the
   // run just finished, which is how a finished ticket gets re-stamped.
@@ -108,13 +110,14 @@ test('a label edit or an assignee removal on a closed ticket starts no job', () 
 test('closing a ticket still wakes the sweep, which is how a run is reconciled', () => {
   // The `closed` action arrives with the ticket already closed, so the rule
   // above must not swallow it.
-  assert.deepEqual(jobsFor({ ...ticket('closed'), event: { action: 'closed', issue: { state: 'closed' } } }), ['dispatch']);
+  const closedTicket = { event_name: 'issues', event: { action: 'closed', issue: { state: 'closed' } } };
+  assert.deepEqual(jobsFor(closedTicket), ['dispatch']);
 });
 
 // --- The pause -------------------------------------------------------------
 
 test('the caller reads a repository variable, so the pause needs no code change', () => {
-  const conditions = Object.values(caller.jobs).map((job) => job.if ?? '');
+  const conditions = Object.values(caller.doc.jobs).map((job) => job.if ?? '');
   assert.ok(
     conditions.some((condition) => condition.includes(`vars.${PAUSE}`)),
     `no job in ${CALLER} reads \`vars.${PAUSE}\`, so this target can only be stopped by disabling the workflow`,
@@ -135,7 +138,7 @@ test('with the pause set, no work starts or advances', () => {
     labelledPr('agent:implement'),
     mergedPr,
     { event_name: 'push', event: {} },
-    { event_name: 'repository_dispatch', event: { action: 'factory-update-branch' } },
+    updateBranch,
   ];
   for (const event of events) {
     assert.deepEqual(
@@ -144,8 +147,9 @@ test('with the pause set, no work starts or advances', () => {
       `paused, ${event.event_name}/${event.event.action ?? ''} still starts a job`,
     );
   }
-  // Any value pauses: the variable existing is the instruction, so a `true`,
-  // a `yes` or a date all stop the factory rather than one magic spelling.
+  // Any non-empty value pauses, so a `true`, a `yes` or a date all stop the
+  // factory rather than one magic spelling. An empty value reads as unset,
+  // which is GitHub's own rule for a variable that is not there.
   for (const value of ['true', 'yes', 'chi is away until the 14th']) {
     assert.deepEqual(jobsFor(heartbeat, { paused: value }), [], `\`${PAUSE}=${value}\` did not pause the factory`);
   }
@@ -166,7 +170,7 @@ test('with the pause unset, every trigger still reaches its job', () => {
   assert.deepEqual(jobsFor(openPr), ['merge-gate']);
   assert.deepEqual(jobsFor(mergedPr), ['audit']);
   assert.deepEqual(jobsFor({ event_name: 'push', event: {} }), ['update-branch']);
-  assert.deepEqual(jobsFor({ event_name: 'repository_dispatch', event: { action: 'factory-update-branch' } }), ['update-branch']);
+  assert.deepEqual(jobsFor(updateBranch), ['update-branch']);
 });
 
 // --- The triggers the rules above are written against ----------------------
