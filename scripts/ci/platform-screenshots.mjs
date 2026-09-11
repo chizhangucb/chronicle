@@ -81,9 +81,10 @@ export function pickPlaybackSession(sessions) {
 /**
  * The artifact file name for one shot on one OS.
  *
- * Both runners upload into ONE artifact, so the platform has to be in the
- * name too, so the two download into one folder without colliding and the
- * artifact says nothing about the OS it came from.
+ * The two runners upload one artifact EACH (upload-artifact@v4 seals an
+ * artifact on close, so a shared name would 409). The platform is in the file
+ * name as well, so the two artifacts can be downloaded into one folder and
+ * compared side by side without colliding.
  *
  * @param {string} kind - `sidebar`, `playback` or `glyphs`.
  * @param {string} platform - a `process.platform` value.
@@ -150,8 +151,11 @@ async function main(argv) {
   const home = tempHome('screens');
   const port = await freePort();
   const app = await launch(pkg, ['--no-open', '--demo', '--port', String(port)], homeEnv(home));
-  const browser = await chromium.launch();
+  // Inside the try: a Chromium that fails to launch must still stop the app,
+  // or a failed run leaves a Chronicle server holding the port on the runner.
+  let browser;
   try {
+    browser = await chromium.launch();
     await waitFor(`${app.url}/api/projects`);
     const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
 
@@ -179,7 +183,7 @@ async function main(argv) {
     await page.screenshot({ path: path.join(out, screenshotName('glyphs', process.platform)), fullPage: true });
     console.log(`  wrote ${screenshotName('glyphs', process.platform)}`);
   } finally {
-    await browser.close().catch(() => {});
+    await browser?.close().catch(() => {});
     await app.stop();
   }
   console.log(`Screenshots for ${process.platform} are in ${out}`);

@@ -78,10 +78,15 @@ export function expectedDataDir(home, env) {
  * Top-level entries of `home` that Chronicle had no business creating.
  *
  * @param {string} home - a throwaway home directory a run was pointed at.
+ * @param {Set<string> | string[]} [allowed] - what this particular home was
+ *   allowed to end up with. Defaults to the full set; a home that was never
+ *   seeded with transcripts passes the tighter set, so Chronicle CREATING a
+ *   `~/.claude` (rather than reading one) still reads as a stray.
  * @returns {string[]} the offending names, empty when the run stayed in its folder.
  */
-export function strayHomeEntries(home) {
-  return fs.readdirSync(home).filter((name) => !ALLOWED_HOME_ENTRIES.has(name));
+export function strayHomeEntries(home, allowed = ALLOWED_HOME_ENTRIES) {
+  const allow = allowed instanceof Set ? allowed : new Set(allowed);
+  return fs.readdirSync(home).filter((name) => !allow.has(name));
 }
 
 /**
@@ -364,7 +369,9 @@ async function checkDataFolder(packageDir) {
       'the database lives in the data folder',
       `saw: ${fs.readdirSync(dataDir).join(', ')}`,
     );
-    const strays = strayHomeEntries(home);
+    // Nothing planted this home with source logs, so only Chronicle's own
+    // data folder and the harness-created AppData roots belong here.
+    const strays = strayHomeEntries(home, ['.chronicle', 'AppData']);
     check(strays.length === 0, 'nothing is written outside the data folder (ADR 0008)', `strays: ${strays.join(', ')}`);
     const appData = appDataEntries(home);
     check(appData.length === 0, 'nothing is written to %APPDATA% or %LOCALAPPDATA% either',

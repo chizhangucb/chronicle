@@ -39,8 +39,13 @@ on:
       - 'scripts/ci/platform-screenshots.mjs'
       - '.github/workflows/platform-smoke.yml'
 
+# `github.workflow` is the CALLER's workflow name when this runs through
+# workflow_call, so a publish-triggered smoke gets its own group. Without it a
+# re-pushed tag would cancel the in-flight publish run's smoke (publish.yml
+# sets cancel-in-progress: false precisely to avoid that), failing a release
+# run at its `needs:`.
 concurrency:
-  group: platform-smoke-${{ github.ref }}
+  group: platform-smoke-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 # windows-latest defaults to pwsh and ubuntu-latest to bash, which would make

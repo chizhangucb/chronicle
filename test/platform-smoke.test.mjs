@@ -81,6 +81,16 @@ test('a write outside the data folder and the source logs is reported', () => {
   assert.deepEqual(strayHomeEntries(home).sort(), ['.chronicle-backup', '.config']);
 });
 
+test('on a home nobody planted transcripts in, a created ~/.claude is a stray', () => {
+  // ADR 0008 lets Chronicle READ a source folder, never create one. The
+  // data-folder check runs on an unplanted home and passes the tighter
+  // allow-list for exactly this case.
+  const home = tmp();
+  fs.mkdirSync(path.join(home, '.chronicle'));
+  fs.mkdirSync(path.join(home, '.claude'));
+  assert.deepEqual(strayHomeEntries(home, ['.chronicle', 'AppData']), ['.claude']);
+});
+
 test('a Windows-only write to %APPDATA% is reported too', () => {
   // The POSIX sweep above cannot see this: nothing on Windows puts
   // application data in the home directory itself.
