@@ -148,8 +148,8 @@ function occupyPort(port) {
   });
 }
 
-/** A free port to run a check on, well clear of the launcher's scan range. */
-function freePort() {
+/** A free port to run a check on, chosen by the OS. */
+export function freePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.once('error', reject);
@@ -165,7 +165,7 @@ function freePort() {
  *
  * @returns {Promise<{ url: string, port: number, stop: () => Promise<void>, output: () => string }>}
  */
-async function launch(packageDir, args, env) {
+export async function launch(packageDir, args, env) {
   const bin = path.join(packageDir, 'bin', 'chronicle.mjs');
   if (!fs.existsSync(bin)) throw new Error(`No launcher at ${bin} — is the tarball installed?`);
   const child = spawn(process.execPath, [bin, ...args], {
@@ -200,7 +200,7 @@ async function launch(packageDir, args, env) {
 }
 
 /** Poll an endpoint until it answers, so a slow first boot is not a failure. */
-async function waitFor(url, init) {
+export async function waitFor(url, init) {
   const deadline = Date.now() + 60_000;
   let last = '';
   while (Date.now() < deadline) {
@@ -214,13 +214,13 @@ async function waitFor(url, init) {
   throw new Error(`${url} never answered (${last})`);
 }
 
-function tempHome(label) {
+export function tempHome(label) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), `chronicle-${label}-`));
   return fs.realpathSync(home);
 }
 
 /** The environment a launch runs in: a throwaway home on every platform. */
-function homeEnv(home, extra = {}) {
+export function homeEnv(home, extra = {}) {
   return {
     ...process.env,
     HOME: home,            // os.homedir() on POSIX
