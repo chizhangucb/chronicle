@@ -63,3 +63,19 @@ test('no surface writes a modifier symbol itself', () => {
 test('the helper is the one place the symbol is written', () => {
   assert.match(read(HELPER), /⌘/);
 });
+
+// ---- The other half of the promise the hints make.
+//
+// A hint that reads `Ctrl+K` off macOS is only true while the handler behind it
+// takes Control as well as Command. This ticket changed labels and nothing else
+// (issue #366), so the pairing is held here rather than left to the diff: every
+// line in the client that consults one of the two modifiers consults both.
+test('every shortcut handler still accepts either modifier', () => {
+  const lonely = [];
+  for (const rel of tracked.filter((p) => /^src\/.*\.tsx?$/.test(p))) {
+    read(rel).split('\n').forEach((line, i) => {
+      if (line.includes('metaKey') !== line.includes('ctrlKey')) lonely.push(`${rel}:${i + 1}: ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(lonely, [], `a shortcut reachable with only one modifier:\n${lonely.join('\n')}`);
+});
