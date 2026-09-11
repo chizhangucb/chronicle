@@ -5,6 +5,7 @@ import net from 'node:net';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { browserOpenCommand } from './open-command.mjs';
 
 // --- Silence ONLY the node:sqlite experimental warning. ---
 // The server opens the DB via node:sqlite (DatabaseSync), which emits a single
@@ -92,11 +93,12 @@ async function firstFreePort(start) {
 }
 
 // --- Open the default browser (best-effort; never fatal). ---
+// The per-platform argv lives in ./open-command.mjs so a unit test can pin it
+// (#200): a CI runner has no default browser, so the command built is the only
+// observable half of this step.
 function openBrowser(url) {
-  const cmd = process.platform === 'darwin' ? 'open'
-    : process.platform === 'win32' ? 'cmd' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-  try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); } catch { /* ignore */ }
+  const { command, args } = browserOpenCommand(process.platform, url);
+  try { spawn(command, args, { stdio: 'ignore', detached: true }).unref(); } catch { /* ignore */ }
 }
 
 // --- `--app`: a dedicated window via Chromium's --app=. ---
