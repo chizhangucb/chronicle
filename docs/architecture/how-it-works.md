@@ -467,7 +467,8 @@ background sync so the database stays fresh as you keep using your AI tools:
 - **Pausable, not just on/off:** turning auto-sync **off** tears down the watchers and timer
   entirely. **Pausing** (a separate toggle in Settings) keeps them registered — so resuming
   needs no restart — but every sync attempt they trigger no-ops. Manual actions (a session's
-  "Sync Update" button, `⇧⌘U`) call the import path directly and are never blocked by pause.
+  "Sync Update" button, `⇧⌘U` — `Ctrl+Shift+U` off macOS) call the import path
+  directly and are never blocked by pause.
 
 **Deletes are tombstones, not silent drops.** Deleting a session or a whole project writes to
 `session_tombstones` (after backing up the database) rather than just removing rows — so a

@@ -18,6 +18,7 @@ import {
   canonicalGlyphs,
   pickPlaybackSession,
   screenshotName,
+  hintFault,
 } from '../scripts/ci/platform-screenshots.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,4 +78,39 @@ test('screenshot names carry the OS, so two runners cannot overwrite each other'
   assert.equal(screenshotName('sidebar', 'win32'), 'sidebar-win32.png');
   assert.equal(screenshotName('playback', 'linux'), 'playback-linux.png');
   assert.notEqual(screenshotName('glyphs', 'win32'), screenshotName('glyphs', 'linux'));
+});
+
+// ---- The keyboard hint in the Playback frame (issue #366).
+//
+// The Playback shot frames the session toolbar, and the search field there
+// carries a shortcut hint. That hint used to read `⌘F` on every OS, naming a
+// key a Windows or Linux keyboard does not have, and the first Windows
+// screenshot from this very run is where it was caught. A picture only tells
+// a human, so the run now reads the rendered hint and refuses to file a shot
+// that shows the wrong key.
+test('a Windows or Linux shot has to show the Control form', () => {
+  assert.equal(hintFault('Search messages…  Ctrl+F', 'F', 'win32'), null);
+  assert.equal(hintFault('Search messages…  Ctrl+F', 'F', 'linux'), null);
+  assert.match(hintFault('Search messages…  ⌘F', 'F', 'win32'), /Ctrl\+F/);
+  assert.match(hintFault('Search messages…  ⌘F', 'F', 'linux'), /Ctrl\+F/);
+});
+
+test('a macOS shot has to show the Command form', () => {
+  assert.equal(hintFault('Search messages…  ⌘F', 'F', 'darwin'), null);
+  assert.match(hintFault('Search messages…  Ctrl+F', 'F', 'darwin'), /⌘F/);
+});
+
+test('a hint naming BOTH modifiers is a fault too, not a pass on the substring', () => {
+  // The half-fixed case: a surface that appends the Control form and leaves the
+  // old symbol in place reads as two shortcuts, and would slip past a check
+  // that only looked for what it expected.
+  assert.match(hintFault('Search messages…  ⌘F / Ctrl+F', 'F', 'win32'), /⌘/);
+  assert.match(hintFault('Search messages…  ⌘F / Ctrl+F', 'F', 'darwin'), /Ctrl/);
+});
+
+test('a field with no hint at all is a fault, not a silent pass', () => {
+  // The shot is worth taking only while it still frames a hint: a placeholder
+  // that lost it would otherwise retire this guard without a word.
+  assert.match(hintFault('Search messages…', 'F', 'linux'), /Ctrl\+F/);
+  assert.match(hintFault('', 'F', 'darwin'), /⌘F/);
 });

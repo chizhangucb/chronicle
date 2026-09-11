@@ -3,6 +3,7 @@ import { api } from './api.js';
 import type { AskCostMode, AskTurn } from '../shared/results.ts';
 import { useCostMode } from './costMode.js';
 import InfoTip from './InfoTip.js';
+import { shortcutHint } from './shortcuts.ts';
 
 // /ask: one conversation column answered from chronicle.db via the
 // local claude runner. Day dividers, durable history, prose + full-width table +
@@ -125,7 +126,7 @@ export default function AskPage(): React.JSX.Element {
           placeholder="Ask about your sessions, spend, models…"
           aria-label="Ask a question" disabled={!!pending} />
         <button type="submit" className="ask-send" disabled={!!pending} aria-label="Send">↵</button>
-        <span className="ask-kbd" aria-hidden>⌘J</span>
+        <span className="ask-kbd" aria-hidden>{shortcutHint('J')}</span>
       </form>
       <div className="ask-foot muted">
         runs locally via your claude CLI · read-only SQL over chronicle.db · history stays in ~/.chronicle · nothing leaves your machine

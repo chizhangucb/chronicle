@@ -12,6 +12,7 @@ import OverviewMode from './session/OverviewMode.tsx';
 import { errorDrillIn, subagentRunList, fmtTokNum, fmtDur } from './session/stats.ts';
 import ContentTab from './ContentTab.tsx';
 import { useResizable } from './useResizable.ts';
+import { shortcutHint } from './shortcuts.ts';
 import type { ProjectDetailResult, SessionMessagesResult } from '../shared/results.ts';
 import type { Commit, ProjectSessionSummary, SessionRow } from '../shared/rows.ts';
 import type { DeletedEntry } from './SessionSelect.tsx';
@@ -122,7 +123,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
   const listRef = useRef<HTMLDivElement | null>(null);
   const chatSplit = useResizable({ storageKey: PLAYBACK_SPLIT_KEY, fallback: 420, min: PLAYBACK_SPLIT_MIN, max: 900, edge: 'right' });
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the ⇧⌘U shortcut)
+  const syncRef = useRef<(() => void) | null>(null); // always points at the latest syncThisSession (for the Shift+Cmd/Ctrl+U shortcut)
   // Whether the CURRENT selectedSeq was set via the Timeline's own scrub/seek,
   // vs some other path (message card click, window-jump button). Overwritten
   // synchronously by every `selectMessage` call, right alongside
@@ -188,9 +189,9 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
     if (!data) return;
     onRailChange?.({
       modes: [
-        { key: 'overview', icon: '⬚', label: 'Overview', title: 'Session Overview (⌘1)' },
-        { key: 'playback', icon: '▶', label: 'Playback', title: 'Playback Mode (⌘2)' },
-        { key: 'refine', icon: '✂', label: 'Refine', title: 'Refine Mode (⌘3)' },
+        { key: 'overview', icon: '⬚', label: 'Overview', title: `Session Overview (${shortcutHint('1')})` },
+        { key: 'playback', icon: '▶', label: 'Playback', title: `Playback Mode (${shortcutHint('2')})` },
+        { key: 'refine', icon: '✂', label: 'Refine', title: `Refine Mode (${shortcutHint('3')})` },
       ],
       active: mode,
       securityOpen,
@@ -279,7 +280,7 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
       if ((e.metaKey || e.ctrlKey) && e.key === '1') { e.preventDefault(); setMode('overview'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); setMode('playback'); }
       if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); setMode('refine'); }
-      // ⇧⌘U (⇧Ctrl+U) — Sync Update this session
+      // Shift+Cmd/Ctrl+U — Sync Update this session
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') { e.preventDefault(); syncRef.current?.(); }
       if (e.key === 'Escape') { setKeyword(''); searchRef.current?.blur(); }
     }
@@ -362,11 +363,11 @@ export default function SessionView({ sessionId, onBack, onLiveChange, onRailCha
             <button className="chip clear" onClick={() => { setChips(new Set()); setKeyword(''); setErrorsOnly(false); }}>Clear filter</button>
           )}
         </div>
-        <input ref={searchRef} className="search" placeholder="Search messages…  ⌘F"
+        <input ref={searchRef} className="search" placeholder={`Search messages…  ${shortcutHint('F')}`}
           value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         <span className="muted small">Match: <span className="num">{visible.length}/{messages.length}</span></span></>}
         <button className={`session-sync ${syncingSession ? 'spin' : ''}`}
-          title="Sync this session (⇧⌘U)" onClick={syncThisSession} disabled={syncingSession}
+          title={`Sync this session (${shortcutHint('U', { shift: true })})`} onClick={syncThisSession} disabled={syncingSession}
           aria-label="Sync this session">{syncingSession ? '◌' : '⟳'}</button>
         {syncErr && <span className="menu-err small">{syncErr}</span>}
       </div>

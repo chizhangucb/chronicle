@@ -16,7 +16,7 @@ interface SyncStatusText {
 
 // Polls GET /api/autosync/status and formats it as passive rail-header text
 // ("synced 32s ago" / "syncing…" / "sync failed 5m ago" / "never synced").
-// Originally read-only per the Phase 5 "invisible sync" decision (5a's ⇧⌘U +
+// Originally read-only per the Phase 5 "invisible sync" decision (5a's Shift+Cmd/Ctrl+U +
 // per-project "Sync Update" were the power-user escape hatches); Task 17 adds
 // a click-to-sync-now affordance in the topbar on top of that.
 export function useSyncStatus(): SyncStatusText {

@@ -90,6 +90,7 @@ const TESTED_THROUGH_THE_EXPORT = {
   // tarball, so `npm test` can never run it end to end. What it decides for
   // itself is exported and driven directly instead.
   'scripts/ci/platform-screenshots.mjs canonicalGlyphs': 'the glyph vocabulary read out of the design QA rubric',
+  'scripts/ci/platform-screenshots.mjs hintFault': 'the verdict on the keyboard hint the Playback shot frames, asserted per OS',
   'scripts/ci/platform-screenshots.mjs monoStack': 'the shipped mono stack read out of the bundle, minified or not',
   'scripts/ci/platform-screenshots.mjs pickPlaybackSession': 'which session gets the Playback shot, chosen without a browser',
   'scripts/ci/platform-screenshots.mjs screenshotName': 'the per-OS file names two runners upload under',

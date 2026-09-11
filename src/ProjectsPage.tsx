@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { formatRelativeTime } from './relativeTime.js';
 import { projectColorMap } from './colors.js';
 import { invalidateClientCache } from './useCachedFetch.ts';
+import { shortcutHint } from './shortcuts.ts';
 import RecentLedger from './RecentLedger.js';
 import type { Project } from '../shared/types.ts';
 // One row of GET /api/projects, declared once in shared/results.ts (#307).
@@ -396,7 +397,7 @@ export default function ProjectsPage({ projects, onOpenProject, onOpenSession, o
           <div className="home-search">
             ⌕ <input placeholder="Filter sessions… (title, project, content)" value={query}
               onChange={(e) => setQuery(e.target.value)} />
-            <span className="kbd">⌘K</span>
+            <span className="kbd">{shortcutHint('K')}</span>
           </div>
           {showCommandBar && (
             <div className="command-bar">

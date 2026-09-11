@@ -83,6 +83,11 @@ divider). Contents, top to bottom:
 - NO "← Projects" back link anywhere (real URL routes; browser back/forward).
 - **⌘J** routes to `/ask` from anywhere and focuses the input — ONLY when Ask is enabled (so the
   shortcut never lands on the soft-failed route). Not a topbar control (the topbar is full).
+- **Hints are written per platform, never by hand.** `⌘` above names the CHORD, not the label the
+  visitor reads. Every handler takes Command OR Control, and every visible hint is rendered by
+  `shortcutHint()` (`src/shortcuts.ts`), the one place that decides: `⌘K` on macOS, `Ctrl+K` on
+  Windows and Linux, `⇧⌘U` against `Ctrl+Shift+U`. No surface writes a modifier symbol itself
+  (`test/shortcut-hint.test.mjs` sweeps `src/` for one).
 
 ## Page width (`src/styles.css`)
 
