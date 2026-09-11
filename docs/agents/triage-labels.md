@@ -19,7 +19,11 @@ Taking a human's label off an open issue triggers a sweep, as does adding `ready
 
 ## Stopping the factory on this repo
 
-No label does it. The brake for the whole repo is the repository variable `FACTORY_PAUSED` (Settings -> Secrets and variables -> Actions -> Variables): set it to any non-empty value and nothing starts or advances here, no sweep, no implementer, no reviewer, no audit, no branch update. Open pull requests are still judged, since the merge gate is a required check. Clear the variable to start again; work that was skipped while paused is picked up by the next sweep, but an event that fired during the pause does not fire a second time. `.github/workflows/factory.yml` is where it is read and `test/factory-caller-wakeups.test.mjs` pins it.
+No label does it. The brake for the whole repo is the repository variable `FACTORY_PAUSED` (Settings -> Secrets and variables -> Actions -> Variables): set it and nothing starts or advances here, no sweep, no implementer, no reviewer, no branch update. Any non-empty value pauses, and the value is the reason, so type why rather than a flag: `gh variable set FACTORY_PAUSED --repo chizhangucb/chronicle --body "runaway sweep, see #123"`. Every factory run while it is set carries one job that does nothing but say so: it annotates the run with the reason and writes it to the run summary, so a paused repo does not read like one whose heartbeat died.
+
+Two jobs keep running on purpose, both of them judging a pull request somebody already opened. The merge gate, because it is a required check and pausing it would strand every open PR behind a check that never reports. And the audit of a merged PR, because a bad merge that landed just before the pause is the thing you most want caught while everything else is stopped; on a miss it still opens a revert PR and a `needs-human` issue.
+
+Clear the variable to start again (`gh variable delete FACTORY_PAUSED --repo chizhangucb/chronicle`); nothing is queued while paused, so the next heartbeat picks up whatever the repo's state says is ready, which is why the cause gets fixed before the pause is lifted. `.github/workflows/factory.yml` is where it is read and `test/factory-caller-wakeups.test.mjs` pins it.
 
 ## Wayfinder tickets
 

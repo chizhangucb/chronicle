@@ -14,8 +14,12 @@
 //
 //   The repository variable `FACTORY_PAUSED` stops this target. Set it to any
 //   non-empty value and no work starts or advances, so an operator can stop the
-//   factory here without disabling the workflow. Pull requests are still judged:
-//   the merge gate is a required check, and pausing it would strand every open PR.
+//   factory here without disabling the workflow, and a `paused` job says so out
+//   loud in every run. What a pause does NOT stop is the two jobs that judge a
+//   pull request somebody else already opened: the merge gate, a required check
+//   whose absence would strand every open PR, and the audit, because a bad merge
+//   that landed just before the pause is what you most want caught while
+//   everything else is stopped.
 //
 // Conditions are evaluated, not matched, so reordering an `if:` reads as the
 // honest refactor it is and deleting a clause reads as the regression it is.
@@ -92,6 +96,14 @@ test('`agent:implement` landing on an open ticket still starts the implementer',
 // --- The closed ticket -----------------------------------------------------
 
 test('a label edit or an assignee removal on a closed ticket starts no job', () => {
+  // The two `labeled` rows are chronicle reading #213 more broadly than
+  // software-factory's templates/factory.yml does: the template gates the two
+  // removals on the ticket's state and leaves both `labeled` paths ungated.
+  // Labelling a closed ticket is bookkeeping on finished work, and the
+  // dispatcher refuses a closed ticket anyway, so the extra clause only ever
+  // refuses a run the factory would have refused. A straight re-copy of the
+  // template reverts it and turns those two rows red: that is a decision to
+  // take, not drift to repair. The caller says the same next to each clause.
   for (const event of [
     ticket('labeled', { label: 'ready-for-agent', state: 'closed' }),
     ticket('labeled', { label: 'agent:implement', state: 'closed' }),
@@ -125,6 +137,8 @@ test('the caller reads a repository variable, so the pause needs no code change'
 });
 
 test('with the pause set, no work starts or advances', () => {
+  // Every event that would otherwise start work or move it along. `paused` is
+  // the banner job, the only thing a paused run still does, pinned below.
   const events = [
     heartbeat,
     { event_name: 'schedule', event: {} },
@@ -136,29 +150,58 @@ test('with the pause set, no work starts or advances', () => {
     ticket('closed'),
     labelledPr('agent:review'),
     labelledPr('agent:implement'),
-    mergedPr,
     { event_name: 'push', event: {} },
     updateBranch,
   ];
   for (const event of events) {
     assert.deepEqual(
       jobsFor(event, { paused: '1' }),
-      [],
-      `paused, ${event.event_name}/${event.event.action ?? ''} still starts a job`,
+      ['paused'],
+      `paused, ${event.event_name}/${event.event.action ?? ''} still starts work`,
     );
   }
   // Any non-empty value pauses, so a `true`, a `yes` or a date all stop the
   // factory rather than one magic spelling. An empty value reads as unset,
   // which is GitHub's own rule for a variable that is not there.
   for (const value of ['true', 'yes', 'chi is away until the 14th']) {
-    assert.deepEqual(jobsFor(heartbeat, { paused: value }), [], `\`${PAUSE}=${value}\` did not pause the factory`);
+    assert.deepEqual(jobsFor(heartbeat, { paused: value }), ['paused'], `\`${PAUSE}=${value}\` did not pause it`);
   }
 });
 
-test('a paused factory still judges pull requests', () => {
-  // The merge gate is a required check. Pausing it would strand every open
-  // pull request behind a check that never reports, which is not a pause.
-  assert.deepEqual(jobsFor(openPr, { paused: '1' }), ['merge-gate']);
+test('a paused factory still judges a pull request, and still audits a merge', () => {
+  // The two jobs the pause deliberately leaves alone, both of them asked for by
+  // a pull request somebody else already opened. The merge gate is a required
+  // check: pausing it would strand every open PR behind a check that never
+  // reports, which is the whole reason the pause is a variable and not
+  // `gh workflow disable`.
+  assert.deepEqual(jobsFor(openPr, { paused: '1' }), ['paused', 'merge-gate']);
+  // And the audit is the alarm a pause exists to keep. A bad merge that landed
+  // just before the pause is what you most want caught while everything else is
+  // stopped; gate it and that merge gets no revert branch, no revert PR and no
+  // `needs-human` issue. It is bounded to one run per merged PR inside the
+  // first-20 window, and it starts no ticket and puts no agent on a branch.
+  assert.deepEqual(jobsFor(mergedPr, { paused: '1' }), ['paused', 'audit']);
+});
+
+test('a pause says so out loud, with its reason, instead of looking like a dead factory', () => {
+  // Every gated job skips while paused, and a skipped job is still an absence:
+  // without this one, a paused chronicle and a chronicle whose heartbeat died
+  // read identically from the Actions tab. It is the caller's only job that
+  // calls no reusable workflow.
+  const paused = caller.doc.jobs.paused;
+  assert.ok(paused, `${CALLER} has no \`paused\` job, so a pause here cannot be told from a dead heartbeat`);
+  assert.equal(paused.uses, undefined, 'the `paused` job must run here, not call a reusable workflow');
+  assert.deepEqual(jobsFor(heartbeat, { paused: '1' }), ['paused'], 'a paused run says nothing about being paused');
+  assert.deepEqual(jobsFor(heartbeat), ['dispatch'], 'the banner runs on a factory that is not paused');
+
+  // The variable's value is the reason, not a flag, so it has to reach a
+  // reader. It goes through the environment rather than into the script text:
+  // whatever is typed into the variable is data and never a command.
+  const say = (paused.steps ?? []).find((step) => String(step.run ?? '').includes('$GITHUB_STEP_SUMMARY'));
+  assert.ok(say, 'the `paused` job writes no step summary, so the reason surfaces nowhere');
+  assert.equal(say.env?.REASON, `\${{ vars.${PAUSE} }}`, 'the reason must reach the script as an environment variable');
+  assert.match(say.run, /::warning/, 'a pause must annotate the run, not only its summary');
+  assert.match(say.run, /\$REASON/, 'the annotation and the summary must name the reason');
 });
 
 test('with the pause unset, every trigger still reaches its job', () => {
