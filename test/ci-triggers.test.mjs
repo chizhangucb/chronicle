@@ -70,12 +70,18 @@ test('a manual run classifies as the full gate, because there is no pull request
   // `main` rather than a skip: the classifier only narrows a pull request.
   const classify = ci.doc.jobs.changes.steps.find((step) => step.id === 'classify');
   assert.ok(classify?.run, `${WORKFLOW}'s \`changes\` job has no \`classify\` step to run`);
-  const output = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-ci-')), 'github-output');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-ci-'));
+  const output = path.join(dir, 'github-output');
   fs.writeFileSync(output, '');
-  execFileSync('bash', ['-c', classify.run], {
-    cwd: REPO,
-    encoding: 'utf8',
-    env: { ...process.env, PR_BASE_SHA: '', PR_HEAD_SHA: '', GITHUB_OUTPUT: output },
-  });
-  assert.match(fs.readFileSync(output, 'utf8'), /^e2e=true$/m, 'a run with no pull request must pay for the full gate');
+  try {
+    execFileSync('bash', ['-c', classify.run], {
+      cwd: REPO,
+      encoding: 'utf8',
+      env: { ...process.env, PR_BASE_SHA: '', PR_HEAD_SHA: '', GITHUB_OUTPUT: output },
+    });
+    const written = fs.readFileSync(output, 'utf8');
+    assert.match(written, /^e2e=true$/m, 'a run with no pull request must pay for the full gate');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -19,14 +19,19 @@
 // loudly instead of silently reading as `true`, and the day a workflow needs
 // another function is the day it is added here.
 //
-// Coercion follows GitHub's rule for the one case the workflows lean on: an
+// Coercion follows GitHub's rules for the cases the workflows lean on: an
 // undefined lookup (an unset repository variable, an absent payload field)
-// compares equal to the empty string and is falsy.
+// compares equal to the empty string and is falsy, and string comparison
+// ignores case (`==`, `!=` and `startsWith()` alike), so a label spelled
+// `Agent:implement` reads here exactly as GitHub reads it.
 import yaml from 'js-yaml';
 import { read } from './tracked-files.mjs';
 
 const FUNCTIONS = {
-  startsWith: (value, prefix) => String(value ?? '').startsWith(String(prefix ?? '')),
+  startsWith: (value, prefix) =>
+    String(value ?? '')
+      .toLowerCase()
+      .startsWith(String(prefix ?? '').toLowerCase()),
   // A pin asks whether a condition lets the job run at all, which is the
   // not-cancelled case.
   cancelled: () => false,
@@ -72,8 +77,15 @@ const lookup = (path, context) =>
 
 const truthy = (value) => !(value === undefined || value === null || value === false || value === '' || value === 0);
 
-/** GitHub compares an absent value equal to the empty string, so unset means empty. */
-const equal = (left, right) => (left ?? '') === (right ?? '');
+/**
+ * GitHub compares an absent value equal to the empty string, so unset means
+ * empty, and it compares two strings ignoring case.
+ */
+const equal = (left, right) => {
+  const l = left ?? '';
+  const r = right ?? '';
+  return typeof l === 'string' && typeof r === 'string' ? l.toLowerCase() === r.toLowerCase() : l === r;
+};
 
 const parse = (tokens) => {
   let at = 0;

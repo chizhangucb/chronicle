@@ -19,13 +19,7 @@ Taking a human's label off an open issue triggers a sweep, as does adding `ready
 
 ## Stopping the factory on this repo
 
-No label does it. The brake for the whole repo is the repository variable `FACTORY_PAUSED`
-(Settings -> Secrets and variables -> Actions -> Variables): set it to any non-empty value and
-nothing starts or advances here, no sweep, no implementer, no reviewer, no audit. Open pull
-requests are still judged, since the merge gate is a required check. Clear the variable to
-start again; work that was skipped while paused is picked up by the next sweep, but an event
-that fired during the pause does not fire a second time. `.github/workflows/factory.yml` is where it is
-read and `test/factory-caller-wakeups.test.mjs` pins it.
+No label does it. The brake for the whole repo is the repository variable `FACTORY_PAUSED` (Settings -> Secrets and variables -> Actions -> Variables): set it to any non-empty value and nothing starts or advances here, no sweep, no implementer, no reviewer, no audit, no branch update. Open pull requests are still judged, since the merge gate is a required check. Clear the variable to start again; work that was skipped while paused is picked up by the next sweep, but an event that fired during the pause does not fire a second time. `.github/workflows/factory.yml` is where it is read and `test/factory-caller-wakeups.test.mjs` pins it.
 
 ## Wayfinder tickets
 
