@@ -55,10 +55,14 @@ const REPO_LABELS = new Set([
 
 /** The page's `| Role | Label | Meaning |` table, as rows of trimmed cells. */
 const roleTable = () => {
-  const rows = source
-    .split('\n')
-    .filter((line) => line.trim().startsWith('|'))
-    .map((line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()));
+  // The first run of `|` lines only: a second table elsewhere on the page is
+  // not this table, and its rows must not answer for it.
+  const lines = source.split('\n').map((line) => line.trim());
+  const first = lines.findIndex((line) => line.startsWith('|'));
+  const after = lines.findIndex((line, i) => i > first && !line.startsWith('|'));
+  const rows = lines
+    .slice(Math.max(first, 0), after === -1 ? lines.length : after)
+    .map((line) => line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()));
   const header = rows.findIndex(
     (cells) => cells.length === 3 && cells.map((cell) => cell.toLowerCase()).join('|') === 'role|label|meaning',
   );
@@ -124,11 +128,17 @@ const LABEL_FAMILIES = /^(?:agent|factory|wayfinder):[a-z0-9-]+$|^(?:needs|ready
 /** Every token on the page that reads as a label to whoever follows it. */
 const labelsNamedOnThePage = () => {
   const words = (text) => text.split(/[\s|+,;()"']+/).filter(Boolean);
-  // In backticks, a single word counts too: code voice on this page means a
-  // label. A path (`factory/dispatch/select.ts`) and a slash command
-  // (`/triage`) are the two things in backticks here that are plainly not one.
+  // A backticked span that is one word counts whole, unhyphenated ones
+  // included: code voice on this page means a label, which is how a bare
+  // `wontfix` typo is caught. A path (`factory/dispatch/select.ts`) and a
+  // slash command (`/triage`) are the two single-word spans here that are
+  // plainly not labels. A span of several words is a command, not a label
+  // (`gh issue edit --add-label hold`); its own words are not each a label,
+  // and any label inside it is still caught by the bare pass below, which
+  // reads the page with the backticks stripped out.
   const backticked = [...source.matchAll(/`([^`\n]+)`/g)]
-    .flatMap((match) => words(match[1]))
+    .map((match) => match[1].trim())
+    .filter((span) => !/\s/.test(span))
     .filter((token) => !token.includes('/') && !token.includes('.'))
     .filter((token) => /^[a-z][a-z0-9]*(?:[:-][a-z0-9]+)*$/.test(token));
   // Bare in prose, only the label families, stripped of sentence punctuation.
