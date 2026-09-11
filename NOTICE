@@ -23,6 +23,8 @@ Third-party notices
    The published package depends on one library at runtime, under the MIT
    license:
      - Express            https://expressjs.com/
+   Express brings its own dependency tree, which installs alongside it under the
+   permissive licenses those libraries declare (MIT, ISC, BSD-3-Clause).
    Everything else in the dependency tree is a build-time or test-time tool and
    is not distributed with the package. Chronicle bundles no web fonts (it uses
    the operating system's own UI and monospace faces) and no third-party icon

@@ -2,10 +2,11 @@
 //
 // `npx chronicle-cli` downloads whatever the manifest declares under
 // `dependencies`, so a library only the test suite imports is bandwidth every
-// user pays for and an advisory surface every user carries. Express is the one
-// thing the server actually needs at runtime; everything else -- the client
-// toolchain, the type packages, js-yaml in test/factory-caller-inputs.test.mjs
-// -- is a build-time or test-time tool and belongs in `devDependencies`.
+// operator pays for and an advisory surface every operator carries. Express is
+// the one thing the server actually needs at runtime; everything else -- the
+// client toolchain, the type packages, the js-yaml two test files read their
+// workflow fixtures with -- is a build-time or test-time tool and belongs in
+// `devDependencies`, the rule docs/contributing/gotchas.md states.
 //
 // Reads package.json and package-lock.json from the checkout: the lockfile is
 // what `npm ci` and `npm ls --omit=dev` resolve against, so pinning it needs no
@@ -22,12 +23,7 @@ test('Express is the only runtime dependency the manifest declares', () => {
 });
 
 test('js-yaml is declared as a dev dependency, next to its own types', () => {
-  assert.equal(
-    'js-yaml' in (pkg.dependencies ?? {}),
-    false,
-    'js-yaml is still a runtime dependency',
-  );
-  assert.ok(pkg.devDependencies?.['js-yaml'], 'js-yaml is declared nowhere');
+  assert.ok(pkg.devDependencies?.['js-yaml'], 'js-yaml is not a dev dependency');
   assert.ok(
     pkg.devDependencies?.['@types/js-yaml'],
     '@types/js-yaml moved away from the package it types',
@@ -50,14 +46,14 @@ const resolved = (name) =>
     .map(([where, entry]) => ({ where, version: entry.version }));
 
 // Dependabot alerts 34 and 35 (qs, medium x2) and 36 (js-yaml, high). qs
-// arrives through express and body-parser, so it ships to every user and a
+// arrives through express and body-parser, so it ships to every operator and a
 // single un-bumped nested copy would keep both alerts open.
-const PATCHED = [
+const ADVISORY_FLOORS = [
   { name: 'qs', floor: '6.16.0' },
   { name: 'js-yaml', floor: '4.3.2' },
 ];
 
-for (const { name, floor } of PATCHED) {
+for (const { name, floor } of ADVISORY_FLOORS) {
   test(`the lockfile resolves ${name} to >= ${floor} everywhere it appears`, () => {
     const copies = resolved(name);
     assert.ok(copies.length > 0, `the lockfile resolves no ${name} at all`);
@@ -82,18 +78,23 @@ const productionTree = () =>
 
 // Node's resolution, walked the way `npm ls` walks it: a dependency is the
 // nested copy if one was installed, else the nearest copy up the tree.
+//
+// A copy is visible from `from` when its own `node_modules/` sits on `from`'s
+// path, and the deepest visible copy is the one that wins. Matching on the
+// path rather than striding over segments keeps scoped names honest: a scoped
+// package spends two segments on its own name (`node_modules/@types/node`).
 const locate = (from, name) => {
-  const segments = from === '' ? [] : from.split('/');
-  for (let depth = segments.length; depth >= 0; depth -= 2) {
-    const where = [...segments.slice(0, depth), 'node_modules', name].join('/');
-    if (lock.packages[where]) return where;
-  }
-  return null;
+  const suffix = `node_modules/${name}`;
+  const scope = from === '' ? '' : `${from}/`;
+  const visible = Object.keys(lock.packages).filter(
+    (where) => where.endsWith(suffix) && scope.startsWith(where.slice(0, -suffix.length)),
+  );
+  return visible.sort((a, b) => a.length - b.length).pop() ?? null;
 };
 
-// Everything reachable from Express: the tree a user gets for the one runtime
-// dependency. Optional deps count -- npm installs the ones that apply to the
-// platform, so they ship too.
+// Everything reachable from Express: the tree an operator gets for the one
+// runtime dependency. Optional and peer deps count -- npm installs both, so
+// they ship too.
 const expressTree = () => {
   const seen = new Set();
   const queue = [locate('', 'express')];
@@ -102,7 +103,11 @@ const expressTree = () => {
     if (where === null || seen.has(where)) continue;
     seen.add(where);
     const entry = lock.packages[where];
-    const names = Object.keys({ ...entry.dependencies, ...entry.optionalDependencies });
+    const names = Object.keys({
+      ...entry.dependencies,
+      ...entry.optionalDependencies,
+      ...entry.peerDependencies,
+    });
     queue.push(...names.map((name) => locate(where, name)));
   }
   return seen;
@@ -112,7 +117,7 @@ test('an install without dev dependencies downloads Express and its own tree, no
   const production = productionTree();
   const express = expressTree();
   const strays = [...production].filter((where) => !express.has(where));
-  assert.deepEqual(strays, [], `a package outside Express's tree ships to users: ${strays}`);
+  assert.deepEqual(strays, [], `a package outside Express's tree ships: ${strays}`);
   assert.deepEqual(
     [...express].filter((where) => !production.has(where)),
     [],
@@ -120,9 +125,9 @@ test('an install without dev dependencies downloads Express and its own tree, no
   );
 });
 
-test('no js-yaml reaches a user who installs without dev dependencies', () => {
+test('no js-yaml reaches an operator who installs without dev dependencies', () => {
   const shipped = [...productionTree()].filter((where) => where.endsWith('node_modules/js-yaml'));
-  assert.deepEqual(shipped, [], `js-yaml still ships to users: ${shipped}`);
+  assert.deepEqual(shipped, [], `js-yaml still ships: ${shipped}`);
 });
 
 // NOTICE section 2 is the legal statement of what the published package
@@ -131,20 +136,18 @@ test('no js-yaml reaches a user who installs without dev dependencies', () => {
 // three and react-force-graph-3d long after the Memory graph was retired and
 // the last two stopped being dependencies at all. This pin ties it to the
 // manifest so it can only drift again by way of a failing test.
-const NOTICE_RUNTIME = read('NOTICE')
-  .split(/^\s*\d+\.\s+/m)
-  .find((section) => section.startsWith('Bundled runtime dependencies'));
+const NOTICE_RUNTIME =
+  read('NOTICE')
+    .split(/^\s*\d+\.\s+/m)
+    .find((section) => section.startsWith('Bundled runtime dependencies')) ?? '';
 
-const noticed = (NOTICE_RUNTIME ?? '')
+const noticed = NOTICE_RUNTIME
   .split('\n')
   .map((line) => line.match(/^\s+-\s+(\S+)/)?.[1])
   .filter(Boolean);
 
-test('NOTICE names a bundled-runtime-dependencies section', () => {
-  assert.ok(NOTICE_RUNTIME, 'NOTICE has no numbered "Bundled runtime dependencies" section');
-});
-
 test('NOTICE lists exactly the runtime dependencies the package declares', () => {
+  assert.ok(NOTICE_RUNTIME, 'NOTICE has no numbered "Bundled runtime dependencies" section');
   const declared = Object.keys(pkg.dependencies ?? {});
   assert.deepEqual(
     noticed.map((name) => name.toLowerCase()),
@@ -155,7 +158,7 @@ test('NOTICE lists exactly the runtime dependencies the package declares', () =>
 
 test('NOTICE keeps no trace of the retired Memory graph', () => {
   assert.doesNotMatch(
-    NOTICE_RUNTIME ?? '',
+    NOTICE_RUNTIME,
     /\bthree\b|react-force-graph|memory graph|3D canvas/i,
     'NOTICE section 2 still describes the retired Memory graph',
   );

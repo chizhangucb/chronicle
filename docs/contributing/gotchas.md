@@ -120,9 +120,8 @@ Recharts, `wouter`, `diff` and the Radix packages into `dist/` at build time, an
 package ships only `bin/`, `dist/` and `dist-server/`. Putting a client library in
 `dependencies` adds weight to every user's install for nothing.
 
-Check the rule before you add a package: `package.json` currently carries a couple of
-client-only libraries in `dependencies` that predate the rule, so the existing split is not a
-reliable example to copy.
+Check the rule before you add a package: `dependencies` is Express and nothing else, and
+`test/runtime-dependencies.test.mjs` pins it there along with the runtime list `NOTICE` states.
 
 ## The Git pill is uncached on purpose
 
