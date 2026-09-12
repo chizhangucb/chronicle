@@ -23,6 +23,8 @@
 // session uses a 12-message rhythm (mirrors insights.test.mjs) to stay visible.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import { withTempDb } from './helpers.mjs';
 import { rangeOf } from '../server/scope.ts';
@@ -42,6 +44,10 @@ const todayMidnight = Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), 
 const dayAt = (d) => todayMidnight - d * DAY + 12 * 3600000;
 
 let dbModule, teardown, server, baseUrl;
+// A real file on disk for s_left, so a live watcher can be opened on it (the
+// watcher stats the source log). Every other fixture keeps its /tmp placeholder:
+// nothing else here opens a stream.
+let leftLog;
 
 function rhythmEvents(baseMs, model, extra = []) {
   const events = [];
@@ -75,6 +81,8 @@ before(async () => {
   const temp = await withTempDb();
   dbModule = temp.dbModule;
   teardown = temp.teardown;
+  leftLog = path.join(temp.dir, 's_left.jsonl');
+  fs.writeFileSync(leftLog, '');
   const { upsertProject, replaceSession } = dbModule;
   const { mountActivity } = await import('../server/routes/activity.ts');
 
@@ -100,7 +108,7 @@ before(async () => {
   // s_left: ended 9 min ago → NOT live; the "since you left" row. Carries one
   // erroring tool_result so errorCount plumbing is exercised.
   replaceSession(
-    { id: 's_left', project_id: p.id, source: 'claude-code', file_path: '/tmp/s_left.jsonl',
+    { id: 's_left', project_id: p.id, source: 'claude-code', file_path: leftLog,
       started_at: iso(leftStart), ended_at: iso(now - 9 * 60000), usage: usageJson(5000) },
     rhythmEvents(leftStart, MODEL, [
       { kind: 'tool_use', tool_name: 'Bash', ts: iso(now - 10 * 60000) },
@@ -315,4 +323,45 @@ test('minor sessions are excluded from the window aggregates', async () => {
   assert.equal(tok(r.burn.rangeSpendTokensByModel), 26000);
   db.prepare('UPDATE sessions SET minor = 0 WHERE id = ?').run('d1');
   invalidateCache();
+});
+
+// ── The live flag is not a function of the database (#369) ───────────────────
+//
+// `live` also says "a client is holding an SSE stream open on this session right
+// now" (server/live.ts). Opening or closing that stream is not a DB write, so
+// the generation counter never moves for it, and a response memoized under this
+// URL would keep answering "not live" for as long as the URL stays the same.
+// The URL usually rotates — "Today" sends a fractional day count that changes
+// every millisecond — which is what hid this. The client clamps that count to a
+// minimum of one minute, so for the first minute after local midnight the URL is
+// fixed, and there the home page's live dot never lit: test/e2e/home.spec.ts's
+// live-dot spec went red twice in a row on a CI run that crossed midnight.
+test('a stream opening flips the session to live under the same URL', async () => {
+  const { attachLiveStream } = await import('../server/live.ts');
+  const url = { days: todayDays, since: iso(now - 30 * 60000) };
+
+  const atRest = await getActivity(url);
+  assert.ok(!atRest.live.some((s) => s.id === 's_left'), 's_left is not live before the stream opens');
+  assert.ok(atRest.recent.some((s) => s.id === 's_left'), 's_left is a since-you-left row before the stream opens');
+
+  // The real registration path, with the SSE response stubbed down to what
+  // attachLiveStream touches. `close` is the handler the watcher hangs its own
+  // teardown on, so calling it is the real disconnect, not a reach into state.
+  const handlers = {};
+  const sse = { writeHead() {}, write() {}, end() {}, on(event, fn) { handlers[event] = fn; } };
+  assert.equal(attachLiveStream('s_left', sse), true, 'the fixture session must be streamable');
+  try {
+    const watched = await getActivity(url);
+    assert.ok(
+      watched.live.some((s) => s.id === 's_left'),
+      'the same URL served a cached "not live": an open stream is not a DB write, so nothing invalidated it',
+    );
+    assert.ok(!watched.recent.some((s) => s.id === 's_left'), 'a live session is not also a since-you-left row');
+  } finally {
+    handlers.close?.();
+  }
+
+  const closed = await getActivity(url);
+  assert.ok(!closed.live.some((s) => s.id === 's_left'), 'the stream closing puts the row back where it was');
+  assert.ok(closed.recent.some((s) => s.id === 's_left'), 'and back into the since-you-left rows');
 });

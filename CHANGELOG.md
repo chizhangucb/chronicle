@@ -132,6 +132,11 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Fixed
 
+- **The Insights home's live dot keeps up with a live session.** The Activity block's feed is
+  memoized per request and refreshed on every import, but whether a session is streaming right
+  now is not something an import changes — so opening a session's live stream could leave the
+  home page showing it as finished, and closing one could leave it pulsing. The feed now
+  accounts for the open streams as well.
 - **"Above your usual" on the Burn tile now compares local days.** The baseline it medians
   over the trailing fortnight was bucketed by UTC day, so an evening session west of UTC (or
   an early-morning one east of it) landed on the wrong day, or dropped out of the comparison
