@@ -1,6 +1,6 @@
 // #365 guard: what wakes the factory on this repo, and what the pause stops.
 //
-// `.github/workflows/factory.yml` is a copy of software-factory's caller
+// `.github/workflows/factory.yml` is a copy of tomte's caller
 // template, and a copy drifts. Three of its rules are the ones that hurt when
 // they rot, so they are pinned here as behaviour (the event goes in, the jobs
 // that would start come out) rather than as text:
@@ -97,7 +97,7 @@ test('`agent:implement` landing on an open ticket still starts the implementer',
 
 test('a label edit or an assignee removal on a closed ticket starts no job', () => {
   // The two `labeled` rows are chronicle reading #213 more broadly than
-  // software-factory's templates/factory.yml does: the template gates the two
+  // tomte's templates/factory.yml does: the template gates the two
   // removals on the ticket's state and leaves both `labeled` paths ungated.
   // Labelling a closed ticket is bookkeeping on finished work, and the
   // dispatcher refuses a closed ticket anyway, so the extra clause only ever
