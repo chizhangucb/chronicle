@@ -7,7 +7,7 @@
 // the stall either. That is why this is a pin and not a preference.
 //
 // `.github/workflows/factory.yml` is the only factory file this repo carries;
-// everything it runs lives in chizhangucb/software-factory.
+// everything it runs lives in chizhangucb/tomte.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import yaml from 'js-yaml';
@@ -112,7 +112,7 @@ test('every factory role is still wired, at the ref its factory_ref names', () =
     assert.ok(job, `the caller no longer declares the ${id} job`);
     const uses = job.uses ?? '';
     assert.ok(
-      uses.startsWith(`chizhangucb/software-factory/.github/workflows/${workflow}@`),
+      uses.startsWith(`chizhangucb/tomte/.github/workflows/${workflow}@`),
       `${id} no longer calls ${workflow}, it calls: ${uses}`,
     );
     // factory_ref must equal the ref in `uses:`: the scripts are checked out at
