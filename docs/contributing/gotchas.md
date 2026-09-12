@@ -104,6 +104,13 @@ few seconds, so a generation-keyed five-minute Git cache would be wiped before i
 itself. The client's stale-while-revalidate cache (`src/useCachedFetch.ts`) is a separate thing
 and stays that way.
 
+An input the database does not own belongs in the KEY, not in a TTL. `/api/activity` marks a
+session live while a client holds an SSE stream open on it, and opening or closing that stream
+is not a write, so no generation bump can see it: `server/routes/activity.ts` appends the open
+watcher set to the URL it caches under, so the key rotates exactly when the answer does. A TTL
+would leave a window where the dashboard calls a streaming session dead, and the key costs
+nothing — `cached()` prunes rotating keys by design.
+
 ## Ranging is overlap, not a start-time cutoff
 
 A session belongs to a time window when its activity span overlaps the window. The obvious
