@@ -17,7 +17,7 @@ on:
   issues:
     # unlabeled and unassigned: a ticket held back by hold or by an
     # assignee reaches the factory the moment the human removes the blocker,
-    # instead of waiting up to ten minutes for the next heartbeat. Which of
+    # instead of waiting for the next heartbeat. Which of
     # those removals the dispatcher actually answers is its own condition's
     # job, below: the factory's own removals are dropped there, and so is any
     # removal on a closed ticket.
@@ -31,8 +31,9 @@ on:
   repository_dispatch:
     # factory-update-branch: sent by the review workflow on a passing verdict.
     # factory-sweep: the heartbeat, and what actually drives the sweep. Required, not optional.
-    # Send it every 10 minutes from outside GitHub, with a token that has contents write on the
-    # target and nothing else. One sender covers any number of targets:
+    # Send it from outside GitHub on the interval factory/heartbeat/interval.ts names in the factory
+    # repo, which with that repo's README is the only place it is written down, with a token that
+    # has contents write on the target and nothing else. One sender covers any number of targets:
     #   gh api repos/chizhangucb/chronicle/dispatches -f event_type=factory-sweep
     types: [factory-update-branch, factory-sweep]
   schedule:
