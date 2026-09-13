@@ -7,7 +7,7 @@
 // 6 absolute session facts at session scope (see the ContentResult/
 // Characteristic doc comments below). All local, scope-parameterized.
 import { getDb } from './db.ts';
-import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
+import { pairedToolJoin, queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage } from './rangeUsage.ts';
 // Context-window table is a model CONSTANT (max tokens), not a price, so it's
@@ -98,14 +98,13 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
   const allContentChars = kindBuckets.reduce((n, b) => n + b.chars, 0);
   const shareTokens = (chars: number) => (allContentChars > 0 ? Math.round((chars / allContentChars) * billed) : 0);
 
-  // Tool results by tool (join result→use on tool_use_id).
+  // Tool results by tool, attributed through the PAIRED tool_use — the one
+  // join builder in server/scope.ts, the same pairing Explore's errors read.
   const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));  // alias r, not m
   const toolChars = getDb().prepare(`
     SELECT u.tool_name AS k, COALESCE(SUM(LENGTH(COALESCE(r.text,''))),0) AS chars
-    FROM messages r JOIN messages u ON u.id = (
-      SELECT MIN(u2.id) FROM messages u2
-      WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
-    )
+    FROM messages r
+    ${pairedToolJoin({ from: 'r', alias: 'u', kind: 'tool_use' })}
     JOIN sessions s ON s.id = r.session_id
     WHERE ${toolWhere.sql}
     GROUP BY u.tool_name`).all(...toolWhere.params) as unknown as { k: string; chars: number }[];

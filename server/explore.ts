@@ -6,7 +6,7 @@
 // columns + tags); tool/skill × tokens are CALIBRATED via calibrate.ts and the
 // result carries calibrated:true. rollup='total' only in 5e (ranked bars).
 import { getDb } from './db.ts';
-import { queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
+import { pairedToolJoin, queryContext, tsNotNull, whereOf, type QueryContext, type Range, type Scope, type SqlFragment } from './scope.ts';
 import { calibrateByBucket } from './calibrate.ts';
 import { rangedUsage, bucketedUsage, bucketKeyExpr } from './rangeUsage.ts';
 import { addCellInto, emptyCell, parseUsage, type BucketedUsageCell, type UsageBucket, type UsageCell } from '../shared/usage.ts';
@@ -352,10 +352,7 @@ export function computeExplore(query: ExploreQuery): ExploreResult {
     const errRows = getDb().prepare(`
       SELECT ${errorGroupCol(query.group)} AS gk, substr(r.text,1,200) AS head
       FROM messages r
-      JOIN messages u ON u.id = (
-        SELECT MIN(u2.id) FROM messages u2
-        WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use'
-      )
+      ${pairedToolJoin({ from: 'r', alias: 'u', kind: 'tool_use' })}
       JOIN sessions s ON s.id = r.session_id
       JOIN projects p ON p.id = s.project_id
       WHERE r.kind = 'tool_result' AND r.text IS NOT NULL
@@ -839,7 +836,7 @@ function computeRollupBuckets(query: ExploreQuery, effective: ExploreRollup, row
     const br = bucketExpr(effective, 'r.ts');
     const er = getDb().prepare(`SELECT ${br} AS bkt, ${errCol} AS gk, substr(r.text,1,200) AS head
       FROM messages r
-      JOIN messages u ON u.id = (SELECT MIN(u2.id) FROM messages u2 WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use')
+      ${pairedToolJoin({ from: 'r', alias: 'u', kind: 'tool_use' })}
       JOIN sessions s ON s.id = r.session_id JOIN projects p ON p.id = s.project_id
       WHERE r.kind = 'tool_result' AND r.text IS NOT NULL AND ${rollupErrWhere.sql}`).all(...rollupErrWhere.params) as unknown as { bkt: string|null; gk: string|number|null; head: string }[];
     // Same pre-fold membership test as the session branch above, for the same reason:

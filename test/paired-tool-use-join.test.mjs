@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { withTempDb } from './helpers.mjs';
 import { rangeOf } from '../server/scope.ts';
 
-let dbModule, teardown, waste;
+let dbModule, teardown, waste, explore, content;
 const now = Date.now();
 const iso = (ms) => new Date(ms).toISOString();
 const MODEL = 'claude-sonnet-5';
@@ -29,6 +29,8 @@ before(async () => {
   const temp = await withTempDb();
   dbModule = temp.dbModule; teardown = temp.teardown;
   waste = await import('../server/waste.ts');
+  explore = await import('../server/explore.ts');
+  content = await import('../server/content.ts');
   const { upsertProject, replaceSession } = dbModule;
   const p = upsertProject('/tmp/proj-paired-join');
   const base = now - 3600000;
@@ -47,6 +49,12 @@ before(async () => {
       { kind: 'tool_use', tool_name: 'Read', tool_use_id: 'p2', text: 'read', ts: iso(base + 400), tool_input: JSON.stringify({ file_path: '/x.ts' }) }, // RE-READ
       { kind: 'tool_result', tool_use_id: 'p2', text: 'X'.repeat(400), ts: iso(base + 410) },
       { kind: 'tool_result', tool_use_id: 'p2', text: 'X'.repeat(400), ts: iso(base + 420) }, // repeated result line
+      // The mirror shape: the CALL written twice under one id (a transcript
+      // line re-appended after a resume), the second copy naming a different
+      // tool. The pair is the earliest, so the error below is Bash's, once.
+      { kind: 'tool_use', tool_name: 'Bash', tool_use_id: 'p3', text: 'run', ts: iso(base + 500) },
+      { kind: 'tool_use', tool_name: 'Grep', tool_use_id: 'p3', text: 'run', ts: iso(base + 505) },
+      { kind: 'tool_result', tool_use_id: 'p3', text: `Error: ${'b'.repeat(400)}`, ts: iso(base + 510) },
     ],
   );
 });
@@ -60,4 +68,29 @@ test('repeat-read waste pairs a Read with ONE result, so a repeated result line 
   assert.equal(w.rereads.topFiles[0].rereads, 1);
   // 400 chars of re-read result / 4, counted once and not once per result row.
   assert.equal(w.rereads.estWastedTokens, 100);
+});
+
+const errorQuery = { scope: { type: 'all' }, range: rangeOf(null), metric: 'errors', topN: 10 };
+
+test('Explore attributes an erroring result to the EARLIEST tool_use carrying its id, once', () => {
+  const r = explore.computeExplore({ ...errorQuery, group: 'tool', rollup: 'total' });
+  assert.equal(r.rows.find((x) => x.key === 'Bash')?.errors, 1);
+  assert.equal(r.rows.find((x) => x.key === 'Grep')?.errors ?? 0, 0,
+    'the later copy of the call is not a second pair');
+  assert.equal(r.rows.reduce((n, x) => n + x.errors, 0), 1);
+});
+
+test('the Explore error rollup pairs the same way, so its buckets sum to the row', () => {
+  const r = explore.computeExplore({ ...errorQuery, group: 'tool', rollup: 'daily' });
+  const bucketTotal = (r.buckets ?? []).reduce(
+    (n, b) => n + Object.values(b.series).reduce((m, cell) => m + cell.errors, 0), 0);
+  assert.equal(bucketTotal, 1);
+});
+
+test('Content attributes result text to the earliest paired tool_use tool_name', () => {
+  const r = content.computeContent({ type: 'all' }, rangeOf(null));
+  assert.ok((r.toolResultsByTool.find((x) => x.key === 'Bash')?.tokens ?? 0) > 0,
+    'the 400-char error result belongs to the Bash call that came first');
+  assert.equal(r.toolResultsByTool.find((x) => x.key === 'Grep'), undefined,
+    'the later copy of the call is attributed nothing');
 });
