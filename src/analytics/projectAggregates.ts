@@ -19,7 +19,16 @@ import type { CostMode } from '../models.ts';
 import type { ProjectDetailResult } from '../../shared/results.ts';
 import type { ProjectSessionSummary } from '../../shared/rows.ts';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
+import { friendlyToolLabel } from '../toolLabels.ts';
 import { costOfBucketedCells, groupByKey, sumByModel } from '../rangedUsage.ts';
+
+// How many rows the ranking and the cost-by-model bars cut to: both cards
+// render a fixed-height bar list, so a long tail would push the page around
+// rather than tell the operator anything.
+const TOP_N = 8;
+// A tool name longer than this has no room in a bar label, so it lands in the
+// ranking's one aggregate row instead of blowing the row out.
+const MAX_LABEL_LEN = 18;
 
 // The result types live here, not in shared/: the server computes none of
 // these shapes, so a shared/ declaration would falsely imply a cross-boundary
@@ -42,6 +51,12 @@ export interface ProjectAggregates {
   /** Input + output, the same "Tokens" definition every other surface uses. */
   totalTokens: number;
   modelCount: number;
+  /** Dollars per model, desc, top `TOP_N`. */
+  costByModel: [string, number][];
+  /** Tool calls per friendly label (user prompts included), desc, top `TOP_N`. */
+  ranking: [string, number][];
+  /** Sessions per source, desc. */
+  sources: [string, number][];
 }
 
 // One session's agent-active time: the stored figure when the importer
@@ -52,6 +67,12 @@ export interface ProjectAggregates {
 export function sessionAgentActiveMs(s: ProjectSessionSummary): number {
   return s.agent_active_ms
     ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
+}
+
+// Highest first, cut to the bar list's row budget. Ties keep insertion order
+// (Array#sort is stable), so a redraw cannot reshuffle equal rows.
+function topN(counts: Map<string, number>): [string, number][] {
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N);
 }
 
 export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 'theoretical'): ProjectAggregates {
@@ -68,20 +89,36 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
   const byModel = sumByModel(analytics.rangedTokensByModel);
   const cellsByModel = groupByKey(analytics.rangedTokensByModel, (c) => c.model);
   let totalIn = 0, totalOut = 0, totalCost = 0;
+  const costByModelMap = new Map<string, number>();
   for (const [model, cell] of byModel) {
     totalIn += cell.input;
     totalOut += cell.output;
     // Per model, then per day-bucket: a model's cells spanning a rate change
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    totalCost += costOfBucketedCells(cellsByModel.get(model) ?? [], mode);
+    const cost = costOfBucketedCells(cellsByModel.get(model) ?? [], mode);
+    costByModelMap.set(model, cost);
+    totalCost += cost;
   }
 
   const startDays = new Set<string>();
+  const bySource = new Map<string, number>();
   let activeMs = 0;
   for (const s of sessions) {
     activeMs += sessionAgentActiveMs(s);
     if (s.started_at) startDays.add(dayKeyOf(new Date(s.started_at)));
+    bySource.set(s.source, (bySource.get(s.source) ?? 0) + 1);
   }
+
+  // Tool calls by friendly label (src/toolLabels.ts, the same names the
+  // session Overview uses), with the operator's own prompts as a row of the
+  // same ranking — two names mapping to one label merge into one row.
+  const ranked = new Map<string, number>();
+  for (const d of analytics.toolDist) {
+    const name = d.name || '';
+    const label = name.length > MAX_LABEL_LEN ? 'Other' : friendlyToolLabel(name);
+    ranked.set(label, (ranked.get(label) ?? 0) + d.count);
+  }
+  if (userPrompts) ranked.set('User Prompt', userPrompts);
 
   return {
     toolCalls,
@@ -96,5 +133,8 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
     totalOut,
     totalTokens: totalIn + totalOut,
     modelCount: byModel.size,
+    costByModel: topN(costByModelMap),
+    ranking: topN(ranked),
+    sources: [...bySource.entries()].sort((a, b) => b[1] - a[1]),
   };
 }

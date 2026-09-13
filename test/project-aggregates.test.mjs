@@ -105,3 +105,69 @@ test('KPI totals: an empty project reports zeroes, not NaN (error rate has no to
   assert.equal(agg.totalCost, 0);
   assert.equal(agg.modelCount, 0);
 });
+
+test('cost by model: each model priced at its own rate, sorted desc, cut to the top N', () => {
+  // One output-only cell per model, sized so every model's dollar figure is
+  // distinct: $50, $45, $40, $30, $25, $20, $15, $10, $6 (rates: src/models.ts).
+  const priced = [
+    ['claude-fable-5', 1_000_000, 50],
+    ['claude-mythos', 900_000, 45],
+    ['claude-opus', 1_600_000, 40],
+    ['claude-sonnet-5', 2_000_000, 30],
+    ['claude-haiku', 5_000_000, 25],
+    ['gpt-5', 2_000_000, 20],
+    ['gpt-4', 1_500_000, 15],
+    ['gemini', 1_000_000, 10],
+    ['claude-sonnet-4-5', 400_000, 6],
+  ];
+  const data = result({
+    analytics: {
+      rangedTokensByModel: priced.map(([m, out]) => bucketed('s1', m, '2026-09-01', cell(0, out))),
+    },
+  });
+
+  const agg = projectAggregates(data, 'theoretical');
+
+  assert.equal(agg.costByModel.length, 8, 'top 8 of the 9 models');
+  assert.deepEqual(agg.costByModel, priced.slice(0, 8).map(([m, , cost]) => [m, cost]));
+  // The cheapest model is the one cut, not silently folded into another row.
+  assert.equal(agg.costByModel.find(([m]) => m === 'claude-sonnet-4-5'), undefined);
+});
+
+test('tool ranking: friendly labels, merged, with user prompts, sorted desc and cut to the top N', () => {
+  const data = result({
+    analytics: {
+      kindDist: [{ kind: 'user', count: 4 }],
+      toolDist: [
+        { name: 'Bash', count: 9 },
+        { name: 'Grep', count: 3 },
+        // Grep and Glob share the 'Search' label, so they merge into one row.
+        { name: 'Glob', count: 2 },
+        { name: 'Read', count: 6 },
+        { name: 'mcp__chronicle__some_very_long_tool', count: 1 },
+      ],
+    },
+  });
+
+  const agg = projectAggregates(data, 'theoretical');
+
+  assert.deepEqual(agg.ranking, [
+    ['Shell Command', 9],
+    ['Read File', 6],
+    ['Search', 5],
+    ['User Prompt', 4],
+    // A name too long to render is bucketed rather than blowing out the row.
+    ['Other', 1],
+  ]);
+});
+
+test('source split: sessions per source, sorted desc', () => {
+  const data = result({
+    sessions: [
+      session('s1', { source: 'claude-code' }),
+      session('s2', { source: 'codex' }),
+      session('s3', { source: 'claude-code' }),
+    ],
+  });
+  assert.deepEqual(projectAggregates(data, 'theoretical').sources, [['claude-code', 2], ['codex', 1]]);
+});

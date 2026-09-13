@@ -46,11 +46,6 @@ function summarizeToolInput(name: string | null | undefined, inputJson: string |
 
 // ---- Overview mode: per-session stats dashboard (the session "home page") ----
 
-const FRIENDLY_CALL: Record<string, string> = {
-  Bash: 'Shell Command', Write: 'Write File', Edit: 'Edit File', Read: 'Read File',
-  Skill: 'Skill Invoke', Grep: 'Search', Glob: 'Search', WebFetch: 'Web Fetch', WebSearch: 'Web Search',
-};
-
 // The heuristic itself is shared/errors.ts (one rule for a live session here
 // and a stored session on the server); this only adds the kind gate.
 function isErrorResult(m: StatMessage): boolean {
@@ -278,7 +273,6 @@ function subagentRunCount(messages: StatMessage[]): number {
 
 export {
   summarizeToolInput,
-  FRIENDLY_CALL,
   isErrorResult,
   errorDrillIn,
   toolMixSorted,

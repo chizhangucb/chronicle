@@ -8,9 +8,12 @@ import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js'
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
 import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
+// The one friendly tool-label map, shared with the project Overview's ranking
+// (#374) — this file used to read a copy declared in ./stats.ts.
+import { friendlyToolLabel } from '../toolLabels.ts';
 import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {
-  FRIENDLY_CALL, isErrorResult, toolMixSorted, cumulativeCostSeries,
+  isErrorResult, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
 // The one agent-active / engaged computation, the same one the server runs at
@@ -172,7 +175,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       .slice(0, 12)
       .map((m) => ({
         seq: m.seq, ts: m.ts,
-        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || 'Tool'),
+        label: m.kind === 'user' ? 'User Prompt' : (friendlyToolLabel(m.tool_name) || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
     // Files touched: Edit/Write tool calls, tallied by file_path (same field
@@ -406,7 +409,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="card">
           <h3>Tool mix</h3>
           {toolMix.length > 0 ? toolMix.slice(0, 6).map((row, i) => (
-            <div className="hbar" key={row.name}><span className="n" title={FRIENDLY_CALL[row.name] ?? row.name}>{FRIENDLY_CALL[row.name] ?? row.name}</span>
+            <div className="hbar" key={row.name}><span className="n" title={friendlyToolLabel(row.name)}>{friendlyToolLabel(row.name)}</span>
               <div className="track"><div className="fill" style={{ width: `${(row.count / maxToolCount) * 100}%`, background: CATEGORICAL_COLORS[i % 5] }} /></div>
               <span className="v num">{row.count}</span></div>
           )) : <div className="muted small">No tool calls recorded.</div>}
