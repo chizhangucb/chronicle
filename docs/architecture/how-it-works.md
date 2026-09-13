@@ -76,7 +76,7 @@ point) imports the compiled `dist-server/server/standalone.js`, not the `.ts` so
 │                → normalized events                            │
 │  db.ts         projects / sessions / messages  (SQLite)       │
 │  git.ts        read-only snapshot engine (rev-list/ls-tree)   │
-│  live.ts       JSONL tail + SQLite poll → SSE                 │
+│  live.ts       liveWatchers.ts  JSONL tail + SQLite poll → SSE │
 │  autosync.ts   invisible background sync (watchers, backstop) │
 │  noiseGate.ts  "minor session" bucketing                      │
 │  security.ts   redaction rules, session scan                  │
@@ -500,15 +500,21 @@ redacted Markdown export.
 > client (the Errors card on a live session). It tests only the first 200 characters of the
 > result, the same cut the SQL side makes.
 
-### Live streaming (`server/live.ts`)
+### Live streaming (`server/live.ts`, `server/liveWatchers.ts`)
 
-Tails an in-progress session and pushes new messages over SSE. `isLiveCandidate(filePath)`
-gates on a recency window. Two watcher implementations by source: a JSONL `Watcher`
-(Claude Code, Codex — size-poll + incremental read from the last offset) and a
-`SqlitePollWatcher` (Cursor, OpenCode — re-parses a temp DB snapshot, WAL-aware mtime). Both
-slow their poll interval after a period of silence and auto-stop when the last viewer
-disconnects. Live messages use `seq` starting at 1,000,000 to avoid colliding with stored rows
-and exist only in client state until re-import.
+Tails an in-progress session and pushes new messages over SSE. `live.ts` owns which sessions
+count as live — `isLiveCandidate(filePath)` gates on a recency window — and `attachLiveStream()`,
+which hands an SSE response to the session's watcher.
+
+The watchers themselves are `liveWatchers.ts`: one base, `SessionWatcher`, holds the client
+set, the broadcast, the idle-poll bookkeeping and the close, and two adapters say only where
+new events come from. A `TailWatcher` (Claude Code, Codex) size-polls and reads forward from
+the last offset; a `StorePollWatcher` (Cursor, OpenCode) re-parses a temp DB snapshot on a
+WAL-aware mtime change and diffs it against what is already stored. Which one a session gets
+is the source's own shape, not its name: a source that declares `tail` is an append-only
+transcript. Both slow their poll interval after a period of silence and auto-stop when the
+last viewer disconnects. Live messages use `seq` starting at 1,000,000 to avoid colliding with
+stored rows and exist only in client state until re-import.
 
 ## The Insights engine
 

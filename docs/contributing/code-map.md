@@ -50,7 +50,8 @@ The parser is the only place that knows a tool's native format.
 | `db.ts` | `openDatabase()`, `getDb()`, `replaceSession()`, tombstones, snapshots |
 | `git.ts` | Every Git query. Read-only, `execFile`, no libgit2 |
 | `autosync.ts` | Watchers, the backstop timer, incremental re-parse |
-| `live.ts` | JSONL tail and SQLite poll, pushed over SSE |
+| `live.ts` | Which sessions count as live, and the SSE stream on one of them |
+| `liveWatchers.ts` | The one watcher base, its two adapters (JSONL tail, SQLite poll) and the open-watcher registry |
 | `security.ts` | Detectors, custom rules, `scanText()` / `scanSession()` |
 | `insights.ts`, `explore.ts`, `content.ts` | The three analytics engines. `insights.ts` also serves the project page's aggregates (`computeScopedAggregates`) |
 | `calibrate.ts` | The one per-bucket token estimator (ADR 0006) |
