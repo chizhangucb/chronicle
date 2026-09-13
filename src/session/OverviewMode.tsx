@@ -13,9 +13,7 @@ import {
   isErrorResult, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
-// The one friendly-label map, the same one the project Overview's call
-// ranking reads — a tool is never named two ways on two surfaces.
-import { FRIENDLY_CALL } from '../toolLabels.ts';
+import { TOOL_LABEL } from '../toolLabels.ts';
 // The one agent-active / engaged computation, the same one the server runs at
 // import — a live session and a stored session must report the same numbers.
 import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
@@ -175,7 +173,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       .slice(0, 12)
       .map((m) => ({
         seq: m.seq, ts: m.ts,
-        label: m.kind === 'user' ? 'User Prompt' : (FRIENDLY_CALL[m.tool_name || ''] || m.tool_name || 'Tool'),
+        label: m.kind === 'user' ? 'User Prompt' : (TOOL_LABEL[m.tool_name || ''] || m.tool_name || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
     // Files touched: Edit/Write tool calls, tallied by file_path (same field
@@ -409,7 +407,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="card">
           <h3>Tool mix</h3>
           {toolMix.length > 0 ? toolMix.slice(0, 6).map((row, i) => (
-            <div className="hbar" key={row.name}><span className="n" title={FRIENDLY_CALL[row.name] ?? row.name}>{FRIENDLY_CALL[row.name] ?? row.name}</span>
+            <div className="hbar" key={row.name}><span className="n" title={TOOL_LABEL[row.name] ?? row.name}>{TOOL_LABEL[row.name] ?? row.name}</span>
               <div className="track"><div className="fill" style={{ width: `${(row.count / maxToolCount) * 100}%`, background: CATEGORICAL_COLORS[i % 5] }} /></div>
               <span className="v num">{row.count}</span></div>
           )) : <div className="muted small">No tool calls recorded.</div>}

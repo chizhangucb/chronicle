@@ -18,8 +18,7 @@ import InfoTip from './InfoTip.tsx';
 import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
 import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './rangedUsage.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
-// The one friendly-label map, the same one the session Overview reads.
-import { FRIENDLY_CALL } from './toolLabels.ts';
+import { TOOL_LABEL } from './toolLabels.ts';
 // The one display name, the same one the server resolves for a stored row;
 // the client asks for the 'label' presentation (`Session 3f2a1b9c`).
 import { sessionDisplayName, type NamedSession } from '../shared/sessionName.ts';
@@ -263,7 +262,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     const ranked = new Map<string, number>();
     for (const d of analytics.toolDist) {
       const name = d.name || '';
-      const label = FRIENDLY_CALL[name] || (name.length > 18 ? 'Other' : name);
+      const label = TOOL_LABEL[name] || (name.length > 18 ? 'Other' : name);
       ranked.set(label, (ranked.get(label) || 0) + d.count);
     }
     if (userPrompts) ranked.set('User Prompt', userPrompts);

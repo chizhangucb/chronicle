@@ -51,8 +51,9 @@ development never touches that path.
 - **Plain React and one `styles.css`.** No UI framework. Charts are Recharts behind
   `src/charts/ChartWrapper.tsx`. Match the surrounding style rather than introducing a second
   one.
-- **Shared vocabulary has one home.** Chat-type labels live only in `src/kinds.ts`; model
-  prices and context windows only in `src/models.ts`. Add wording and numbers there.
+- **Shared vocabulary has one home.** Chat-type labels live only in `src/kinds.ts`; friendly
+  tool labels only in `src/toolLabels.ts`; model prices and context windows only in
+  `src/models.ts`. Add wording and numbers there.
 
 ## Verification
 
