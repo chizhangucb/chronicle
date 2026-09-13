@@ -3,7 +3,7 @@
 Notable changes to Chronicle. Full history and downloads:
 https://github.com/chizhangucb/chronicle/releases
 
-## Unreleased
+## 1.5.0 - 2026-09-13
 
 ### Removed
 
@@ -106,6 +106,8 @@ https://github.com/chizhangucb/chronicle/releases
   No service worker, so an upgrade is never masked by a cached page.
 - **Consistent page widths.** Every non-dashboard page now shares one frame width instead
   of six different ones, with long prose holding its own comfortable line length.
+- **A real not-found page for any unrouted path**, not just a retired one: Chronicle used
+  to render the sidebar and topbar around a blank main area for an unmatched URL.
 
 ### Changed
 
@@ -138,6 +140,12 @@ https://github.com/chizhangucb/chronicle/releases
   a chart's bars reproduces its total at every granularity. Numbers on Explore move for
   exactly this case; every other range is unchanged.
 
+- **The monthly spend budget lives on the server now.** It used to sit only in the Spend
+  tab's browser storage. `~/.chronicle/config.json` now holds it, read and written through
+  `/settings` like every other app preference, so it survives a browser-storage clear and
+  reads the same on every tab. Upgrading users keep their existing cap: the old browser
+  value migrates across once, automatically.
+
 ### Fixed
 
 - **The Insights home's live dot keeps up with a live session.** The Activity block's feed is
@@ -162,6 +170,45 @@ https://github.com/chizhangucb/chronicle/releases
 - The docs, the README and the privacy page no longer claim Chronicle makes no model call
   at all. It makes none in the analysis path, and Ask, which is off by default, runs
   `claude -p` locally on your own Claude subscription.
+- **Session names no longer leak raw IPC text.** A session between two Claude Code
+  instances could pick a synthetic handoff string ("Another Claude session sent a
+  message: ...") as its display name instead of the first real prompt, showing up raw on
+  the Overview's top session and on the Sessions tab. Fixed at the parser and the
+  display-name fallback, so already-imported sessions are covered too.
+- **Working Rhythm's "Active days" no longer reads 31 out of a 30-day window.** An
+  off-by-one in the day-count boundary let it count a stray extra day; it's clamped to
+  the window size now.
+- **Explore's weekly and monthly rollups now sum to their own total.**
+  Independently-rounded buckets could add up to one less (or more) than the ranged total
+  shown beside them; each bucket is now the running difference of the scaled total, so
+  they always reconcile, the same guarantee the daily view already had.
+- **Explore's errors rollup no longer over-counts under topN folding.** A session with no
+  in-range messages could still get credited to the folded "Other" bar, so the stacked
+  chart could read one higher than the error table beside it.
+- **Explore no longer draws a bar labelled "null."** Under the "All" range, an imported
+  message with no timestamp reached the time-chart grouping and was keyed and labelled
+  with the literal string `null`; those rows are now excluded from the time buckets they
+  can't honestly belong to.
+- **Rereads on the Spend tab's efficiency panel no longer double-counts a repeated result
+  line.** A transcript that repeats the same tool-result line fanned one genuine re-read
+  out into two.
+- **Codex spend is no longer invisible.** The Codex importer never recorded which model a
+  turn ran on, so every Codex row imported unpriceable and contributed nothing to Codex
+  spend anywhere in Chronicle. Model name is now captured and rolled into per-model usage
+  on import.
+- **Resize handles now work from a keyboard or a touchscreen.** Both drag handles
+  (session/detail panes) were pointer-only: not focusable, no arrow-key step, no touch
+  support, and no accessible value for a screen reader. All three are wired now, sharing
+  the exact clamp the pointer drag uses.
+- **The last colored emoji in Playback are gone.** User, thinking and tool_use rows now
+  render the same monochrome glyph set as everything else in the app, instead of
+  👤/💭/🔧.
+- **Keyboard hints now name the right key on Windows and Linux.** Every shortcut hint
+  showed `⌘`, a key that keyboard doesn't have, even though the handler already accepted
+  Control. Hints now read `Ctrl` off macOS.
+- **A dependency patch:** `qs` and `js-yaml` are updated to clear two Dependabot
+  advisories; `js-yaml` (test-only) moves out of the shipped package's runtime
+  dependencies entirely.
 
 ## 1.4.0 - 2026-08-27
 
