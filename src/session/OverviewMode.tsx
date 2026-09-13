@@ -8,8 +8,8 @@ import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js'
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
 import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
-// The one friendly tool-label map, shared with the project Overview's ranking
-// (#374) — this file used to read a copy declared in ./stats.ts.
+// The one friendly tool-label lookup (#375), shared with the project
+// Overview's ranking — this file used to read a copy declared in ./stats.ts.
 import { friendlyToolLabel } from '../toolLabels.ts';
 import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {

@@ -52,7 +52,7 @@ development never touches that path.
   `src/charts/ChartWrapper.tsx`. Match the surrounding style rather than introducing a second
   one.
 - **Shared vocabulary has one home.** Chat-type labels live only in `src/kinds.ts`; friendly
-  tool-call names only in `src/toolLabels.ts`; model prices and context windows only in
+  tool labels only in `src/toolLabels.ts`; model prices and context windows only in
   `src/models.ts`. Add wording and numbers there.
 
 ## Verification

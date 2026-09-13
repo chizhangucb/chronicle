@@ -72,8 +72,9 @@ Four files are single sources of truth and are the reason a shared meaning canno
 
 - **`kinds.ts`**: `KIND_LABEL` and `KIND_ICON`, imported by every surface that renders an
   event kind.
+- **`toolLabels.ts`**: `friendlyToolLabel()`, the friendly name every surface shows a raw
+  tool call under, called by every surface that ranks or lists tool calls.
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
-- **`toolLabels.ts`**: the friendly name every surface shows a raw tool call under.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 
 `api.ts` is the client fetch layer and only that: every read and write goes through it, it
