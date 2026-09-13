@@ -98,7 +98,7 @@ export function computeContent(scope: Scope, range: Range): ContentResult {
   const allContentChars = kindBuckets.reduce((n, b) => n + b.chars, 0);
   const shareTokens = (chars: number) => (allContentChars > 0 ? Math.round((chars / allContentChars) * billed) : 0);
 
-  // Tool results by tool, attributed through the PAIRED tool_use — the one
+  // Tool results by tool, attributed through the PAIRED tool_use: the one
   // join builder in server/scope.ts, the same pairing Explore's errors read.
   const toolWhere = whereOf("AND r.kind='tool_result'", q.sessions(), q.where, 'AND u.tool_name IS NOT NULL', q.messages('r'));  // alias r, not m
   const toolChars = getDb().prepare(`

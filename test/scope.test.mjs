@@ -88,7 +88,7 @@ test('whereOf: an all-empty composition is a true predicate, not a syntax error'
 });
 
 // ---- pairedToolJoin: the one paired-tool_use join (#378). Asserted here for
-// the same reason scopeClause is — the fragment itself, which no engine's
+// the same reason scopeClause is: the fragment itself, which no engine's
 // output can show. The engines that compose it are pinned by
 // test/paired-tool-use-single-home.test.mjs, and what it counts by
 // test/paired-tool-use-join.test.mjs.

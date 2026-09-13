@@ -87,6 +87,11 @@ function rereads(q: QueryContext): WasteResult['rereads'] {
   // order. The pairing is server/scope.ts's one join builder (the same rule
   // Explore and Content attribute through), driven from the USE side and LEFT
   // so a Read whose result never came back is still counted as a re-read.
+  //
+  // This is the one place #378 changed a number: the copy it replaced matched
+  // EVERY result carrying the id, so a transcript that repeats a result line
+  // duplicated the Read row and counted a re-read (and its wasted chars) twice
+  // over. Pinned by test/paired-tool-use-join.test.mjs.
   const rows = getDb().prepare(
     `SELECT m.session_id, m.seq, m.tool_input, LENGTH(r.text) AS result_chars
      FROM messages m JOIN sessions s ON s.id = m.session_id

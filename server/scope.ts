@@ -148,7 +148,7 @@ export function tsNotNull(alias = 'm'): string {
 // fanning a result out into two, which each hand-written copy of this join had
 // to remember on its own. Callers: Explore's error rows and error rollup
 // (server/explore.ts), Content's tool-result attribution (server/content.ts) and
-// Waste's repeat file reads (server/waste.ts) — the client's live-session drill-in
+// Waste's repeat file reads (server/waste.ts). The client's live-session drill-in
 // pairs in memory, not in SQL, so it is not a copy of this.
 //
 // `from` is the alias already in the query, `alias` the one the paired message
@@ -157,7 +157,17 @@ export function tsNotNull(alias = 'm'): string {
 // `optional` emits a LEFT JOIN, for a query whose driving row must survive an
 // unanswered call. Bind-free, so it drops straight into a query body.
 //
-// Leans on idx_messages_tooluse — messages(session_id, tool_use_id), declared in
+// Earliest, not nearest: a transcript that reuses one id later in the same
+// session pairs both occurrences to the FIRST row, which is what makes the two
+// directions agree (nearest would depend on which side drove the query). Every
+// hand-written copy this replaced already picked the earliest, except Waste's,
+// which matched them all. See server/waste.ts.
+//
+// `from`, `alias` and `kind` are interpolated, not bound: they are call-site
+// literals (the kind is a TS union), never anything an operator typed. No
+// caller passes a value from a request.
+//
+// Leans on idx_messages_tooluse, messages(session_id, tool_use_id), declared in
 // server/schema.ts. Without that index SQLite can only find the paired row by
 // scanning every message of the session, which is quadratic inside a large one.
 export function pairedToolJoin(

@@ -1,7 +1,7 @@
 // The paired-tool_use join has one home (issue #378).
 //
-// The rule that finds which tool_use a tool_result belongs to — same session,
-// same `tool_use_id`, earliest matching row — was hand-written in every engine
+// The rule that finds which tool_use a tool_result belongs to (same session,
+// same `tool_use_id`, earliest matching row) was hand-written in every engine
 // that pairs: Explore's error rows and its error rollup, Content's tool-result
 // attribution, Waste's repeat file reads. Four copies is four places for the
 // pairing to drift, the way the error heuristic used to drift before
@@ -24,17 +24,21 @@ const HOME = 'server/scope.ts';
 // error drill-in pairs over in-memory events, not SQL, so it is not a caller.
 const PAIRING_ENGINES = ['server/explore.ts', 'server/content.ts', 'server/waste.ts'];
 
-// A SQL self-join on the id: `<alias>.tool_use_id = <alias>.tool_use_id`, the
-// shape every hand-written copy had. Prose about the join is not a copy of it,
-// so comment lines are swept out first (server/schema.ts's index comment
+// The two shapes a hand-written copy takes: the self-join on the id
+// (`<alias>.tool_use_id = <alias>.tool_use_id`) and the earliest-match
+// subquery that picks one row out of it. Prose about the join is not a copy of
+// it, so comment lines are swept out first (server/schema.ts's index comment
 // describes what the builder needs without spelling a query out).
-const HAND_WRITTEN = /\w+\.tool_use_id\s*=\s*\w+\.tool_use_id/;
+const HAND_WRITTEN = [
+  /\w+\.tool_use_id\s*=\s*\w+\.tool_use_id/,
+  /SELECT\s+MIN\(\s*\w+\.id\s*\)[\s\S]{0,200}?tool_use_id/i,
+];
 const code = (src) => src.split('\n').filter((l) => !/^\s*(\/\/|--|\*)/.test(l)).join('\n');
 
 test('the pairing join is written once, in the query-context module', () => {
   const offenders = SERVER_TS
     .filter((rel) => rel !== HOME)
-    .filter((rel) => HAND_WRITTEN.test(code(read(rel))));
+    .filter((rel) => HAND_WRITTEN.some((shape) => shape.test(code(read(rel)))));
   assert.deepEqual(offenders, [], 'these files hand-write the paired-tool_use join instead of taking it from server/scope.ts');
 });
 
@@ -56,13 +60,14 @@ for (const rel of PAIRING_ENGINES) {
   });
 }
 
-// Explore pairs TWICE (the ranked error rows and the error rollup), so a
-// per-file check would pass with one of them still hand-written.
-test('every paired-tool_use join in the engines comes from a builder call', () => {
-  const calls = PAIRING_ENGINES
-    .map((rel) => (read(rel).match(/pairedToolJoin\(\{/g) ?? []).length)
-    .reduce((n, c) => n + c, 0);
-  assert.equal(calls, 4, 'Explore pairs twice, Content and Waste once each');
+// Explore pairs TWICE (the ranked error rows and the error rollup), so the
+// per-file check above passes with one of the two still hand-written. Counted
+// as a floor, not an exact number: a later engine or a third Explore pairing
+// is not what this pin is here to catch (the sweep above is), and an exact
+// count would fail on it for the wrong reason.
+test('both of Explore error pairings come from the builder', () => {
+  const calls = (read('server/explore.ts').match(/pairedToolJoin\(\{/g) ?? []).length;
+  assert.ok(calls >= 2, `server/explore.ts pairs twice; found ${calls} builder call(s)`);
 });
 
 // The join is only affordable because of the index it drives: without it

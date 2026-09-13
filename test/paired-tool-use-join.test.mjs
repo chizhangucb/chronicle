@@ -35,7 +35,7 @@ before(async () => {
   const p = upsertProject('/tmp/proj-paired-join');
   const base = now - 3600000;
 
-  // /x.ts is read twice — one re-read. The second Read's result arrives TWICE
+  // /x.ts is read twice, so one re-read. The second Read's result arrives TWICE
   // under the same tool_use_id (a transcript that repeats the result line),
   // which is the shape that tells a deduped pairing from a fan-out one.
   replaceSession(
