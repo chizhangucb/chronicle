@@ -209,3 +209,40 @@ test('no page file imports a widget from another page file', () => {
   }
   assert.deepEqual(offenders, [], 'a shared widget belongs in its own module, not in a page');
 });
+
+// --- The wiring the move had to carry across --------------------------------
+//
+// Filtering is asserted above through rows.ts. Selection and hover prefetch
+// live in the JSX, so they are read off the module's source; each assertion
+// below names one thing a dropdown does, not how the file is laid out.
+const PICKERS = sourceOf(PICKERS_HOME);
+
+test('hovering the project trigger warms the same list the dropdown reads', () => {
+  // One URL, used twice in the module: the SWR key the list is fetched under
+  // and the key the hover warms. If they drifted the popover would still flash
+  // "Loading…" after a hover.
+  assert.match(PICKERS, /onMouseEnter=\{\(\) => prefetch\(projectsUrl\(\)\)\}/);
+  assert.match(PICKERS, /useCachedFetch<PickableProject\[\]>\(projectsUrl\(\)\)/);
+});
+
+test('hovering the session trigger warms the list URL its mounting page offered, if any', () => {
+  assert.match(PICKERS, /onMouseEnter=\{\(\) => prefetchUrl && prefetch\(prefetchUrl\)\}/);
+});
+
+test('the project page hands the session picker the URL that carries its session list', () => {
+  assert.match(sourceOf(path.join('src', 'ProjectDetail.tsx')),
+    /<SessionPicker[^>]*prefetchUrl=\{projectUrl\(id, days \?\? undefined\)\}/);
+});
+
+test('picking a project closes the dropdown and skips the one already open', () => {
+  assert.match(PICKERS, /setOpen\(false\); if \(p\.id !== current\?\.id\) onPick\?\.\(p\.id\)/);
+});
+
+test('picking a session closes the dropdown and opens that session', () => {
+  assert.match(PICKERS, /setOpen\(false\); onPick\(s\.id\)/);
+});
+
+test('the session view skips a pick of the session already open', () => {
+  assert.match(sourceOf(path.join('src', 'SessionView.tsx')),
+    /onPick=\{\(sid: string\) => \{ if \(sid !== current\.id\) onSwitch\?\.\(sid\); \}\}/);
+});
