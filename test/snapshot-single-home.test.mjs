@@ -38,9 +38,11 @@ function makeLiveStore(dir, name = 'live.db') {
   return dbPath;
 }
 
-// `os.tmpdir()` reads TMPDIR on every call, so pointing it at an empty dir of
-// our own turns "did a temp dir leak?" into a directory listing.
-function withOwnTmpdir(body) {
+// `os.tmpdir()` reads TMPDIR on every call, so redirecting it at an empty dir
+// of our own turns "did a temp dir leak?" into a directory listing. Restored
+// afterwards, and safe to set: `node --test` runs each file in its own process,
+// and the tests within one file in order.
+function withRedirectedTmpdir(body) {
   const own = makeScratch();
   const prev = process.env.TMPDIR;
   process.env.TMPDIR = own;
@@ -92,7 +94,7 @@ describe('openSnapshot', () => {
 
   test('cleanup drops the temp copy', () => {
     const dbPath = makeLiveStore(makeScratch());
-    withOwnTmpdir((tmpRoot) => {
+    withRedirectedTmpdir((tmpRoot) => {
       const snap = openSnapshot(dbPath);
       assert.equal(fs.readdirSync(tmpRoot).length, 1, 'the snapshot should be one temp dir');
 
@@ -104,7 +106,7 @@ describe('openSnapshot', () => {
 
   test('a store that cannot be copied throws and leaves no temp dir behind', () => {
     const missing = path.join(makeScratch(), 'not-there.db');
-    withOwnTmpdir((tmpRoot) => {
+    withRedirectedTmpdir((tmpRoot) => {
       assert.throws(() => openSnapshot(missing), /ENOENT/);
 
       assert.deepEqual(fs.readdirSync(tmpRoot), [],

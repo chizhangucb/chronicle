@@ -70,8 +70,10 @@ export function importableFiles(item: ScannedProject): string[] {
 }
 
 // A read-only view of one SQLite store: a handle on a temp copy, and the call
-// that drops the copy. The caller closes the snapshot with `cleanup()` when it
-// is done reading, in a `finally` so a throw mid-read does not leak the dir.
+// that drops that copy. `cleanup()` is the caller's to make once it is done
+// reading, and how long that is varies: a per-read caller drops the copy in a
+// `finally`, while Cursor's cached global snapshot holds one open and drops it
+// when the store's fingerprint moves.
 export interface Snapshot {
   db: DatabaseSync;
   cleanup: () => void;
