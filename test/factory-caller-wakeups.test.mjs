@@ -141,7 +141,6 @@ test('with the pause set, no work starts or advances', () => {
   // the banner job, the only thing a paused run still does, pinned below.
   const events = [
     heartbeat,
-    { event_name: 'schedule', event: {} },
     { event_name: 'workflow_dispatch', event: {} },
     ticket('labeled', { label: 'ready-for-agent' }),
     ticket('labeled', { label: 'agent:implement' }),
@@ -206,7 +205,6 @@ test('a pause says so out loud, with its reason, instead of looking like a dead 
 
 test('with the pause unset, every trigger still reaches its job', () => {
   assert.deepEqual(jobsFor(heartbeat), ['dispatch']);
-  assert.deepEqual(jobsFor({ event_name: 'schedule', event: {} }), ['dispatch']);
   assert.deepEqual(jobsFor({ event_name: 'workflow_dispatch', event: {} }), ['dispatch']);
   assert.deepEqual(jobsFor(labelledPr('agent:review')), ['review']);
   assert.deepEqual(jobsFor(labelledPr('agent:implement')), ['implement-pr']);
@@ -227,5 +225,9 @@ test('the caller still subscribes to every trigger its jobs read', () => {
   assert.deepEqual(triggers.pull_request.types.slice().sort(), ['closed', 'opened', 'reopened', 'synchronize']);
   assert.deepEqual(triggers.repository_dispatch.types.slice().sort(), ['factory-sweep', 'factory-update-branch']);
   assert.deepEqual(triggers.push.branches, ['main']);
-  assert.ok('schedule' in triggers && 'workflow_dispatch' in triggers);
+  assert.ok('workflow_dispatch' in triggers);
+  // GitHub's own timer is gone (#270, #273): the heartbeat drives the sweep and
+  // the daily recheck retries a repair that changed nothing, so a `schedule`
+  // trigger here would only add runs that do nothing.
+  assert.ok(!('schedule' in triggers), 'the caller subscribes to `schedule`, which #270 removed');
 });

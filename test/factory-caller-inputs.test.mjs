@@ -46,9 +46,9 @@ test('no job in the factory caller carries a comment about slots', () => {
   // Half the removal: a stale comment tells the next reader to set a number
   // the factory no longer declares, and that reader lands the parse failure.
   //
-  // Comment lines inside `jobs:` only. The ONE other line in this file that
-  // says "slots" is the schedule comment, and those are cron minute slots, a
-  // different thing on a trigger this ticket does not touch.
+  // Comment lines inside `jobs:` only. The schedule comment that once also
+  // said "slots" (cron minute slots) is gone with GitHub's timer (#270, #273),
+  // so the only slots left to guard against are the retired input's.
   const offenders = jobLines()
     .filter(({ line }) => /^\s*#/.test(line) && /\bslots?\b/i.test(line))
     .map(({ line, number }) => `${CALLER}:${number}: ${line.trim()}`);
