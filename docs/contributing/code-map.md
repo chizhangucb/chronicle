@@ -63,15 +63,17 @@ The parser is the only place that knows a tool's native format.
 ## `src/`
 
 `main.tsx` mounts, `App.tsx` holds the sidebar and the `wouter` routes. Pages are top-level
-`.tsx` files; the folders (`cards/`, `charts/`, `components/`, `explore/`, `home/`,
-`insights/`, `reference/`, `session/`) hold their pieces.
+`.tsx` files; the folders (`analytics/`, `cards/`, `charts/`, `components/`, `explore/`,
+`home/`, `insights/`, `reference/`, `session/`) hold their pieces. `analytics/` holds the
+per-scope aggregators: one plain function per surface that turns a route's result into the
+shape that surface renders, so a KPI definition is a one-file edit.
 
 Four files are single sources of truth and are the reason a shared meaning cannot drift:
 
 - **`kinds.ts`**: `KIND_LABEL` and `KIND_ICON`, imported by every surface that renders an
   event kind.
-- **`toolLabels.ts`**: `TOOL_LABEL`, the friendly name for a raw tool name, imported by every
-  surface that ranks or lists tool calls.
+- **`toolLabels.ts`**: `friendlyToolLabel()`, the friendly name every surface shows a raw
+  tool call under, called by every surface that ranks or lists tool calls.
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 
