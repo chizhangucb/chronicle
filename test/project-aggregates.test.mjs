@@ -232,3 +232,32 @@ test('trend: dense-filled across idle days, and a session with no billed cells s
     { day: '2026-09-04', count: 1, cost: 0 },
   ]);
 });
+
+test('cost basis: the same input flows through both bases, and a covered model reads about zero under Billed', () => {
+  // claude-opus is subscription-covered (shared/pricing.ts); raw gpt-5 access
+  // is metered, so it costs the same under either basis.
+  const data = result({
+    sessions: [session('s1', { started_at: localIso(2026, 9, 1, 10) })],
+    analytics: {
+      rangedTokensByModel: [
+        bucketed('s1', 'claude-opus', '2026-09-01', cell(0, 1_000_000)),
+        bucketed('s1', 'gpt-5', '2026-09-02', cell(0, 1_000_000)),
+      ],
+    },
+  });
+
+  const list = projectAggregates(data, 'theoretical');
+  const billed = projectAggregates(data, 'real');
+
+  assert.equal(list.totalCost, 25 + 10);
+  assert.deepEqual(list.costByModel, [['claude-opus', 25], ['gpt-5', 10]]);
+  assert.deepEqual(list.trend.map((p) => p.cost), [25, 10]);
+
+  // Billed: the covered model is ~$0 everywhere it is reported, the metered
+  // one is untouched, and every other figure is the same number.
+  assert.equal(billed.totalCost, 10);
+  assert.deepEqual(billed.costByModel, [['gpt-5', 10], ['claude-opus', 0]]);
+  assert.deepEqual(billed.trend.map((p) => p.cost), [0, 10]);
+  assert.equal(billed.totalTokens, list.totalTokens);
+  assert.equal(billed.modelCount, list.modelCount);
+});
