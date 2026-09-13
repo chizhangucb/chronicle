@@ -10,9 +10,12 @@ import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
 import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {
-  FRIENDLY_CALL, isErrorResult, toolMixSorted, cumulativeCostSeries,
+  isErrorResult, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
+// The one friendly-label map, the same one the project Overview's call
+// ranking reads — a tool is never named two ways on two surfaces.
+import { FRIENDLY_CALL } from '../toolLabels.ts';
 // The one agent-active / engaged computation, the same one the server runs at
 // import — a live session and a stored session must report the same numbers.
 import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
