@@ -48,10 +48,11 @@ decision records:
 - **Destructive operations back up first**, and removal is a tombstone rather than a silent
   drop.
 - **One source of truth per shared meaning.** Kind labels in `src/kinds.ts`, friendly tool
-  labels in `src/toolLabels.ts`, prices and context windows in `src/models.ts`, the cross-boundary types in `shared/types.ts`, the
-  tool-result error heuristic in `shared/errors.ts`, agent-active and engaged time in
-  `shared/durations.ts`, the session display name in `shared/sessionName.ts`. New wording and
-  new numbers go in those files, never inline at a call site.
+  labels in `src/toolLabels.ts`, prices and context windows in `src/models.ts`, the
+  cross-boundary types in `shared/types.ts`, the tool-result error heuristic in
+  `shared/errors.ts`, agent-active and engaged time in `shared/durations.ts`, the session
+  display name in `shared/sessionName.ts`. New wording and new numbers go in those files,
+  never inline at a call site.
 
 ## The seams
 
