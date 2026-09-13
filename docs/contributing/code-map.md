@@ -37,8 +37,11 @@ thing: the `Source` it implements (`source.ts`) — `scan` for the import wizard
 pre-import listing, `parse` returning `{ session, events }`, `mtime` for freshness, plus
 `tail` where the store is an append-only transcript (Claude Code and Codex; the Cursor and
 OpenCode stores are SQLite, and live re-reads them instead). `registry.ts` lists the four and
-looks one up by id. Import, autosync and live go through the interface and name no source in
-code, so adding a fifth coding tool is a parser file and one line in the registry (ADR 0004).
+looks one up by id. `source.ts` also owns the helpers more than one parser needs:
+`newestMtimeMs()`, `importableFiles()`, and `openSnapshot()`, the read-only temp copy every
+SQLite source reads through. Import, autosync and live go through the interface and name no
+source in code, so adding a fifth coding tool is a parser file and one line in the registry
+(ADR 0004).
 The parser is the only place that knows a tool's native format.
 
 **The core engines:**

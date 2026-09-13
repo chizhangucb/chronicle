@@ -1,18 +1,12 @@
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
-import type { Source } from './source.ts';
-import { newestMtimeMs } from './source.ts';
+import type { Source, StoreSnapshot } from './source.ts';
+import { newestMtimeMs, openSnapshot } from './source.ts';
 
 const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
-
-interface Snapshot {
-  db: DatabaseSync;
-  cleanup: () => void;
-}
 
 interface SessionSummaryRow {
   id: string;
@@ -57,28 +51,9 @@ interface OcPart {
   state?: OcToolState;
 }
 
-// Never touch OpenCode's live DB: copy db + WAL/SHM to a temp dir and read that.
-function openSnapshot(dbPath: string): Snapshot {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-oc-'));
-  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
-  try {
-    const copy = path.join(tmp, 'opencode.db');
-    fs.copyFileSync(dbPath, copy);
-    for (const ext of ['-wal', '-shm']) {
-      if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
-    }
-    return { db: new DatabaseSync(copy), cleanup };
-  } catch (err) {
-    // A copy that never completed still made the temp dir; drop it rather than
-    // leaving it behind for the life of the process.
-    cleanup();
-    throw err;
-  }
-}
-
 function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
   if (!fs.existsSync(dbPath)) return [];
-  let snap: Snapshot | undefined;
+  let snap: StoreSnapshot | undefined;
   try {
     snap = openSnapshot(dbPath);
     let perSession: SessionSummaryRow[];
