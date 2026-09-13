@@ -114,7 +114,6 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
     totalCost += cost;
   }
 
-  const startDays = new Set<string>();
   const sessionsByDay = new Map<string, number>();
   const bySource = new Map<string, number>();
   let activeMs = 0;
@@ -122,7 +121,6 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
     activeMs += sessionAgentActiveMs(s);
     if (s.started_at) {
       const day = dayKeyOf(new Date(s.started_at));
-      startDays.add(day);
       sessionsByDay.set(day, (sessionsByDay.get(day) ?? 0) + 1);
     }
     bySource.set(s.source, (bySource.get(s.source) ?? 0) + 1);
@@ -162,7 +160,9 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
     userPrompts,
     errors,
     errorRate: toolCalls ? (errors / toolCalls) * 100 : 0,
-    activeDays: startDays.size,
+    // Days with at least one session started: the same day keys the trend
+    // counts on, so the KPI and the chart's line cannot disagree.
+    activeDays: sessionsByDay.size,
     activeMs,
     totalCost,
     totalIn,
