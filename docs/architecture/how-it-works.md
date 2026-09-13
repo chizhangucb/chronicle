@@ -400,9 +400,8 @@ shortest seen ancestor so a project's sessions group together.
    a normalized row (`{ ts, kind, text?, tool_name?, tool_input?, tool_use_id?, uuid?,
    model? }`), and `mtime()`. Add `tail()` only if the store is an append-only transcript.
    If the store is SQLite, read it through `openSnapshot()` from `source.ts` rather than
-   opening it live.
-   Populate `cwd` on the session; if the source is a WAL SQLite DB, copy the `-wal`/`-shm`
-   sidecars to temp exactly as Cursor/OpenCode do.
+   opening it live: that helper is what copies the DB and its `-wal`/`-shm` sidecars to temp.
+   Populate `cwd` on the session.
 2. **Add it to `SOURCES` in `server/parsers/registry.ts`.** That is the whole wiring: import,
    autosync and live read the registry, so none of them changes.
 3. **Add it to the wizard's source list in `src/ImportWizard.tsx`** with a matching `key`.
