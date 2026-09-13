@@ -3,6 +3,9 @@
 // The dropdowns live next door in Pickers.tsx; the part that decides which
 // rows a typed query keeps, and how a row is titled and dated, is plain data,
 // so it sits here where it can be read on its own (test/pickers.test.mjs).
+//
+// Named for the `Pickable*` shapes it owns, not `rows`: shared/rows.ts already
+// means "what a route answers with", and these are neither.
 import { sessionDisplayName, type NamedSession } from '../../shared/sessionName.ts';
 
 // Minimal project shape the picker needs (a subset of Project, plus the

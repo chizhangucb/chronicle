@@ -4,7 +4,7 @@
 // view as well, which is why they live here rather than inside either page:
 // a shared widget parked in a page file makes the other page import that page.
 // They take pure props and hold only their own open/query state; what a typed
-// query keeps, and how a row is titled and dated, is rows.ts next door.
+// query keeps, and how a row is titled and dated, is pickable.ts next door.
 import React, { useMemo, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { projectsUrl } from '../api.ts';
@@ -14,7 +14,7 @@ import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {
   ago, matchesProjectQuery, matchesSessionQuery, sessionPickerTitle,
   type PickableProject, type PickableSession,
-} from './rows.ts';
+} from './pickable.ts';
 
 interface ProjectPickerProps {
   current: PickableProject | null | undefined;

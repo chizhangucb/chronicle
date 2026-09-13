@@ -7,7 +7,7 @@
 //
 // The dropdowns themselves are JSX, which `node --test` has no loader for, so
 // the half that decides what a dropdown SHOWS — which rows a typed query
-// keeps, how a row is titled and dated — lives in src/pickers/rows.ts and is
+// keeps, how a row is titled and dated — lives in src/pickers/pickable.ts and is
 // asserted here directly. The placement pins at the bottom of this file cover
 // the relocation itself.
 import { test } from 'node:test';
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   ago, matchesProjectQuery, matchesSessionQuery, sessionPickerTitle,
-} from '../src/pickers/rows.ts';
+} from '../src/pickers/pickable.ts';
 
 // Three projects as GET /api/projects returns them, the worked example for
 // every project-filter assertion below.
@@ -212,25 +212,31 @@ test('no page file imports a widget from another page file', () => {
 
 // --- The wiring the move had to carry across --------------------------------
 //
-// Filtering is asserted above through rows.ts. Selection and hover prefetch
-// live in the JSX, so they are read off the module's source; each assertion
-// below names one thing a dropdown does, not how the file is laid out.
-const PICKERS = sourceOf(PICKERS_HOME);
+// Filtering is asserted above through pickable.ts. Selection and hover prefetch
+// are JSX, which `npm test` has no loader for, so they are read off the source
+// the way test/not-found-route.test.mjs reads App.tsx's render gates.
+//
+// Read with runs of whitespace collapsed, and with nothing incidental in the
+// pattern (no type arguments, no handler signatures): each one names ONE thing
+// a dropdown does, so a reformat or a retyping does not fail a pin on wiring
+// that did not change.
+const flat = (rel) => sourceOf(rel).replace(/\s+/g, ' ');
+const PICKERS = flat(PICKERS_HOME);
 
 test('hovering the project trigger warms the same list the dropdown reads', () => {
-  // One URL, used twice in the module: the SWR key the list is fetched under
-  // and the key the hover warms. If they drifted the popover would still flash
-  // "Loading…" after a hover.
+  // One URL used twice: the SWR key the list is fetched under, and the key the
+  // hover warms. If they drifted the popover would flash "Loading…" after a
+  // hover that was supposed to have paid for it already.
   assert.match(PICKERS, /onMouseEnter=\{\(\) => prefetch\(projectsUrl\(\)\)\}/);
-  assert.match(PICKERS, /useCachedFetch<PickableProject\[\]>\(projectsUrl\(\)\)/);
+  assert.match(PICKERS, /useCachedFetch(?:<[^>]*>)?\(projectsUrl\(\)\)/);
 });
 
-test('hovering the session trigger warms the list URL its mounting page offered, if any', () => {
-  assert.match(PICKERS, /onMouseEnter=\{\(\) => prefetchUrl && prefetch\(prefetchUrl\)\}/);
+test('hovering the session trigger warms a list URL only when it was offered one', () => {
+  assert.match(PICKERS, /prefetchUrl && prefetch\(prefetchUrl\)/);
 });
 
 test('the project page hands the session picker the URL that carries its session list', () => {
-  assert.match(sourceOf(path.join('src', 'ProjectDetail.tsx')),
+  assert.match(flat(path.join('src', 'ProjectDetail.tsx')),
     /<SessionPicker[^>]*prefetchUrl=\{projectUrl\(id, days \?\? undefined\)\}/);
 });
 
@@ -243,6 +249,14 @@ test('picking a session closes the dropdown and opens that session', () => {
 });
 
 test('the session view skips a pick of the session already open', () => {
-  assert.match(sourceOf(path.join('src', 'SessionView.tsx')),
-    /onPick=\{\(sid: string\) => \{ if \(sid !== current\.id\) onSwitch\?\.\(sid\); \}\}/);
+  assert.match(flat(path.join('src', 'SessionView.tsx')), /if \(sid !== current\.id\) onSwitch\?\.\(sid\)/);
+});
+
+// The welcome screen made the same move for the same reason, so its home is
+// pinned the same way.
+test('the welcome screen is declared once, in src/WelcomeEmpty.tsx', () => {
+  const declares = SOURCES
+    .filter(({ text }) => /(?:function|const)\s+WelcomeEmpty\b/.test(text))
+    .map(({ rel }) => rel);
+  assert.deepEqual(declares, [path.join('src', 'WelcomeEmpty.tsx')]);
 });

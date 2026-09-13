@@ -20,7 +20,7 @@ export function WelcomeEmpty({ onImport }: { onImport: () => void }) {
   );
 }
 
-// The demo affordance. A zero-data user who runs the plain command
+// The demo affordance. A zero-data operator who runs the plain command
 // otherwise has no way to learn demo mode exists: it would be discoverable only
 // from --help or the README, which is exactly the audience least likely to read
 // either. This is the whole reason the feature was asked for.

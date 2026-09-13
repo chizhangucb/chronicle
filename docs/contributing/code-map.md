@@ -64,7 +64,8 @@ The parser is the only place that knows a tool's native format.
 
 `main.tsx` mounts, `App.tsx` holds the sidebar and the `wouter` routes. Pages are top-level
 `.tsx` files; the folders (`cards/`, `charts/`, `components/`, `explore/`, `home/`,
-`insights/`, `reference/`, `session/`) hold their pieces.
+`insights/`, `pickers/`, `reference/`, `session/`) hold their pieces. A widget two pages
+share lives in its own module, never in one of those pages.
 
 Four files are single sources of truth and are the reason a shared meaning cannot drift:
 

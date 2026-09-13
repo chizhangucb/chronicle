@@ -19,7 +19,7 @@ import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells
 import { isSyntheticUserText } from '../shared/synthetic.ts';
 import { TOOL_LABEL } from './toolLabels.ts';
 import { ProjectPicker, SessionPicker } from './pickers/Pickers.tsx';
-import type { PickableProject } from './pickers/rows.ts';
+import type { PickableProject } from './pickers/pickable.ts';
 // The one display name, the same one the server resolves for a stored row;
 // the client asks for the 'label' presentation (`Session 3f2a1b9c`).
 import { sessionDisplayName } from '../shared/sessionName.ts';
