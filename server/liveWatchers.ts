@@ -151,6 +151,12 @@ export abstract class SessionWatcher {
   }
 
   close(reason: string): void {
+    // Stopping is idempotent, and only ever unregisters this watcher. A
+    // watcher that closed itself ends its clients' streams, and each of those
+    // ends fires the close handler that calls removeClient() → close() again:
+    // without this, the second close would delete whatever watcher is
+    // registered for the session by then, orphaning its timer.
+    if (live.watchers.get(this.sessionId) !== this) return;
     clearInterval(this.poll);
     this.broadcast({ type: 'status', status: 'stopped', reason });
     for (const res of this.clients) { try { res.end(); } catch {} }
@@ -269,13 +275,21 @@ class StorePollWatcher extends SessionWatcher {
 
 // One range of a file, as text. Rejects rather than resolving short, so a read
 // that failed half way is retried on the next poll instead of being handed on
-// as if it were the whole appended chunk.
+// as if it were the whole appended chunk: a range stream that reaches EOF early
+// (the file was truncated under the read) ends normally, so the byte count is
+// what says the read was whole. Decoded once, at the end, so a multi-byte
+// character split across the stream's own chunks survives.
 function readRange(filePath: string, start: number, end: number): Promise<string> {
+  const want = end - start + 1;
   return new Promise((resolve, reject) => {
-    const stream = fs.createReadStream(filePath, { start, end, encoding: 'utf8' });
-    let chunk = '';
-    stream.on('data', (d) => { chunk += d; });
-    stream.on('end', () => resolve(chunk));
+    const stream = fs.createReadStream(filePath, { start, end });
+    const chunks: Buffer[] = [];
+    let read = 0;
+    stream.on('data', (d) => { chunks.push(d as Buffer); read += (d as Buffer).length; });
+    stream.on('end', () => {
+      if (read < want) reject(new Error(`short read: ${read} of ${want} bytes`));
+      else resolve(Buffer.concat(chunks).toString('utf8'));
+    });
     stream.on('error', reject);
   });
 }

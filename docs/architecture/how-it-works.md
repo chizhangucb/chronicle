@@ -76,7 +76,7 @@ point) imports the compiled `dist-server/server/standalone.js`, not the `.ts` so
 │                → normalized events                            │
 │  db.ts         projects / sessions / messages  (SQLite)       │
 │  git.ts        read-only snapshot engine (rev-list/ls-tree)   │
-│  live.ts       liveWatchers.ts  JSONL tail + SQLite poll → SSE │
+│  live.ts       liveWatchers.ts JSONL tail + SQLite poll → SSE │
 │  autosync.ts   invisible background sync (watchers, backstop) │
 │  noiseGate.ts  "minor session" bucketing                      │
 │  security.ts   redaction rules, session scan                  │

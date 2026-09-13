@@ -90,7 +90,7 @@ describe('the watcher base', () => {
     opening() { return { watching: 'scripted' }; }
   }
 
-  const CADENCE = { activeMs: 700, idleMs: 3000, idleAfterMs: 120000 };
+  const CADENCE = { activeMs: 700, idleMs: 3000 };
   const made = [];
   function scripted(sessionId, cadence = CADENCE) {
     const w = new ScriptedWatcher(sessionId, cadence);
@@ -196,6 +196,27 @@ describe('the watcher base', () => {
     assert.deepEqual(sent(res).slice(1), [
       { type: 'messages', events: [{ kind: 'user', text: 'read me again', seq: 1000000 }] },
     ]);
+  });
+
+  test('a watcher stopping twice does not unregister the one that replaced it', async () => {
+    fakeClock();
+    const watcher = scripted('s_scripted_8');
+    const res = fakeRes();
+    watcher.addClient(res);
+
+    // The file went away, so the watcher stopped itself and ended the stream.
+    watcher.gone = true;
+    await tick(700);
+    assert.equal(openWatchers().has('s_scripted_8'), false);
+
+    // The client reconnects and gets a fresh watcher on the same session.
+    const replacement = scripted('s_scripted_8');
+    assert.equal(openWatchers().get('s_scripted_8'), replacement);
+
+    // Only now does the ended response fire its close handler, which is the
+    // old watcher's last client leaving. That must not take the new one down.
+    watcher.removeClient(res);
+    assert.equal(openWatchers().get('s_scripted_8'), replacement);
   });
 
   test('two minutes of silence steps the poll down, and the next write steps it back up', async () => {
