@@ -68,9 +68,10 @@ The parser is the only place that knows a tool's native format.
 
 `main.tsx` mounts, `App.tsx` holds the sidebar and the `wouter` routes. Pages are top-level
 `.tsx` files; the folders (`analytics/`, `cards/`, `charts/`, `components/`, `explore/`,
-`home/`, `insights/`, `reference/`, `session/`) hold their pieces. `analytics/` holds the
-per-scope aggregators: one plain function per surface that turns a route's result into the
-shape that surface renders, so a KPI definition is a one-file edit.
+`home/`, `insights/`, `pickers/`, `reference/`, `session/`) hold their pieces. `analytics/`
+holds the per-scope aggregators: one plain function per surface that turns a route's result
+into the shape that surface renders, so a KPI definition is a one-file edit. A widget two
+pages share lives in its own module, never in one of those pages.
 
 Four files are single sources of truth and are the reason a shared meaning cannot drift:
 
