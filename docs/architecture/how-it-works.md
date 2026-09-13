@@ -229,13 +229,13 @@ see Invisible sync below).
 `(session_id, seq)` index is what makes virtualized playback cheap. `(session_id, tool_use_id)`
 is a second index added specifically for the Insights engine. Explore, Content and Waste all
 pair `tool_use`↔`tool_result` (through the one join builder, below), and without it that join
-degrades to a per-session linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
-database. `is_sidechain` (1 = subagent event — Claude Code only), `agent_type` (subagent type),
-and `skill` (active skill context) support subagent attribution across the Overview Subagents
-card and the Insights Explore/Content tabs. Five per-message token columns are stored on the
-first event of each API call, which is what unlocks costliest-message rankings. **The database
-stores tokens, never dollars**; `src/models.ts` computes cost client-side from a static price
-table.
+degrades to a per-session linear scan; adding it cut those endpoints from tens of seconds to
+~1s on a large real database. `is_sidechain` (1 = subagent event — Claude Code only),
+`agent_type` (subagent type), and `skill` (active skill context) support subagent attribution
+across the Overview Subagents card and the Insights Explore/Content tabs. Five per-message
+token columns are stored on the first event of each API call, which is what unlocks
+costliest-message rankings. **The database stores tokens, never dollars**; `src/models.ts`
+computes cost client-side from a static price table.
 
 **`session_tombstones`** records a deliberate delete (single session or whole-project) keyed on
 `(source, session_id)`. Every import path — manual import, per-project/per-session sync,

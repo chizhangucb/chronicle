@@ -84,8 +84,8 @@ name because they differ: a session is in range by overlap (`sessions()`), a mes
 timestamp (`messages()`), billed tokens by their in-range share (`tokens`). The pairing rule
 lives there too: `pairedToolJoin(...)` is the one spelling of "which `tool_use` does this
 `tool_result` answer", composed by Explore, Content and Waste so no engine pairs differently.
-Every engine takes
-`(scope, range)` — never a bare day count — rather than growing near-copies.
+Every engine takes `(scope, range)` — never a bare day count — rather than growing
+near-copies.
 
 **The token/price seam.** The server returns cells; the client prices. See ADR 0005.
 
