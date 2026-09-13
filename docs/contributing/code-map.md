@@ -66,10 +66,12 @@ The parser is the only place that knows a tool's native format.
 `.tsx` files; the folders (`cards/`, `charts/`, `components/`, `explore/`, `home/`,
 `insights/`, `reference/`, `session/`) hold their pieces.
 
-Three files are single sources of truth and are the reason a shared meaning cannot drift:
+Four files are single sources of truth and are the reason a shared meaning cannot drift:
 
 - **`kinds.ts`**: `KIND_LABEL` and `KIND_ICON`, imported by every surface that renders an
   event kind.
+- **`toolLabels.ts`**: `TOOL_LABEL`, the friendly name for a raw tool name, imported by every
+  surface that ranks or lists tool calls.
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 
