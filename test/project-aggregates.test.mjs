@@ -104,6 +104,8 @@ test('KPI totals: an empty project reports zeroes, not NaN (error rate has no to
   assert.equal(agg.errorRate, 0);
   assert.equal(agg.totalCost, 0);
   assert.equal(agg.modelCount, 0);
+  // Nothing to densify between: an empty trend, not a phantom day.
+  assert.deepEqual(agg.trend, []);
 });
 
 test('cost by model: each model priced at its own rate, sorted desc, cut to the top N', () => {
@@ -170,4 +172,63 @@ test('source split: sessions per source, sorted desc', () => {
     ],
   });
   assert.deepEqual(projectAggregates(data, 'theoretical').sources, [['claude-code', 2], ['codex', 1]]);
+});
+
+test('trend: a session whose activity crosses local midnight is split per day, not billed to its start day', () => {
+  // Regression pin for the fidelity change (#376): the project Overview used
+  // to attribute a session's WHOLE cost to the local day it started on, so
+  // this session read $7.50 on 09-01 and nothing on 09-02.
+  const data = result({
+    sessions: [session('s1', { started_at: localIso(2026, 9, 1, 23), ended_at: localIso(2026, 9, 2, 1) })],
+    analytics: {
+      rangedTokensByModel: [
+        // claude-opus: $25/1M output.
+        bucketed('s1', 'claude-opus', '2026-09-01', cell(0, 100_000)),
+        bucketed('s1', 'claude-opus', '2026-09-02', cell(0, 200_000)),
+      ],
+    },
+  });
+
+  assert.deepEqual(projectAggregates(data, 'theoretical').trend, [
+    { day: '2026-09-01', count: 1, cost: 2.5 },
+    { day: '2026-09-02', count: 0, cost: 5 },
+  ]);
+});
+
+test('trend: each day is priced at THAT day\'s rate, so a session across a rate change reads per day', () => {
+  // claude-sonnet-5 output: $10/1M through its intro window (ends 2026-08-31),
+  // $15/1M after it.
+  const data = result({
+    sessions: [session('s1', { started_at: localIso(2026, 8, 31, 22) })],
+    analytics: {
+      rangedTokensByModel: [
+        bucketed('s1', 'claude-sonnet-5', '2026-08-31', cell(0, 1_000_000)),
+        bucketed('s1', 'claude-sonnet-5', '2026-09-01', cell(0, 1_000_000)),
+      ],
+    },
+  });
+
+  const agg = projectAggregates(data, 'theoretical');
+  assert.deepEqual(agg.trend.map((p) => p.cost), [10, 15]);
+  assert.equal(agg.totalCost, 25);
+});
+
+test('trend: dense-filled across idle days, and a session with no billed cells still counts on its day', () => {
+  const data = result({
+    sessions: [
+      session('s1', { started_at: localIso(2026, 9, 1, 10) }),
+      // Nothing billed on 09-04: the session is still one session that day.
+      session('s2', { started_at: localIso(2026, 9, 4, 10) }),
+    ],
+    analytics: {
+      rangedTokensByModel: [bucketed('s1', 'claude-opus', '2026-09-01', cell(0, 40_000))],
+    },
+  });
+
+  assert.deepEqual(projectAggregates(data, 'theoretical').trend, [
+    { day: '2026-09-01', count: 1, cost: 1 },
+    { day: '2026-09-02', count: 0, cost: 0 },
+    { day: '2026-09-03', count: 0, cost: 0 },
+    { day: '2026-09-04', count: 1, cost: 0 },
+  ]);
 });

@@ -18,9 +18,9 @@
 import type { CostMode } from '../models.ts';
 import type { ProjectDetailResult } from '../../shared/results.ts';
 import type { ProjectSessionSummary } from '../../shared/rows.ts';
-import { dayKeyOf } from '../charts/timeBuckets.ts';
+import { densifyBuckets, dayKeyOf } from '../charts/timeBuckets.ts';
 import { friendlyToolLabel } from '../toolLabels.ts';
-import { costOfBucketedCells, groupByKey, sumByModel } from '../rangedUsage.ts';
+import { costOfCells, costOfBucketedCells, groupByBucket, groupByKey, sumByModel } from '../rangedUsage.ts';
 
 // How many rows the ranking and the cost-by-model bars cut to: both cards
 // render a fixed-height bar list, so a long tail would push the page around
@@ -33,6 +33,16 @@ const MAX_LABEL_LEN = 18;
 // The result types live here, not in shared/: the server computes none of
 // these shapes, so a shared/ declaration would falsely imply a cross-boundary
 // contract.
+
+/** One local calendar day of the spend-over-time chart. */
+export interface ProjectTrendPoint {
+  /** Local day key, `YYYY-MM-DD` (src/charts/timeBuckets.ts). */
+  day: string;
+  /** Sessions STARTED that day — a session is begun once, so it is counted once. */
+  count: number;
+  /** Dollars billed that day, from that day's cells at that day's rate. */
+  cost: number;
+}
 
 /** What the Overview renders for one project, in the shape it maps to JSX. */
 export interface ProjectAggregates {
@@ -57,6 +67,8 @@ export interface ProjectAggregates {
   ranking: [string, number][];
   /** Sessions per source, desc. */
   sources: [string, number][];
+  /** Spend over time, one point per local day, dense-filled across idle days. */
+  trend: ProjectTrendPoint[];
 }
 
 // One session's agent-active time: the stored figure when the importer
@@ -101,13 +113,35 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
   }
 
   const startDays = new Set<string>();
+  const sessionsByDay = new Map<string, number>();
   const bySource = new Map<string, number>();
   let activeMs = 0;
   for (const s of sessions) {
     activeMs += sessionAgentActiveMs(s);
-    if (s.started_at) startDays.add(dayKeyOf(new Date(s.started_at)));
+    if (s.started_at) {
+      const day = dayKeyOf(new Date(s.started_at));
+      startDays.add(day);
+      sessionsByDay.set(day, (sessionsByDay.get(day) ?? 0) + 1);
+    }
     bySource.set(s.source, (bySource.get(s.source) ?? 0) + 1);
   }
+
+  // Spend over time, from the per-session, per-model, per-LOCAL-day cells the
+  // route already ships: each day's cells are priced at THAT day's rate, so a
+  // session that ran across midnight (or across a model's rate change)
+  // contributes to each day it actually ran, and the chart agrees with the
+  // Insights home for the identical cells. The page used to attribute a
+  // whole session's cost to the day it started on.
+  const costByDay = new Map<string, number>();
+  for (const [day, group] of groupByBucket(analytics.rangedTokensByModel)) {
+    costByDay.set(day, costOfCells(sumByModel(group), day, mode));
+  }
+  // Dense-filled from the first to the last day with anything on it, so equal
+  // bar spacing always reads as equal time. A day can carry a session with no
+  // billed cells, or billed cells from a session that started earlier, so the
+  // span covers both key sets.
+  const trend: ProjectTrendPoint[] = densifyBuckets([...sessionsByDay.keys(), ...costByDay.keys()], 'day')
+    .map((day) => ({ day, count: sessionsByDay.get(day) ?? 0, cost: costByDay.get(day) ?? 0 }));
 
   // Tool calls by friendly label (src/toolLabels.ts, the same names the
   // session Overview uses), with the operator's own prompts as a row of the
@@ -136,5 +170,6 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
     costByModel: topN(costByModelMap),
     ranking: topN(ranked),
     sources: [...bySource.entries()].sort((a, b) => b[1] - a[1]),
+    trend,
   };
 }
