@@ -8,7 +8,10 @@
 // target to parse, a path whose write time says "re-parse me") and leaves the
 // per-store live shape optional: `tail` exists only on an append-only
 // transcript.
+import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { Event, ParseResult, ParseTarget, ScannedProject, SourceId } from '../../shared/types.ts';
 
 export interface Source {
@@ -64,4 +67,37 @@ export function newestMtimeMs(...paths: string[]): number | null {
 export function importableFiles(item: ScannedProject): string[] {
   if (item.files?.length) return item.files;
   return (item.sessions ?? []).map((s) => s.file).filter((f): f is string => !!f);
+}
+
+// A read-only view of one SQLite store: a handle on a temp copy, and the call
+// that drops the copy. The caller closes the snapshot with `cleanup()` when it
+// is done reading, in a `finally` so a throw mid-read does not leak the dir.
+export interface Snapshot {
+  db: DatabaseSync;
+  cleanup: () => void;
+}
+
+// Open a SQLite store without ever writing it (docs/contributing/gotchas.md).
+// The store belongs to a coding tool that may still be running, so Chronicle
+// copies it to a temp dir and opens the copy, never the original.
+//
+// The `-wal` and `-shm` sidecars come along: in WAL mode the newest writes live
+// in the `-wal` file, so copying only the `.db` yields a snapshot missing
+// recent rows, and sometimes all of them.
+export function openSnapshot(dbPath: string): Snapshot {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-snapshot-'));
+  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
+  try {
+    const copy = path.join(tmp, path.basename(dbPath));
+    fs.copyFileSync(dbPath, copy);
+    for (const ext of ['-wal', '-shm']) {
+      if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
+    }
+    return { db: new DatabaseSync(copy), cleanup };
+  } catch (err) {
+    // A copy that never completed still made the temp dir; drop it rather than
+    // leaving it behind for the life of the process.
+    cleanup();
+    throw err;
+  }
 }

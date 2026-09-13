@@ -70,7 +70,8 @@ plain JS (`dist-server/`) so the published npm package doesn't require Node to s
   aggregation run entirely on-device with no LLM calls. Preserve that offline guarantee —
   never add a network dependency to a core feature.
 - **Read-only on foreign systems.** SQLite sources are copied to a temp location (including
-  their `-wal`/`-shm` files) before opening; original logs and repos are never written.
+  their `-wal`/`-shm` files) before opening, by the one `openSnapshot()` helper in
+  `server/parsers/source.ts`; original logs and repos are never written.
 - **Long-lived state lives on `globalThis`** (e.g. auto-sync's watchers/timers) so Vite's SSR
   module reloads don't orphan watchers or child processes.
 - **Single source of truth for shared vocabulary.** Chat-type labels live only in
