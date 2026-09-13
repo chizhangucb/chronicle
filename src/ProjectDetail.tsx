@@ -14,8 +14,10 @@ import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
 // The project Overview's numbers, assembled once (#376) — the page maps this
-// result to JSX and does no aggregation of its own.
-import { projectAggregates, sessionAgentActiveMs, type ProjectAggregates } from './analytics/projectAggregates.ts';
+// result to JSX and aggregates nothing itself. `sessionDurationMs` is the
+// per-session rule the Overview's Agent Active KPI sums, read here so the
+// session list's "duration" sort orders by the same number.
+import { projectAggregates, sessionDurationMs, type ProjectAggregates } from './analytics/projectAggregates.ts';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
@@ -189,7 +191,9 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
   // Every Overview number, from the one project-scope assembler
   // (src/analytics/projectAggregates.ts): KPI totals, the day trend, the
   // cost-by-model split, the tool ranking and the source mix. The page maps
-  // them to JSX and computes none of them.
+  // them to JSX; the only math left here is per-SESSION (sessionCost /
+  // sessionDurationMs), which orders the session list rather than feeding a
+  // number on the Overview.
   const stats: ProjectAggregates | null = useMemo(
     () => (data ? projectAggregates(data, mode) : null),
     [data, mode]);
@@ -202,7 +206,7 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
     const by: Record<string, (a: ProjectSessionSummary, b: ProjectSessionSummary) => number> = {
       recent: (a, b) => (b.started_at || '').localeCompare(a.started_at || ''),
       cost: (a, b) => sessionCost(b, mode) - sessionCost(a, mode),
-      duration: (a, b) => sessionAgentActiveMs(b) - sessionAgentActiveMs(a),
+      duration: (a, b) => sessionDurationMs(b) - sessionDurationMs(a),
       messages: (a, b) => (b.message_count || 0) - (a.message_count || 0),
     };
     return [...list].sort(by[sortKey]);

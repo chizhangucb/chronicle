@@ -26,8 +26,10 @@ import { costOfCells, costOfBucketedCells, groupByBucket, groupByKey, sumByModel
 // render a fixed-height bar list, so a long tail would push the page around
 // rather than tell the operator anything.
 const TOP_N = 8;
-// A tool name longer than this has no room in a bar label, so it lands in the
-// ranking's one aggregate row instead of blowing the row out.
+// A label longer than this has no room in a bar row, so it lands in the
+// ranking's one aggregate row instead of blowing the row out. The gate reads
+// the LABEL, so a renamed tool keeps its friendly name whatever its raw name
+// was (every mapped label is short by construction).
 const MAX_LABEL_LEN = 18;
 
 // The result types live here, not in shared/: the server computes none of
@@ -55,7 +57,7 @@ export interface ProjectAggregates {
   /** Errors as a percentage of tool calls (0 when there were none). */
   errorRate: number;
   activeDays: number;
-  /** Agent-active time across the listed sessions. */
+  /** Time the listed sessions ran, summed (see `sessionDurationMs`). */
   activeMs: number;
   totalCost: number;
   totalIn: number;
@@ -73,12 +75,13 @@ export interface ProjectAggregates {
   trend: ProjectTrendPoint[];
 }
 
-// One session's agent-active time: the stored figure when the importer
-// computed one (shared/durations.ts), else wall-clock start→end. Exported
-// because the project page's session-list "duration" sort orders by the very
-// same number — one rule, read by the KPI here and by that sort, rather than
-// a twin on each side.
-export function sessionAgentActiveMs(s: ProjectSessionSummary): number {
+// How long one session ran: the agent-active time the importer computed when
+// there is one (shared/durations.ts, summed from message gaps), else
+// wall-clock start→end. The fallback is NOT agent-active time in CONTEXT.md's
+// sense, so the helper is named for the wider thing it actually returns.
+// Exported because the project page's session-list "duration" sort orders by
+// this very number — one rule read by both, rather than a twin on each side.
+export function sessionDurationMs(s: ProjectSessionSummary): number {
   return s.agent_active_ms
     ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
 }
@@ -89,7 +92,9 @@ function topN(counts: Map<string, number>): [string, number][] {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N);
 }
 
-export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 'theoretical'): ProjectAggregates {
+// `mode` is the selected cost basis and has no default: which price a dollar
+// figure is computed at is the caller's decision, never a silent one.
+export function projectAggregates(data: ProjectDetailResult, mode: CostMode): ProjectAggregates {
   const { sessions, analytics } = data;
   const toolCalls = analytics.kindDist.find((k) => k.kind === 'tool_use')?.count ?? 0;
   const messages = analytics.kindDist.reduce((n, k) => n + k.count, 0);
@@ -102,23 +107,21 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
   // overlap-gated server-side) at every window.
   const byModel = sumByModel(analytics.rangedTokensByModel);
   const cellsByModel = groupByKey(analytics.rangedTokensByModel, (c) => c.model);
-  let totalIn = 0, totalOut = 0, totalCost = 0;
+  let totalIn = 0, totalOut = 0;
   const costByModelMap = new Map<string, number>();
   for (const [model, cell] of byModel) {
     totalIn += cell.input;
     totalOut += cell.output;
     // Per model, then per day-bucket: a model's cells spanning a rate change
     // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    const cost = costOfBucketedCells(cellsByModel.get(model) ?? [], mode);
-    costByModelMap.set(model, cost);
-    totalCost += cost;
+    costByModelMap.set(model, costOfBucketedCells(cellsByModel.get(model) ?? [], mode));
   }
 
   const sessionsByDay = new Map<string, number>();
   const bySource = new Map<string, number>();
   let activeMs = 0;
   for (const s of sessions) {
-    activeMs += sessionAgentActiveMs(s);
+    activeMs += sessionDurationMs(s);
     if (s.started_at) {
       const day = dayKeyOf(new Date(s.started_at));
       sessionsByDay.set(day, (sessionsByDay.get(day) ?? 0) + 1);
@@ -133,8 +136,15 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
   // Insights home for the identical cells. The page used to attribute a
   // whole session's cost to the day it started on.
   const costByDay = new Map<string, number>();
+  let totalCost = 0;
   for (const [day, group] of groupByBucket(analytics.rangedTokensByModel)) {
-    costByDay.set(day, costOfCells(sumByModel(group), day, mode));
+    const cost = costOfCells(sumByModel(group), day, mode);
+    costByDay.set(day, cost);
+    // The Cost KPI is the sum of the days the chart draws, not a second
+    // derivation of the same dollars: the headline can never disagree with
+    // the bars under it. The cost-by-model split is the same money grouped
+    // the other way, pinned by its own test.
+    totalCost += cost;
   }
   // Dense-filled from the first to the last day with anything on it, so equal
   // bar spacing always reads as equal time. A day can carry a session with no
@@ -148,9 +158,9 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode = 't
   // same ranking — two names mapping to one label merge into one row.
   const ranked = new Map<string, number>();
   for (const d of analytics.toolDist) {
-    const name = d.name || '';
-    const label = name.length > MAX_LABEL_LEN ? 'Other' : friendlyToolLabel(name);
-    ranked.set(label, (ranked.get(label) ?? 0) + d.count);
+    const label = friendlyToolLabel(d.name || '');
+    const row = label.length > MAX_LABEL_LEN ? 'Other' : label;
+    ranked.set(row, (ranked.get(row) ?? 0) + d.count);
   }
   if (userPrompts) ranked.set('User Prompt', userPrompts);
 

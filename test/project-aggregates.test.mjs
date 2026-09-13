@@ -261,3 +261,28 @@ test('cost basis: the same input flows through both bases, and a covered model r
   assert.equal(billed.totalTokens, list.totalTokens);
   assert.equal(billed.modelCount, list.modelCount);
 });
+
+test('the Cost KPI, the day trend and the cost-by-model split are the same dollars', () => {
+  // The KPI is summed from the days the chart draws; the split is the same
+  // money grouped by model instead. All three must reconcile, or the headline
+  // disagrees with the bars under it.
+  const data = result({
+    sessions: [session('s1', { started_at: localIso(2026, 8, 31, 22) })],
+    analytics: {
+      rangedTokensByModel: [
+        // Straddles the Sonnet 5 intro boundary AND mixes models within a day.
+        bucketed('s1', 'claude-sonnet-5', '2026-08-31', cell(0, 1_000_000)),
+        bucketed('s1', 'claude-opus', '2026-08-31', cell(0, 400_000)),
+        bucketed('s1', 'claude-sonnet-5', '2026-09-01', cell(0, 2_000_000)),
+      ],
+    },
+  });
+
+  const agg = projectAggregates(data, 'theoretical');
+  const sum = (ns) => ns.reduce((a, b) => a + b, 0);
+
+  // sonnet-5: $10 (intro day) + $30 (after) = $40. opus: 0.4M out = $10.
+  assert.equal(agg.totalCost, 50);
+  assert.equal(sum(agg.trend.map((p) => p.cost)), agg.totalCost);
+  assert.equal(sum(agg.costByModel.map(([, c]) => c)), agg.totalCost);
+});
