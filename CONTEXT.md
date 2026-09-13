@@ -30,7 +30,7 @@ The working directory a session ran in, keyed on that path. A project is not nec
 _Avoid_: workspace, repo, folder.
 
 **Snapshot**:
-The Git commit that stood at the moment of a given message. Time travel pairs a message with its snapshot.
+The Git commit that stood at the moment of a given message. Time travel pairs a message with its snapshot. Every product surface means this one. `server/parsers/` carries a second, internal sense: a `StoreSnapshot` is the read-only temp copy of a source's SQLite store, which `openSnapshot()` hands back.
 
 **Time travel**:
 Reading the code as it stood at a message's snapshot, reconstructed from Git commits. Available only for a project that is a Git repo.

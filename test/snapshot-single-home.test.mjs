@@ -131,20 +131,24 @@ const SOURCES = [...sourceFiles('server'), ...sourceFiles('src'), ...sourceFiles
   .map((rel) => ({ rel, text: fs.readFileSync(path.join(REPO, rel), 'utf8') }));
 
 describe('one home for the snapshot helper', () => {
-  test('openSnapshot and the Snapshot shape are declared only in server/parsers/source.ts', () => {
-    for (const decl of [/(?:^|\n)\s*(?:export )?function openSnapshot\b/, /(?:^|\n)\s*(?:export )?interface Snapshot\b/]) {
+  test('openSnapshot and the StoreSnapshot shape are declared only in server/parsers/source.ts', () => {
+    for (const decl of [/(?:^|\n)\s*(?:export )?function openSnapshot\b/, /(?:^|\n)\s*(?:export )?interface StoreSnapshot\b/]) {
       const declares = SOURCES.filter(({ text }) => decl.test(text)).map(({ rel }) => rel);
       assert.deepEqual(declares, ['server/parsers/source.ts'],
         `${decl} should be declared only in server/parsers/source.ts`);
     }
   });
 
-  test('mkdtempSync for a store copy happens only in the one helper', () => {
+  // Scoped to the parsers: a temp dir elsewhere in server/ (staging a backup,
+  // an export) is nobody's read-only guarantee. Inside parsers/, one is a
+  // second store copy by definition.
+  test('no parser makes its own temp copy of a store', () => {
     const copiers = SOURCES
+      .filter(({ rel }) => rel.startsWith(path.join('server', 'parsers')))
       .filter(({ text }) => /mkdtempSync/.test(text))
       .map(({ rel }) => rel);
     assert.deepEqual(copiers, ['server/parsers/source.ts'],
-      'a second temp-copy is a second read-only guarantee to keep in step');
+      'a second temp copy is a second read-only guarantee to keep in step');
   });
 
   // The two store-backed sources. Each reaches for the shared helper rather

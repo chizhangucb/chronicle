@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject, ScannedSession } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
-import type { Snapshot, Source } from './source.ts';
+import type { Source, StoreSnapshot } from './source.ts';
 import { newestMtimeMs, openSnapshot } from './source.ts';
 
 const OPENCODE_DB = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
@@ -53,7 +53,7 @@ interface OcPart {
 
 function scanOpencodeProjects(dbPath: string = OPENCODE_DB): ScannedProject[] {
   if (!fs.existsSync(dbPath)) return [];
-  let snap: Snapshot | undefined;
+  let snap: StoreSnapshot | undefined;
   try {
     snap = openSnapshot(dbPath);
     let perSession: SessionSummaryRow[];

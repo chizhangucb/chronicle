@@ -4,11 +4,11 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
-import type { Snapshot, Source } from './source.ts';
+import type { Source, StoreSnapshot } from './source.ts';
 import { newestMtimeMs, openSnapshot } from './source.ts';
 
 interface CursorGlobalCache {
-  snap: Snapshot | null;
+  snap: StoreSnapshot | null;
   fingerprint: string | null;
   userDir: string | null;
 }
@@ -139,7 +139,7 @@ function globalSnapshotFingerprint(dbPath: string): string | null {
   }
 }
 
-function getGlobalSnapshot(userDir: string): Snapshot | null {
+function getGlobalSnapshot(userDir: string): StoreSnapshot | null {
   const globalDb = path.join(userDir, 'globalStorage', 'state.vscdb');
   if (!fs.existsSync(globalDb)) return null;
   const fingerprint = globalSnapshotFingerprint(globalDb);
@@ -398,7 +398,7 @@ function scanCursorProjects(userDir: string = cursorUserDir()): ScannedProject[]
       const dbPath = path.join(wsDir, 'state.vscdb');
       if (!fs.existsSync(dbPath)) continue;
       const folder = workspaceFolder(wsDir);
-      let snap: Snapshot | undefined;
+      let snap: StoreSnapshot | undefined;
       try {
         snap = openSnapshot(dbPath);
         let sessionCount = 0;

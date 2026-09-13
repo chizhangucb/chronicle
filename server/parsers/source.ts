@@ -72,9 +72,13 @@ export function importableFiles(item: ScannedProject): string[] {
 // A read-only view of one SQLite store: a handle on a temp copy, and the call
 // that drops that copy. `cleanup()` is the caller's to make once it is done
 // reading, and how long that is varies: a per-read caller drops the copy in a
-// `finally`, while Cursor's cached global snapshot holds one open and drops it
-// when the store's fingerprint moves.
-export interface Snapshot {
+// `finally`, while Cursor's cached copy is held open and dropped when the
+// store's fingerprint moves.
+//
+// Named `StoreSnapshot`, not `Snapshot`: in Chronicle's glossary a snapshot is
+// the Git commit that stood at a message (CONTEXT.md), and that is the meaning
+// every product surface carries.
+export interface StoreSnapshot {
   db: DatabaseSync;
   cleanup: () => void;
 }
@@ -86,7 +90,7 @@ export interface Snapshot {
 // The `-wal` and `-shm` sidecars come along: in WAL mode the newest writes live
 // in the `-wal` file, so copying only the `.db` yields a snapshot missing
 // recent rows, and sometimes all of them.
-export function openSnapshot(dbPath: string): Snapshot {
+export function openSnapshot(dbPath: string): StoreSnapshot {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-snapshot-'));
   const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
   try {
