@@ -227,9 +227,9 @@ see Invisible sync below).
 
 **`messages`** is the normalized event stream, ordered by `seq` within a session. The
 `(session_id, seq)` index is what makes virtualized playback cheap. `(session_id, tool_use_id)`
-is a second index added specifically for the Insights engine — Explore and Content both
-self-join `tool_use`↔`tool_result` pairs, and without it that join degrades to a per-session
-linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
+is a second index added specifically for the Insights engine — Explore, Content and Waste all
+pair `tool_use`↔`tool_result` (through the one join builder, below), and without it that join
+degrades to a per-session linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
 database. `is_sidechain` (1 = subagent event — Claude Code only), `agent_type` (subagent type),
 and `skill` (active skill context) support subagent attribution across the Overview Subagents
 card and the Insights Explore/Content tabs. Five per-message token columns are stored on the
@@ -532,7 +532,11 @@ named for the way each thing falls in range: a session by overlap (`sessions()`)
 its timestamp (`messages()`), billed tokens by their in-range share (`tokens.cutoffIso`, which
 `server/rangeUsage.ts` takes). `whereOf(...)` composes any of them into one `WHERE` body with
 its binds in order. Every engine — including the detectors and waste ones — takes
-`(scope, range)`.
+`(scope, range)`. `pairedToolJoin(...)` lives beside those helpers and is the one spelling of
+the pairing rule — the `tool_use` a `tool_result` answers is the earliest row in the same
+session carrying the same `tool_use_id` — composed by Explore (error rows and error rollup),
+Content (tool-results-by-tool) and Waste (repeat file reads), so no engine can pair a result
+to a different call than its neighbours do.
 
 - **`server/insights.ts`** (`GET /api/insights`): aggregation at whatever scope it is given,
   covering spend/token/session totals, tool and model distributions, error rate, commit counts
