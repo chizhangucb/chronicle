@@ -34,8 +34,10 @@ const MAX_LABEL_LEN = 18;
 // these shapes, so a shared/ declaration would falsely imply a cross-boundary
 // contract.
 
-/** One local calendar day of the spend-over-time chart. */
-export interface ProjectTrendPoint {
+// One local calendar day of the spend-over-time chart. Not exported: it is
+// reachable through `ProjectAggregates['trend']`, and an export nothing
+// imports reads as an interface (test/exports-have-callers.test.mjs).
+interface ProjectTrendPoint {
   /** Local day key, `YYYY-MM-DD` (src/charts/timeBuckets.ts). */
   day: string;
   /** Sessions STARTED that day — a session is begun once, so it is counted once. */
