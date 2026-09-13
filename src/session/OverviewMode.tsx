@@ -8,12 +8,14 @@ import { AXIS_PROPS, GRID_PROPS, ChartTooltip } from '../charts/ChartWrapper.js'
 import { contextWindowFor, costOf, costBreakdownOf, cacheWriteTokens, cacheWriteByTtl, cacheWriteCostByTtl } from '../models.js';
 import { useCostMode } from '../costMode.tsx';
 import { dayKeyOf } from '../charts/timeBuckets.ts';
+// The one friendly tool-label lookup (#375), shared with the project
+// Overview's ranking — this file used to read a copy declared in ./stats.ts.
+import { friendlyToolLabel } from '../toolLabels.ts';
 import { sessionDisplayName } from '../../shared/sessionName.ts';
 import {
   isErrorResult, toolMixSorted, cumulativeCostSeries,
   fmtCtx, fmtTokNum, fmtDur, summarizeToolInput, subagentRuns, subagentRunCount,
 } from './stats.js';
-import { TOOL_LABEL } from '../toolLabels.ts';
 // The one agent-active / engaged computation, the same one the server runs at
 // import — a live session and a stored session must report the same numbers.
 import { agentActiveMs, engagedMs, isHumanPrompt } from '../../shared/durations.ts';
@@ -173,7 +175,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
       .slice(0, 12)
       .map((m) => ({
         seq: m.seq, ts: m.ts,
-        label: m.kind === 'user' ? 'User Prompt' : (TOOL_LABEL[m.tool_name || ''] || m.tool_name || 'Tool'),
+        label: m.kind === 'user' ? 'User Prompt' : (friendlyToolLabel(m.tool_name) || 'Tool'),
         preview: m.kind === 'user' ? (m.text || '').slice(0, 90) : summarizeToolInput(m.tool_name, m.tool_input).slice(0, 90),
       }));
     // Files touched: Edit/Write tool calls, tallied by file_path (same field
@@ -407,7 +409,7 @@ export default function OverviewMode({ data, messages, liveStatus, onDeleted, on
         <div className="card">
           <h3>Tool mix</h3>
           {toolMix.length > 0 ? toolMix.slice(0, 6).map((row, i) => (
-            <div className="hbar" key={row.name}><span className="n" title={TOOL_LABEL[row.name] ?? row.name}>{TOOL_LABEL[row.name] ?? row.name}</span>
+            <div className="hbar" key={row.name}><span className="n" title={friendlyToolLabel(row.name)}>{friendlyToolLabel(row.name)}</span>
               <div className="track"><div className="fill" style={{ width: `${(row.count / maxToolCount) * 100}%`, background: CATEGORICAL_COLORS[i % 5] }} /></div>
               <span className="v num">{row.count}</span></div>
           )) : <div className="muted small">No tool calls recorded.</div>}

@@ -25,12 +25,16 @@ One assistant message. Used where the count of assistant responses is the point,
 Which of the five kinds a message is. Distinct from `source` and from `provider`.
 _Avoid_: type, role.
 
+**Pair**:
+A `tool_use` message and the `tool_result` that answers it, matched on `tool_use_id` within one session. When a session carries the id more than once, the pair is the earliest matching message. Every server engine that attributes a result to its call joins through one builder (`server/scope.ts`'s `pairedToolJoin`).
+_Avoid_: link, match, correlate.
+
 **Project**:
 The working directory a session ran in, keyed on that path. A project is not necessarily a Git repo; when it is, time travel is available.
 _Avoid_: workspace, repo, folder.
 
 **Snapshot**:
-The Git commit that stood at the moment of a given message. Time travel pairs a message with its snapshot.
+The Git commit that stood at the moment of a given message. Time travel pairs a message with its snapshot. Every product surface means this one. `server/parsers/` carries a second, internal sense: a `StoreSnapshot` is the read-only temp copy of a source's SQLite store, which `openSnapshot()` hands back.
 
 **Time travel**:
 Reading the code as it stood at a message's snapshot, reconstructed from Git commits. Available only for a project that is a Git repo.

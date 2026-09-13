@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scopeClause, queryContext, rangeOf, whereOf } from '../server/scope.ts';
+import { pairedToolJoin, scopeClause, queryContext, rangeOf, whereOf } from '../server/scope.ts';
 import { overlapGate } from '../server/rangeUsage.ts';
 
 test('scopeClause: all → empty fragment, no params', () => {
@@ -85,4 +85,23 @@ test('whereOf: an all-empty composition is a true predicate, not a syntax error'
   const q = queryContext({ type: 'session', id: 's1' }, rangeOf(null, NOW));
   assert.deepEqual(whereOf(q.sessions(), q.messages()), { sql: '1=1', params: [] });
   assert.deepEqual(whereOf(q.sessions(), q.where), { sql: 's.id = ?', params: ['s1'] });
+});
+
+// ---- pairedToolJoin: the one paired-tool_use join (#378). Asserted here for
+// the same reason scopeClause is: the fragment itself, which no engine's
+// output can show. The engines that compose it are pinned by
+// test/paired-tool-use-single-home.test.mjs, and what it counts by
+// test/paired-tool-use-join.test.mjs.
+const flat = (sql) => sql.replace(/\s+/g, ' ').trim();
+
+test('pairedToolJoin: a result-driven query joins in the earliest matching tool_use', () => {
+  assert.equal(flat(pairedToolJoin({ from: 'r', alias: 'u', kind: 'tool_use' })),
+    "JOIN messages u ON u.id = ( SELECT MIN(u2.id) FROM messages u2 "
+    + "WHERE u2.session_id = r.session_id AND u2.tool_use_id = r.tool_use_id AND u2.kind = 'tool_use' )");
+});
+
+test('pairedToolJoin: a use-driven query joins the other way, and optional keeps the unanswered call', () => {
+  assert.equal(flat(pairedToolJoin({ from: 'm', alias: 'r', kind: 'tool_result', optional: true })),
+    "LEFT JOIN messages r ON r.id = ( SELECT MIN(r2.id) FROM messages r2 "
+    + "WHERE r2.session_id = m.session_id AND r2.tool_use_id = m.tool_use_id AND r2.kind = 'tool_result' )");
 });

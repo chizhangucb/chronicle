@@ -227,15 +227,15 @@ see Invisible sync below).
 
 **`messages`** is the normalized event stream, ordered by `seq` within a session. The
 `(session_id, seq)` index is what makes virtualized playback cheap. `(session_id, tool_use_id)`
-is a second index added specifically for the Insights engine — Explore and Content both
-self-join `tool_use`↔`tool_result` pairs, and without it that join degrades to a per-session
-linear scan; adding it cut those endpoints from tens of seconds to ~1s on a large real
-database. `is_sidechain` (1 = subagent event — Claude Code only), `agent_type` (subagent type),
-and `skill` (active skill context) support subagent attribution across the Overview Subagents
-card and the Insights Explore/Content tabs. Five per-message token columns are stored on the
-first event of each API call, which is what unlocks costliest-message rankings. **The database
-stores tokens, never dollars**; `src/models.ts` computes cost client-side from a static price
-table.
+is a second index added specifically for the Insights engine. Explore, Content and Waste all
+pair `tool_use`↔`tool_result` (through the one join builder, below), and without it that join
+degrades to a per-session linear scan; adding it cut those endpoints from tens of seconds to
+~1s on a large real database. `is_sidechain` (1 = subagent event — Claude Code only),
+`agent_type` (subagent type), and `skill` (active skill context) support subagent attribution
+across the Overview Subagents card and the Insights Explore/Content tabs. Five per-message
+token columns are stored on the first event of each API call, which is what unlocks
+costliest-message rankings. **The database stores tokens, never dollars**; `src/models.ts`
+computes cost client-side from a static price table.
 
 **`session_tombstones`** records a deliberate delete (single session or whole-project) keyed on
 `(source, session_id)`. Every import path — manual import, per-project/per-session sync,
@@ -385,7 +385,8 @@ drill-in to that subagent's transcript) and as a first-class dimension in Insigh
 running editor may still be writing. Chronicle copies the DB to a temp directory **including
 the `-wal` and `-shm` sidecar files** before opening it read-only — in WAL mode the newest
 writes live in the `-wal` file, so copying only the `.db` yields a snapshot missing recent (or
-all) rows.
+all) rows. Both parsers do this through the one `openSnapshot()` in
+`server/parsers/source.ts`, which also drops the temp directory if the copy fails.
 
 **cwd resolution — latest wins, collapse to an ancestor.** A session resumed after a repo move
 keeps the *old* path in its early records; the scanner sniffs the head and tail 64 KB of each
@@ -398,8 +399,9 @@ shortest seen ancestor so a project's sessions group together.
    (cheap listing), `parse()` returning `{ session, events }` per session where each event is
    a normalized row (`{ ts, kind, text?, tool_name?, tool_input?, tool_use_id?, uuid?,
    model? }`), and `mtime()`. Add `tail()` only if the store is an append-only transcript.
-   Populate `cwd` on the session; if the source is a WAL SQLite DB, copy the `-wal`/`-shm`
-   sidecars to temp exactly as Cursor/OpenCode do.
+   If the store is SQLite, read it through `openSnapshot()` from `source.ts` rather than
+   opening it live: that helper is what copies the DB and its `-wal`/`-shm` sidecars to temp.
+   Populate `cwd` on the session.
 2. **Add it to `SOURCES` in `server/parsers/registry.ts`.** That is the whole wiring: import,
    autosync and live read the registry, so none of them changes.
 3. **Add it to the wizard's source list in `src/ImportWizard.tsx`** with a matching `key`.
@@ -538,7 +540,11 @@ named for the way each thing falls in range: a session by overlap (`sessions()`)
 its timestamp (`messages()`), billed tokens by their in-range share (`tokens.cutoffIso`, which
 `server/rangeUsage.ts` takes). `whereOf(...)` composes any of them into one `WHERE` body with
 its binds in order. Every engine — including the detectors and waste ones — takes
-`(scope, range)`.
+`(scope, range)`. `pairedToolJoin(...)` lives beside those helpers and is the one spelling of
+the pairing rule (the `tool_use` a `tool_result` answers is the earliest row in the same
+session carrying the same `tool_use_id`), composed by Explore (error rows and error rollup),
+Content (tool-results-by-tool) and Waste (repeat file reads), so no engine can pair a result
+to a different call than its neighbours do.
 
 - **`server/insights.ts`** (`GET /api/insights`): aggregation at whatever scope it is given,
   covering spend/token/session totals, tool and model distributions, error rate, commit counts

@@ -44,7 +44,8 @@ decision records:
   noise gate) is local and deterministic, for cost and for run-to-run stability. `/ask` is
   the single, opt-in exception, and it spends the user's own subscription, never an API key.
 - **Read-only on foreign systems.** Source logs and repos are never written. A SQLite source
-  is copied to temp, sidecars included, before it is opened.
+  is copied to temp, sidecars included, before it is opened, by the one `openSnapshot()` in
+  `server/parsers/source.ts`.
 - **Destructive operations back up first**, and removal is a tombstone rather than a silent
   drop.
 - **One source of truth per shared meaning.** Kind labels in `src/kinds.ts`, friendly tool
@@ -81,8 +82,11 @@ an engine its scope clause, its minor gate and its range fragments together, so 
 engine serves all three scopes and one range dialect. The minor gate is written there and
 nowhere else (it applies everywhere except session scope). The three ranges are exposed by
 name because they differ: a session is in range by overlap (`sessions()`), a message by its
-timestamp (`messages()`), billed tokens by their in-range share (`tokens`). Every engine takes
-`(scope, range)` — never a bare day count — rather than growing near-copies.
+timestamp (`messages()`), billed tokens by their in-range share (`tokens`). The pairing rule
+lives there too: `pairedToolJoin(...)` is the one spelling of "which `tool_use` does this
+`tool_result` answer", composed by Explore, Content and Waste so no engine pairs differently.
+Every engine takes `(scope, range)` — never a bare day count — rather than growing
+near-copies.
 
 **The token/price seam.** The server returns cells; the client prices. See ADR 0005.
 
