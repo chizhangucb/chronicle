@@ -4,7 +4,7 @@ import { api, insightsUrl, activityUrl } from './api.js';
 import type { ActivityResult, ActivitySessionLite, InsightsResult, ProjectListItem } from '../shared/results.ts';
 import type { UsageByModel } from '../shared/usage.ts';
 import { sessionDisplayName } from '../shared/sessionName.ts';
-import { WelcomeEmpty } from './ProjectsPage.js';
+import { WelcomeEmpty } from './WelcomeEmpty.tsx';
 import { useCachedFetch } from './useCachedFetch.ts';
 import { costOf, type CostMode } from './models.js';
 import { fmtInt, fmtMoney, pluralize } from './format.js';

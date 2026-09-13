@@ -168,3 +168,44 @@ test('no module re-exports a picker, so there is one spelling of the import', ()
     .map(({ rel }) => rel);
   assert.deepEqual(reExports, [], 'a re-export is a second home wearing the first one\'s clothes');
 });
+
+// The rule the move was for, stated over every page file rather than just the
+// pair this issue named: a surface is mounted by the router, so a widget parked
+// in one drags that whole page in as a dependency of the other. Shared widgets
+// get their own module (src/RangeBar.tsx, src/SortCaret.tsx, src/pickers/).
+//
+// The page files are the ones spec/surface-contract.md maps each route to.
+// src/App.tsx is left out on the importing side on purpose: it is the shell
+// that mounts the routes, so importing a page IS its job.
+const PAGES = [
+  'HomeDashboard.tsx', 'ProjectsPage.tsx', 'ProjectDetail.tsx', 'SessionView.tsx',
+  'ReferencePage.tsx', 'AskPage.tsx', 'NotFoundPage.tsx',
+].map((name) => path.join('src', name));
+
+// A page's imports, as `{ specifier, typeOnly }`. `import type { … }` is a
+// contract reference, not a widget — the shape a page answers with is allowed
+// to be named by another page.
+function importsOf(text) {
+  const out = [];
+  for (const m of text.matchAll(/import\s+(type\s+)?([\s\S]*?)\s*from\s*'([^']+)'/g)) {
+    out.push({ specifier: m[3], typeOnly: Boolean(m[1]), clause: m[2] });
+  }
+  return out;
+}
+
+// './ProjectDetail.jsx' and './ProjectDetail.tsx' are the same file: the client
+// is bundler-resolved and both spellings are in use.
+const pageOfSpecifier = (spec) => PAGES.find((p) =>
+  spec.replace(/\.(tsx|ts|jsx|js)$/, '') === `./${path.basename(p, '.tsx')}`);
+
+test('no page file imports a widget from another page file', () => {
+  const offenders = [];
+  for (const rel of PAGES) {
+    for (const { specifier, typeOnly, clause } of importsOf(sourceOf(rel))) {
+      const target = pageOfSpecifier(specifier);
+      if (!target || target === rel || typeOnly) continue;
+      offenders.push(`${rel} imports ${clause.trim()} from ${target}`);
+    }
+  }
+  assert.deepEqual(offenders, [], 'a shared widget belongs in its own module, not in a page');
+});
