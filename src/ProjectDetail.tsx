@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useRoute } from 'wouter';
-import * as Popover from '@radix-ui/react-popover';
 import {
   Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -22,12 +21,14 @@ import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
 import { dayKeyOf } from './charts/timeBuckets.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
+import { ProjectPicker, SessionPicker } from './pickers/Pickers.tsx';
+import type { PickableProject } from './pickers/pickable.ts';
 // The one display name, the same one the server resolves for a stored row;
 // the client asks for the 'label' presentation (`Session 3f2a1b9c`).
-import { sessionDisplayName, type NamedSession } from '../shared/sessionName.ts';
+import { sessionDisplayName } from '../shared/sessionName.ts';
 import ExploreTab from './ExploreTab.tsx';
 import ContentTab from './ContentTab.tsx';
-import { useCachedFetch, prefetch, invalidateClientCache } from './useCachedFetch.js';
+import { useCachedFetch, invalidateClientCache } from './useCachedFetch.js';
 import RangeBar, { rangeDays, type RangeKey } from './RangeBar.tsx';
 import type { Project, SourceId } from '../shared/types.ts';
 
@@ -541,137 +542,6 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
       {sessionSelect.Toast}
     </div>
   );
-}
-
-// Minimal project shape the picker needs (a subset of Project, plus the
-// aggregate columns GET /api/projects adds server-side).
-interface PickableProject {
-  id: number | string;
-  name: string;
-  path?: string;
-  session_count?: number;
-  last_active?: string | null;
-}
-
-interface ProjectPickerProps {
-  current: PickableProject | null | undefined;
-  onPick: (id: number | string) => void;
-  // Identity color for the current project (from projectColorMap over all ids),
-  // rendered as a `.pdot` on the trigger so the breadcrumb matches Home + head.
-  color?: string;
-}
-
-// Project dropdown: switch projects from the breadcrumb, mirroring the session
-// picker. Lazily loads the project list on first open.
-function ProjectPicker({ current, onPick, color }: ProjectPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  // Task 5: SWR-cached list, keyed on the same '/api/projects' URL the hover
-  // prefetch below warms — so by the time this popover opens the data is
-  // usually already resolved (no "Loading…" flash).
-  const { data: projects } = useCachedFetch<PickableProject[]>(projectsUrl());
-  const list = (projects || []).filter((p) => !q
-    || p.name.toLowerCase().includes(q.toLowerCase()) || (p.path || '').toLowerCase().includes(q.toLowerCase()));
-  // Per-item identity dots, same fixed order as Home's rail/ledger.
-  const itemColors = useMemo(() => projectColorMap((projects ?? []).map((p) => p.id)), [projects]);
-
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button className="crumb on" title={current?.name} onMouseEnter={() => prefetch(projectsUrl())}>
-          {current
-            ? <span className="pdot" style={{ '--project-color': color } as React.CSSProperties} />
-            : '◫ '}
-          {current?.name || 'Projects'} <span className="muted">▾</span>
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
-          <input autoFocus className="search picker-search" placeholder="Search projects or sessions"
-            value={q} onChange={(e) => setQ(e.target.value)} />
-          {projects === null && <div className="muted small pad8">Loading…</div>}
-          {list.map((p) => (
-            <button key={p.id} className="menu-item picker-item"
-              onClick={() => { setOpen(false); if (p.id !== current?.id) onPick?.(p.id); }}>
-              <span className="picker-check">{p.id === current?.id ? '✓' : ''}</span>
-              <span className="picker-body">
-                <span className="picker-title" title={p.name}>
-                  <span className="pdot" style={{ '--project-color': itemColors.get(Number(p.id)) } as React.CSSProperties} />{p.name}
-                </span>
-                <span className="muted small">
-                  {p.session_count} sessions
-                  {p.last_active && ` · ${ago(p.last_active)}`}
-                </span>
-              </span>
-            </button>
-          ))}
-          {projects && !list.length && <div className="muted small pad8">No projects match.</div>}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
-  );
-}
-
-// Minimal session shape the picker needs.
-interface PickableSession extends NamedSession {
-  id: string;
-  message_count?: number;
-  started_at?: string | null;
-}
-
-interface SessionPickerProps {
-  sessions: PickableSession[] | null | undefined;
-  current: PickableSession | null | undefined;
-  onPick: (id: string) => void;
-  loading?: boolean;
-  // URL that supplies this picker's `sessions` prop in the caller's context
-  // (there's no dedicated session-list endpoint — sessions arrive embedded in
-  // GET /api/projects/:id) — hover-prefetched into the shared SWR cache so
-  // navigating there next (or back to it) renders instantly. Optional: not
-  // every mounting context has one to offer (e.g. SessionView's own picker,
-  // out of scope for Task 5).
-  prefetchUrl?: string;
-}
-
-// Session dropdown: shows on both project and session pages.
-export function SessionPicker({ sessions, current, onPick, loading, prefetchUrl }: SessionPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const title = (s: PickableSession) => sessionDisplayName(s, 'label').slice(0, 48);
-  const list = (sessions || []).filter((s) => !q || title(s).toLowerCase().includes(q.toLowerCase()) || String(s.id).includes(q));
-
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button className={`crumb ${current ? 'on' : ''}`} title={current ? sessionDisplayName(current, 'label') : undefined}
-          onMouseEnter={() => prefetchUrl && prefetch(prefetchUrl)}>
-          ▤ {current ? title(current) : 'Select session'} <span className="muted">▾</span>
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content className="menu-pop picker-pop" align="start" sideOffset={6}>
-          <input autoFocus className="search picker-search" placeholder="Search Sessions"
-            value={q} onChange={(e) => setQ(e.target.value)} />
-          {loading && <div className="muted small pad8">Loading…</div>}
-          {list.map((s) => (
-            <button key={s.id} className="menu-item picker-item" onClick={() => { setOpen(false); onPick(s.id); }}>
-              <span className="picker-check">{current?.id === s.id ? '✓' : ''}</span>
-              <span className="picker-body">
-                <span className="picker-title" title={sessionDisplayName(s, 'label')}>{title(s)}</span>
-                <span className="muted small">{s.message_count} messages · {s.started_at ? ago(s.started_at) : ''}</span>
-              </span>
-            </button>
-          ))}
-          {!loading && !list.length && <div className="muted small pad8">No sessions match.</div>}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
-  );
-}
-
-function ago(ts: string): string {
-  const d = Math.round((Date.now() - +new Date(ts)) / 86400000);
-  return d === 0 ? 'today' : d === 1 ? '1 day ago' : `${d} days ago`;
 }
 
 function fmtDur(ms: number): string {

@@ -16,6 +16,10 @@ const FILES = [
   '../src/HomeDashboard.tsx',
   '../src/session/OverviewMode.tsx',
   '../src/SessionView.tsx',
+  // The breadcrumb pickers and the welcome screen were split out of
+  // ProjectDetail / ProjectsPage by #381; the guard follows them out.
+  '../src/pickers/Pickers.tsx',
+  '../src/WelcomeEmpty.tsx',
 ];
 const BANNED = /\b(?:window\.)?(?:prompt|confirm|alert)\s*\(/;
 
