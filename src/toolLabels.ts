@@ -16,6 +16,10 @@ const FRIENDLY_CALL: Record<string, string> = {
 
 // The label for one raw tool name. A missing/empty name is the empty string,
 // so a caller rendering a row for an unnamed call can fall back with `||`.
+// The lookup is own-key only: a tool literally named `constructor` or
+// `toString` would otherwise read a function off Object.prototype and hand the
+// caller a non-string to render.
 export function friendlyToolLabel(name: string | null | undefined): string {
-  return FRIENDLY_CALL[name ?? ''] ?? name ?? '';
+  const raw = name ?? '';
+  return Object.hasOwn(FRIENDLY_CALL, raw) ? FRIENDLY_CALL[raw] : raw;
 }

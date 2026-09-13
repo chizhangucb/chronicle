@@ -158,7 +158,7 @@ export function projectAggregates(data: ProjectDetailResult, mode: CostMode): Pr
   // same ranking — two names mapping to one label merge into one row.
   const ranked = new Map<string, number>();
   for (const d of analytics.toolDist) {
-    const label = friendlyToolLabel(d.name || '');
+    const label = friendlyToolLabel(d.name);
     const row = label.length > MAX_LABEL_LEN ? 'Other' : label;
     ranked.set(row, (ranked.get(row) ?? 0) + d.count);
   }

@@ -286,3 +286,8 @@ test('the Cost KPI, the day trend and the cost-by-model split are the same dolla
   assert.equal(sum(agg.trend.map((p) => p.cost)), agg.totalCost);
   assert.equal(sum(agg.costByModel.map(([, c]) => c)), agg.totalCost);
 });
+
+test('tool ranking: a tool named after an Object prototype key still ranks under its own name', () => {
+  const data = result({ analytics: { toolDist: [{ name: 'constructor', count: 3 }] } });
+  assert.deepEqual(projectAggregates(data, 'theoretical').ranking, [['constructor', 3]]);
+});
