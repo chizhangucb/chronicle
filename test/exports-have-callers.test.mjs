@@ -67,7 +67,7 @@ function exportsOf(text) {
   const decls = [
     /export\s+(?:async\s+)?function\s+([A-Za-z0-9_$]+)/g,
     /export\s+(?:const|let|var)\s+([A-Za-z0-9_$]+)/g,
-    /export\s+class\s+([A-Za-z0-9_$]+)/g,
+    /export\s+(?:abstract\s+)?class\s+([A-Za-z0-9_$]+)/g,
     /export\s+interface\s+([A-Za-z0-9_$]+)/g,
     /export\s+type\s+([A-Za-z0-9_$]+)\s*[=<]/g,
   ];
@@ -115,6 +115,7 @@ const TESTED_THROUGH_THE_EXPORT = {
   'server/demo/corpus.ts DEMO_DAYS': 'the demo corpus span the seeded assertions range over',
   'server/explore.ts ExploreQuery': 'the query shape the query-context pin reads',
   'server/explore.ts pickRollup': 'the rollup coarsening rule, tested directly',
+  'server/liveWatchers.ts SessionWatcher': 'the live-watcher base, driven through a scripted adapter',
   'server/parsers/claudeCode.ts collapseWorktree': 'worktree cwd collapsing, tested per path',
   'server/parsers/claudeCode.ts reduceCwd': 'cwd reduction over a transcript, tested per path',
   'server/parsers/cursor.ts clearCursorGlobalCache': 'test isolation between cursor fixtures',

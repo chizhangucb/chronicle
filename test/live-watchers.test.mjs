@@ -9,11 +9,11 @@
 // events: read what was appended to a transcript, or re-parse a store and
 // diff it.
 //
-// The base is driven here through a scripted adapter — it is the seam the two
-// real adapters sit on — and then both real ones are driven end to end
-// through attachLiveStream(), the way a browser opening an SSE stream drives
-// them. Timers and the clock are mocked so the 2-minute idle step-down is
-// asserted without a 2-minute test.
+// The base is driven here through a scripted adapter, the seam the two real
+// adapters sit on, and then both real ones are driven end to end through
+// attachLiveStream(), the way a browser opening an SSE stream drives them.
+// Timers and the clock are mocked so the 2-minute idle step-down is asserted
+// without a 2-minute test.
 import { test, describe, before, after, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -83,7 +83,10 @@ describe('the watcher base', () => {
     }
     feed(events) { this.batches.push(events); this.writes++; }
     revision() { return this.gone ? null : this.writes; }
-    async fetchNewEvents() { return this.batches.shift() ?? []; }
+    async fetchNewEvents() {
+      if (this.failNext) { this.failNext = false; throw new Error('could not read'); }
+      return this.batches.shift() ?? [];
+    }
     opening() { return { watching: 'scripted' }; }
   }
 
@@ -175,6 +178,24 @@ describe('the watcher base', () => {
 
     assert.deepEqual(sent(res).slice(1), [{ type: 'status', status: 'stopped', reason: 'file gone' }]);
     assert.equal(openWatchers().has('s_scripted_5'), false);
+  });
+
+  test('a fetch that fails is read again on the next poll, not left until the next write', async () => {
+    fakeClock();
+    const watcher = scripted('s_scripted_7');
+    const res = fakeRes();
+    watcher.addClient(res);
+
+    watcher.failNext = true;
+    watcher.feed([{ kind: 'user', text: 'read me again' }]);
+    await tick(700);
+    assert.equal(sent(res).length, 1, 'a read that failed sends nothing');
+
+    // Nothing more was written, so only a retry can deliver this.
+    await tick(700);
+    assert.deepEqual(sent(res).slice(1), [
+      { type: 'messages', events: [{ kind: 'user', text: 'read me again', seq: 1000000 }] },
+    ]);
   });
 
   test('two minutes of silence steps the poll down, and the next write steps it back up', async () => {
@@ -314,14 +335,18 @@ describe('the scaffolding', () => {
     }
   });
 
-  test('leaves each adapter only its fetch-new-events step', () => {
+  test('leaves each adapter its own steps, and none of the scaffolding', () => {
     const adapters = BASE.match(/^class \w+ extends SessionWatcher \{[\s\S]*?^\}/gm) ?? [];
     assert.equal(adapters.length, 2, 'two adapters: the JSONL tail and the SQLite poll');
     for (const adapter of adapters) {
-      const members = (adapter.match(/^ {2}(?:private |protected |readonly )*(?:async )?(\w+)\(/gm) ?? [])
-        .map((m) => m.trim().replace(/^(?:private |protected |readonly |async )*/, '').replace(/\($/, ''));
-      assert.deepEqual(members.sort(), ['constructor', 'fetchNewEvents', 'opening', 'revision'].sort(),
-        'an adapter says where its events come from, and nothing else');
+      for (const step of ['revision', 'fetchNewEvents', 'opening']) {
+        assert.match(adapter, new RegExp(`^\\s+(?:protected )?(?:async )?${step}\\(`, 'm'),
+          `an adapter says where its events come from: ${step}()`);
+      }
+      for (const member of ['broadcast', 'addClient', 'removeClient', 'close', 'setPollInterval', 'check']) {
+        assert.doesNotMatch(adapter, new RegExp(`^\\s+(?:private |protected )?(?:async )?${member}\\(`, 'm'),
+          `${member}() is the base's, so an adapter should not have one`);
+      }
     }
   });
 });

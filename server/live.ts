@@ -4,7 +4,7 @@ import { getDb } from './db.ts';
 import type { SessionRow } from '../shared/rows.ts';
 import type { LiveWatcher } from '../shared/results.ts';
 import { sourceById } from './parsers/registry.ts';
-import { openWatchers, watcherFor, type SessionWatcher } from './liveWatchers.ts';
+import { openWatchers, watcherFor } from './liveWatchers.ts';
 
 // Session Live Streaming (FR-LS): which sessions are live, and the SSE stream
 // on one of them. The watchers themselves live in ./liveWatchers.ts.
@@ -78,7 +78,7 @@ export function attachLiveStream(sessionId: string, res: Response): boolean {
   if (!source) return false;
   // The watcher outlives this request: a second tab on the same session joins
   // the one already open, and the last client to leave is what stops it.
-  const watcher: SessionWatcher = watcherFor(sessionId, session, source);
+  const watcher = watcherFor(sessionId, session, source);
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',

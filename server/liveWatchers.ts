@@ -11,9 +11,9 @@ import type { Event, ParseTarget } from '../shared/types.ts';
 // place (#379). A watcher polls whatever its session is written to, turns what
 // is new into events, and pushes them to the clients holding an SSE stream
 // open on that session. Only the middle step differs between the two stores
-// Chronicle reads — an append-only transcript is read forward from where the
-// last poll stopped, a SQLite store is re-parsed and diffed — so that step is
-// the one thing an adapter supplies. The client set, the broadcast, the
+// Chronicle reads: an append-only transcript is read forward from where the
+// last poll stopped, a SQLite store is re-parsed and diffed. So that step is
+// the one thing an adapter supplies, and the client set, the broadcast, the
 // idle-poll bookkeeping and the close belong to the base below.
 //
 // Watch state survives Vite SSR reloads via globalThis.
@@ -41,25 +41,25 @@ const IDLE_AFTER_MS = 120000;
 interface PollCadence {
   activeMs: number;
   idleMs: number;
-  idleAfterMs: number;
+}
+
+// What a joining client is told it is watching: the store being read, and how
+// it is being read where that is not line by line.
+interface OpeningStatus {
+  watching: string;
+  mode?: 'poll';
 }
 
 // The scaffolding both live watchers carry. A subclass says where its events
-// come from; everything a client can observe — the opening status, the event
-// batches, the auto-stop, the step down to the idle cadence — happens here.
+// come from; everything a client can observe (the opening status, the event
+// batches, the auto-stop, the step down to the idle cadence) happens here.
 //
-// Exported as the seam test/live-watchers.test.mjs drives the base through:
-// a scripted adapter is how the base's own behaviour is asserted without a
-// file or a store underneath it.
+// SessionWatcher is exported as the seam test/live-watchers.test.mjs drives
+// the base through: a scripted adapter is how the base's own behaviour is
+// asserted without a file or a store underneath it.
 export abstract class SessionWatcher {
   readonly sessionId: string;
   readonly clients = new Set<Response>();          // SSE res objects
-  // What /api/live/status reports beside the client count, filled in by an
-  // adapter that has them: the file it reads and how far into it it has got.
-  // A store poll has neither, because it re-parses a store many sessions share
-  // rather than reading forward through one session's file.
-  protected file: string | undefined;
-  protected offset: number | undefined;
   private readonly cadence: PollCadence;
   // What the last poll saw of the session's store: its size for a transcript,
   // its write time for a SQLite store. Equal means nothing to fetch.
@@ -70,7 +70,9 @@ export abstract class SessionWatcher {
   private seq = FIRST_LIVE_SEQ;
   // A fetch can outlast the poll interval (a store re-parse does); a second
   // one on top of it would diff against the same state and broadcast the same
-  // events twice.
+  // events twice. The transcript tail is held to the same rule now that both
+  // watchers share this loop, and a skipped poll costs it nothing: the offset
+  // it would have read from has not moved.
   private fetching = false;
 
   constructor(sessionId: string, cadence: PollCadence, revisionSeen: number | null) {
@@ -93,7 +95,7 @@ export abstract class SessionWatcher {
   protected abstract fetchNewEvents(revision: number): Promise<Event[]>;
 
   // What this watcher tells a joining client it is watching.
-  protected abstract opening(): Record<string, unknown>;
+  protected abstract opening(): OpeningStatus;
 
   // FR-LS-9: a cheap read first, and the work only when it says there is some.
   async check(): Promise<void> {
@@ -101,9 +103,10 @@ export abstract class SessionWatcher {
     const revision = this.revision();
     if (revision === null) return this.close('file gone');
     if (revision === this.revisionSeen) {
-      if (Date.now() - this.idleSince > this.cadence.idleAfterMs) this.setPollInterval(this.cadence.idleMs);
+      if (Date.now() - this.idleSince > IDLE_AFTER_MS) this.setPollInterval(this.cadence.idleMs);
       return;
     }
+    const seenBefore = this.revisionSeen;
     this.revisionSeen = revision;
     this.idleSince = Date.now();
     this.setPollInterval(this.cadence.activeMs);
@@ -113,7 +116,12 @@ export abstract class SessionWatcher {
       if (events.length) {
         this.broadcast({ type: 'messages', events: events.map((e) => ({ ...e, seq: this.seq++ })) });
       }
-    } catch { /* transient read failure — retry next poll (FR-LS-6) */ } finally {
+    } catch {
+      // A fetch that failed left the adapter where it was, so un-see this
+      // revision: the next poll reads it again rather than mistaking the
+      // store for quiet until the session is written to next (FR-LS-6).
+      this.revisionSeen = seenBefore;
+    } finally {
       this.fetching = false;
     }
   }
@@ -134,9 +142,7 @@ export abstract class SessionWatcher {
 
   addClient(res: Response): void {
     this.clients.add(res);
-    try {
-      res.write(`data: ${JSON.stringify({ type: 'status', status: 'live', ...this.opening() })}\n\n`);
-    } catch { this.clients.delete(res); }
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'live', ...this.opening() })}\n\n`);
   }
 
   removeClient(res: Response): void {
@@ -152,34 +158,39 @@ export abstract class SessionWatcher {
     live.watchers.delete(this.sessionId);
   }
 
+  // What /api/live/status reports. A watcher that reads forward through one
+  // session's file adds that file and how far into it it has got; a store poll
+  // has neither, because the store it re-parses is shared by many sessions.
   status(): LiveWatcher {
-    return { sessionId: this.sessionId, file: this.file, clients: this.clients.size, offset: this.offset };
+    return { sessionId: this.sessionId, file: undefined, clients: this.clients.size, offset: undefined };
   }
 }
 
 // An append-only transcript (a source that declares `tail`): read what was
 // added since the last poll and hand each new line to its source.
 class TailWatcher extends SessionWatcher {
+  private readonly filePath: string;
   private readonly source: Source;
+  private offset: number;
   private partial = '';
 
   constructor(sessionId: string, filePath: string, source: Source) {
     const size = fs.statSync(filePath).size;
-    super(sessionId, { activeMs: 700, idleMs: 3000, idleAfterMs: IDLE_AFTER_MS }, size);
-    this.file = filePath;
+    super(sessionId, { activeMs: 700, idleMs: 3000 }, size);
+    this.filePath = filePath;
     this.offset = size;  // start at EOF: only new content
     this.source = source;
   }
 
   protected revision(): number | null {
-    try { return fs.statSync(this.file as string).size; } catch { return null; }
+    try { return fs.statSync(this.filePath).size; } catch { return null; }
   }
 
   protected async fetchNewEvents(size: number): Promise<Event[]> {
-    if (size < (this.offset as number)) this.offset = 0; // truncated/rotated — re-read
-    const start = this.offset as number;
+    if (size < this.offset) this.offset = 0; // truncated/rotated, so re-read
+    const start = this.offset;
     if (size === start) return [];
-    const text = this.partial + await readRange(this.file as string, start, size - 1);
+    const text = this.partial + await readRange(this.filePath, start, size - 1);
     this.offset = size;
     const lines = text.split('\n');
     this.partial = lines.pop() ?? ''; // last element may be a partial line
@@ -194,8 +205,12 @@ class TailWatcher extends SessionWatcher {
     return events;
   }
 
-  protected opening(): Record<string, unknown> {
-    return { watching: this.file };
+  protected opening(): OpeningStatus {
+    return { watching: this.filePath };
+  }
+
+  status(): LiveWatcher {
+    return { ...super.status(), file: this.filePath, offset: this.offset };
   }
 }
 
@@ -212,13 +227,18 @@ class StorePollWatcher extends SessionWatcher {
   private lastCount: number;
 
   constructor(sessionId: string, session: SessionRow, source: Source) {
+    // Both reads happen before super(), which is what registers the watcher
+    // and starts its timer: a scan or a query that throws leaves no half-built
+    // watcher behind in the open set.
+    const targets = storeTargets(source, session);
+    const stored = countStored(sessionId);
     // Nothing seen yet, so the first poll re-parses and diffs against what is
     // already stored rather than waiting for the next write.
-    super(sessionId, { activeMs: 2000, idleMs: 6000, idleAfterMs: IDLE_AFTER_MS }, null);
+    super(sessionId, { activeMs: 2000, idleMs: 6000 }, null);
     this.session = session;
     this.source = source;
-    this.targets = storeTargets(source, session);
-    this.lastCount = countStored(sessionId);
+    this.targets = targets;
+    this.lastCount = stored;
   }
 
   // The source knows what counts as a write to its store (a `-wal` sidecar is
@@ -242,7 +262,7 @@ class StorePollWatcher extends SessionWatcher {
     return [];
   }
 
-  protected opening(): Record<string, unknown> {
+  protected opening(): OpeningStatus {
     return { watching: this.session.file_path, mode: 'poll' };
   }
 }
