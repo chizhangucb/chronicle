@@ -48,9 +48,11 @@ export function applySchema(db: DatabaseSync): boolean {
   );
   CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
   CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
-  -- Supports the tool_result<->tool_use pairing self-join used by explore.ts
-  -- (errRows) and content.ts (toolChars): ON u.session_id=r.session_id AND
-  -- u.tool_use_id=r.tool_use_id AND u.kind='tool_use'. Without this, SQLite
+  -- Supports the paired-tool_use join every analytics engine composes --
+  -- server/scope.ts's pairedToolJoin, the one home for that rule, read by
+  -- explore.ts (errRows and the error rollup), content.ts (toolChars) and
+  -- waste.ts (rereads): the paired row is found by session_id + tool_use_id
+  -- and picked by kind. Without this index, SQLite
   -- can only SEARCH the tool_use side by session_id (idx_messages_session),
   -- then linear-scan every message in the session to find the matching
   -- tool_use_id -- quadratic within large sessions. Measured on the
