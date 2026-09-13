@@ -109,6 +109,14 @@ https://github.com/chizhangucb/chronicle/releases
 
 ### Changed
 
+- **A project's spend over time now splits a session across the days it ran.** The project
+  Overview's daily chart used to put a session's whole cost on the local day it started on,
+  so a session that ran past midnight, or through a model's rate change, was dated and
+  priced to its first day alone. It now reads the same per-day billed cells the Insights
+  home reads, priced per day and model, so both surfaces report the same dollars for the
+  same cells. Numbers move on the project chart for exactly those sessions; a session that
+  began and ended inside one day is unchanged.
+
 - **One word for the time filter: range.** The Today / 7d / 30d / 90d / All control is a
   **range toggle** everywhere it appears, and every explanation on `/reference` that used to
   say "window" now says "range". *Window* is left to mean only a plan window or a context

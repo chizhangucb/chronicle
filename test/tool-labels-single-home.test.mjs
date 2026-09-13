@@ -5,14 +5,17 @@
 // session Overview's tool-mix bars and call timeline, once in
 // src/ProjectDetail.tsx for the project Overview's call ranking. Two copies
 // is one place for a tool to end up named two different ways on two
-// surfaces, so the map now lives in src/toolLabels.ts and every caller
-// imports it, the way src/kinds.ts already owns the chat-type labels.
+// surfaces, so the map now lives in src/toolLabels.ts and every caller reads
+// it through that module's one lookup, the way src/kinds.ts already owns the
+// chat-type labels. The project-side caller is the Overview's aggregator
+// (src/analytics/projectAggregates.ts) since #376 moved that page's
+// number-assembly out of the component.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_LABEL } from '../src/toolLabels.ts';
+import { friendlyToolLabel } from '../src/toolLabels.ts';
 
 // The labels as the two surfaces render them today, a known-good literal
 // rather than a re-derivation of the map. Asserted entry by entry, so adding
@@ -32,16 +35,20 @@ const RENDERED_TODAY = [
 
 test('the map labels each raw tool name the way the surfaces already do', () => {
   for (const [raw, label] of RENDERED_TODAY) {
-    assert.equal(TOOL_LABEL[raw], label, `${raw} should still render as "${label}"`);
+    assert.equal(friendlyToolLabel(raw), label, `${raw} should still render as "${label}"`);
   }
 });
 
-// No entry means no friendly spelling, and the fallback is each caller's own
-// (the session Overview renders the raw name, the project ranking buckets an
-// over-long one as "Other"), so the map must not invent one.
-test('a tool with no friendly label has no entry, leaving the fallback to the caller', () => {
-  assert.equal(TOOL_LABEL.TodoWrite, undefined);
-  assert.equal(TOOL_LABEL[''], undefined);
+// No entry means no friendly spelling: the raw name comes back unchanged and
+// what a surface does with it is the surface's own business (the project
+// ranking buckets an over-long one as "Other"), so the map must not invent one.
+test('a tool with no friendly label keeps its raw name, leaving the fallback to the caller', () => {
+  assert.equal(friendlyToolLabel('TodoWrite'), 'TodoWrite');
+  assert.equal(friendlyToolLabel(''), '');
+  assert.equal(friendlyToolLabel(null), '');
+  // Own-key only: an Object.prototype key is a tool name like any other, not a
+  // function handed back to a caller that is about to render it.
+  assert.equal(friendlyToolLabel('constructor'), 'constructor');
 });
 
 // The pins below are the removal half: one home only holds if there is
@@ -75,7 +82,7 @@ test('the map is declared exactly once, in src/toolLabels.ts', () => {
 test('no module re-exports the map, so there is one spelling of the import', () => {
   const reExports = SOURCES
     .filter(({ rel }) => rel !== 'src/toolLabels.ts')
-    .filter(({ text }) => /export\s*(?:type\s*)?\{[^}]*\bTOOL_LABEL\b[^}]*\}/.test(text))
+    .filter(({ text }) => /export\s*(?:type\s*)?\{[^}]*\b(?:TOOL_LABEL|friendlyToolLabel)\b[^}]*\}/.test(text))
     .map(({ rel }) => rel);
   assert.deepEqual(reExports, [], 'a re-export is a second home wearing the first one\'s clothes');
 });
@@ -83,10 +90,10 @@ test('no module re-exports the map, so there is one spelling of the import', () 
 // The two surfaces that label tools today. Each reaches for the shared map
 // rather than a local one, so the labels they render stay identical.
 test('both label callers reach the map through its one home', () => {
-  for (const rel of ['src/session/OverviewMode.tsx', 'src/ProjectDetail.tsx']) {
+  for (const rel of ['src/session/OverviewMode.tsx', 'src/analytics/projectAggregates.ts']) {
     const text = SOURCES.find((s) => s.rel === rel).text;
-    assert.match(text, /import \{[^}]*\bTOOL_LABEL\b[^}]*\} from '[./]*toolLabels\.ts'/,
-      `${rel} should import TOOL_LABEL from src/toolLabels.ts`);
-    assert.match(text, /TOOL_LABEL\[/, `${rel} should still label tools through the map`);
+    assert.match(text, /import \{[^}]*\bfriendlyToolLabel\b[^}]*\} from '[./]*toolLabels\.ts'/,
+      `${rel} should import friendlyToolLabel from src/toolLabels.ts`);
+    assert.match(text, /friendlyToolLabel\(/, `${rel} should still label tools through the map`);
   }
 });

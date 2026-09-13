@@ -37,8 +37,11 @@ thing: the `Source` it implements (`source.ts`) — `scan` for the import wizard
 pre-import listing, `parse` returning `{ session, events }`, `mtime` for freshness, plus
 `tail` where the store is an append-only transcript (Claude Code and Codex; the Cursor and
 OpenCode stores are SQLite, and live re-reads them instead). `registry.ts` lists the four and
-looks one up by id. Import, autosync and live go through the interface and name no source in
-code, so adding a fifth coding tool is a parser file and one line in the registry (ADR 0004).
+looks one up by id. `source.ts` also owns the helpers more than one parser needs:
+`newestMtimeMs()`, `importableFiles()`, and `openSnapshot()`, the read-only temp copy every
+SQLite source reads through. Import, autosync and live go through the interface and name no
+source in code, so adding a fifth coding tool is a parser file and one line in the registry
+(ADR 0004).
 The parser is the only place that knows a tool's native format.
 
 **The core engines:**
@@ -63,15 +66,17 @@ The parser is the only place that knows a tool's native format.
 ## `src/`
 
 `main.tsx` mounts, `App.tsx` holds the sidebar and the `wouter` routes. Pages are top-level
-`.tsx` files; the folders (`cards/`, `charts/`, `components/`, `explore/`, `home/`,
-`insights/`, `reference/`, `session/`) hold their pieces.
+`.tsx` files; the folders (`analytics/`, `cards/`, `charts/`, `components/`, `explore/`,
+`home/`, `insights/`, `reference/`, `session/`) hold their pieces. `analytics/` holds the
+per-scope aggregators: one plain function per surface that turns a route's result into the
+shape that surface renders, so a KPI definition is a one-file edit.
 
 Four files are single sources of truth and are the reason a shared meaning cannot drift:
 
 - **`kinds.ts`**: `KIND_LABEL` and `KIND_ICON`, imported by every surface that renders an
   event kind.
-- **`toolLabels.ts`**: `TOOL_LABEL`, the friendly name for a raw tool name, imported by every
-  surface that ranks or lists tool calls.
+- **`toolLabels.ts`**: `friendlyToolLabel()`, the friendly name every surface shows a raw
+  tool call under, called by every surface that ranks or lists tool calls.
 - **`models.ts`**: per-model prices and context windows. All cost arithmetic starts here.
 - **`styles.css`**: the only stylesheet. There is no UI framework; match what is there.
 

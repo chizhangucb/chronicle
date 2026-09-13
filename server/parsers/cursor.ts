@@ -1,19 +1,14 @@
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { Event, ParseResult, ScannedProject } from '../../shared/types.ts';
 import { isSyntheticUserText } from '../../shared/synthetic.ts';
-import type { Source } from './source.ts';
-import { newestMtimeMs } from './source.ts';
-
-interface Snapshot {
-  db: DatabaseSync;
-  cleanup: () => void;
-}
+import type { Source, StoreSnapshot } from './source.ts';
+import { newestMtimeMs, openSnapshot } from './source.ts';
 
 interface CursorGlobalCache {
-  snap: Snapshot | null;
+  snap: StoreSnapshot | null;
   fingerprint: string | null;
   userDir: string | null;
 }
@@ -134,25 +129,6 @@ function agentTranscriptRoot(fsPath: string): string {
   return path.join(cursorProjectsDir(), cursorProjectSlug(fsPath), 'agent-transcripts');
 }
 
-// Read-only guarantee: copy the SQLite file (+WAL) to temp before opening.
-function openSnapshot(dbPath: string): Snapshot {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chronicle-cursor-'));
-  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
-  try {
-    const copy = path.join(tmp, path.basename(dbPath));
-    fs.copyFileSync(dbPath, copy);
-    for (const ext of ['-wal', '-shm']) {
-      if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, copy + ext);
-    }
-    return { db: new DatabaseSync(copy), cleanup };
-  } catch (err) {
-    // A copy that never completed still made the temp dir; drop it rather than
-    // leaving it behind for the life of the process.
-    cleanup();
-    throw err;
-  }
-}
-
 function globalSnapshotFingerprint(dbPath: string): string | null {
   try {
     const st = fs.statSync(dbPath);
@@ -163,7 +139,7 @@ function globalSnapshotFingerprint(dbPath: string): string | null {
   }
 }
 
-function getGlobalSnapshot(userDir: string): Snapshot | null {
+function getGlobalSnapshot(userDir: string): StoreSnapshot | null {
   const globalDb = path.join(userDir, 'globalStorage', 'state.vscdb');
   if (!fs.existsSync(globalDb)) return null;
   const fingerprint = globalSnapshotFingerprint(globalDb);
@@ -422,7 +398,7 @@ function scanCursorProjects(userDir: string = cursorUserDir()): ScannedProject[]
       const dbPath = path.join(wsDir, 'state.vscdb');
       if (!fs.existsSync(dbPath)) continue;
       const folder = workspaceFolder(wsDir);
-      let snap: Snapshot | undefined;
+      let snap: StoreSnapshot | undefined;
       try {
         snap = openSnapshot(dbPath);
         let sessionCount = 0;
