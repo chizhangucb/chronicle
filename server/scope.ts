@@ -9,6 +9,9 @@
 // `(scope, range)` and reads its fragments from `queryContext`; none takes a
 // bare day count.
 //
+// The SQL-fragment helpers every engine composes live here too: `whereOf`,
+// `tsNotNull` and the paired-tool_use join `pairedToolJoin`.
+//
 // `s` is the sessions alias every engine query uses; `m` the messages alias.
 // Missing id on project/session degrades to 'all' rather than emitting a broken
 // `= NULL` clause.
@@ -135,6 +138,47 @@ export function queryContext(scope: Scope, range: Range): QueryContext {
 // server/explore.ts's `cell`.
 export function tsNotNull(alias = 'm'): string {
   return `AND ${alias}.ts IS NOT NULL`;
+}
+
+// The ONE paired-tool_use join. A tool_result and the tool_use it answers are
+// paired by `tool_use_id` WITHIN one session; when a session carries that id on
+// more than one row of the wanted kind, the pair is the EARLIEST of them (lowest
+// rowid, i.e. the order the transcript was imported in). Picking one row rather
+// than joining every match is what keeps a repeated transcript line from
+// fanning a result out into two, which each hand-written copy of this join had
+// to remember on its own. Callers: Explore's error rows and error rollup
+// (server/explore.ts), Content's tool-result attribution (server/content.ts) and
+// Waste's repeat file reads (server/waste.ts). The client's live-session drill-in
+// pairs in memory, not in SQL, so it is not a copy of this.
+//
+// `from` is the alias already in the query, `alias` the one the paired message
+// gets, `kind` the kind being joined IN: a result-driven query joins in the
+// 'tool_use' (Explore, Content), a use-driven one the 'tool_result' (Waste).
+// `optional` emits a LEFT JOIN, for a query whose driving row must survive an
+// unanswered call. Bind-free, so it drops straight into a query body.
+//
+// Earliest, not nearest: a transcript that reuses one id later in the same
+// session pairs both occurrences to the FIRST row, which is what makes the two
+// directions agree (nearest would depend on which side drove the query). Every
+// hand-written copy this replaced already picked the earliest, except Waste's,
+// which matched them all. See server/waste.ts.
+//
+// `from`, `alias` and `kind` are interpolated, not bound: they are call-site
+// literals (the kind is a TS union), never anything an operator typed. No
+// caller passes a value from a request.
+//
+// Leans on idx_messages_tooluse, messages(session_id, tool_use_id), declared in
+// server/schema.ts. Without that index SQLite can only find the paired row by
+// scanning every message of the session, which is quadratic inside a large one.
+export function pairedToolJoin(
+  { from, alias, kind, optional = false }:
+  { from: string; alias: string; kind: 'tool_use' | 'tool_result'; optional?: boolean },
+): string {
+  const inner = `${alias}2`;
+  return `${optional ? 'LEFT JOIN' : 'JOIN'} messages ${alias} ON ${alias}.id = (
+      SELECT MIN(${inner}.id) FROM messages ${inner}
+      WHERE ${inner}.session_id = ${from}.session_id AND ${inner}.tool_use_id = ${from}.tool_use_id AND ${inner}.kind = '${kind}'
+    )`;
 }
 
 // Composes fragments into one WHERE body: empty fragments drop out, the

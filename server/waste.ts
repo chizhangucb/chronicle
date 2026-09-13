@@ -5,7 +5,7 @@
 // message range (timestamp) all come from the one query context
 // (server/scope.ts), matching server/detectors.ts.
 import { getDb } from './db.ts';
-import { queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
+import { pairedToolJoin, queryContext, whereOf, type QueryContext, type Range, type Scope } from './scope.ts';
 import { DEFAULT_SPEND_THRESHOLDS } from '../shared/spend/thresholds.ts';
 
 // Declared in shared/results.ts (#307): the client prices these cells, so both
@@ -83,11 +83,19 @@ function rightSizing(q: QueryContext): WasteResult['rightSizing'] {
 // ---- Repeated file re-reads: a Read of a path already read this session ----
 function rereads(q: QueryContext): WasteResult['rereads'] {
   const w = whereOf("AND m.kind='tool_use' AND m.tool_name='Read'", q.where, q.messages());
-  // Read tool_use rows + their matching tool_result char count, in session/seq order.
+  // Read tool_use rows + their matching tool_result char count, in session/seq
+  // order. The pairing is server/scope.ts's one join builder (the same rule
+  // Explore and Content attribute through), driven from the USE side and LEFT
+  // so a Read whose result never came back is still counted as a re-read.
+  //
+  // This is the one place #378 changed a number: the copy it replaced matched
+  // EVERY result carrying the id, so a transcript that repeats a result line
+  // duplicated the Read row and counted a re-read (and its wasted chars) twice
+  // over. Pinned by test/paired-tool-use-join.test.mjs.
   const rows = getDb().prepare(
     `SELECT m.session_id, m.seq, m.tool_input, LENGTH(r.text) AS result_chars
      FROM messages m JOIN sessions s ON s.id = m.session_id
-     LEFT JOIN messages r ON r.session_id = m.session_id AND r.tool_use_id = m.tool_use_id AND r.kind = 'tool_result'
+     ${pairedToolJoin({ from: 'm', alias: 'r', kind: 'tool_result', optional: true })}
      WHERE ${w.sql}
      ORDER BY m.session_id, m.seq`,
   ).all(...w.params) as unknown as ReadRow[];

@@ -6,18 +6,21 @@ import {
 } from 'recharts';
 import { api, projectUrl, projectsUrl } from './api.js';
 import { costOf, type CostMode } from './models.js';
-import { parseUsage, type BucketedUsageCell, type UsageByModel } from '../shared/usage.ts';
+import { parseUsage, type UsageByModel } from '../shared/usage.ts';
 import { useCostMode } from './costMode.tsx';
 import { ROUTES } from './routes.ts';
 import { useSessionSelect, type DeletedEntry } from './SessionSelect.js';
 import { CATEGORICAL_COLORS, projectColorMap } from './colors.js';
 import { fmtInt, fmtMoney } from './format.js';
+// The project Overview's numbers, assembled once (#376) — the page maps this
+// result to JSX and aggregates nothing itself. `sessionDurationMs` is the
+// per-session rule the Overview's Agent Active KPI sums, read here so the
+// session list's "duration" sort orders by the same number.
+import { projectAggregates, sessionDurationMs, type ProjectAggregates } from './analytics/projectAggregates.ts';
 import { AXIS_PROPS, ChartTooltip, GRID_PROPS } from './charts/ChartWrapper.js';
 import InfoTip from './InfoTip.tsx';
-import { densifyBuckets, dayKeyOf } from './charts/timeBuckets.ts';
-import { sumByModel, sumByKeyModel, groupByKey, costOfCells, costOfBucketedCells, tokensOfCells } from './rangedUsage.ts';
+import { dayKeyOf } from './charts/timeBuckets.ts';
 import { isSyntheticUserText } from '../shared/synthetic.ts';
-import { TOOL_LABEL } from './toolLabels.ts';
 import { ProjectPicker, SessionPicker } from './pickers/Pickers.tsx';
 import type { PickableProject } from './pickers/pickable.ts';
 // The one display name, the same one the server resolves for a stored row;
@@ -54,9 +57,6 @@ function sessionCost(s: ProjectSessionSummary, mode: CostMode = 'theoretical'): 
   const day = s.started_at ? dayKeyOf(new Date(s.started_at)) : undefined;
   return Object.entries(usage).reduce((sum: number, [m, u]) => sum + (costOf(m, u, day, mode) ?? 0), 0);
 }
-function sessionDurationMs(s: ProjectSessionSummary): number {
-  return s.agent_active_ms ?? (s.started_at && s.ended_at ? +new Date(s.ended_at) - +new Date(s.started_at) : 0);
-}
 
 interface ProjectDetailProps {
   id: number | string;
@@ -69,25 +69,6 @@ interface ProjectDetailProps {
   // multi-select undo toast (see src/SessionSelect.tsx) so a fat-finger
   // single-session delete is recoverable here too.
   pendingUndo?: DeletedEntry | null;
-}
-
-interface Stats {
-  toolCalls: number;
-  messages: number;
-  userPrompts: number;
-  errors: number;
-  errorRate: number;
-  activeDays: number;
-  activeMs: number;
-  totalCost: number;
-  totalIn: number;
-  totalOut: number;
-  totalTokens: number;
-  modelCount: number;
-  trend: { day: string; count: number; cost: number }[];
-  sources: [string, number][];
-  ranking: [string, number][];
-  costByModel: [string, number][];
 }
 
 // Project sub-tabs (Task 5e-4). Explore/Content are deep-linkable routes
@@ -208,75 +189,15 @@ export default function ProjectDetail({ id, onBack, onOpenSession, onOpenProject
 
   const { mode } = useCostMode();
 
-  const stats: Stats | null = useMemo(() => {
-    if (!data) return null;
-    const { sessions, analytics } = data;
-    const toolCalls = analytics.kindDist.find((k) => k.kind === 'tool_use')?.count || 0;
-    const messages = analytics.kindDist.reduce((s, k) => s + k.count, 0);
-    const userPrompts = analytics.kindDist.find((k) => k.kind === 'user')?.count || 0;
-    // Agent active total: same per-session fallback as the "duration" sort
-    // (agent_active_ms when present, else wall-clock start→end).
-    const activeMs = sessions.reduce((sum, s) => sum + sessionDurationMs(s), 0);
-    // Cost/tokens: ranged per-model cells (Task 2/3), not raw session.usage —
-    // a session that started before the range but ran INTO it contributes
-    // only its in-range share, so these KPIs agree with the session list
-    // above (which is already overlap-gated server-side) at every window.
-    let totalCost = 0, totalIn = 0, totalOut = 0;
-    const rangedByModel = sumByModel(analytics.rangedTokensByModel);
-    // Day-bucketed pricing: group by model, then price each
-    // model's cells per day-bucket — a model bag spanning a rate change
-    // (e.g. Sonnet 5's intro window) must not collapse to one flat rate.
-    const rangedByModelCells = groupByKey(analytics.rangedTokensByModel, (c) => c.model);
-    const costByModelMap = new Map<string, number>();
-    const modelsSeen = new Set<string>();
-    for (const [m, cell] of rangedByModel) {
-      modelsSeen.add(m);
-      totalIn += cell.input;
-      totalOut += cell.output;
-      costByModelMap.set(m, costOfBucketedCells(rangedByModelCells.get(m) ?? [], mode));
-    }
-    for (const cost of costByModelMap.values()) totalCost += cost;
-    const costByModel = [...costByModelMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    // Trend: sessions + cost per LOCAL calendar day (see src/charts/timeBuckets.ts —
-    // never a UTC slice of the ISO string, which shifts sessions started near
-    // local midnight onto the wrong day). Project scope has no server-side
-    // day-bucketed cost split (unlike the Insights home's dailySpend/hourlySpend),
-    // so each session's whole-session cost is attributed to the local day it
-    // started on — same as before, just local-keyed. Dense-filled from
-    // the first to the last day with any activity, so the chart's bar/line
-    // spacing represents equal time even when some days in between were idle.
-    const byDay = new Map<string, number>();
-    const costByDay = new Map<string, number>();
-    for (const s of sessions) {
-      if (!s.started_at) continue;
-      const day = dayKeyOf(new Date(s.started_at));
-      byDay.set(day, (byDay.get(day) || 0) + 1);
-      costByDay.set(day, (costByDay.get(day) || 0) + sessionCost(s, mode));
-    }
-    const trend: { day: string; count: number; cost: number }[] = densifyBuckets([...byDay.keys()], 'day')
-      .map((key) => ({ day: key, count: byDay.get(key) || 0, cost: costByDay.get(key) || 0 }));
-    // Source donut
-    const bySource = new Map<string, number>();
-    for (const s of sessions) bySource.set(s.source, (bySource.get(s.source) || 0) + 1);
-    const sources = [...bySource.entries()].sort((a, b) => b[1] - a[1]);
-    // Call ranking with friendly names merged
-    const ranked = new Map<string, number>();
-    for (const d of analytics.toolDist) {
-      const name = d.name || '';
-      const label = TOOL_LABEL[name] || (name.length > 18 ? 'Other' : name);
-      ranked.set(label, (ranked.get(label) || 0) + d.count);
-    }
-    if (userPrompts) ranked.set('User Prompt', userPrompts);
-    const ranking = [...ranked.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return {
-      toolCalls, messages, userPrompts,
-      errors: analytics.errors || 0,
-      errorRate: toolCalls ? ((analytics.errors || 0) / toolCalls) * 100 : 0,
-      activeDays: new Set(sessions.filter((s) => s.started_at).map((s) => dayKeyOf(new Date(s.started_at as string)))).size,
-      activeMs, totalCost, totalIn, totalOut, totalTokens: totalIn + totalOut, modelCount: modelsSeen.size,
-      trend, sources, ranking, costByModel,
-    };
-  }, [data, mode]);
+  // Every Overview number, from the one project-scope assembler
+  // (src/analytics/projectAggregates.ts): KPI totals, the day trend, the
+  // cost-by-model split, the tool ranking and the source mix. The page maps
+  // them to JSX; the only math left here is per-SESSION (sessionCost /
+  // sessionDurationMs), which orders the session list rather than feeding a
+  // number on the Overview.
+  const stats: ProjectAggregates | null = useMemo(
+    () => (data ? projectAggregates(data, mode) : null),
+    [data, mode]);
 
   // Sorted + filtered view of the session list; rendering is windowed
   // (SESSION_WINDOW rows + "Show more") so 1000-session projects stay snappy.

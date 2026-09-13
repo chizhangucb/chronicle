@@ -40,8 +40,9 @@ development never touches that path.
   the minor gate and the range fragments; no engine takes a bare day count.
 - **Go through `calibrate.ts`** for any per-bucket token estimate, and mark the result `≈`.
 - **Call `invalidateCache()`** from every path that writes.
-- **Read-only on foreign systems.** Copy a SQLite source to temp with its sidecars; never open
-  the live file. Never write a source log or a user's repo.
+- **Read-only on foreign systems.** Open a SQLite source through `openSnapshot()` in
+  `server/parsers/source.ts`, the one helper that copies it to temp with its sidecars; never
+  open the live file. Never write a source log or a user's repo.
 - **Back up before anything destructive**, and tombstone rather than drop.
 - **Hold long-lived state on `globalThis`.** Watchers, timers and child processes survive a dev
   module reload only if they live there. See [gotchas](gotchas.md).

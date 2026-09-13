@@ -38,6 +38,9 @@ In WAL mode the newest writes live in the `-wal` file, so copying only the `.db`
 snapshot missing recent rows, and sometimes all of them. The copy must include `-wal` and
 `-shm`, and the original is opened read-only or not at all.
 
+`openSnapshot()` in `server/parsers/source.ts` is the one place that does this, and a new
+SQLite source calls it rather than writing its own copy.
+
 This is the single most common way a new SQLite source ships looking empty.
 
 ## Long-lived state goes on `globalThis`
