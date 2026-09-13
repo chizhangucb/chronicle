@@ -4,7 +4,7 @@ import Timeline from './Timeline.jsx';
 import CodePanel from './CodePanel.jsx';
 import RefineMode from './RefineMode.jsx';
 import SecurityCheck from './SecurityCheck.jsx';
-import { SessionPicker } from './ProjectDetail.jsx';
+import { SessionPicker } from './pickers/Pickers.tsx';
 import { sessionDisplayName } from '../shared/sessionName.ts';
 import { type PlaybackMessage } from './session/MessageRow.tsx';
 import WindowedConvPane from './session/WindowedConvPane.tsx';
